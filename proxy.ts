@@ -1,63 +1,43 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { rootDomain } from '@/lib/utils';
-
-function extractSubdomain(request: NextRequest): string | null {
-  const url = request.url;
-  const host = request.headers.get('host') || '';
-  const hostname = host.split(':')[0];
-
-  // Local development environment
-  if (url.includes('localhost') || url.includes('127.0.0.1')) {
-    // Try to extract subdomain from the full URL
-    const fullUrlMatch = url.match(/http:\/\/([^.]+)\.localhost/);
-    if (fullUrlMatch && fullUrlMatch[1]) {
-      return fullUrlMatch[1];
-    }
-
-    // Fallback to host header approach
-    if (hostname.includes('.localhost')) {
-      return hostname.split('.')[0];
-    }
-
-    return null;
-  }
-
-  // Production environment
-  const rootDomainFormatted = rootDomain.split(':')[0];
-
-  // Handle preview deployment URLs (tenant---branch-name.vercel.app)
-  if (hostname.includes('---') && hostname.endsWith('.vercel.app')) {
-    const parts = hostname.split('---');
-    return parts.length > 0 ? parts[0] : null;
-  }
-
-  // Regular subdomain detection
-  const isSubdomain =
-    hostname !== rootDomainFormatted &&
-    hostname !== `www.${rootDomainFormatted}` &&
-    hostname.endsWith(`.${rootDomainFormatted}`);
-
-  return isSubdomain ? hostname.replace(`.${rootDomainFormatted}`, '') : null;
-}
+import { createSupabaseMiddlewareClient } from '@/lib/supabase/middleware';
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const subdomain = extractSubdomain(request);
 
-  if (subdomain) {
-    // Block access to admin page from subdomains
-    if (pathname.startsWith('/admin')) {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
+  // Supabase Auth guard for /crm
+  const { supabase, response } = createSupabaseMiddlewareClient(request);
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
-    // For the root path on a subdomain, rewrite to the subdomain page
-    if (pathname === '/') {
-      return NextResponse.rewrite(new URL(`/s/${subdomain}`, request.url));
-    }
+  const isCrmRoute = pathname === '/crm' || pathname.startsWith('/crm/');
+  const isAuthRoute = pathname === '/login' || pathname === '/logout';
+
+  const carryCookies = (to: NextResponse) => {
+    response.cookies.getAll().forEach((c) => {
+      to.cookies.set(c.name, c.value, c);
+    });
+    return to;
+  };
+
+  if (isCrmRoute && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('redirectTo', pathname);
+    return carryCookies(NextResponse.redirect(url));
   }
 
-  // On the root domain, allow normal access
-  return NextResponse.next();
+  if (pathname === '/login' && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/crm';
+    url.searchParams.delete('redirectTo');
+    return carryCookies(NextResponse.redirect(url));
+  }
+
+  if (isAuthRoute) return response;
+
+  // On the root domain, allow normal access (with refreshed cookies if any).
+  return response;
 }
 
 export const config = {

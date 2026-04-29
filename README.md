@@ -1,23 +1,26 @@
-# Next.js Multi-Tenant Example
+# BuildCon CRM (Next.js + Supabase)
 
-A production-ready example of a multi-tenant application built with Next.js 15, featuring custom subdomains for each tenant.
+Staff CRM built with Next.js (App Router) and Supabase.
 
-## Features
+## Features (MVP)
 
-- ✅ Custom subdomain routing with Next.js middleware
-- ✅ Tenant-specific content and pages
-- ✅ Shared components and layouts across tenants
-- ✅ Redis for tenant data storage
-- ✅ Admin interface for managing tenants
-- ✅ Emoji support for tenant branding
-- ✅ Support for local development with subdomains
-- ✅ Compatible with Vercel preview deployments
+- ✅ Supabase Auth (email/password) for staff
+- ✅ Project-scoped CRM (`/crm`) with sidebar + project switcher
+- ✅ Projects (create + seed inventory units)
+- ✅ Inventory (list/search + block/unblock)
+- ✅ Customers (CRUD)
+- ✅ Bookings (create booking + mark unit booked + seed payment schedule)
+- ✅ Financials (payment schedule + collections entry)
+- ✅ Rehab members (unit mapping)
+- ✅ Bank loans (loan cases)
+- ✅ Documents (templates + generated document records)
+- ✅ Reports (basic aggregates)
 
 ## Tech Stack
 
-- [Next.js 15](https://nextjs.org/) with App Router
+- [Next.js](https://nextjs.org/) with App Router
 - [React 19](https://react.dev/)
-- [Upstash Redis](https://upstash.com/) for data storage
+- [Supabase](https://supabase.com/) (Auth, Postgres, Storage)
 - [Tailwind 4](https://tailwindcss.com/) for styling
 - [shadcn/ui](https://ui.shadcn.com/) for the design system
 
@@ -27,7 +30,7 @@ A production-ready example of a multi-tenant application built with Next.js 15, 
 
 - Node.js 18.17.0 or later
 - pnpm (recommended) or npm/yarn
-- Upstash Redis account (for production)
+- Supabase project (Database + Auth)
 
 ### Installation
 
@@ -45,12 +48,11 @@ A production-ready example of a multi-tenant application built with Next.js 15, 
    ```
 
 3. Set up environment variables:
-   Create a `.env.local` file in the root directory with:
+   Create a `.env.local` file in the root directory with (see `.env.example`):
 
-   ```
-   KV_REST_API_URL=your_redis_url
-   KV_REST_API_TOKEN=your_redis_token
-   ```
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` (server-only)
 
 4. Start the development server:
 
@@ -59,21 +61,8 @@ A production-ready example of a multi-tenant application built with Next.js 15, 
    ```
 
 5. Access the application:
-   - Main site: http://localhost:3000
-   - Admin panel: http://localhost:3000/admin
-   - Tenants: http://[tenant-name].localhost:3000
-
-## Multi-Tenant Architecture
-
-This application demonstrates a subdomain-based multi-tenant architecture where:
-
-- Each tenant gets their own subdomain (`tenant.yourdomain.com`)
-- The middleware handles routing requests to the correct tenant
-- Tenant data is stored in Redis using a `subdomain:{name}` key pattern
-- The main domain hosts the landing page and admin interface
-- Subdomains are dynamically mapped to tenant-specific content
-
-The middleware (`middleware.ts`) intelligently detects subdomains across various environments (local development, production, and Vercel preview deployments).
+   - Landing: http://localhost:3000
+   - CRM: http://localhost:3000/crm (redirects to `/login` if not authenticated)
 
 ## Deployment
 
@@ -84,7 +73,4 @@ This application is designed to be deployed on Vercel. To deploy:
 3. Configure environment variables
 4. Deploy
 
-For custom domains, make sure to:
-
-1. Add your root domain to Vercel
-2. Set up a wildcard DNS record (`*.yourdomain.com`) on Vercel
+For custom domains, configure your Vercel project normally.

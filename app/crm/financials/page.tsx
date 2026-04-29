@@ -1,0 +1,430 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useActiveProjectContext } from '../_components/active-project-context';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+type BookingRow = {
+  id: string;
+  unit_id: string;
+  customer_id: string;
+  created_at: string;
+};
+
+type UnitRow = { id: string; unit_code: string };
+type CustomerRow = { id: string; full_name: string };
+
+type ScheduleRow = {
+  id: string;
+  instalment_no: number;
+  milestone: string;
+  due_date: string | null;
+  amount: number;
+};
+
+type CollectionRow = {
+  id: string;
+  schedule_id: string | null;
+  received_amount: number;
+  received_at: string | null;
+  mode: string | null;
+  reference: string | null;
+};
+
+export default function FinancialsPage() {
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const { activeProjectId } = useActiveProjectContext();
+
+  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [unitsById, setUnitsById] = useState<Record<string, UnitRow>>({});
+  const [customersById, setCustomersById] = useState<Record<string, CustomerRow>>(
+    {}
+  );
+  const [bookingId, setBookingId] = useState<string>('');
+
+  const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
+  const [collections, setCollections] = useState<CollectionRow[]>([]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const [entryScheduleId, setEntryScheduleId] = useState<string>('');
+  const [entryAmount, setEntryAmount] = useState('');
+  const [entryDate, setEntryDate] = useState('');
+  const [entryMode, setEntryMode] = useState('NEFT');
+  const [entryRef, setEntryRef] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function loadBookings() {
+    if (!activeProjectId) return;
+    setLoading(true);
+    setError('');
+
+    const { data: bData, error: bErr } = await supabase
+      .from('bookings')
+      .select('id,unit_id,customer_id,created_at')
+      .eq('project_id', activeProjectId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (bErr) setError(bErr.message);
+    const bRows = (bData ?? []) as BookingRow[];
+    setBookings(bRows);
+    setBookingId((prev) => prev || bRows[0]?.id || '');
+
+    const unitIds = Array.from(new Set(bRows.map((b) => b.unit_id)));
+    const custIds = Array.from(new Set(bRows.map((b) => b.customer_id)));
+
+    if (unitIds.length) {
+      const { data, error } = await supabase
+        .from('units')
+        .select('id,unit_code')
+        .in('id', unitIds);
+      if (error) setError(error.message);
+      const map: Record<string, UnitRow> = {};
+      (data ?? []).forEach((u) => (map[(u as UnitRow).id] = u as UnitRow));
+      setUnitsById(map);
+    } else {
+      setUnitsById({});
+    }
+
+    if (custIds.length) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id,full_name')
+        .in('id', custIds);
+      if (error) setError(error.message);
+      const map: Record<string, CustomerRow> = {};
+      (data ?? []).forEach((c) => (map[(c as CustomerRow).id] = c as CustomerRow));
+      setCustomersById(map);
+    } else {
+      setCustomersById({});
+    }
+
+    setLoading(false);
+  }
+
+  async function loadFinancials() {
+    if (!bookingId) {
+      setSchedules([]);
+      setCollections([]);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    const [{ data: sData, error: sErr }, { data: cData, error: cErr }] =
+      await Promise.all([
+        supabase
+          .from('payment_schedules')
+          .select('id,instalment_no,milestone,due_date,amount')
+          .eq('booking_id', bookingId)
+          .order('instalment_no', { ascending: true }),
+        supabase
+          .from('collections')
+          .select('id,schedule_id,received_amount,received_at,mode,reference')
+          .eq('booking_id', bookingId)
+          .order('created_at', { ascending: false })
+      ]);
+
+    if (sErr) setError(sErr.message);
+    if (cErr) setError(cErr.message);
+    setSchedules((sData ?? []) as ScheduleRow[]);
+    setCollections((cData ?? []) as CollectionRow[]);
+    setEntryScheduleId('');
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void loadBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    void loadFinancials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId]);
+
+  const receivedBySchedule = collections.reduce<Record<string, number>>(
+    (acc, c) => {
+      if (c.schedule_id) acc[c.schedule_id] = (acc[c.schedule_id] || 0) + c.received_amount;
+      return acc;
+    },
+    {}
+  );
+
+  const totalAmount = schedules.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalReceived = collections.reduce((s, r) => s + (r.received_amount || 0), 0);
+  const totalBalance = totalAmount - totalReceived;
+
+  async function addCollection() {
+    if (!bookingId || !entryAmount) return;
+    setSaving(true);
+    setError('');
+    try {
+      const { error } = await supabase.from('collections').insert({
+        booking_id: bookingId,
+        schedule_id: entryScheduleId || null,
+        received_amount: Number(entryAmount),
+        received_at: entryDate || null,
+        mode: entryMode,
+        reference: entryRef || null
+      });
+      if (error) throw error;
+      setEntryAmount('');
+      setEntryDate('');
+      setEntryRef('');
+      await loadFinancials();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save collection');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const booking = bookings.find((b) => b.id === bookingId) ?? null;
+  const unitCode = booking ? unitsById[booking.unit_id]?.unit_code : null;
+  const customerName = booking
+    ? customersById[booking.customer_id]?.full_name
+    : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[360px]">
+            <Label>Booking</Label>
+            <select
+              value={bookingId}
+              onChange={(e) => setBookingId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={loading}
+            >
+              <option value="">Select booking…</option>
+              {bookings.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {unitsById[b.unit_id]?.unit_code ?? '—'} ·{' '}
+                  {customersById[b.customer_id]?.full_name ?? '—'} ·{' '}
+                  {new Date(b.created_at).toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1" />
+          <Button variant="outline" onClick={loadBookings} disabled={loading}>
+            Refresh
+          </Button>
+        </div>
+
+        {booking ? (
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="rounded-lg border bg-white p-3">
+              <div className="text-xs text-gray-500">Customer</div>
+              <div className="text-sm font-semibold text-gray-900">
+                {customerName ?? '—'}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-white p-3">
+              <div className="text-xs text-gray-500">Unit</div>
+              <div className="text-sm font-semibold text-gray-900">
+                {unitCode ?? '—'}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-white p-3">
+              <div className="text-xs text-gray-500">Balance</div>
+              <div className="text-sm font-semibold text-gray-900">
+                ₹ {totalBalance.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="p-4">
+        <div className="text-sm font-semibold text-gray-900">
+          Payment schedule
+        </div>
+        <div className="mt-3 overflow-auto">
+          <table className="min-w-[900px] w-full text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500">
+              <tr>
+                {[
+                  '#',
+                  'Milestone',
+                  'Due date',
+                  'Amount',
+                  'Received',
+                  'Balance',
+                  'Status'
+                ].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left font-semibold border-b">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {schedules.map((s) => {
+                const rec = receivedBySchedule[s.id] || 0;
+                const bal = (s.amount || 0) - rec;
+                const status = bal <= 0 ? 'Paid' : rec > 0 ? 'Partially Paid' : 'Pending';
+                return (
+                  <tr key={s.id} className="border-b">
+                    <td className="px-4 py-3 text-gray-600">{s.instalment_no}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">
+                      {s.milestone}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{s.due_date ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      ₹ {Number(s.amount || 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-green-700 font-semibold">
+                      ₹ {rec.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-red-700 font-semibold">
+                      ₹ {bal.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full border px-2 py-1 text-xs">
+                        {status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {schedules.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    No schedule rows yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50">
+                <td colSpan={3} className="px-4 py-3 font-semibold text-gray-900">
+                  Total
+                </td>
+                <td className="px-4 py-3 font-semibold text-gray-900">
+                  ₹ {totalAmount.toLocaleString()}
+                </td>
+                <td className="px-4 py-3 font-semibold text-green-700">
+                  ₹ {totalReceived.toLocaleString()}
+                </td>
+                <td className="px-4 py-3 font-semibold text-red-700">
+                  ₹ {totalBalance.toLocaleString()}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="text-sm font-semibold text-gray-900">
+          Collection entry
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-3 items-end">
+          <div className="col-span-2">
+            <Label>Instalment</Label>
+            <select
+              value={entryScheduleId}
+              onChange={(e) => setEntryScheduleId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={!bookingId}
+            >
+              <option value="">(Optional) Unassigned</option>
+              {schedules.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.instalment_no}. {s.milestone}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Amount (₹)</Label>
+            <Input
+              value={entryAmount}
+              onChange={(e) => setEntryAmount(e.target.value)}
+              placeholder="671040"
+              disabled={!bookingId}
+            />
+          </div>
+          <div>
+            <Label>Date</Label>
+            <Input
+              type="date"
+              value={entryDate}
+              onChange={(e) => setEntryDate(e.target.value)}
+              disabled={!bookingId}
+            />
+          </div>
+          <div>
+            <Label>Mode</Label>
+            <select
+              value={entryMode}
+              onChange={(e) => setEntryMode(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={!bookingId}
+            >
+              {['NEFT', 'RTGS', 'Cheque', 'Cash', 'UPI'].map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <Label>Reference</Label>
+            <Input
+              value={entryRef}
+              onChange={(e) => setEntryRef(e.target.value)}
+              placeholder="UTR / Cheque No."
+              disabled={!bookingId}
+            />
+          </div>
+          <div className="col-span-1" />
+          <Button onClick={addCollection} disabled={saving || !bookingId || !entryAmount}>
+            {saving ? 'Saving…' : 'Save collection'}
+          </Button>
+        </div>
+
+        <div className="mt-4">
+          <div className="text-xs font-semibold text-gray-500">Saved entries</div>
+          <div className="mt-2 flex flex-col gap-2">
+            {collections.map((c) => (
+              <div
+                key={c.id}
+                className="rounded-lg border bg-white p-3 text-sm flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    ₹ {Number(c.received_amount).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {c.mode ?? '—'} · {c.received_at ?? '—'} · {c.reference ?? '—'}
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {c.schedule_id ? 'Assigned' : 'Unassigned'}
+                </div>
+              </div>
+            ))}
+            {collections.length === 0 ? (
+              <div className="py-6 text-sm text-gray-500">No collections yet.</div>
+            ) : null}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
