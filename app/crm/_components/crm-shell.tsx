@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { CRM_NAV } from './nav';
 import type { CrmProject } from './types';
 import { useActiveProject } from './use-active-project';
@@ -17,12 +18,21 @@ export function CrmShell({
   projects: CrmProject[];
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
-  const { activeProject, activeProjectId, setActiveProjectId } =
+  const { activeProject, activeProjectId, setActiveProjectId, hydrated } =
     useActiveProject(projects);
 
   const showRehab =
     !activeProject || activeProject.type?.toLowerCase() !== 'greenfield';
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (projects.length === 0) return;
+    if (activeProjectId) return;
+    if (pathname.startsWith('/crm/select-project')) return;
+    router.replace('/crm/select-project');
+  }, [hydrated, projects.length, activeProjectId, pathname, router]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -104,7 +114,7 @@ export function CrmShell({
         </aside>
 
         <ActiveProjectProvider
-          value={{ activeProjectId, activeProject, setActiveProjectId }}
+          value={{ projects, activeProjectId, activeProject, setActiveProjectId }}
         >
           <main className="flex-1 overflow-y-auto">
             <div className="p-5">

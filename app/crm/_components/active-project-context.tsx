@@ -4,6 +4,7 @@ import { createContext, useContext } from 'react';
 import type { CrmProject } from './types';
 
 type ActiveProjectContextValue = {
+  projects: CrmProject[];
   activeProjectId: string | null;
   activeProject: CrmProject | null;
   setActiveProjectId: (id: string) => void;

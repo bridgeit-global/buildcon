@@ -30,6 +30,16 @@ type CreateProjectDraft = {
   max_rate: number;
   wingsCsv: string;
   unitTypesCsv: string;
+  memberIds: string[];
+};
+
+type ProfileRow = { id: string; name: string | null; role: string };
+type ProjectMemberRow = {
+  project_id: string;
+  user_id: string;
+  role: string;
+  status: string;
+  created_at: string;
 };
 
 export default function ProjectSettingsPage() {
@@ -37,11 +47,15 @@ export default function ProjectSettingsPage() {
   const { activeProjectId, setActiveProjectId } = useActiveProjectContext();
 
   const [projects, setProjects] = useState<CrmProject[]>([]);
+  const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [members, setMembers] = useState<ProjectMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
   const [draft, setDraft] = useState<CreateProjectDraft>({
     name: '',
     location: '',
@@ -55,12 +69,49 @@ export default function ProjectSettingsPage() {
     min_rate: 9500,
     max_rate: 13000,
     wingsCsv: 'A,B,C',
-    unitTypesCsv: '1BHK,2BHK,3BHK'
+    unitTypesCsv: '1BHK,2BHK,3BHK',
+    memberIds: []
   });
 
-  async function load() {
+  const filteredProfiles = profiles.filter((p) => {
+    const q = memberSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (p.name || '').toLowerCase().includes(q) ||
+      p.role.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q)
+    );
+  });
+
+  const selectVisibleMembers = () => {
+    const ids = filteredProfiles.map((p) => p.id);
+    setDraft((d) => ({
+      ...d,
+      memberIds: Array.from(new Set([...d.memberIds, ...ids]))
+    }));
+  };
+
+  const clearAllMembers = () => setDraft((d) => ({ ...d, memberIds: [] }));
+
+  const removeMemberChip = (id: string) =>
+    setDraft((d) => ({ ...d, memberIds: d.memberIds.filter((x) => x !== id) }));
+
+  async function loadBase() {
     setLoading(true);
     setError('');
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,name,role')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (error) setError(error.message);
+      setMyProfile((data ?? null) as ProfileRow | null);
+    }
+
     const { data, error } = await supabase
       .from('projects')
       .select(
@@ -73,9 +124,47 @@ export default function ProjectSettingsPage() {
   }
 
   useEffect(() => {
-    void load();
+    void loadBase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadProfilesIfAdmin() {
+    if (myProfile?.role !== 'Super Admin') {
+      setProfiles([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,name,role')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) setError(error.message);
+    setProfiles((data ?? []) as ProfileRow[]);
+  }
+
+  useEffect(() => {
+    void loadProfilesIfAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myProfile?.role]);
+
+  async function loadMembers() {
+    if (!activeProjectId) {
+      setMembers([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('project_members')
+      .select('project_id,user_id,role,status,created_at')
+      .eq('project_id', activeProjectId)
+      .order('created_at', { ascending: true });
+    if (error) setError(error.message);
+    setMembers((data ?? []) as ProjectMemberRow[]);
+  }
+
+  useEffect(() => {
+    void loadMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId]);
 
   async function createProject() {
     setCreating(true);
@@ -108,7 +197,11 @@ export default function ProjectSettingsPage() {
             max_rate: Number(draft.max_rate || 0) || null
           },
           wings,
-          unitTypes
+          unitTypes,
+          members:
+            myProfile?.role === 'Super Admin'
+              ? draft.memberIds.map((id) => ({ userId: id, role: 'Member' }))
+              : []
         })
       });
 
@@ -116,13 +209,39 @@ export default function ProjectSettingsPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to create project');
 
       setOpen(false);
-      await load();
+      await loadBase();
       if (json.projectId) setActiveProjectId(json.projectId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create project');
     } finally {
       setCreating(false);
     }
+  }
+
+  async function upsertMember(userId: string, role: string, status: string) {
+    if (!activeProjectId) return;
+    setError('');
+    const res = await fetch('/api/crm/admin/project-members', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ projectId: activeProjectId, userId, role, status })
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) setError(json.error || 'Failed to update member');
+    await loadMembers();
+  }
+
+  async function removeMember(userId: string) {
+    if (!activeProjectId) return;
+    setError('');
+    const res = await fetch('/api/crm/admin/project-members', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ projectId: activeProjectId, userId })
+    });
+    const json = (await res.json()) as { error?: string };
+    if (!res.ok) setError(json.error || 'Failed to remove member');
+    await loadMembers();
   }
 
   return (
@@ -314,6 +433,118 @@ export default function ProjectSettingsPage() {
                   placeholder="1BHK,2BHK,3BHK"
                 />
               </div>
+
+              {myProfile?.role === 'Super Admin' ? (
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        Assign members (optional)
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Selected: {draft.memberIds.length}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={selectVisibleMembers}
+                        disabled={filteredProfiles.length === 0}
+                      >
+                        Select visible
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={clearAllMembers}
+                        disabled={draft.memberIds.length === 0}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2">
+                    <Label>Search users</Label>
+                    <Input
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Search by name, role, or id…"
+                    />
+                  </div>
+
+                  {draft.memberIds.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {draft.memberIds.slice(0, 8).map((id) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => removeMemberChip(id)}
+                          className="rounded-full border bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                          title="Remove"
+                        >
+                          {profiles.find((p) => p.id === id)?.name ?? id} ×
+                        </button>
+                      ))}
+                      {draft.memberIds.length > 8 ? (
+                        <div className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-500">
+                          +{draft.memberIds.length - 8} more
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 max-h-[240px] overflow-auto rounded-lg border bg-gray-50 p-2">
+                    {filteredProfiles.map((p) => {
+                      const checked = draft.memberIds.includes(p.id);
+                      return (
+                        <label
+                          key={p.id}
+                          className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                            checked
+                              ? 'border-blue-200 bg-blue-50'
+                              : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setDraft((d) => ({
+                                ...d,
+                                memberIds: checked
+                                  ? d.memberIds.filter((x) => x !== p.id)
+                                  : [...d.memberIds, p.id]
+                              }))
+                            }
+                          />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-gray-900 truncate">
+                              {p.name || 'Unnamed user'}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {p.role} · {p.id}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                    {profiles.length === 0 ? (
+                      <div className="p-3 text-sm text-gray-500">
+                        No users found.
+                      </div>
+                    ) : null}
+                    {profiles.length > 0 && filteredProfiles.length === 0 ? (
+                      <div className="p-3 text-sm text-gray-500">
+                        No users match your search.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
@@ -342,7 +573,7 @@ export default function ProjectSettingsPage() {
               {loading ? 'Loading…' : `${projects.length} project(s)`}
             </div>
           </div>
-          <Button variant="outline" onClick={load} disabled={loading}>
+          <Button variant="outline" onClick={loadBase} disabled={loading}>
             Refresh
           </Button>
         </div>
@@ -382,6 +613,145 @@ export default function ProjectSettingsPage() {
             </div>
           ) : null}
         </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">
+              Project members
+            </div>
+            <div className="text-xs text-gray-500">
+              {activeProjectId ? `${members.length} member(s)` : 'Select a project'}
+            </div>
+          </div>
+        </div>
+
+        {myProfile?.role !== 'Super Admin' ? (
+          <div className="mt-3 text-sm text-gray-500">
+            Only Super Admin can change project members.
+          </div>
+        ) : null}
+
+        {activeProjectId ? (
+          <div className="mt-3 overflow-auto">
+            <table className="min-w-[820px] w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
+                <tr>
+                  {['User', 'Role', 'Status', 'Actions'].map((h) => (
+                    <th
+                      key={h}
+                      className="px-3 py-2 text-left font-semibold border-b"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => {
+                  const prof = profiles.find((p) => p.id === m.user_id);
+                  return (
+                    <tr key={m.user_id} className="border-b">
+                      <td className="px-3 py-2 text-gray-700">
+                        <div className="font-semibold">
+                          {prof?.name || m.user_id}
+                        </div>
+                        <div className="text-xs text-gray-500">{m.user_id}</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        {myProfile?.role === 'Super Admin' ? (
+                          <select
+                            value={m.role}
+                            onChange={(e) =>
+                              upsertMember(m.user_id, e.target.value, m.status)
+                            }
+                            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                          >
+                            {['Member', 'Manager'].map((r) => (
+                              <option key={r}>{r}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          m.role
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {myProfile?.role === 'Super Admin' ? (
+                          <select
+                            value={m.status}
+                            onChange={(e) =>
+                              upsertMember(m.user_id, m.role, e.target.value)
+                            }
+                            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                          >
+                            {['Active', 'Inactive'].map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          m.status
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {myProfile?.role === 'Super Admin' ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => removeMember(m.user_id)}
+                          >
+                            Remove
+                          </Button>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {members.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-3 py-8 text-center text-gray-500"
+                    >
+                      No members assigned yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        {myProfile?.role === 'Super Admin' && activeProjectId ? (
+          <div className="mt-4">
+            <div className="text-sm font-semibold text-gray-900">Add member</div>
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <select
+                value={''}
+                onChange={(e) => {
+                  const uid = e.target.value;
+                  if (uid) void upsertMember(uid, 'Member', 'Active');
+                }}
+                className="mt-1 min-w-[320px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Select user…</option>
+                {profiles
+                  .filter((p) => !members.some((m) => m.user_id === p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name || p.id} ({p.role})
+                    </option>
+                  ))}
+              </select>
+              <div className="text-xs text-gray-500">
+                Tip: use `/crm/users` to invite a new user first.
+              </div>
+            </div>
+          </div>
+        ) : null}
       </Card>
     </div>
   );

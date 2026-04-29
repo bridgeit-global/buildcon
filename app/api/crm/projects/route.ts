@@ -18,6 +18,7 @@ type CreateProjectBody = {
   };
   wings: string[];
   unitTypes: string[];
+  members?: Array<{ userId: string; role?: string; status?: string }>;
 };
 
 function wingSlugForUnitCode(wingName: string, wingIndex: number) {
@@ -31,6 +32,30 @@ function wingSlugForUnitCode(wingName: string, wingIndex: number) {
 function pickFrom<T>(arr: T[], idx: number) {
   if (arr.length === 0) throw new Error('Empty list');
   return arr[idx % arr.length];
+}
+
+export async function GET() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data, error } = await supabase
+    .from('projects')
+    .select(
+      'id,name,location,type,status,fy,rera_no,floors_per_wing,units_per_floor,base_rate,min_rate,max_rate'
+    )
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ projects: data ?? [] });
 }
 
 export async function POST(request: Request) {
@@ -86,6 +111,21 @@ export async function POST(request: Request) {
   });
   if (memberErr) {
     return NextResponse.json({ error: memberErr.message }, { status: 500 });
+  }
+
+  // Optional: assign additional members at creation
+  const members = (body.members || []).filter((m) => m?.userId);
+  if (members.length) {
+    const rows = members.map((m) => ({
+      project_id: projectId,
+      user_id: m.userId,
+      role: m.role || 'Member',
+      status: m.status || 'Active'
+    }));
+    const { error } = await admin.from('project_members').upsert(rows, {
+      onConflict: 'project_id,user_id'
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   // Wings + unit types

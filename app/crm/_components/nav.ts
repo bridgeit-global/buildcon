@@ -16,6 +16,7 @@ import {
 export type CrmNavItem = {
   id:
     | 'dashboard'
+    | 'projects'
     | 'inventory'
     | 'bookings'
     | 'customers'
@@ -33,6 +34,12 @@ export type CrmNavItem = {
 
 export const CRM_NAV: CrmNavItem[] = [
   { id: 'dashboard', label: 'Dashboard', href: '/crm/dashboard', icon: Gauge },
+  {
+    id: 'projects',
+    label: 'Projects',
+    href: '/crm/projects',
+    icon: Building2
+  },
   {
     id: 'inventory',
     label: 'Inventory',

@@ -1,0 +1,83 @@
+import { NextResponse } from 'next/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+
+type InviteUserBody = {
+  email: string;
+  name?: string | null;
+  profileRole:
+    | 'Super Admin'
+    | 'Sales Manager'
+    | 'Collection Agent'
+    | 'CRM Executive'
+    | 'Read Only';
+  projectIds: string[];
+  projectMemberRole?: string; // Member | Manager
+};
+
+export async function POST(request: Request) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data: profile, error: pErr } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
+  if (profile?.role !== 'Super Admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const body = (await request.json()) as InviteUserBody;
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+
+  const admin = createSupabaseAdminClient();
+
+  // Invite user by email (creates auth user if missing).
+  const { data: invited, error: inviteErr } =
+    await admin.auth.admin.inviteUserByEmail(email);
+  if (inviteErr) {
+    return NextResponse.json({ error: inviteErr.message }, { status: 500 });
+  }
+
+  const invitedUserId = invited.user?.id;
+  if (!invitedUserId) {
+    return NextResponse.json({ error: 'Invite did not return user id' }, { status: 500 });
+  }
+
+  // Ensure profile exists, set role/name
+  const { error: profErr } = await admin.from('profiles').upsert(
+    {
+      id: invitedUserId,
+      name: body.name ?? null,
+      role: body.profileRole
+    },
+    { onConflict: 'id' }
+  );
+  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+
+  const projectIds = Array.from(new Set(body.projectIds || [])).filter(Boolean);
+  if (projectIds.length) {
+    const memberRole = body.projectMemberRole || 'Member';
+    const rows = projectIds.map((pid) => ({
+      project_id: pid,
+      user_id: invitedUserId,
+      role: memberRole,
+      status: 'Active'
+    }));
+    const { error: memErr } = await admin.from('project_members').upsert(rows, {
+      onConflict: 'project_id,user_id'
+    });
+    if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ userId: invitedUserId });
+}
+

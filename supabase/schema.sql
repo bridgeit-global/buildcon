@@ -19,12 +19,43 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Ensure every auth user has a corresponding profile row.
+create schema if not exists private;
+revoke all on schema private from public;
+revoke all on schema private from anon;
+revoke all on schema private from authenticated;
+
+create or replace function private.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id)
+  values (new.id)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function private.handle_new_auth_user();
+
 alter table public.profiles enable row level security;
 
 create policy "profiles_select_self"
 on public.profiles
 for select
 using (auth.uid() = id);
+
+-- Allow staff to list users for assignment UI
+create policy "profiles_select_authenticated"
+on public.profiles
+for select
+using (auth.role() = 'authenticated');
 
 create policy "profiles_update_self"
 on public.profiles
