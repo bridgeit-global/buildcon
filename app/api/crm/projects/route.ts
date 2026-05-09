@@ -4,6 +4,22 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getProfileRole, isSuperAdmin, requireSuperAdmin } from '@/lib/authz';
 import type { CrmProjectListItem } from '@/app/crm/_components/types';
 
+type FloorProvisionInput = {
+  structureLeafId?: string;
+  structurePath: string;
+  structureName: string;
+  floor: number;
+  unitsPerFloor: number;
+  rate?: number | null;
+  unitConfigs: Array<{
+    unitNo: number;
+    name?: string;
+    type?: string;
+    area: number;
+    rate: number;
+  }>;
+};
+
 type CreateProjectBody = {
   project: {
     name: string;
@@ -21,7 +37,14 @@ type CreateProjectBody = {
   wings: string[];
   unitTypes: string[];
   members?: Array<{ userId: string; role?: string; status?: string }>;
+  /** When non-empty, seeds units from floor-wise config instead of the simple grid. */
+  floorProvisions?: FloorProvisionInput[];
 };
+
+function unitCodeFromParts(slug: string, floor: number, unitNo: number) {
+  if (floor === 0) return `${slug}-GF${unitNo}`;
+  return `${slug}-${floor * 100 + unitNo}`;
+}
 
 function wingSlugForUnitCode(wingName: string, wingIndex: number) {
   const w = wingName.trim();
@@ -211,9 +234,37 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const provisions =
+    Array.isArray(body.floorProvisions) && body.floorProvisions.length > 0
+      ? body.floorProvisions
+      : null;
+
   // Wings + unit types
-  const wings = (body.wings || []).filter(Boolean).map((w) => w.trim());
-  const unitTypes = (body.unitTypes || []).filter(Boolean).map((t) => t.trim());
+  let wings = (body.wings || []).filter(Boolean).map((w) => w.trim());
+  if (provisions) {
+    const seen = new Set<string>();
+    wings = [];
+    for (const p of provisions) {
+      const label = (p.structurePath || p.structureName || '').trim();
+      if (label && !seen.has(label)) {
+        seen.add(label);
+        wings.push(label);
+      }
+    }
+  }
+
+  const unitTypeSet = new Set(
+    (body.unitTypes || []).filter(Boolean).map((t) => t.trim())
+  );
+  if (provisions) {
+    for (const p of provisions) {
+      for (const uc of p.unitConfigs || []) {
+        const t = (uc.type || '').trim();
+        if (t) unitTypeSet.add(t);
+      }
+    }
+  }
+  const unitTypes = [...unitTypeSet];
 
   if (wings.length) {
     const { error } = await admin.from('project_wings').insert(
@@ -237,23 +288,29 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Seed units
-  const areas = [604, 720, 850, 950];
-  const floors = Math.max(1, body.project.floors_per_wing || 1);
-  const unitsPerFloor = Math.max(1, body.project.units_per_floor || 1);
-  const baseRate = body.project.base_rate ?? null;
-
   const unitRows: Array<Record<string, unknown>> = [];
-  wings.forEach((wingName, wingIndex) => {
-    const slug = wingSlugForUnitCode(wingName, wingIndex);
-    for (let floor = floors; floor >= 1; floor--) {
-      for (let unitNo = 1; unitNo <= unitsPerFloor; unitNo++) {
-        const code = `${slug}-${floor * 100 + unitNo}`;
-        const area = pickFrom(areas, floor * 31 + unitNo * 17 + wingIndex * 13);
-        const unitType =
-          unitTypes.length > 0
-            ? pickFrom(unitTypes, floor * 7 + unitNo + wingIndex * 3)
-            : null;
+
+  if (provisions) {
+    const baseRateFallback = body.project.base_rate ?? null;
+    for (const p of provisions) {
+      const wingName = (p.structurePath || p.structureName || '').trim();
+      if (!wingName) continue;
+      const wingIndex = Math.max(0, wings.indexOf(wingName));
+      const slug = wingSlugForUnitCode(wingName, wingIndex);
+      const floorNum = Number(p.floor);
+      const floor = Number.isFinite(floorNum) ? floorNum : 0;
+      for (const uc of p.unitConfigs || []) {
+        const unitNo = Math.max(1, Number(uc.unitNo) || 1);
+        const code = unitCodeFromParts(slug, floor, unitNo);
+        const area = Math.max(1, Number(uc.area) || 1);
+        const rate = Math.max(
+          1,
+          Number(uc.rate) ||
+            Number(p.rate) ||
+            Number(baseRateFallback) ||
+            1
+        );
+        const unitType = (uc.type || '').trim() || null;
         unitRows.push({
           project_id: projectId,
           wing_name: wingName,
@@ -262,12 +319,43 @@ export async function POST(request: Request) {
           unit_code: code,
           unit_type: unitType,
           area,
-          rate: baseRate,
+          rate,
           status: 'A'
         });
       }
     }
-  });
+  } else {
+    // Seed units (simple grid)
+    const areas = [604, 720, 850, 950];
+    const floors = Math.max(1, body.project.floors_per_wing || 1);
+    const unitsPerFloor = Math.max(1, body.project.units_per_floor || 1);
+    const baseRate = body.project.base_rate ?? null;
+
+    wings.forEach((wingName, wingIndex) => {
+      const slug = wingSlugForUnitCode(wingName, wingIndex);
+      for (let floor = floors; floor >= 1; floor--) {
+        for (let unitNo = 1; unitNo <= unitsPerFloor; unitNo++) {
+          const code = `${slug}-${floor * 100 + unitNo}`;
+          const area = pickFrom(areas, floor * 31 + unitNo * 17 + wingIndex * 13);
+          const unitType =
+            unitTypes.length > 0
+              ? pickFrom(unitTypes, floor * 7 + unitNo + wingIndex * 3)
+              : null;
+          unitRows.push({
+            project_id: projectId,
+            wing_name: wingName,
+            floor,
+            unit_no: unitNo,
+            unit_code: code,
+            unit_type: unitType,
+            area,
+            rate: baseRate,
+            status: 'A'
+          });
+        }
+      }
+    });
+  }
 
   if (unitRows.length) {
     const { error } = await admin.from('units').insert(unitRows);

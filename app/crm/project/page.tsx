@@ -19,10 +19,28 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import {
+  DEFAULT_UNIT_TYPES,
+  type FloorProvisionDraft,
+  type StructureNode,
+  buildDefaultFloorProvisions,
+  countProjectUnits,
+  deriveLegacyWingsFromStructures,
+  defaultRootStructures,
+  normalizeStructures,
+  getStructureLeaves,
+  projectParkingTotal
+} from './project-structure-utils';
+import {
+  FloorConfigureStep,
+  InventoryConfigSummary,
+  StructureTreeFields
+} from './project-create-inventory';
 
 const WIZARD_STEPS = [
   'Basic Info',
-  'Inventory',
+  'Inventory Config',
+  'Floor Configure',
   'Rates',
   'Users & Access',
   'Review'
@@ -40,16 +58,14 @@ type CreateProjectDraft = {
   base_rate: number;
   min_rate: number;
   max_rate: number;
-  wingsCsv: string;
   unitTypesCsv: string;
   memberIds: string[];
+  structures: StructureNode[];
+  floorProvisions: FloorProvisionDraft[];
 };
 
 function wingsFromDraft(d: CreateProjectDraft) {
-  return d.wingsCsv
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return deriveLegacyWingsFromStructures(d.structures);
 }
 
 function validateCreateStep(step: number, draft: CreateProjectDraft): string | null {
@@ -58,12 +74,23 @@ function validateCreateStep(step: number, draft: CreateProjectDraft): string | n
     return null;
   }
   if (step === 1) {
-    if (wingsFromDraft(draft).length < 1) return 'Add at least one wing.';
-    if (draft.floors_per_wing < 1) return 'Floors per wing must be at least 1.';
-    if (draft.units_per_floor < 1) return 'Units per floor must be at least 1.';
+    if (normalizeStructures(draft.structures).length < 1) {
+      return 'Add at least one structure (root).';
+    }
+    if (countProjectUnits(draft.structures) < 1) {
+      return 'Each structure needs at least one leaf with floors and units.';
+    }
+    if (draft.floors_per_wing < 1) return 'Default floors must be at least 1.';
+    if (draft.units_per_floor < 1) return 'Default units per floor must be at least 1.';
     return null;
   }
   if (step === 2) {
+    if (!draft.floorProvisions.length) {
+      return 'Configure floors (use Auto-fill floors) before continuing.';
+    }
+    return null;
+  }
+  if (step === 3) {
     if (draft.base_rate < 0 || draft.min_rate < 0 || draft.max_rate < 0) {
       return 'Rates cannot be negative.';
     }
@@ -102,7 +129,7 @@ export default function ProjectPage() {
   const [createStep, setCreateStep] = useState(0);
   const [creating, setCreating] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
-  const [draft, setDraft] = useState<CreateProjectDraft>({
+  const [draft, setDraft] = useState<CreateProjectDraft>(() => ({
     name: '',
     location: '',
     type: 'Redevelopment',
@@ -114,10 +141,11 @@ export default function ProjectPage() {
     base_rate: 10500,
     min_rate: 9500,
     max_rate: 13000,
-    wingsCsv: 'A,B,C',
     unitTypesCsv: '1BHK,2BHK,3BHK',
-    memberIds: []
-  });
+    memberIds: [],
+    structures: defaultRootStructures(7, 4),
+    floorProvisions: []
+  }));
 
   const filteredProfiles = profiles.filter((p) => {
     const q = memberSearch.trim().toLowerCase();
@@ -214,6 +242,23 @@ export default function ProjectPage() {
   function resetCreateWizard() {
     setCreateStep(0);
     setMemberSearch('');
+    setDraft({
+      name: '',
+      location: '',
+      type: 'Redevelopment',
+      status: 'Active',
+      fy: '2026-27',
+      rera_no: '',
+      floors_per_wing: 7,
+      units_per_floor: 4,
+      base_rate: 10500,
+      min_rate: 9500,
+      max_rate: 13000,
+      unitTypesCsv: '1BHK,2BHK,3BHK',
+      memberIds: [],
+      structures: defaultRootStructures(7, 4),
+      floorProvisions: []
+    });
   }
 
   async function loadProfilesIfCanManageMembers() {
@@ -269,14 +314,32 @@ export default function ProjectPage() {
     setCreating(true);
     setError('');
     try {
-      const wings = draft.wingsCsv
+      const wings = wingsFromDraft(draft);
+      const fromCsv = draft.unitTypesCsv
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const unitTypes = draft.unitTypesCsv
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const fromFloors = new Set<string>();
+      for (const row of draft.floorProvisions) {
+        for (const u of row.unitConfigs || []) {
+          const t = (u.type || '').trim();
+          if (t) fromFloors.add(t);
+        }
+      }
+      const unitTypes = Array.from(
+        new Set([...DEFAULT_UNIT_TYPES, ...fromCsv, ...fromFloors])
+      );
+
+      const metaFloors = Math.max(
+        1,
+        ...draft.floorProvisions.map((p) => Number(p.floor) || 0),
+        draft.floors_per_wing || 1
+      );
+      const metaUnits = Math.max(
+        1,
+        ...draft.floorProvisions.map((p) => Number(p.unitsPerFloor) || 0),
+        draft.units_per_floor || 1
+      );
 
       const res = await fetch('/api/crm/projects', {
         method: 'POST',
@@ -289,14 +352,15 @@ export default function ProjectPage() {
             status: draft.status,
             fy: draft.fy || null,
             rera_no: draft.rera_no || null,
-            floors_per_wing: Number(draft.floors_per_wing || 1),
-            units_per_floor: Number(draft.units_per_floor || 1),
+            floors_per_wing: metaFloors,
+            units_per_floor: metaUnits,
             base_rate: Number(draft.base_rate || 0) || null,
             min_rate: Number(draft.min_rate || 0) || null,
             max_rate: Number(draft.max_rate || 0) || null
           },
           wings,
           unitTypes,
+          floorProvisions: draft.floorProvisions,
           members:
             canCreateProject
               ? draft.memberIds.map((id) => ({ userId: id, role: 'Member' }))
@@ -326,6 +390,20 @@ export default function ProjectPage() {
       return;
     }
     setError('');
+    if (createStep === 1) {
+      setDraft((d) => ({
+        ...d,
+        floorProvisions:
+          d.floorProvisions.length > 0
+            ? d.floorProvisions
+            : buildDefaultFloorProvisions({
+                structures: d.structures,
+                floorsPerWingDefault: d.floors_per_wing,
+                unitsPerFloorDefault: d.units_per_floor,
+                baseRate: d.base_rate
+              })
+      }));
+    }
     setCreateStep((s) => Math.min(s + 1, lastWizardStep));
   }
 
@@ -334,12 +412,23 @@ export default function ProjectPage() {
     setCreateStep((s) => Math.max(0, s - 1));
   }
 
+  const mergedUnitTypes = useMemo(() => {
+    const fromCsv = draft.unitTypesCsv
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return Array.from(new Set([...DEFAULT_UNIT_TYPES, ...fromCsv]));
+  }, [draft.unitTypesCsv]);
+
   const previewUnitTotal = useMemo(() => {
-    const w = wingsFromDraft(draft).length;
-    const f = Math.max(1, draft.floors_per_wing || 1);
-    const u = Math.max(1, draft.units_per_floor || 1);
-    return w * f * u;
-  }, [draft]);
+    if (draft.floorProvisions.length > 0) {
+      return draft.floorProvisions.reduce(
+        (sum, row) => sum + (row.unitConfigs?.length || 0),
+        0
+      );
+    }
+    return countProjectUnits(draft.structures);
+  }, [draft.floorProvisions, draft.structures]);
 
   async function upsertMember(userId: string, role: string, status: string) {
     if (!activeProjectId) return;
@@ -533,68 +622,105 @@ export default function ProjectPage() {
                 ) : null}
 
                 {createStep === 1 ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-700">
-                      Set wings and floor density. Inventory rows are generated from these values when the project is created.
+                  <div className="flex flex-col gap-4">
+                    <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-800">
+                      Set structure names, kinds, area, and floors here. Unit counts and types are refined on the
+                      next step (floor-wise).
                     </div>
+                    <InventoryConfigSummary
+                      draftName={draft.name}
+                      projectType={draft.type}
+                      structures={draft.structures}
+                      floorsPerWing={draft.floors_per_wing}
+                      unitsPerFloor={draft.units_per_floor}
+                      onFloorsPerWingChange={(n) =>
+                        setDraft((d) => ({ ...d, floors_per_wing: n }))
+                      }
+                      onUnitsPerFloorChange={(n) =>
+                        setDraft((d) => ({ ...d, units_per_floor: n }))
+                      }
+                    />
                     <div>
-                      <Label>Floors per wing</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={draft.floors_per_wing}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            floors_per_wing: Number(e.target.value)
-                          }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Units per floor</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={draft.units_per_floor}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            units_per_floor: Number(e.target.value)
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label>Wings (comma-separated)</Label>
-                      <Input
-                        value={draft.wingsCsv}
-                        onChange={(e) =>
-                          setDraft((d) => ({ ...d, wingsCsv: e.target.value }))
-                        }
-                        placeholder="A,B,C or Tower 1,Tower 2"
-                      />
-                    </div>
-                    <div className="col-span-2">
                       <Label>Unit types (comma-separated)</Label>
                       <Input
+                        className="mt-1"
                         value={draft.unitTypesCsv}
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }))
                         }
                         placeholder="1BHK,2BHK,3BHK"
                       />
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Used as dropdown options when configuring each unit on the floor step.
+                      </p>
                     </div>
-                    <div className="col-span-2 border border-emerald-100 bg-emerald-50/90 px-3 py-2 text-xs text-emerald-900">
+                    <div className="font-semibold text-slate-900">Structure tree</div>
+                    <StructureTreeFields
+                      nodes={draft.structures}
+                      onNodesChange={(structures) =>
+                        setDraft((d) => ({ ...d, structures }))
+                      }
+                      defaultFloors={draft.floors_per_wing || 7}
+                      defaultUnitsPerFloor={draft.units_per_floor || 4}
+                    />
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[11px] text-emerald-900">
+                      <span className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+                        <span>
+                          <span className="text-emerald-700">Structure leaves</span>{' '}
+                          <strong>
+                            {
+                              getStructureLeaves(normalizeStructures(draft.structures))
+                                .length
+                            }
+                          </strong>
+                        </span>
+                        <span>
+                          <span className="text-emerald-700">Parking</span>{' '}
+                          <strong>{projectParkingTotal(draft.structures)}</strong>
+                        </span>
+                        <span>
+                          <span className="text-emerald-700">Total units</span>{' '}
+                          <strong>{countProjectUnits(draft.structures)}</strong>
+                        </span>
+                        <span>
+                          <span className="text-emerald-700">Default floors</span>{' '}
+                          <strong>{draft.floors_per_wing}</strong>
+                        </span>
+                      </span>
+                    </div>
+                    <div className="rounded-lg border border-emerald-100 bg-emerald-50/90 px-3 py-2 text-xs text-emerald-900">
                       <span className="font-semibold">Preview: </span>
-                      {wingsFromDraft(draft).length} wings × {draft.floors_per_wing} floors ×{' '}
-                      {draft.units_per_floor} units/floor ≈{' '}
-                      <strong>{previewUnitTotal}</strong> units
+                      {wingsFromDraft(draft).length} structure path
+                      {wingsFromDraft(draft).length !== 1 ? 's' : ''} · ≈{' '}
+                      <strong>{previewUnitTotal}</strong> units (before floor overrides)
                     </div>
                   </div>
                 ) : null}
 
                 {createStep === 2 ? (
+                  <FloorConfigureStep
+                    structures={draft.structures}
+                    floorProvisions={draft.floorProvisions}
+                    onFloorProvisionsChange={(floorProvisions) =>
+                      setDraft((d) => ({ ...d, floorProvisions }))
+                    }
+                    unitTypes={mergedUnitTypes}
+                    baseRate={draft.base_rate}
+                    onAutoFill={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        floorProvisions: buildDefaultFloorProvisions({
+                          structures: d.structures,
+                          floorsPerWingDefault: d.floors_per_wing,
+                          unitsPerFloorDefault: d.units_per_floor,
+                          baseRate: d.base_rate
+                        })
+                      }))
+                    }
+                  />
+                ) : null}
+
+                {createStep === 3 ? (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2  border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
                       Rates are used as defaults when seeding units. Individual units can be adjusted later.
@@ -644,7 +770,7 @@ export default function ProjectPage() {
                   </div>
                 ) : null}
 
-                {createStep === 3 ? (
+                {createStep === 4 ? (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
@@ -755,7 +881,7 @@ export default function ProjectPage() {
                   </div>
                 ) : null}
 
-                {createStep === 4 ? (
+                {createStep === 5 ? (
                   <div className="space-y-3">
                     <div className="text-sm font-semibold text-gray-900">
                       Review & confirm
@@ -768,9 +894,10 @@ export default function ProjectPage() {
                         ['Status', draft.status],
                         ['FY', draft.fy || '—'],
                         ['RERA', draft.rera_no || '—'],
-                        ['Wings', wingsFromDraft(draft).join(', ') || '—'],
-                        ['Floors / units per floor', `${draft.floors_per_wing} / ${draft.units_per_floor}`],
-                        ['Approx. units', String(previewUnitTotal)],
+                        ['Structure paths', wingsFromDraft(draft).join(' · ') || '—'],
+                        ['Floors / units (defaults)', `${draft.floors_per_wing} / ${draft.units_per_floor}`],
+                        ['Units to seed', String(previewUnitTotal)],
+                        ['Floor provision rows', String(draft.floorProvisions.length)],
                         [
                           'Rates (base / min / max)',
                           `${draft.base_rate} / ${draft.min_rate} / ${draft.max_rate}`
