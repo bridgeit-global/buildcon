@@ -8,7 +8,6 @@ import {
   Home,
   KeySquare,
   LayoutGrid,
-  Settings,
   Shield,
   Users
 } from 'lucide-react';
@@ -16,7 +15,7 @@ import {
 export type CrmNavItem = {
   id:
     | 'dashboard'
-    | 'projects'
+    | 'project'
     | 'inventory'
     | 'bookings'
     | 'customers'
@@ -25,8 +24,7 @@ export type CrmNavItem = {
     | 'rehab'
     | 'reports'
     | 'bankloans'
-    | 'users'
-    | 'projectsettings';
+    | 'users';
   /** Shown in sidebar (matches build-con-pos emoji strip). */
   emoji: string;
   /** Optional long title in main header (prototype PAGE_TITLES). */
@@ -46,11 +44,11 @@ export const CRM_NAV: CrmNavItem[] = [
     icon: Gauge
   },
   {
-    id: 'projects',
+    id: 'project',
     emoji: '🏢',
-    pageTitle: 'Projects (Admin)',
-    label: 'Projects',
-    href: '/crm/projects',
+    pageTitle: 'Project',
+    label: 'Project',
+    href: '/crm/project',
     icon: Building2
   },
   {
@@ -119,12 +117,5 @@ export const CRM_NAV: CrmNavItem[] = [
     label: 'Users & Access',
     href: '/crm/users',
     icon: Shield
-  },
-  {
-    id: 'projectsettings',
-    emoji: '⚙',
-    label: 'Project Settings',
-    href: '/crm/projectsettings',
-    icon: Settings
   }
 ];

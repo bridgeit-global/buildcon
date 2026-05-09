@@ -68,14 +68,14 @@ export function CrmProjectCard({
         }
       }}
       className={cn(
-        'cursor-pointer rounded-[10px] border-2 bg-white p-5 text-left shadow-sm transition-colors',
+        'cursor-pointer border-2 bg-white p-5 text-left shadow-sm transition-colors',
         'hover:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30',
         activeProjectId === p.id ? 'border-blue-300 ring-1 ring-blue-100' : 'border-transparent'
       )}
     >
       <div className="flex justify-between gap-2">
         <div
-          className="flex size-[42px] shrink-0 items-center justify-center rounded-[10px] text-xl"
+          className="flex size-[42px] shrink-0 items-center justify-center text-xl"
           style={{ backgroundColor: `${typeColor}22` }}
           aria-hidden
         >
@@ -83,7 +83,7 @@ export function CrmProjectCard({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span
-            className="rounded-full px-2 py-0.5 text-[9px] font-bold"
+            className="px-2 py-0.5 text-[9px] font-bold"
             style={{ backgroundColor: sc, color: tc }}
           >
             {p.status}
@@ -113,7 +113,7 @@ export function CrmProjectCard({
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         <span
-          className="rounded-full px-2 py-0.5 text-[9px] font-bold"
+          className="px-2 py-0.5 text-[9px] font-bold"
           style={{
             backgroundColor: `${typeColor}22`,
             color: typeColor
@@ -121,11 +121,11 @@ export function CrmProjectCard({
         >
           {p.type}
         </span>
-        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-semibold text-blue-600">
+        <span className="bg-blue-50 px-2 py-0.5 text-[9px] font-semibold text-blue-600">
           FY {p.fy ?? '—'}
         </span>
         {p.base_rate != null ? (
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
+          <span className="bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
             ₹ {formatInr(p.base_rate)}/sq.ft
           </span>
         ) : null}
@@ -137,7 +137,7 @@ export function CrmProjectCard({
           ['Parking', '—'],
           ['Total units', p.unit_count]
         ].map(([label, val]) => (
-          <div key={String(label)} className="rounded-md bg-slate-50 px-2 py-1.5">
+          <div key={String(label)} className="bg-slate-50 px-2 py-1.5">
             <div className="text-[9px] text-slate-400">{label}</div>
             <div className="text-xs font-bold text-slate-800">{val}</div>
           </div>
