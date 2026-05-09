@@ -8,6 +8,7 @@ import {
   Home,
   KeySquare,
   LayoutGrid,
+  MessageCircle,
   Shield,
   Users
 } from 'lucide-react';
@@ -18,6 +19,7 @@ export type CrmNavItem = {
     | 'project'
     | 'inventory'
     | 'bookings'
+    | 'inquiry'
     | 'customers'
     | 'financials'
     | 'documents'
@@ -64,6 +66,14 @@ export const CRM_NAV: CrmNavItem[] = [
     label: 'Bookings',
     href: '/crm/bookings',
     icon: Home
+  },
+  {
+    id: 'inquiry',
+    emoji: '💬',
+    pageTitle: 'Inquiry – Sales leads',
+    label: 'Inquiry',
+    href: '/crm/inquiry',
+    icon: MessageCircle
   },
   {
     id: 'customers',

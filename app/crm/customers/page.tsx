@@ -25,6 +25,23 @@ type CustomerRow = {
   created_at: string;
 };
 
+type CustomerInquiryRow = {
+  id: string;
+  created_at: string;
+  lead_source: string;
+  interested_in: string | null;
+  projects: { name: string } | { name: string }[] | null;
+  units:
+    | { unit_code: string; wing_name: string }
+    | { unit_code: string; wing_name: string }[]
+    | null;
+};
+
+function embedOne<T>(x: T | T[] | null | undefined): T | null {
+  if (x == null) return null;
+  return Array.isArray(x) ? (x[0] ?? null) : x;
+}
+
 export default function CustomersPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -44,6 +61,11 @@ export default function CustomersPage() {
     occupation: '',
     nationality: 'Indian'
   });
+
+  const [customerInquiries, setCustomerInquiries] = useState<
+    CustomerInquiryRow[]
+  >([]);
+  const [loadingInquiries, setLoadingInquiries] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -66,6 +88,42 @@ export default function CustomersPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setCustomerInquiries([]);
+      setLoadingInquiries(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingInquiries(true);
+      const { data, error } = await supabase
+        .from('sales_inquiries')
+        .select(
+          `
+          id,
+          created_at,
+          lead_source,
+          interested_in,
+          projects ( name ),
+          units ( unit_code, wing_name )
+        `
+        )
+        .eq('customer_id', selectedId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!cancelled) {
+        if (error) setCustomerInquiries([]);
+        else
+          setCustomerInquiries((data ?? []) as unknown as CustomerInquiryRow[]);
+        setLoadingInquiries(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, supabase]);
 
   const filtered = customers.filter((c) => {
     const s = search.trim().toLowerCase();
@@ -304,6 +362,72 @@ export default function CustomersPage() {
                   <div className="text-sm font-semibold text-gray-900">{v}</div>
                 </div>
               ))}
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-gray-900">
+                Sales inquiries
+              </div>
+              <div className="text-xs text-gray-500">
+                Project-scoped leads linked to this customer (from Inquiry).
+              </div>
+              <div className="mt-2 overflow-x-auto rounded-lg border bg-white">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                      <th className="px-3 py-2 font-medium">When</th>
+                      <th className="px-3 py-2 font-medium">Project</th>
+                      <th className="px-3 py-2 font-medium">Unit</th>
+                      <th className="px-3 py-2 font-medium">Source</th>
+                      <th className="px-3 py-2 font-medium">Interest</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingInquiries ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-3 py-4 text-center text-gray-500"
+                        >
+                          Loading…
+                        </td>
+                      </tr>
+                    ) : customerInquiries.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-3 py-4 text-center text-gray-500"
+                        >
+                          No inquiries yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      customerInquiries.map((row) => {
+                        const u = embedOne(row.units);
+                        return (
+                          <tr key={row.id} className="border-b border-gray-100">
+                            <td className="whitespace-nowrap px-3 py-2 text-gray-700">
+                              {new Date(row.created_at).toLocaleString()}
+                            </td>
+                            <td className="px-3 py-2 text-gray-900">
+                              {embedOne(row.projects)?.name ?? '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-900">
+                              {u ? `${u.unit_code} · ${u.wing_name}` : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {row.lead_source}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600">
+                              {row.interested_in ?? '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="rounded-lg border bg-gray-50 p-4 text-sm text-gray-600">
