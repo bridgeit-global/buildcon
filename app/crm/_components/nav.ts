@@ -15,18 +15,18 @@ import {
 
 export type CrmNavItem = {
   id:
-    | 'dashboard'
-    | 'project'
-    | 'inventory'
-    | 'bookings'
-    | 'inquiry'
-    | 'customers'
-    | 'financials'
-    | 'documents'
-    | 'rehab'
-    | 'reports'
-    | 'bankloans'
-    | 'users';
+  | 'dashboard'
+  | 'project'
+  | 'inventory'
+  | 'bookings'
+  | 'inquiry'
+  | 'customers'
+  | 'financials'
+  | 'documents'
+  | 'rehab'
+  | 'reports'
+  | 'bankloans'
+  | 'users';
   /** Shown in sidebar (matches build-con-pos emoji strip). */
   emoji: string;
   /** Optional long title in main header (prototype PAGE_TITLES). */
@@ -61,19 +61,19 @@ export const CRM_NAV: CrmNavItem[] = [
     icon: LayoutGrid
   },
   {
-    id: 'bookings',
-    emoji: '📋',
-    label: 'Bookings',
-    href: '/crm/bookings',
-    icon: Home
-  },
-  {
     id: 'inquiry',
     emoji: '💬',
     pageTitle: 'Inquiry – Sales leads',
     label: 'Inquiry',
     href: '/crm/inquiry',
     icon: MessageCircle
+  },
+  {
+    id: 'bookings',
+    emoji: '📋',
+    label: 'Bookings',
+    href: '/crm/bookings',
+    icon: Home
   },
   {
     id: 'customers',
