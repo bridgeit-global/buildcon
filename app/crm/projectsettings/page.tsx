@@ -48,6 +48,7 @@ export default function ProjectSettingsPage() {
 
   const [projects, setProjects] = useState<CrmProject[]>([]);
   const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
+  const [myProjectRole, setMyProjectRole] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [members, setMembers] = useState<ProjectMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,8 +129,11 @@ export default function ProjectSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadProfilesIfAdmin() {
-    if (myProfile?.role !== 'Super Admin') {
+  const canCreateProject = myProfile?.role === 'Super Admin';
+  const canManageMembers = myProfile?.role === 'Super Admin' || myProjectRole === 'Manager';
+
+  async function loadProfilesIfCanManageMembers() {
+    if (!canManageMembers) {
       setProfiles([]);
       return;
     }
@@ -143,13 +147,14 @@ export default function ProjectSettingsPage() {
   }
 
   useEffect(() => {
-    void loadProfilesIfAdmin();
+    void loadProfilesIfCanManageMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myProfile?.role]);
+  }, [myProfile?.role, myProjectRole, activeProjectId]);
 
   async function loadMembers() {
     if (!activeProjectId) {
       setMembers([]);
+      setMyProjectRole(null);
       return;
     }
     const { data, error } = await supabase
@@ -159,6 +164,16 @@ export default function ProjectSettingsPage() {
       .order('created_at', { ascending: true });
     if (error) setError(error.message);
     setMembers((data ?? []) as ProjectMemberRow[]);
+
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (user) {
+      const me = (data ?? []).find((m) => m.user_id === user.id);
+      setMyProjectRole(me?.role ?? null);
+    } else {
+      setMyProjectRole(null);
+    }
   }
 
   useEffect(() => {
@@ -199,7 +214,7 @@ export default function ProjectSettingsPage() {
           wings,
           unitTypes,
           members:
-            myProfile?.role === 'Super Admin'
+            canCreateProject
               ? draft.memberIds.map((id) => ({ userId: id, role: 'Member' }))
               : []
         })
@@ -258,7 +273,7 @@ export default function ProjectSettingsPage() {
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>Create project</Button>
+            <Button disabled={!canCreateProject}>Create project</Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -434,7 +449,7 @@ export default function ProjectSettingsPage() {
                 />
               </div>
 
-              {myProfile?.role === 'Super Admin' ? (
+              {canCreateProject ? (
                 <div className="col-span-2">
                   <div className="flex items-center justify-between">
                     <div>
@@ -627,9 +642,9 @@ export default function ProjectSettingsPage() {
           </div>
         </div>
 
-        {myProfile?.role !== 'Super Admin' ? (
+        {!canManageMembers ? (
           <div className="mt-3 text-sm text-gray-500">
-            Only Super Admin can change project members.
+            Only Super Admin or this project’s Manager can change project members.
           </div>
         ) : null}
 
@@ -660,7 +675,7 @@ export default function ProjectSettingsPage() {
                         <div className="text-xs text-gray-500">{m.user_id}</div>
                       </td>
                       <td className="px-3 py-2">
-                        {myProfile?.role === 'Super Admin' ? (
+                        {canManageMembers ? (
                           <select
                             value={m.role}
                             onChange={(e) =>
@@ -677,7 +692,7 @@ export default function ProjectSettingsPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {myProfile?.role === 'Super Admin' ? (
+                        {canManageMembers ? (
                           <select
                             value={m.status}
                             onChange={(e) =>
@@ -694,7 +709,7 @@ export default function ProjectSettingsPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        {myProfile?.role === 'Super Admin' ? (
+                        {canManageMembers ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -725,7 +740,7 @@ export default function ProjectSettingsPage() {
           </div>
         ) : null}
 
-        {myProfile?.role === 'Super Admin' && activeProjectId ? (
+        {canManageMembers && activeProjectId ? (
           <div className="mt-4">
             <div className="text-sm font-semibold text-gray-900">Add member</div>
             <div className="mt-2 flex flex-wrap items-end gap-3">

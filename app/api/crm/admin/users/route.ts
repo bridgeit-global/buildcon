@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { requireSuperAdmin } from '@/lib/authz';
 
 type InviteUserBody = {
   email: string;
@@ -16,23 +16,8 @@ type InviteUserBody = {
 };
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile, error: pErr } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
-  if (profile?.role !== 'Super Admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const gate = await requireSuperAdmin();
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const body = (await request.json()) as InviteUserBody;
   const email = String(body.email || '').trim().toLowerCase();

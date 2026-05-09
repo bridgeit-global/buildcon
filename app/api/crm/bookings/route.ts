@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 
 type CreateBookingBody = {
   projectId: string;
@@ -18,46 +18,17 @@ function addDaysISO(days: number) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const body = (await request.json()) as CreateBookingBody;
   if (!body?.projectId || !body?.unitId || !body?.customerId) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
   }
 
-  // Access check (member of project OR super admin)
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (profileErr) {
-    return NextResponse.json({ error: profileErr.message }, { status: 500 });
-  }
+  const gate = await requireProjectAccess(body.projectId);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
-  const isSuperAdmin = profile?.role === 'Super Admin';
-  if (!isSuperAdmin) {
-    const { data: membership, error: memErr } = await supabase
-      .from('project_members')
-      .select('project_id')
-      .eq('project_id', body.projectId)
-      .eq('user_id', user.id)
-      .eq('status', 'Active')
-      .maybeSingle();
-    if (memErr) {
-      return NextResponse.json({ error: memErr.message }, { status: 500 });
-    }
-    if (!membership) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-  }
+  const ro = await isReadOnlyUser(gate.userId);
+  if (!ro.ok) return NextResponse.json({ error: ro.error }, { status: ro.status });
+  if (ro.readOnly) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const admin = createSupabaseAdminClient();
 
@@ -100,7 +71,7 @@ export async function POST(request: Request) {
       payment_mode: body.paymentMode,
       loan_bank: body.loanBank ?? null,
       booking_amount: body.bookingAmount ?? null,
-      created_by: user.id
+      created_by: gate.userId
     })
     .select('id')
     .single();

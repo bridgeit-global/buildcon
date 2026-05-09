@@ -28,9 +28,12 @@ export function CrmShell({
 
   useEffect(() => {
     if (!hydrated) return;
-    if (projects.length === 0) return;
     if (activeProjectId) return;
     if (pathname.startsWith('/crm/select-project')) return;
+    if (projects.length === 0) {
+      router.replace('/crm/select-project');
+      return;
+    }
     router.replace('/crm/select-project');
   }, [hydrated, projects.length, activeProjectId, pathname, router]);
 

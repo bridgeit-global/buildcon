@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { requireSuperAdmin } from '@/lib/authz';
 
 type CreateProjectBody = {
   project: {
@@ -59,31 +60,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const gate = await requireSuperAdmin();
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const body = (await request.json()) as CreateProjectBody;
   if (!body?.project?.name) {
     return NextResponse.json({ error: 'Missing project name' }, { status: 400 });
-  }
-
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (profileErr) {
-    return NextResponse.json({ error: profileErr.message }, { status: 500 });
-  }
-  if (profile?.role !== 'Super Admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const admin = createSupabaseAdminClient();
@@ -105,7 +87,7 @@ export async function POST(request: Request) {
   // Ensure creator is a project member
   const { error: memberErr } = await admin.from('project_members').insert({
     project_id: projectId,
-    user_id: user.id,
+    user_id: gate.userId,
     role: 'Manager',
     status: 'Active'
   });

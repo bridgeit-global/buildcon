@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { requireProjectManagerOrSuperAdmin } from '@/lib/authz';
 
 type UpsertBody = {
   projectId: string;
@@ -14,35 +14,13 @@ type DeleteBody = {
   userId: string;
 };
 
-async function requireSuperAdmin() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) return { ok: false as const, status: 401, error: 'Unauthorized' };
-
-  const { data: profile, error: pErr } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (pErr) return { ok: false as const, status: 500, error: pErr.message };
-  if (profile?.role !== 'Super Admin')
-    return { ok: false as const, status: 403, error: 'Forbidden' };
-
-  return { ok: true as const };
-}
-
 export async function POST(request: Request) {
-  const gate = await requireSuperAdmin();
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-
   const body = (await request.json()) as UpsertBody;
   if (!body?.projectId || !body?.userId) {
     return NextResponse.json({ error: 'Missing projectId/userId' }, { status: 400 });
   }
+  const gate = await requireProjectManagerOrSuperAdmin(body.projectId);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const admin = createSupabaseAdminClient();
   const { error } = await admin.from('project_members').upsert(
@@ -60,13 +38,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const gate = await requireSuperAdmin();
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-
   const body = (await request.json()) as DeleteBody;
   if (!body?.projectId || !body?.userId) {
     return NextResponse.json({ error: 'Missing projectId/userId' }, { status: 400 });
   }
+  const gate = await requireProjectManagerOrSuperAdmin(body.projectId);
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const admin = createSupabaseAdminClient();
   const { error } = await admin
