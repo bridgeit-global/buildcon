@@ -123,6 +123,11 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Inputs: keep 1px border on focus so ring + resting shadow don’t read as a thinner edge */
+  [data-slot="input"]:focus-visible {
+    border-width: 1px;
+  }
 }
 
 /* BuildCon CRM prototype-aligned scrollbars + focus (see build-con-pos HTML shell) */
