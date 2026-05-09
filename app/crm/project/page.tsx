@@ -368,7 +368,7 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1100px] flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-4 p-4">
         {error ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -910,7 +910,6 @@ export default function ProjectPage() {
           </div>
         ) : null}
       </Card>
-
       <Card id="project-members" className="p-4">
         <div className="flex items-center justify-between">
           <div>
