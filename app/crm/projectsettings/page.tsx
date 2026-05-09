@@ -7,7 +7,7 @@ type PageProps = {
 export default async function LegacyProjectSettingsRedirect({ searchParams }: PageProps) {
   const q = searchParams ? await searchParams : {};
   if (q.create === '1') {
-    redirect('/crm/project?create=1');
+    redirect('/crm/project/create');
   }
   redirect('/crm/project');
 }
