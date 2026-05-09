@@ -370,12 +370,6 @@ export default function ProjectPage() {
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-4 p-4">
-        {error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="text-[22px] font-bold text-slate-800">Project</div>
