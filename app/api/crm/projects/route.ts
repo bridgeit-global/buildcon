@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { requireSuperAdmin } from '@/lib/authz';
+import { getProfileRole, isSuperAdmin, requireSuperAdmin } from '@/lib/authz';
+import type { CrmProjectListItem } from '@/app/crm/_components/types';
 
 type CreateProjectBody = {
   project: {
@@ -35,6 +36,16 @@ function pickFrom<T>(arr: T[], idx: number) {
   return arr[idx % arr.length];
 }
 
+function initialsFromName(name: string | null | undefined) {
+  const n = (name || '').trim();
+  if (!n) return '?';
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return n.slice(0, 2).toUpperCase();
+}
+
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -44,6 +55,9 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const roleRes = await getProfileRole(user.id);
+  const canCreateProject = roleRes.ok && isSuperAdmin(roleRes.role);
 
   const { data, error } = await supabase
     .from('projects')
@@ -56,7 +70,94 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ projects: data ?? [] });
+  const projects = data ?? [];
+  const ids = projects.map((p) => p.id);
+
+  const wingCountMap = new Map<string, number>();
+  const unitCountMap = new Map<string, number>();
+  const memberCountMap = new Map<string, number>();
+  const memberPreviewMap = new Map<
+    string,
+    Array<{ user_id: string; name: string | null; initials: string }>
+  >();
+
+  if (ids.length > 0) {
+    const [{ data: wingRows }, unitPairs, { data: memberRows }] = await Promise.all([
+      supabase.from('project_wings').select('project_id').in('project_id', ids),
+      Promise.all(
+        ids.map(async (id) => {
+          const { count } = await supabase
+            .from('units')
+            .select('*', { count: 'exact', head: true })
+            .eq('project_id', id);
+          return [id, count ?? 0] as const;
+        })
+      ),
+      supabase.from('project_members').select('project_id,user_id').in('project_id', ids)
+    ]);
+
+    for (const row of wingRows ?? []) {
+      const id = row.project_id as string;
+      wingCountMap.set(id, (wingCountMap.get(id) ?? 0) + 1);
+    }
+
+    for (const [id, c] of unitPairs) {
+      unitCountMap.set(id, c);
+    }
+
+    const memberList = memberRows ?? [];
+    for (const row of memberList) {
+      const pid = row.project_id as string;
+      memberCountMap.set(pid, (memberCountMap.get(pid) ?? 0) + 1);
+    }
+
+    const userIds = [...new Set(memberList.map((m) => m.user_id as string))];
+    let profileById = new Map<string, string | null>();
+    if (userIds.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id,name')
+        .in('id', userIds);
+      profileById = new Map((profs ?? []).map((p) => [p.id as string, p.name]));
+    }
+
+    const grouped = new Map<string, string[]>();
+    for (const row of memberList) {
+      const pid = row.project_id as string;
+      const uid = row.user_id as string;
+      const arr = grouped.get(pid) ?? [];
+      arr.push(uid);
+      grouped.set(pid, arr);
+    }
+
+    for (const [pid, uids] of grouped) {
+      const preview = uids.slice(0, 4).map((uid) => {
+        const name = profileById.get(uid) ?? null;
+        return {
+          user_id: uid,
+          name,
+          initials: initialsFromName(name)
+        };
+      });
+      memberPreviewMap.set(pid, preview);
+    }
+  }
+
+  const enriched: CrmProjectListItem[] = projects.map((p) => {
+    const wing_count = wingCountMap.get(p.id) ?? 0;
+    const unit_count = unitCountMap.get(p.id) ?? 0;
+    const member_count = memberCountMap.get(p.id) ?? 0;
+    const member_preview = memberPreviewMap.get(p.id) ?? [];
+    return {
+      ...p,
+      wing_count,
+      unit_count,
+      member_count,
+      member_preview
+    };
+  });
+
+  return NextResponse.json({ projects: enriched, canCreateProject });
 }
 
 export async function POST(request: Request) {

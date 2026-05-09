@@ -1,16 +1,17 @@
 import type { Metadata } from 'next';
-import { Geist } from 'next/font/google';
+import { DM_Sans } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin']
+const dmSans = DM_Sans({
+  variable: '--font-dm-sans',
+  subsets: ['latin'],
+  display: 'swap'
 });
 
 export const metadata: Metadata = {
-  title: 'Platforms Starter Kit',
-  description: 'Next.js template for building a multi-tenant SaaS.'
+  title: 'BuildCon Redevelopment CRM',
+  description: 'Project CRM for redevelopment sales, inventory, and collections.'
 };
 
 export default function RootLayout({
@@ -20,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased`}>
+      <body className={`${dmSans.variable} font-sans antialiased`}>
         {children}
         <SpeedInsights />
       </body>

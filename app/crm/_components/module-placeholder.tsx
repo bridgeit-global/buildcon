@@ -1,5 +1,6 @@
 import { Card } from '@/components/ui/card';
 
+/** Matches build-con-pos dashboard cards: white panel, light shadow, compact type. */
 export function ModulePlaceholder({
   title,
   description
@@ -8,10 +9,12 @@ export function ModulePlaceholder({
   description?: string;
 }) {
   return (
-    <Card className="p-6">
-      <div className="text-base font-semibold text-gray-900">{title}</div>
+    <Card className="border-0 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <div className="text-[13px] font-semibold text-[#1e293b]">{title}</div>
       {description ? (
-        <div className="mt-1 text-sm text-gray-500">{description}</div>
+        <div className="mt-1 text-[11px] leading-relaxed text-[#64748b]">
+          {description}
+        </div>
       ) : null}
     </Card>
   );

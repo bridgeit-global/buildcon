@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
 import type { CrmProject } from '../_components/types';
@@ -15,6 +16,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+
+const WIZARD_STEPS = [
+  'Basic Info',
+  'Inventory',
+  'Rates',
+  'Users & Access',
+  'Review'
+] as const;
 
 type CreateProjectDraft = {
   name: string;
@@ -33,6 +43,33 @@ type CreateProjectDraft = {
   memberIds: string[];
 };
 
+function wingsFromDraft(d: CreateProjectDraft) {
+  return d.wingsCsv
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function validateCreateStep(step: number, draft: CreateProjectDraft): string | null {
+  if (step === 0) {
+    if (!draft.name.trim()) return 'Project name is required.';
+    return null;
+  }
+  if (step === 1) {
+    if (wingsFromDraft(draft).length < 1) return 'Add at least one wing.';
+    if (draft.floors_per_wing < 1) return 'Floors per wing must be at least 1.';
+    if (draft.units_per_floor < 1) return 'Units per floor must be at least 1.';
+    return null;
+  }
+  if (step === 2) {
+    if (draft.base_rate < 0 || draft.min_rate < 0 || draft.max_rate < 0) {
+      return 'Rates cannot be negative.';
+    }
+    return null;
+  }
+  return null;
+}
+
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
   project_id: string;
@@ -43,6 +80,7 @@ type ProjectMemberRow = {
 };
 
 export default function ProjectSettingsPage() {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { activeProjectId, setActiveProjectId } = useActiveProjectContext();
 
@@ -55,6 +93,7 @@ export default function ProjectSettingsPage() {
   const [error, setError] = useState<string>('');
 
   const [open, setOpen] = useState(false);
+  const [createStep, setCreateStep] = useState(0);
   const [creating, setCreating] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [draft, setDraft] = useState<CreateProjectDraft>({
@@ -129,8 +168,24 @@ export default function ProjectSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === '1') {
+      setOpen(true);
+      router.replace('/crm/projectsettings', { scroll: false });
+    }
+  }, [router]);
+
   const canCreateProject = myProfile?.role === 'Super Admin';
   const canManageMembers = myProfile?.role === 'Super Admin' || myProjectRole === 'Manager';
+
+  const lastWizardStep = WIZARD_STEPS.length - 1;
+
+  function resetCreateWizard() {
+    setCreateStep(0);
+    setMemberSearch('');
+  }
 
   async function loadProfilesIfCanManageMembers() {
     if (!canManageMembers) {
@@ -224,6 +279,7 @@ export default function ProjectSettingsPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to create project');
 
       setOpen(false);
+      resetCreateWizard();
       await loadBase();
       if (json.projectId) setActiveProjectId(json.projectId);
     } catch (e) {
@@ -232,6 +288,28 @@ export default function ProjectSettingsPage() {
       setCreating(false);
     }
   }
+
+  function goNext() {
+    const err = validateCreateStep(createStep, draft);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError('');
+    setCreateStep((s) => Math.min(s + 1, lastWizardStep));
+  }
+
+  function goBack() {
+    setError('');
+    setCreateStep((s) => Math.max(0, s - 1));
+  }
+
+  const previewUnitTotal = useMemo(() => {
+    const w = wingsFromDraft(draft).length;
+    const f = Math.max(1, draft.floors_per_wing || 1);
+    const u = Math.max(1, draft.units_per_floor || 1);
+    return w * f * u;
+  }, [draft]);
 
   async function upsertMember(userId: string, role: string, status: string) {
     if (!activeProjectId) return;
@@ -271,187 +349,275 @@ export default function ProjectSettingsPage() {
           </div>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) resetCreateWizard();
+          }}
+        >
           <DialogTrigger asChild>
             <Button disabled={!canCreateProject}>Create project</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create project</DialogTitle>
-            </DialogHeader>
+          <DialogContent className="flex max-h-[92vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+            <div className="border-b px-6 pb-3 pt-5">
+              <DialogHeader className="space-y-1 text-left">
+                <DialogTitle>Create project</DialogTitle>
+                <p className="text-xs text-muted-foreground">
+                  Step {createStep + 1} of {WIZARD_STEPS.length}:{' '}
+                  {WIZARD_STEPS[createStep]}
+                </p>
+              </DialogHeader>
+            </div>
 
-            {error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            ) : null}
+            {/* Stepper */}
+            <div className="flex items-center gap-0 border-b px-4 py-3 sm:px-6">
+              {WIZARD_STEPS.map((label, i) => (
+                <Fragment key={label}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (i <= createStep) {
+                        setError('');
+                        setCreateStep(i);
+                      }
+                    }}
+                    disabled={i > createStep}
+                    className={cn(
+                      'flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-md p-1 transition-colors',
+                      i <= createStep
+                        ? 'cursor-pointer text-blue-600 hover:bg-blue-50/80'
+                        : 'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white',
+                        i < createStep && 'bg-emerald-500',
+                        i === createStep && 'bg-blue-500',
+                        i > createStep && 'bg-slate-200 text-slate-500'
+                      )}
+                    >
+                      {i < createStep ? '✓' : i + 1}
+                    </div>
+                    <span className="hidden text-center text-[9px] font-medium leading-tight sm:block">
+                      {label}
+                    </span>
+                  </button>
+                  {i < lastWizardStep ? (
+                    <div
+                      className={cn(
+                        'mb-5 hidden h-0.5 min-w-[6px] shrink sm:block sm:flex-1',
+                        i < createStep ? 'bg-emerald-400' : 'bg-slate-200'
+                      )}
+                      aria-hidden
+                    />
+                  ) : null}
+                </Fragment>
+              ))}
+            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Project name</Label>
-                <Input
-                  value={draft.name}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, name: e.target.value }))
-                  }
-                  placeholder="e.g. Sunrise Residency"
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Location</Label>
-                <Input
-                  value={draft.location}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, location: e.target.value }))
-                  }
-                  placeholder="e.g. Pune, Maharashtra"
-                />
-              </div>
-              <div>
-                <Label>Type</Label>
-                <select
-                  value={draft.type}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      type: e.target.value as CreateProjectDraft['type']
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option>Redevelopment</option>
-                  <option>Greenfield</option>
-                  <option>Mixed Use</option>
-                </select>
-              </div>
-              <div>
-                <Label>Status</Label>
-                <select
-                  value={draft.status}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      status: e.target.value as CreateProjectDraft['status']
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option>Active</option>
-                  <option>Planning</option>
-                  <option>On Hold</option>
-                </select>
-              </div>
-              <div>
-                <Label>FY</Label>
-                <Input
-                  value={draft.fy}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, fy: e.target.value }))
-                  }
-                  placeholder="2026-27"
-                />
-              </div>
-              <div>
-                <Label>RERA No.</Label>
-                <Input
-                  value={draft.rera_no}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, rera_no: e.target.value }))
-                  }
-                  placeholder="e.g. P52100012345"
-                />
-              </div>
-
-              <div>
-                <Label>Floors per wing</Label>
-                <Input
-                  type="number"
-                  value={draft.floors_per_wing}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      floors_per_wing: Number(e.target.value)
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label>Units per floor</Label>
-                <Input
-                  type="number"
-                  value={draft.units_per_floor}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      units_per_floor: Number(e.target.value)
-                    }))
-                  }
-                />
-              </div>
-
-              <div>
-                <Label>Base rate (₹/sq.ft)</Label>
-                <Input
-                  type="number"
-                  value={draft.base_rate}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      base_rate: Number(e.target.value)
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label>Min / Max rate</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="number"
-                    value={draft.min_rate}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        min_rate: Number(e.target.value)
-                      }))
-                    }
-                  />
-                  <Input
-                    type="number"
-                    value={draft.max_rate}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        max_rate: Number(e.target.value)
-                      }))
-                    }
-                  />
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              {error ? (
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
                 </div>
-              </div>
+              ) : null}
 
-              <div className="col-span-2">
-                <Label>Wings (comma-separated)</Label>
-                <Input
-                  value={draft.wingsCsv}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, wingsCsv: e.target.value }))
-                  }
-                  placeholder="A,B,C or Tower 1,Tower 2"
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Unit types (comma-separated)</Label>
-                <Input
-                  value={draft.unitTypesCsv}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }))
-                  }
-                  placeholder="1BHK,2BHK,3BHK"
-                />
-              </div>
+              {createStep === 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Label>Project name</Label>
+                    <Input
+                      value={draft.name}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, name: e.target.value }))
+                      }
+                      placeholder="e.g. Sunrise Residency"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Location</Label>
+                    <Input
+                      value={draft.location}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, location: e.target.value }))
+                      }
+                      placeholder="e.g. Pune, Maharashtra"
+                    />
+                  </div>
+                  <div>
+                    <Label>Type</Label>
+                    <select
+                      value={draft.type}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          type: e.target.value as CreateProjectDraft['type']
+                        }))
+                      }
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option>Redevelopment</option>
+                      <option>Greenfield</option>
+                      <option>Mixed Use</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <select
+                      value={draft.status}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          status: e.target.value as CreateProjectDraft['status']
+                        }))
+                      }
+                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option>Active</option>
+                      <option>Planning</option>
+                      <option>On Hold</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>FY</Label>
+                    <Input
+                      value={draft.fy}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, fy: e.target.value }))
+                      }
+                      placeholder="2026-27"
+                    />
+                  </div>
+                  <div>
+                    <Label>RERA No.</Label>
+                    <Input
+                      value={draft.rera_no}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, rera_no: e.target.value }))
+                      }
+                      placeholder="e.g. P52100012345"
+                    />
+                  </div>
+                </div>
+              ) : null}
 
-              {canCreateProject ? (
-                <div className="col-span-2">
-                  <div className="flex items-center justify-between">
+              {createStep === 1 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-700">
+                    Set wings and floor density. Inventory rows are generated from these values when the project is created.
+                  </div>
+                  <div>
+                    <Label>Floors per wing</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={draft.floors_per_wing}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          floors_per_wing: Number(e.target.value)
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Units per floor</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={draft.units_per_floor}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          units_per_floor: Number(e.target.value)
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Wings (comma-separated)</Label>
+                    <Input
+                      value={draft.wingsCsv}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, wingsCsv: e.target.value }))
+                      }
+                      placeholder="A,B,C or Tower 1,Tower 2"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Unit types (comma-separated)</Label>
+                    <Input
+                      value={draft.unitTypesCsv}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }))
+                      }
+                      placeholder="1BHK,2BHK,3BHK"
+                    />
+                  </div>
+                  <div className="col-span-2 rounded-lg border border-emerald-100 bg-emerald-50/90 px-3 py-2 text-xs text-emerald-900">
+                    <span className="font-semibold">Preview: </span>
+                    {wingsFromDraft(draft).length} wings × {draft.floors_per_wing} floors ×{' '}
+                    {draft.units_per_floor} units/floor ≈{' '}
+                    <strong>{previewUnitTotal}</strong> units
+                  </div>
+                </div>
+              ) : null}
+
+              {createStep === 2 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 rounded-lg border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
+                    Rates are used as defaults when seeding units. Individual units can be adjusted later.
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Base rate (₹/sq.ft)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={draft.base_rate}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          base_rate: Number(e.target.value)
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Min rate</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={draft.min_rate}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          min_rate: Number(e.target.value)
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Max rate</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={draft.max_rate}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          max_rate: Number(e.target.value)
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {createStep === 3 ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="text-sm font-semibold text-gray-900">
                         Assign members (optional)
@@ -482,7 +648,7 @@ export default function ProjectSettingsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-2">
+                  <div>
                     <Label>Search users</Label>
                     <Input
                       value={memberSearch}
@@ -492,7 +658,7 @@ export default function ProjectSettingsPage() {
                   </div>
 
                   {draft.memberIds.length ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {draft.memberIds.slice(0, 8).map((id) => (
                         <button
                           key={id}
@@ -512,17 +678,16 @@ export default function ProjectSettingsPage() {
                     </div>
                   ) : null}
 
-                  <div className="mt-3 grid grid-cols-2 gap-2 max-h-[240px] overflow-auto rounded-lg border bg-gray-50 p-2">
+                  <div className="grid max-h-[280px] grid-cols-1 gap-2 overflow-auto rounded-lg border bg-gray-50 p-2 sm:grid-cols-2">
                     {filteredProfiles.map((p) => {
                       const checked = draft.memberIds.includes(p.id);
                       return (
                         <label
                           key={p.id}
-                          className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${
-                            checked
+                          className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${checked
                               ? 'border-blue-200 bg-blue-50'
                               : 'border-gray-200 bg-white hover:bg-gray-50'
-                          }`}
+                            }`}
                         >
                           <input
                             type="checkbox"
@@ -537,10 +702,10 @@ export default function ProjectSettingsPage() {
                             }
                           />
                           <div className="min-w-0">
-                            <div className="font-semibold text-gray-900 truncate">
+                            <div className="truncate font-semibold text-gray-900">
                               {p.name || 'Unnamed user'}
                             </div>
-                            <div className="text-xs text-gray-500 truncate">
+                            <div className="truncate text-xs text-gray-500">
                               {p.role} · {p.id}
                             </div>
                           </div>
@@ -560,19 +725,69 @@ export default function ProjectSettingsPage() {
                   </div>
                 </div>
               ) : null}
+
+              {createStep === 4 ? (
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold text-gray-900">
+                    Review & confirm
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {[
+                      ['Project name', draft.name || '—'],
+                      ['Location', draft.location || '—'],
+                      ['Type', draft.type],
+                      ['Status', draft.status],
+                      ['FY', draft.fy || '—'],
+                      ['RERA', draft.rera_no || '—'],
+                      ['Wings', wingsFromDraft(draft).join(', ') || '—'],
+                      ['Floors / units per floor', `${draft.floors_per_wing} / ${draft.units_per_floor}`],
+                      ['Approx. units', String(previewUnitTotal)],
+                      [
+                        'Rates (base / min / max)',
+                        `${draft.base_rate} / ${draft.min_rate} / ${draft.max_rate}`
+                      ],
+                      ['Members', `${draft.memberIds.length} selected`]
+                    ].map(([k, v]) => (
+                      <div
+                        key={String(k)}
+                        className="rounded-md bg-slate-50 px-3 py-2"
+                      >
+                        <div className="text-[10px] text-slate-400">{k}</div>
+                        <div className="font-medium text-slate-900">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-4">
               <Button
+                type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  if (createStep === 0) setOpen(false);
+                  else goBack();
+                }}
                 disabled={creating}
               >
-                Cancel
+                {createStep === 0 ? 'Cancel' : '← Back'}
               </Button>
-              <Button onClick={createProject} disabled={creating || !draft.name}>
-                {creating ? 'Creating…' : 'Create'}
-              </Button>
+              <div className="flex gap-2">
+                {createStep < lastWizardStep ? (
+                  <Button type="button" onClick={goNext} disabled={creating}>
+                    Next →
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => void createProject()}
+                    disabled={creating || !draft.name.trim()}
+                  >
+                    {creating ? 'Creating…' : 'Create project'}
+                  </Button>
+                )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -605,11 +820,10 @@ export default function ProjectSettingsPage() {
               key={p.id}
               type="button"
               onClick={() => setActiveProjectId(p.id)}
-              className={`rounded-lg border px-3 py-3 text-left transition-colors ${
-                activeProjectId === p.id
+              className={`rounded-lg border px-3 py-3 text-left transition-colors ${activeProjectId === p.id
                   ? 'border-blue-200 bg-blue-50'
                   : 'border-gray-200 bg-white hover:bg-gray-50'
-              }`}
+                }`}
             >
               <div className="text-sm font-semibold text-gray-900">{p.name}</div>
               <div className="text-xs text-gray-500">

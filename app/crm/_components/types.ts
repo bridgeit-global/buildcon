@@ -13,3 +13,17 @@ export type CrmProject = {
   max_rate: number | null;
 };
 
+/** Extended fields returned by GET `/api/crm/projects` for list cards */
+export type CrmProjectListExtras = {
+  wing_count: number;
+  unit_count: number;
+  member_count: number;
+  member_preview: Array<{
+    user_id: string;
+    name: string | null;
+    initials: string;
+  }>;
+};
+
+export type CrmProjectListItem = CrmProject & CrmProjectListExtras;
+

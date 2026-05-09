@@ -6,8 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -44,6 +44,9 @@
 }
 
 :root {
+  --crm-sidebar-bg: #1b2b65;
+  --crm-accent: #8b5cf6;
+  --crm-canvas: #f1f5f9;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -119,6 +122,26 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* BuildCon CRM prototype-aligned scrollbars + focus (see build-con-pos HTML shell) */
+.crm-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+.crm-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.crm-scrollbar::-webkit-scrollbar-track {
+  background: var(--crm-canvas);
+}
+.crm-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.crm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .emoji-picker-container .epr-body::-webkit-scrollbar {
