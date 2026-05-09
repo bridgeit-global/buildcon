@@ -91,16 +91,13 @@ export function CrmShell({
               Active project
             </div>
             <div className="rounded-md bg-white/12 px-2.5 py-2">
-              <div className="text-[11px] font-semibold leading-tight">
-                {activeProject?.name ?? 'No project'}
-              </div>
               <div className="mt-0.5 text-[9px] text-white/40">
                 FY {activeProject?.fy ?? '—'}
               </div>
               <select
                 value={activeProjectId ?? ''}
                 onChange={(e) => setActiveProjectId(e.target.value)}
-                className="mt-1.5 w-full cursor-pointer rounded border border-white/20 bg-white/8 px-2.5 py-2 text-[11px] text-white outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 disabled:opacity-50"
+                className="mt-1.5 w-full cursor-pointer border border-white/20 bg-white/8 px-2.5 py-2 text-[11px] text-white outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 disabled:opacity-50"
                 disabled={projects.length === 0}
                 aria-label="Switch project"
               >
@@ -113,12 +110,6 @@ export function CrmShell({
                   </option>
                 ))}
               </select>
-              <Link
-                href="/crm/select-project"
-                className="mt-1.5 block w-full rounded bg-white/15 px-2 py-1.5 text-left text-[9px] text-white/80 transition-colors hover:bg-white/20 hover:text-white"
-              >
-                ⇄ Switch project
-              </Link>
             </div>
           </div>
 
