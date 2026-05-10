@@ -188,7 +188,7 @@ export function CrmShell({
 
           <nav
             className={cn(
-              'crm-scrollbar flex-1 overflow-y-auto py-1',
+              'crm-sidebar-scrollbar flex-1 overflow-y-auto py-1',
               sidebarCollapsed ? 'px-1' : 'px-2.5'
             )}
             aria-label="Main navigation"

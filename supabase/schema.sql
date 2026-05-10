@@ -186,7 +186,7 @@ create table if not exists public.units (
   unit_type text,
   area numeric,
   rate int,
-  status text not null default 'A', -- A|B|S|RR|BL|RF (prototype)
+  status text not null default 'A', -- A|B|S|RR|BL (prototype)
   blocked_reason text,
   blocked_by uuid references auth.users (id),
   blocked_on date,

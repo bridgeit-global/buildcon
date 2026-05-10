@@ -3,8 +3,7 @@ export const STATUS_COLOR: Record<string, string> = {
   B: '#F59E0B',
   S: '#EF4444',
   RR: '#818CF8',
-  BL: '#64748B',
-  RF: '#06B6D4'
+  BL: '#64748B'
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -12,8 +11,7 @@ export const STATUS_LABEL: Record<string, string> = {
   B: 'Booked',
   S: 'Sold',
   RR: 'Rehab Rsv',
-  BL: 'Blocked',
-  RF: 'Refugee'
+  BL: 'Blocked'
 };
 
 export function isParkingType(typeValue: string | null | undefined) {

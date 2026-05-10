@@ -15,8 +15,7 @@ const STATUS_LABEL: Record<string, string> = {
   B: 'Booked',
   S: 'Sold',
   RR: 'Rehab Reserved',
-  BL: 'Blocked',
-  RF: 'Refugee'
+  BL: 'Blocked'
 };
 
 export default function ReportsPage() {

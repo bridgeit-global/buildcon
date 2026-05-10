@@ -158,6 +158,29 @@
   background: #94a3b8;
 }
 
+/* Sidebar nav: default .crm-scrollbar uses the light canvas for the track, which reads as a bright stripe on dark chrome. */
+.crm-sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.35) rgb(0 0 0 / 0.22);
+}
+
+.crm-sidebar-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.crm-sidebar-scrollbar::-webkit-scrollbar-track {
+  background: rgb(0 0 0 / 0.22);
+}
+
+.crm-sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.35);
+}
+
+.crm-sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 0.5);
+}
+
 .emoji-picker-container .epr-body::-webkit-scrollbar {
   width: 8px;
 }
