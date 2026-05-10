@@ -79,7 +79,7 @@ export function CrmShell({
   return (
     <div
       className="h-screen overflow-hidden overscroll-none text-[13px]"
-      style={{ background: 'var(--crm-canvas, #f1f5f9)' }}
+      style={{ background: 'var(--crm-canvas, #fcfcfc)' }}
     >
       <div className="flex h-full min-h-0 overflow-hidden">
         <aside
@@ -87,7 +87,7 @@ export function CrmShell({
             'flex shrink-0 flex-col overflow-hidden text-white transition-[width,min-width] duration-200 ease-out',
             sidebarCollapsed ? 'w-[56px] min-w-[56px]' : 'w-[200px] min-w-[200px]'
           )}
-          style={{ background: 'var(--crm-sidebar-bg, #1b2b65)' }}
+          style={{ background: 'var(--crm-sidebar-bg, #0b1327)' }}
         >
           <div
             className={cn(
@@ -168,7 +168,7 @@ export function CrmShell({
                   <select
                     value={activeProjectId ?? ''}
                     onChange={(e) => setActiveProjectId(e.target.value)}
-                    className="mt-1.5 w-full cursor-pointer border border-white/20 bg-white/8 px-2.5 py-2 text-[11px] text-white outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 disabled:opacity-50"
+                    className="mt-1.5 w-full cursor-pointer border border-white/20 bg-white/8 px-2.5 py-2 text-[11px] text-white outline-none focus-visible:ring-2 focus-visible:ring-(--crm-accent,#7f56d9)/80 disabled:opacity-50"
                     disabled={projects.length === 0}
                     aria-label="Switch project"
                   >
@@ -231,7 +231,7 @@ export function CrmShell({
             {sidebarCollapsed ? (
               <div className="flex flex-col items-center gap-2">
                 <div
-                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#3b82f6] text-[11px] font-bold text-white"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-(--crm-accent,#7f56d9) text-[11px] font-bold text-white"
                   title={userEmail ?? 'Signed out'}
                 >
                   {initialsFromEmail(userEmail)}
@@ -248,7 +248,7 @@ export function CrmShell({
             ) : (
               <div className="flex items-center gap-2">
                 <div
-                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#3b82f6] text-[11px] font-bold text-white"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full bg-(--crm-accent,#7f56d9) text-[11px] font-bold text-white"
                   aria-hidden="true"
                 >
                   {initialsFromEmail(userEmail)}
@@ -275,10 +275,10 @@ export function CrmShell({
           <main className="crm-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="p-4">
               <div className="mb-3">
-                <h1 className="text-base font-bold leading-snug text-[#1e293b]">
+                <h1 className="text-base font-bold leading-snug text-[#101828]">
                   {pageHeading}
                 </h1>
-                <p className="mt-0.5 text-[11px] text-[#94a3b8]">
+                <p className="mt-0.5 text-[11px] text-[#667085]">
                   {activeProject?.name ?? '—'} · FY {activeProject?.fy ?? '—'}
                 </p>
               </div>
@@ -315,7 +315,7 @@ function CrmNavLink({
           ? 'justify-center px-0 py-2.5'
           : 'gap-2 py-2 pl-2.5 pr-2',
         active
-          ? 'border-l-sky-400 bg-white/15 font-bold text-white'
+          ? 'border-l-(--crm-accent,#7f56d9) bg-white/15 font-bold text-white'
           : 'border-l-transparent font-medium text-white/60 hover:bg-white/10 hover:text-white'
       )}
     >

@@ -44,9 +44,10 @@
 }
 
 :root {
-  --crm-sidebar-bg: #1b2b65;
-  --crm-accent: #8b5cf6;
-  --crm-canvas: #f1f5f9;
+  /* Design system: Primary 600 #7F56D9, Dark #0B1327, Gray 25 / 900 */
+  --crm-sidebar-bg: #0b1327;
+  --crm-accent: #7f56d9;
+  --crm-canvas: #fcfcfc;
   --radius: 0;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -54,18 +55,18 @@
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #7f56d9;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.967 0.001 286.375);
   --muted-foreground: oklch(0.552 0.016 285.938);
   --accent: oklch(0.967 0.001 286.375);
   --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: #d92d20;
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  --ring: color-mix(in oklab, #7f56d9 55%, transparent);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -73,7 +74,7 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary: #7f56d9;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.967 0.001 286.375);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
@@ -88,18 +89,18 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
+  --primary: #7f56d9;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
   --muted-foreground: oklch(0.705 0.015 286.067);
   --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: #f97066;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --ring: color-mix(in oklab, #7f56d9 65%, transparent);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -107,7 +108,7 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: #7f56d9;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -138,7 +139,7 @@
 /* BuildCon CRM prototype-aligned scrollbars + focus (see build-con-pos HTML shell) */
 .crm-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
+  scrollbar-color: #d0d5dd #fcfcfc;
 }
 
 .crm-scrollbar::-webkit-scrollbar {
@@ -151,11 +152,11 @@
 }
 
 .crm-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d0d5dd;
 }
 
 .crm-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #98a2b3;
 }
 
 /* Sidebar nav: default .crm-scrollbar uses the light canvas for the track, which reads as a bright stripe on dark chrome. */
