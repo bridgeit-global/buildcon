@@ -337,6 +337,32 @@ using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
 
 -- -----------------------------------------------------------------------------
+-- Brokers (org-wide master list)
+-- -----------------------------------------------------------------------------
+
+create table if not exists public.brokers (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  phone text,
+  email text,
+  license_no text,
+  status text not null default 'Active',
+  notes text,
+  created_at timestamptz not null default now(),
+  constraint brokers_status_chk check (status in ('Active', 'Inactive'))
+);
+
+create index if not exists brokers_status_idx on public.brokers (status);
+
+alter table public.brokers enable row level security;
+
+create policy "brokers_staff_all"
+on public.brokers
+for all
+using (auth.role() = 'authenticated')
+with check (auth.role() = 'authenticated');
+
+-- -----------------------------------------------------------------------------
 -- Bookings + financials
 -- -----------------------------------------------------------------------------
 
@@ -465,6 +491,7 @@ create table if not exists public.sales_inquiries (
   customer_id uuid not null references public.customers (id) on delete cascade,
   unit_id uuid not null references public.units (id) on delete restrict,
   lead_source text not null default 'Direct',
+  broker_id uuid references public.brokers (id) on delete set null,
   interested_in text,
   parking_required text not null default 'No',
   parking_count text not null default '1',
@@ -480,6 +507,10 @@ create index if not exists sales_inquiries_project_created_idx
 
 create index if not exists sales_inquiries_customer_idx
   on public.sales_inquiries (customer_id);
+
+create index if not exists sales_inquiries_broker_idx
+  on public.sales_inquiries (broker_id)
+  where broker_id is not null;
 
 alter table public.sales_inquiries enable row level security;
 

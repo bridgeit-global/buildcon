@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
+  Briefcase,
   Building2,
   FileText,
   Gauge,
@@ -21,6 +22,7 @@ export type CrmNavItem = {
     | 'bookings'
     | 'inquiry'
     | 'customers'
+    | 'brokers'
     | 'financials'
     | 'documents'
     | 'rehab'
@@ -73,6 +75,12 @@ export const CRM_NAV: CrmNavItem[] = [
     label: 'Customers',
     href: '/crm/customers',
     icon: Users
+  },
+  {
+    id: 'brokers',
+    label: 'Brokers',
+    href: '/crm/brokers',
+    icon: Briefcase
   },
   {
     id: 'financials',
