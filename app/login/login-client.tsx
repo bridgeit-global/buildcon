@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export function LoginClient() {
   const router = useRouter();
@@ -52,35 +53,27 @@ export function LoginClient() {
             Sign in with your staff account.
           </div>
         </div>
-
         <div className="grid grid-cols-2 gap-2 mb-4">
           {[
             { id: 'sign_in', label: 'Sign in' },
             { id: 'sign_up', label: 'Sign up' }
           ].map((t) => (
-            <button
+            <Button
               key={t.id}
-              type="button"
               onClick={() => setMode(t.id as 'sign_in' | 'sign_up')}
-              className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
-                mode === t.id
-                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-              )}
+              variant={mode === t.id ? 'default' : 'outline'}
             >
               {t.label}
-            </button>
+            </Button>
           ))}
         </div>
 
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-gray-600">Email</span>
-            <input
+            <Input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
               placeholder="name@company.com"
               autoComplete="email"
             />
@@ -88,10 +81,9 @@ export function LoginClient() {
 
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-gray-600">Password</span>
-            <input
+            <Input
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
               placeholder="••••••••"
               type="password"
               autoComplete={
@@ -106,19 +98,13 @@ export function LoginClient() {
             </div>
           ) : null}
 
-          <button
-            type="button"
+          <Button
             onClick={submit}
             disabled={busy || !email || !password}
-            className={cn(
-              'mt-2 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors',
-              busy || !email || !password
-                ? 'bg-blue-300'
-                : 'bg-blue-600 hover:bg-blue-700'
-            )}
+            variant={busy || !email || !password ? 'outline' : 'default'}
           >
             {busy ? 'Please wait…' : mode === 'sign_in' ? 'Sign in' : 'Sign up'}
-          </button>
+          </Button>
 
           <div className="text-xs text-gray-500">
             After sign-up, your admin should grant you access to projects via

@@ -32,9 +32,9 @@ type CustomerInquiryRow = {
   interested_in: string | null;
   projects: { name: string } | { name: string }[] | null;
   units:
-    | { unit_code: string; wing_name: string }
-    | { unit_code: string; wing_name: string }[]
-    | null;
+  | { unit_code: string; wing_name: string }
+  | { unit_code: string; wing_name: string }[]
+  | null;
 };
 
 function embedOne<T>(x: T | T[] | null | undefined): T | null {
@@ -305,11 +305,10 @@ export default function CustomersPage() {
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={`rounded-lg border px-3 py-2 text-left ${
-                  selectedId === c.id
-                    ? 'border-blue-200 bg-blue-50'
-                    : 'border-gray-200 bg-white hover:bg-gray-50'
-                }`}
+                className={`rounded-lg border px-3 py-2 text-left ${selectedId === c.id
+                  ? 'border-blue-200 bg-blue-50'
+                  : 'border-gray-200 bg-white hover:bg-gray-50'
+                  }`}
               >
                 <div className="text-sm font-semibold text-gray-900 line-clamp-1">
                   {c.full_name}

@@ -37,6 +37,54 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Design system palette → Tailwind `ds-*` colors */
+  --color-ds-gray-25: var(--ds-gray-25);
+  --color-ds-gray-50: var(--ds-gray-50);
+  --color-ds-gray-100: var(--ds-gray-100);
+  --color-ds-gray-200: var(--ds-gray-200);
+  --color-ds-gray-300: var(--ds-gray-300);
+  --color-ds-gray-400: var(--ds-gray-400);
+  --color-ds-gray-500: var(--ds-gray-500);
+  --color-ds-gray-600: var(--ds-gray-600);
+  --color-ds-gray-700: var(--ds-gray-700);
+  --color-ds-gray-800: var(--ds-gray-800);
+  --color-ds-gray-900: var(--ds-gray-900);
+  --color-ds-primary-25: var(--ds-primary-25);
+  --color-ds-primary-50: var(--ds-primary-50);
+  --color-ds-primary-100: var(--ds-primary-100);
+  --color-ds-primary-200: var(--ds-primary-200);
+  --color-ds-primary-300: var(--ds-primary-300);
+  --color-ds-primary-400: var(--ds-primary-400);
+  --color-ds-primary-500: var(--ds-primary-500);
+  --color-ds-primary-600: var(--ds-primary-600);
+  --color-ds-primary-700: var(--ds-primary-700);
+  --color-ds-primary-800: var(--ds-primary-800);
+  --color-ds-primary-900: var(--ds-primary-900);
+  --color-ds-error-25: var(--ds-error-25);
+  --color-ds-error-50: var(--ds-error-50);
+  --color-ds-error-100: var(--ds-error-100);
+  --color-ds-error-200: var(--ds-error-200);
+  --color-ds-error-600: var(--ds-error-600);
+  --color-ds-error-700: var(--ds-error-700);
+  --color-ds-success-25: var(--ds-success-25);
+  --color-ds-success-50: var(--ds-success-50);
+  --color-ds-success-100: var(--ds-success-100);
+  --color-ds-success-200: var(--ds-success-200);
+  --color-ds-success-400: var(--ds-success-400);
+  --color-ds-success-500: var(--ds-success-500);
+  --color-ds-success-600: var(--ds-success-600);
+  --color-ds-success-700: var(--ds-success-700);
+  --color-ds-success-800: var(--ds-success-800);
+  --color-ds-success-900: var(--ds-success-900);
+  --color-ds-warning-25: var(--ds-warning-25);
+  --color-ds-warning-50: var(--ds-warning-50);
+  --color-ds-warning-100: var(--ds-warning-100);
+  --color-ds-warning-200: var(--ds-warning-200);
+  --color-ds-warning-300: var(--ds-warning-300);
+  --color-ds-warning-600: var(--ds-warning-600);
+  --color-ds-warning-700: var(--ds-warning-700);
+  --color-ds-warning-800: var(--ds-warning-800);
+  --color-ds-warning-900: var(--ds-warning-900);
   --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
@@ -48,6 +96,64 @@
   --crm-sidebar-bg: #0b1327;
   --crm-accent: #7f56d9;
   --crm-canvas: #fcfcfc;
+
+  /* Gray neutral (25–900) */
+  --ds-gray-25: #fcfcfc;
+  --ds-gray-50: #f9fafb;
+  --ds-gray-100: #f2f4f7;
+  --ds-gray-200: #e4e7ec;
+  --ds-gray-300: #d0d5dd;
+  --ds-gray-400: #98a2b3;
+  --ds-gray-500: #667085;
+  --ds-gray-600: #475467;
+  --ds-gray-700: #344054;
+  --ds-gray-800: #1d2939;
+  --ds-gray-900: #101828;
+
+  /* Primary (purple) */
+  --ds-primary-25: #fcfaff;
+  --ds-primary-50: #f4ebff;
+  --ds-primary-100: #ebe9fe;
+  --ds-primary-200: #e9d7fe;
+  --ds-primary-300: #d6bbfb;
+  --ds-primary-400: #b692f6;
+  --ds-primary-500: #9e77ed;
+  --ds-primary-600: #7f56d9;
+  --ds-primary-700: #6941c6;
+  --ds-primary-800: #53389e;
+  --ds-primary-900: #42307d;
+
+  /* Error */
+  --ds-error-25: #fffbfb;
+  --ds-error-50: #fef3f2;
+  --ds-error-100: #fee4e2;
+  --ds-error-200: #fecdca;
+  --ds-error-600: #d92d20;
+  --ds-error-700: #b42318;
+
+  /* Success */
+  --ds-success-25: #f6fef9;
+  --ds-success-50: #ecfdf3;
+  --ds-success-100: #d1fadf;
+  --ds-success-200: #a6f4c5;
+  --ds-success-400: #32d583;
+  --ds-success-500: #12b76a;
+  --ds-success-600: #039855;
+  --ds-success-700: #027a48;
+  --ds-success-800: #05603a;
+  --ds-success-900: #054f31;
+
+  /* Warning */
+  --ds-warning-25: #fffaeb;
+  --ds-warning-50: #fffaeb;
+  --ds-warning-100: #fef0c7;
+  --ds-warning-200: #fedf89;
+  --ds-warning-300: #fec84b;
+  --ds-warning-600: #dc6803;
+  --ds-warning-700: #b54708;
+  --ds-warning-800: #93370d;
+  --ds-warning-900: #7a2e0e;
+
   --radius: 0;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);

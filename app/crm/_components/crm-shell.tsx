@@ -15,6 +15,7 @@ import type { CrmProject } from './types';
 import { useActiveProject } from './use-active-project';
 import { ActiveProjectProvider } from './active-project-context';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 function initialsFromEmail(email: string | null) {
   if (!email) return '?';
@@ -101,15 +102,14 @@ export function CrmShell({
                   className="size-[18px] shrink-0 text-white/90"
                   aria-hidden
                 />
-                <button
-                  type="button"
+                <Button
                   onClick={() => setSidebarCollapsed(false)}
-                  className="flex size-7 shrink-0 items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-expanded={false}
+                  variant="ghost"
+                  size="icon"
                   aria-label="Expand sidebar"
                 >
                   <ChevronRight className="size-4" aria-hidden />
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="flex items-start justify-between gap-2">
@@ -125,15 +125,14 @@ export function CrmShell({
                     Redevelopment CRM
                   </div>
                 </div>
-                <button
-                  type="button"
+                <Button
                   onClick={() => setSidebarCollapsed(true)}
-                  className="flex size-7 shrink-0 items-center justify-center rounded-md border border-white/15 bg-white/5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-expanded
+                  variant="ghost"
+                  size="icon"
                   aria-label="Collapse sidebar"
                 >
                   <ChevronLeft className="size-4" aria-hidden />
-                </button>
+                </Button>
               </div>
             )}
           </div>
