@@ -11,7 +11,8 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isCrmRoute = pathname === '/crm' || pathname.startsWith('/crm/');
-  const isAuthRoute = pathname === '/login' || pathname === '/logout';
+  const isAuthRoute =
+    pathname === '/' || pathname === '/login' || pathname === '/logout';
 
   const carryCookies = (to: NextResponse) => {
     response.cookies.getAll().forEach((c) => {
@@ -22,12 +23,12 @@ export async function proxy(request: NextRequest) {
 
   if (isCrmRoute && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    url.pathname = '/';
     url.searchParams.set('redirectTo', pathname);
     return carryCookies(NextResponse.redirect(url));
   }
 
-  if (pathname === '/login' && user) {
+  if ((pathname === '/' || pathname === '/login') && user) {
     const url = request.nextUrl.clone();
     url.pathname = '/crm';
     url.searchParams.delete('redirectTo');

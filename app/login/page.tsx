@@ -1,17 +1,21 @@
-import { Suspense } from 'react';
-import { LoginClient } from './login-client';
+import { redirect } from 'next/navigation';
 
-export default function LoginPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">
-          Loading…
-        </div>
-      }
-    >
-      <LoginClient />
-    </Suspense>
-  );
+/** Keeps old `/login` links working; sign-in UI lives on `/`. */
+export default async function LoginAliasPage({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      value.forEach((v) => qs.append(key, v));
+    } else {
+      qs.set(key, value);
+    }
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  redirect(`/${suffix}`);
 }
-
