@@ -537,11 +537,11 @@ export default function InquiryPage() {
               type="button"
               variant="outline"
               onClick={goBack}
-              disabled={step === 1}
+              disabled={step === 1 || saving}
             >
               Back
             </Button>
-            <Button type="button" variant="outline" onClick={resetForm}>
+            <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
               Reset
             </Button>
           </div>
