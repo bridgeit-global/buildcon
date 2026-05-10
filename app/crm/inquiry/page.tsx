@@ -302,64 +302,26 @@ export default function InquiryPage() {
   const stepValid = useMemo(() => {
     const customerOk =
       String(sellerForm.customerName || '').trim().length >= 2 &&
-      normalizePhone(sellerForm.phone).length === 10;
+      normalizePhone(sellerForm.phone).length === 10 &&
+      Boolean(userLabel.id);
     const inquiryOk = true;
     const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
     return { 1: customerOk, 2: inquiryOk, 3: unitOk, 4: true } as Record<
       StepId,
       boolean
     >;
-  }, [sellerForm]);
+  }, [sellerForm, userLabel.id]);
 
-  function goNext() {
-    setStep((s) => {
-      if (!stepValid[s]) return s;
-      const next = Math.min(4, (s as number) + 1) as StepId;
-      return next;
-    });
-  }
-  function goBack() {
-    setStep((s) => Math.max(1, (s as number) - 1) as StepId);
-  }
-  function gotoStep(target: StepId) {
-    if (target === step) return;
-    if (target < step) {
-      setStep(target);
-      return;
+  const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
+    if (!userLabel.id) {
+      setError('Sign in required to save customer details.');
+      return null;
     }
-    for (let i = step; i < target; i++) {
-      if (!stepValid[i as StepId]) {
-        setStep(i as StepId);
-        return;
-      }
-    }
-    setStep(target);
-  }
+    const digits = normalizePhone(sellerForm.phone);
+    const fullName = String(sellerForm.customerName || '').trim();
+    const email = String(sellerForm.email || '').trim() || null;
 
-  function resetForm() {
-    setSellerForm({
-      customerName: '',
-      phone: '',
-      email: '',
-      leadSource: 'Direct',
-      interestedIn: '',
-      parkingRequired: 'No',
-      parkingCount: '1',
-      selectedUnitId: '',
-      notes: ''
-    });
-    setStep(1);
-  }
-
-  async function saveInquiry() {
-    if (!canSave || !projectId || !userLabel.id) return;
-    setSaving(true);
-    setError('');
     try {
-      const digits = normalizePhone(sellerForm.phone);
-      const fullName = String(sellerForm.customerName || '').trim();
-      const email = String(sellerForm.email || '').trim() || null;
-
       const { data: existing, error: findErr } = await supabase
         .from('customers')
         .select('id')
@@ -395,6 +357,89 @@ export default function InquiryPage() {
         if (insErr) throw insErr;
         customerId = (inserted as { id: string }).id;
       }
+      return customerId;
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Failed to save customer details'
+      );
+      return null;
+    }
+  }, [supabase, userLabel.id, sellerForm.customerName, sellerForm.phone, sellerForm.email]);
+
+  async function goNext() {
+    if (!stepValid[step] || saving) return;
+    if (step === 1) {
+      setSaving(true);
+      setError('');
+      try {
+        const customerId = await persistCustomerToDb();
+        if (!customerId) return;
+        setStep(2);
+        setSaveMsg('Customer details saved.');
+        window.setTimeout(() => setSaveMsg(''), 2000);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    setStep((s) => Math.min(4, (s as number) + 1) as StepId);
+  }
+  function goBack() {
+    setStep((s) => Math.max(1, (s as number) - 1) as StepId);
+  }
+  async function gotoStep(target: StepId) {
+    if (target === step || saving) return;
+    if (target < step) {
+      setStep(target);
+      return;
+    }
+    if (step === 1 && target > 1) {
+      if (!stepValid[1]) {
+        setStep(1);
+        return;
+      }
+      setSaving(true);
+      setError('');
+      try {
+        const customerId = await persistCustomerToDb();
+        if (!customerId) return;
+        setSaveMsg('Customer details saved.');
+        window.setTimeout(() => setSaveMsg(''), 2000);
+      } finally {
+        setSaving(false);
+      }
+    }
+    for (let i = step; i < target; i++) {
+      if (!stepValid[i as StepId]) {
+        setStep(i as StepId);
+        return;
+      }
+    }
+    setStep(target);
+  }
+
+  function resetForm() {
+    setSellerForm({
+      customerName: '',
+      phone: '',
+      email: '',
+      leadSource: 'Direct',
+      interestedIn: '',
+      parkingRequired: 'No',
+      parkingCount: '1',
+      selectedUnitId: '',
+      notes: ''
+    });
+    setStep(1);
+  }
+
+  async function saveInquiry() {
+    if (!canSave || !projectId || !userLabel.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      const customerId = await persistCustomerToDb();
+      if (!customerId) return;
 
       const { error: inqErr } = await supabase.from('sales_inquiries').insert({
         project_id: projectId,
@@ -447,12 +492,18 @@ export default function InquiryPage() {
           Creates or updates a customer by mobile number, then saves the inquiry.
         </div>
 
-        <Stepper current={step} onStepClick={gotoStep} valid={stepValid} />
+        <Stepper
+          current={step}
+          onStepClick={gotoStep}
+          valid={stepValid}
+          disabled={saving}
+        />
 
         {step === 1 ? (
           <StepCustomer
             sellerForm={sellerForm}
             setSellerForm={setSellerForm}
+            signedIn={Boolean(userLabel.id)}
           />
         ) : null}
 
@@ -508,10 +559,10 @@ export default function InquiryPage() {
             {step < 4 ? (
               <Button
                 type="button"
-                onClick={goNext}
-                disabled={!stepValid[step]}
+                onClick={() => void goNext()}
+                disabled={!stepValid[step] || saving}
               >
-                Next
+                {saving && step === 1 ? 'Saving…' : step === 1 ? 'Save & next' : 'Next'}
               </Button>
             ) : (
               <Button
@@ -684,11 +735,13 @@ type SetSellerForm = React.Dispatch<React.SetStateAction<SellerForm>>;
 function Stepper({
   current,
   onStepClick,
-  valid
+  valid,
+  disabled
 }: {
   current: StepId;
-  onStepClick: (s: StepId) => void;
+  onStepClick: (s: StepId) => void | Promise<void>;
   valid: Record<StepId, boolean>;
+  disabled?: boolean;
 }) {
   return (
     <ol className="mt-4 flex items-center">
@@ -703,8 +756,9 @@ function Stepper({
           >
             <button
               type="button"
-              onClick={() => onStepClick(s.id)}
-              className="group flex items-center gap-2 text-left"
+              onClick={() => void onStepClick(s.id)}
+              disabled={disabled}
+              className="group flex items-center gap-2 text-left disabled:pointer-events-none disabled:opacity-50"
               aria-current={isActive ? 'step' : undefined}
             >
               <span
@@ -752,13 +806,27 @@ function Stepper({
 
 function StepCustomer({
   sellerForm,
-  setSellerForm
+  setSellerForm,
+  signedIn
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
+  signedIn: boolean;
 }) {
   return (
-    <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="mt-6 space-y-3">
+      {!signedIn ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Sign in to save customer details to the database and continue to the next
+          step.
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Customer is saved when you continue (by phone number — existing customers
+          are updated).
+        </p>
+      )}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
       <div>
         <Label>Customer name *</Label>
         <Input
@@ -800,6 +868,7 @@ function StepCustomer({
           placeholder="Email"
         />
       </div>
+    </div>
     </div>
   );
 }
