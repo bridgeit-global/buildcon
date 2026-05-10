@@ -437,53 +437,7 @@ export default function InquiryPage() {
         </div>
       ) : null}
 
-      <Card className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-foreground">
-              Inquiry list
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Stored in the database with linked customer and unit.
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {loadingInquiries ? 'Loading…' : `${inquiries.length} saved`}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => void loadInquiries()}
-              disabled={loadingInquiries}
-            >
-              Refresh
-            </Button>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {(
-            [
-              ['Total inquiries', stats.total],
-              ['Created today', stats.today],
-              ['Unit selected', stats.withUnit]
-            ] as const
-          ).map(([k, v]) => (
-            <div
-              key={k}
-              className="rounded-lg border border-border bg-muted/40 px-3 py-2"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                {k}
-              </div>
-              <div className="mt-0.5 text-lg font-bold tabular-nums text-foreground">
-                {v}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+
 
       <Card className="p-4">
         <div className="text-sm font-semibold text-foreground">
@@ -573,6 +527,53 @@ export default function InquiryPage() {
         </div>
       </Card>
 
+      <Card className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-foreground">
+              Inquiry list
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Stored in the database with linked customer and unit.
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {loadingInquiries ? 'Loading…' : `${inquiries.length} saved`}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => void loadInquiries()}
+              disabled={loadingInquiries}
+            >
+              Refresh
+            </Button>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {(
+            [
+              ['Total inquiries', stats.total],
+              ['Created today', stats.today],
+              ['Unit selected', stats.withUnit]
+            ] as const
+          ).map(([k, v]) => (
+            <div
+              key={k}
+              className="rounded-lg border border-border bg-muted/40 px-3 py-2"
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {k}
+              </div>
+              <div className="mt-0.5 text-lg font-bold tabular-nums text-foreground">
+                {v}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
       <Card className="p-4" id="inquiry-list">
         <Label className="sr-only">Search inquiries</Label>
         <Input
