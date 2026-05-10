@@ -15,20 +15,18 @@ import {
 
 export type CrmNavItem = {
   id:
-  | 'dashboard'
-  | 'project'
-  | 'inventory'
-  | 'bookings'
-  | 'inquiry'
-  | 'customers'
-  | 'financials'
-  | 'documents'
-  | 'rehab'
-  | 'reports'
-  | 'bankloans'
-  | 'users';
-  /** Shown in sidebar (matches build-con-pos emoji strip). */
-  emoji: string;
+    | 'dashboard'
+    | 'project'
+    | 'inventory'
+    | 'bookings'
+    | 'inquiry'
+    | 'customers'
+    | 'financials'
+    | 'documents'
+    | 'rehab'
+    | 'reports'
+    | 'bankloans'
+    | 'users';
   /** Optional long title in main header (prototype PAGE_TITLES). */
   pageTitle?: string;
   label: string;
@@ -39,7 +37,6 @@ export type CrmNavItem = {
 export const CRM_NAV: CrmNavItem[] = [
   {
     id: 'dashboard',
-    emoji: '⊞',
     pageTitle: 'Dashboard – Overview',
     label: 'Dashboard',
     href: '/crm/dashboard',
@@ -47,7 +44,6 @@ export const CRM_NAV: CrmNavItem[] = [
   },
   {
     id: 'project',
-    emoji: '🏢',
     pageTitle: 'Project',
     label: 'Project',
     href: '/crm/project',
@@ -55,14 +51,12 @@ export const CRM_NAV: CrmNavItem[] = [
   },
   {
     id: 'inventory',
-    emoji: '🏗',
     label: 'Inventory',
     href: '/crm/inventory',
     icon: LayoutGrid
   },
   {
     id: 'inquiry',
-    emoji: '💬',
     pageTitle: 'Inquiry – Sales leads',
     label: 'Inquiry',
     href: '/crm/inquiry',
@@ -70,21 +64,18 @@ export const CRM_NAV: CrmNavItem[] = [
   },
   {
     id: 'bookings',
-    emoji: '📋',
     label: 'Bookings',
     href: '/crm/bookings',
     icon: Home
   },
   {
     id: 'customers',
-    emoji: '👤',
     label: 'Customers',
     href: '/crm/customers',
     icon: Users
   },
   {
     id: 'financials',
-    emoji: '₹',
     pageTitle: 'Finance – Collections & receipts',
     label: 'Financials',
     href: '/crm/financials',
@@ -92,14 +83,12 @@ export const CRM_NAV: CrmNavItem[] = [
   },
   {
     id: 'documents',
-    emoji: '📄',
     label: 'Documents',
     href: '/crm/documents',
     icon: FileText
   },
   {
     id: 'rehab',
-    emoji: '🏘',
     pageTitle: 'Rehab – Members & mapping',
     label: 'Rehab Members',
     href: '/crm/rehab',
@@ -107,14 +96,12 @@ export const CRM_NAV: CrmNavItem[] = [
   },
   {
     id: 'reports',
-    emoji: '📊',
     label: 'Reports',
     href: '/crm/reports',
     icon: BarChart3
   },
   {
     id: 'bankloans',
-    emoji: '🏦',
     pageTitle: 'Bank & Loans',
     label: 'Bank & Loans',
     href: '/crm/bankloans',
@@ -122,7 +109,6 @@ export const CRM_NAV: CrmNavItem[] = [
   },
   {
     id: 'users',
-    emoji: '👥',
     pageTitle: 'Users (Admin)',
     label: 'Users & Access',
     href: '/crm/users',

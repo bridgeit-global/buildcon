@@ -827,48 +827,48 @@ function StepCustomer({
         </p>
       )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <div>
-        <Label>Customer name *</Label>
-        <Input
-          className="mt-1"
-          value={sellerForm.customerName}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, customerName: e.target.value }))
-          }
-          placeholder="Customer name"
-        />
+        <div>
+          <Label>Customer name *</Label>
+          <Input
+            className="mt-1"
+            value={sellerForm.customerName}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, customerName: e.target.value }))
+            }
+            placeholder="Customer name"
+          />
+        </div>
+        <div>
+          <Label>Phone *</Label>
+          <Input
+            className="mt-1"
+            value={sellerForm.phone}
+            onChange={(e) =>
+              setSellerForm((s) => ({
+                ...s,
+                phone: String(e.target.value || '')
+                  .replace(/\D/g, '')
+                  .slice(0, 10)
+              }))
+            }
+            placeholder="10-digit mobile"
+            inputMode="numeric"
+            maxLength={10}
+          />
+        </div>
+        <div>
+          <Label>Email</Label>
+          <Input
+            className="mt-1"
+            type="email"
+            value={sellerForm.email}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, email: e.target.value }))
+            }
+            placeholder="Email"
+          />
+        </div>
       </div>
-      <div>
-        <Label>Phone *</Label>
-        <Input
-          className="mt-1"
-          value={sellerForm.phone}
-          onChange={(e) =>
-            setSellerForm((s) => ({
-              ...s,
-              phone: String(e.target.value || '')
-                .replace(/\D/g, '')
-                .slice(0, 10)
-            }))
-          }
-          placeholder="10-digit mobile"
-          inputMode="numeric"
-          maxLength={10}
-        />
-      </div>
-      <div>
-        <Label>Email</Label>
-        <Input
-          className="mt-1"
-          type="email"
-          value={sellerForm.email}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, email: e.target.value }))
-          }
-          placeholder="Email"
-        />
-      </div>
-    </div>
     </div>
   );
 }
