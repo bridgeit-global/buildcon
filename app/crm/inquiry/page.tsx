@@ -8,6 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import {
+  STATUS_LABEL,
+  agreementValueLac,
+  formatFloorLabel
+} from '../inventory/inventory-utils';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -69,6 +74,14 @@ function unitPriceLacs(u: UnitRow) {
 const selectClass =
   'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
 
+const STEPS = [
+  { id: 1, label: 'Customer' },
+  { id: 2, label: 'Inquiry' },
+  { id: 3, label: 'Unit' },
+  { id: 4, label: 'Review' }
+] as const;
+type StepId = (typeof STEPS)[number]['id'];
+
 type CustomerEmbed = {
   full_name: string;
   phone: string | null;
@@ -125,6 +138,8 @@ export default function InquiryPage() {
     selectedUnitId: '',
     notes: ''
   });
+
+  const [step, setStep] = useState<StepId>(1);
 
   const loadInquiries = useCallback(async () => {
     if (!activeProjectId) return;
@@ -278,6 +293,49 @@ export default function InquiryPage() {
     return map;
   }, [units]);
 
+  const selectedUnit = useMemo(() => {
+    const id = String(sellerForm.selectedUnitId || '').trim();
+    if (!id) return null;
+    return units.find((u) => u.id === id) ?? null;
+  }, [units, sellerForm.selectedUnitId]);
+
+  const stepValid = useMemo(() => {
+    const customerOk =
+      String(sellerForm.customerName || '').trim().length >= 2 &&
+      normalizePhone(sellerForm.phone).length === 10;
+    const inquiryOk = true;
+    const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
+    return { 1: customerOk, 2: inquiryOk, 3: unitOk, 4: true } as Record<
+      StepId,
+      boolean
+    >;
+  }, [sellerForm]);
+
+  function goNext() {
+    setStep((s) => {
+      if (!stepValid[s]) return s;
+      const next = Math.min(4, (s as number) + 1) as StepId;
+      return next;
+    });
+  }
+  function goBack() {
+    setStep((s) => Math.max(1, (s as number) - 1) as StepId);
+  }
+  function gotoStep(target: StepId) {
+    if (target === step) return;
+    if (target < step) {
+      setStep(target);
+      return;
+    }
+    for (let i = step; i < target; i++) {
+      if (!stepValid[i as StepId]) {
+        setStep(i as StepId);
+        return;
+      }
+    }
+    setStep(target);
+  }
+
   function resetForm() {
     setSellerForm({
       customerName: '',
@@ -290,6 +348,7 @@ export default function InquiryPage() {
       selectedUnitId: '',
       notes: ''
     });
+    setStep(1);
   }
 
   async function saveInquiry() {
@@ -434,203 +493,87 @@ export default function InquiryPage() {
           Creates or updates a customer by mobile number, then saves the inquiry.
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <Label>Customer name *</Label>
-            <Input
-              className="mt-1"
-              value={sellerForm.customerName}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, customerName: e.target.value }))
-              }
-              placeholder="Customer name"
-            />
-          </div>
-          <div>
-            <Label>Phone *</Label>
-            <Input
-              className="mt-1"
-              value={sellerForm.phone}
-              onChange={(e) =>
-                setSellerForm((s) => ({
-                  ...s,
-                  phone: String(e.target.value || '')
-                    .replace(/\D/g, '')
-                    .slice(0, 10)
-                }))
-              }
-              placeholder="10-digit mobile"
-              inputMode="numeric"
-              maxLength={10}
-            />
-          </div>
-          <div>
-            <Label>Email</Label>
-            <Input
-              className="mt-1"
-              type="email"
-              value={sellerForm.email}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, email: e.target.value }))
-              }
-              placeholder="Email"
-            />
-          </div>
-          <div>
-            <Label>Lead source</Label>
-            <select
-              value={sellerForm.leadSource}
-              onChange={(e) =>
-                setSellerForm((s) => ({
-                  ...s,
-                  leadSource: e.target.value as (typeof LEAD_SOURCES)[number]
-                }))
-              }
-              className={selectClass}
-            >
-              {LEAD_SOURCES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label>Interested in</Label>
-            <select
-              value={sellerForm.interestedIn}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
-              }
-              className={selectClass}
-            >
-              <option value="">All types</option>
-              {INTEREST_TYPES.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label>Parking</Label>
-            <select
-              value={sellerForm.parkingRequired}
-              onChange={(e) =>
-                setSellerForm((s) => ({
-                  ...s,
-                  parkingRequired: e.target.value as 'Yes' | 'No'
-                }))
-              }
-              className={selectClass}
-            >
-              <option value="No">No parking required</option>
-              <option value="Yes">Parking required</option>
-            </select>
-          </div>
-          <div>
-            <Label>Parking count</Label>
-            <select
-              value={sellerForm.parkingCount}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, parkingCount: e.target.value }))
-              }
-              disabled={sellerForm.parkingRequired !== 'Yes'}
-              className={cn(selectClass, sellerForm.parkingRequired !== 'Yes' && 'opacity-60')}
-            >
-              {(['1', '2', '3', '4+'] as const).map((x) => (
-                <option key={x} value={x}>
-                  Parking count: {x}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-2 xl:col-span-4">
-            <Label>Notes</Label>
-            <textarea
-              value={sellerForm.notes}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, notes: e.target.value }))
-              }
-              rows={2}
-              placeholder="Notes"
-              className={cn(
-                'mt-1 flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-0.5 focus-visible:ring-ring/50 md:text-sm'
-              )}
-            />
-          </div>
-        </div>
+        <Stepper current={step} onStepClick={gotoStep} valid={stepValid} />
 
-        <div className="mt-6 text-xs font-semibold text-foreground">
-          Suggested units
-          {loadingUnits ? (
-            <span className="ml-2 font-normal text-muted-foreground">
-              Loading inventory…
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-          {suggestionUnits.length === 0 ? (
-            <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-              No available units match the current interest type.
-            </div>
-          ) : (
-            suggestionUnits.map((u) => {
-              const active = sellerForm.selectedUnitId === u.id;
-              const lac = unitPriceLacs(u);
-              return (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() =>
-                    setSellerForm((s) => ({ ...s, selectedUnitId: u.id }))
-                  }
-                  className={cn(
-                    'rounded-lg border p-3 text-left transition-colors',
-                    active
-                      ? 'border-blue-400 bg-blue-50'
-                      : 'border-border bg-background hover:bg-muted/50'
-                  )}
-                >
-                  <div className="text-xs font-bold text-foreground">
-                    {u.unit_code}
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">
-                    {u.unit_type ?? '—'} · {u.wing_name}
-                  </div>
-                  <div className="mt-1.5 text-xs font-semibold text-foreground">
-                    ₹ {lac.toLocaleString('en-IN')} Lac
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
+        {step === 1 ? (
+          <StepCustomer
+            sellerForm={sellerForm}
+            setSellerForm={setSellerForm}
+          />
+        ) : null}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            disabled={!canSave || saving || !userLabel.id}
-            onClick={() => void saveInquiry()}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            {saving ? 'Saving…' : 'Save inquiry'}
-          </Button>
-          <Button type="button" variant="outline" onClick={resetForm}>
-            Reset
-          </Button>
-          {!userLabel.id ? (
-            <span className="text-xs text-amber-700">
-              Sign in required to save.
-            </span>
-          ) : null}
-          {saveMsg ? (
-            <span className="text-xs font-semibold text-green-700">{saveMsg}</span>
-          ) : null}
+        {step === 2 ? (
+          <StepInquiry
+            sellerForm={sellerForm}
+            setSellerForm={setSellerForm}
+          />
+        ) : null}
+
+        {step === 3 ? (
+          <StepUnit
+            sellerForm={sellerForm}
+            setSellerForm={setSellerForm}
+            suggestionUnits={suggestionUnits}
+            loadingUnits={loadingUnits}
+            selectedUnit={selectedUnit}
+          />
+        ) : null}
+
+        {step === 4 ? (
+          <StepReview
+            sellerForm={sellerForm}
+            selectedUnit={selectedUnit}
+          />
+        ) : null}
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={goBack}
+              disabled={step === 1}
+            >
+              Back
+            </Button>
+            <Button type="button" variant="outline" onClick={resetForm}>
+              Reset
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            {!userLabel.id ? (
+              <span className="text-xs text-amber-700">
+                Sign in required to save.
+              </span>
+            ) : null}
+            {saveMsg ? (
+              <span className="text-xs font-semibold text-green-700">
+                {saveMsg}
+              </span>
+            ) : null}
+            {step < 4 ? (
+              <Button
+                type="button"
+                onClick={goNext}
+                disabled={!stepValid[step]}
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                disabled={!canSave || saving || !userLabel.id}
+                onClick={() => void saveInquiry()}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {saving ? 'Saving…' : 'Save inquiry'}
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
 
-      <Card className="p-4">
+      <Card className="p-4" id="inquiry-list">
         <Label className="sr-only">Search inquiries</Label>
         <Input
           value={query}
@@ -720,6 +663,474 @@ export default function InquiryPage() {
           </table>
         </div>
       </Card>
+    </div>
+  );
+}
+
+type SellerForm = {
+  customerName: string;
+  phone: string;
+  email: string;
+  leadSource: (typeof LEAD_SOURCES)[number];
+  interestedIn: string;
+  parkingRequired: 'Yes' | 'No';
+  parkingCount: string;
+  selectedUnitId: string;
+  notes: string;
+};
+type SetSellerForm = React.Dispatch<React.SetStateAction<SellerForm>>;
+
+function Stepper({
+  current,
+  onStepClick,
+  valid
+}: {
+  current: StepId;
+  onStepClick: (s: StepId) => void;
+  valid: Record<StepId, boolean>;
+}) {
+  return (
+    <ol className="mt-4 flex items-center">
+      {STEPS.map((s, idx) => {
+        const isDone = s.id < current && valid[s.id];
+        const isActive = s.id === current;
+        const isLast = idx === STEPS.length - 1;
+        return (
+          <li
+            key={s.id}
+            className={cn('flex items-center', !isLast && 'flex-1')}
+          >
+            <button
+              type="button"
+              onClick={() => onStepClick(s.id)}
+              className="group flex items-center gap-2 text-left"
+              aria-current={isActive ? 'step' : undefined}
+            >
+              <span
+                className={cn(
+                  'flex size-7 items-center justify-center rounded-full border text-[11px] font-bold transition-colors',
+                  isDone &&
+                  'border-green-500 bg-green-500 text-white',
+                  isActive &&
+                  'border-blue-500 bg-blue-500 text-white shadow-sm',
+                  !isDone &&
+                  !isActive &&
+                  'border-border bg-background text-muted-foreground group-hover:border-blue-300'
+                )}
+              >
+                {isDone ? '✓' : s.id}
+              </span>
+              <span
+                className={cn(
+                  'text-[11px] font-semibold uppercase tracking-wide',
+                  isActive
+                    ? 'text-foreground'
+                    : isDone
+                      ? 'text-green-700'
+                      : 'text-muted-foreground'
+                )}
+              >
+                {s.label}
+              </span>
+            </button>
+            {!isLast ? (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'mx-3 h-px flex-1 transition-colors',
+                  s.id < current ? 'bg-green-400' : 'bg-border'
+                )}
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function StepCustomer({
+  sellerForm,
+  setSellerForm
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+}) {
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div>
+        <Label>Customer name *</Label>
+        <Input
+          className="mt-1"
+          value={sellerForm.customerName}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, customerName: e.target.value }))
+          }
+          placeholder="Customer name"
+        />
+      </div>
+      <div>
+        <Label>Phone *</Label>
+        <Input
+          className="mt-1"
+          value={sellerForm.phone}
+          onChange={(e) =>
+            setSellerForm((s) => ({
+              ...s,
+              phone: String(e.target.value || '')
+                .replace(/\D/g, '')
+                .slice(0, 10)
+            }))
+          }
+          placeholder="10-digit mobile"
+          inputMode="numeric"
+          maxLength={10}
+        />
+      </div>
+      <div>
+        <Label>Email</Label>
+        <Input
+          className="mt-1"
+          type="email"
+          value={sellerForm.email}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, email: e.target.value }))
+          }
+          placeholder="Email"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepInquiry({
+  sellerForm,
+  setSellerForm
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+}) {
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div>
+        <Label>Lead source</Label>
+        <select
+          value={sellerForm.leadSource}
+          onChange={(e) =>
+            setSellerForm((s) => ({
+              ...s,
+              leadSource: e.target.value as (typeof LEAD_SOURCES)[number]
+            }))
+          }
+          className={selectClass}
+        >
+          {LEAD_SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <Label>Interested in</Label>
+        <select
+          value={sellerForm.interestedIn}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
+          }
+          className={selectClass}
+        >
+          <option value="">All types</option>
+          {INTEREST_TYPES.map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <Label>Parking</Label>
+        <select
+          value={sellerForm.parkingRequired}
+          onChange={(e) =>
+            setSellerForm((s) => ({
+              ...s,
+              parkingRequired: e.target.value as 'Yes' | 'No'
+            }))
+          }
+          className={selectClass}
+        >
+          <option value="No">No parking required</option>
+          <option value="Yes">Parking required</option>
+        </select>
+      </div>
+      <div>
+        <Label>Parking count</Label>
+        <select
+          value={sellerForm.parkingCount}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, parkingCount: e.target.value }))
+          }
+          disabled={sellerForm.parkingRequired !== 'Yes'}
+          className={cn(
+            selectClass,
+            sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
+          )}
+        >
+          {(['1', '2', '3', '4+'] as const).map((x) => (
+            <option key={x} value={x}>
+              Parking count: {x}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="md:col-span-2 xl:col-span-4">
+        <Label>Notes</Label>
+        <textarea
+          value={sellerForm.notes}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, notes: e.target.value }))
+          }
+          rows={2}
+          placeholder="Notes"
+          className={cn(
+            'mt-1 flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-0.5 focus-visible:ring-ring/50 md:text-sm'
+          )}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepUnit({
+  sellerForm,
+  setSellerForm,
+  suggestionUnits,
+  loadingUnits,
+  selectedUnit
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+  suggestionUnits: UnitRow[];
+  loadingUnits: boolean;
+  selectedUnit: UnitRow | null;
+}) {
+  return (
+    <div className="mt-6">
+      <div className="text-xs font-semibold text-foreground">
+        Suggested units
+        {loadingUnits ? (
+          <span className="ml-2 font-normal text-muted-foreground">
+            Loading inventory…
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+        {suggestionUnits.length === 0 ? (
+          <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            No available units match the current interest type.
+          </div>
+        ) : (
+          suggestionUnits.map((u) => {
+            const active = sellerForm.selectedUnitId === u.id;
+            const lac = unitPriceLacs(u);
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() =>
+                  setSellerForm((s) => ({ ...s, selectedUnitId: u.id }))
+                }
+                className={cn(
+                  'rounded-lg border p-3 text-left transition-colors',
+                  active
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-border bg-background hover:bg-muted/50'
+                )}
+              >
+                <div className="text-xs font-bold text-foreground">
+                  {u.unit_code}
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {u.unit_type ?? '—'} · {u.wing_name}
+                </div>
+                <div className="mt-1.5 text-xs font-semibold text-foreground">
+                  ₹ {lac.toLocaleString('en-IN')} Lac
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {selectedUnit ? (
+        <CostSheet
+          unit={selectedUnit}
+          parkingRequired={sellerForm.parkingRequired}
+          parkingCount={sellerForm.parkingCount}
+        />
+      ) : sellerForm.selectedUnitId ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Selected unit details are not in the current list. Refresh inventory
+          or pick another unit.
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-[11px] text-muted-foreground">
+          Pick a unit to see its cost sheet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostSheet({
+  unit,
+  parkingRequired,
+  parkingCount
+}: {
+  unit: UnitRow;
+  parkingRequired: 'Yes' | 'No';
+  parkingCount: string;
+}) {
+  const area = Number(unit.area) || 0;
+  const rate = Number(unit.rate) || 0;
+  const basicInr = area * rate;
+  const lac = agreementValueLac(unit.area, unit.rate);
+  const st = String(unit.status || '').toUpperCase();
+  const statusLabel =
+    STATUS_LABEL[unit.status] ??
+    STATUS_LABEL[st] ??
+    (st === 'AVAILABLE' ? 'Available' : unit.status);
+  const rows: [string, string][] = [
+    ['Floor', formatFloorLabel(unit.floor, unit.unit_type)],
+    ['Configuration', unit.unit_type?.trim() || '—'],
+    ['Status', statusLabel || '—'],
+    ['Sale area', area > 0 ? `${area.toLocaleString('en-IN')} sq.ft` : '—'],
+    [
+      'Basic rate',
+      rate > 0 ? `₹ ${rate.toLocaleString('en-IN')} / sq.ft` : '—'
+    ],
+    [
+      'Agreement value (basic)',
+      basicInr > 0
+        ? `₹ ${lac.toFixed(2)} Lac (₹ ${basicInr.toLocaleString('en-IN')})`
+        : '—'
+    ]
+  ];
+  if (parkingRequired === 'Yes') {
+    rows.push(['Parking (customer ask)', `Yes · count ${parkingCount}`]);
+  }
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        Cost sheet
+      </div>
+      <div className="mt-1 text-sm font-semibold text-foreground">
+        {unit.unit_code}{' '}
+        <span className="font-normal text-muted-foreground">
+          · {unit.wing_name}
+        </span>
+      </div>
+      <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-baseline justify-between gap-3 rounded-md border border-border/80 bg-background px-3 py-2"
+          >
+            <dt className="text-[11px] font-semibold text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="text-right text-xs font-semibold text-foreground">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+        Basic cost is area × rate. Stamp duty, registration, GST, and other
+        charges depend on project terms and local law — add them in the booking
+        or agreement workflow.
+      </p>
+    </div>
+  );
+}
+
+function StepReview({
+  sellerForm,
+  selectedUnit
+}: {
+  sellerForm: SellerForm;
+  selectedUnit: UnitRow | null;
+}) {
+  const customer: [string, string][] = [
+    ['Name', sellerForm.customerName.trim() || '—'],
+    [
+      'Phone',
+      normalizePhone(sellerForm.phone).length === 10
+        ? sellerForm.phone
+        : '—'
+    ],
+    ['Email', sellerForm.email.trim() || '—']
+  ];
+  const inquiry: [string, string][] = [
+    ['Lead source', sellerForm.leadSource],
+    ['Interested in', sellerForm.interestedIn || 'Any'],
+    [
+      'Parking',
+      sellerForm.parkingRequired === 'Yes'
+        ? `Yes · count ${sellerForm.parkingCount}`
+        : 'No'
+    ],
+    ['Notes', sellerForm.notes.trim() || '—']
+  ];
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <ReviewBlock title="Customer" rows={customer} />
+      <ReviewBlock title="Inquiry" rows={inquiry} />
+      <div className="lg:col-span-2">
+        {selectedUnit ? (
+          <CostSheet
+            unit={selectedUnit}
+            parkingRequired={sellerForm.parkingRequired}
+            parkingCount={sellerForm.parkingCount}
+          />
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            No unit selected. Go back to step 3 to pick a unit.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReviewBlock({
+  title,
+  rows
+}: {
+  title: string;
+  rows: [string, string][];
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </div>
+      <dl className="mt-3 grid grid-cols-1 gap-2">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-1.5 last:border-0 last:pb-0"
+          >
+            <dt className="text-[11px] font-semibold text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="text-right text-xs font-semibold text-foreground">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

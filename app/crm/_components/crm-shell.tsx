@@ -72,7 +72,7 @@ export function CrmShell({
       className="min-h-screen overflow-hidden text-[13px]"
       style={{ background: 'var(--crm-canvas, #f1f5f9)' }}
     >
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen min-h-0 overflow-hidden">
         <aside
           className="flex w-[200px] min-w-[200px] shrink-0 flex-col overflow-hidden text-white"
           style={{ background: 'var(--crm-sidebar-bg, #1b2b65)' }}
@@ -163,7 +163,7 @@ export function CrmShell({
         <ActiveProjectProvider
           value={{ projects, activeProjectId, activeProject, setActiveProjectId }}
         >
-          <main className="crm-scrollbar flex-1 overflow-y-auto">
+          <main className="crm-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto">
             <div className="p-4">
               <div className="mb-3">
                 <h1 className="text-base font-bold leading-snug text-[#1e293b]">
