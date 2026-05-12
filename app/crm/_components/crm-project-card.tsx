@@ -134,7 +134,14 @@ export function CrmProjectCard({
       <div className="mt-3 grid grid-cols-3 gap-1.5">
         {[
           ['Wings', p.wing_count],
-          ['Parking', '—'],
+          [
+            'Parking',
+            p.parking_slots != null && p.parking_slots > 0
+              ? p.parking_rate != null
+                ? `${p.parking_slots} · ₹${formatInr(p.parking_rate)}/slot`
+                : String(p.parking_slots)
+              : '—'
+          ],
           ['Total units', p.unit_count]
         ].map(([label, val]) => (
           <div key={String(label)} className="bg-slate-50 px-2 py-1.5">

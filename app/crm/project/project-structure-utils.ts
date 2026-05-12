@@ -33,6 +33,8 @@ export type StructureNode = {
   floorsPerStructure: number;
   unitsPerFloor: number;
   parkingCount: number;
+  /** ₹ per parking slot (leaf-level; total value = count × rate). */
+  parkingRate: number;
   children: StructureNode[];
 };
 
@@ -116,6 +118,36 @@ export function projectParkingTotal(
   }, 0);
   if (hasLeafParking) return leafTotal;
   return 0;
+}
+
+/** Sum of (parking slots × rate) across structure leaves. */
+export function projectParkingValueTotal(
+  structures: StructureNode[] | undefined | null
+): number {
+  const leaves = getStructureLeaves(normalizeStructures(structures));
+  let hasLeafParking = false;
+  const total = leaves.reduce((sum, L) => {
+    const p = L.leaf.parkingCount;
+    if (p != null) {
+      hasLeafParking = true;
+      const count = Math.max(0, Number(p) || 0);
+      const rate = Math.max(0, Number(L.leaf.parkingRate) || 0);
+      return sum + count * rate;
+    }
+    return sum;
+  }, 0);
+  if (!hasLeafParking) return 0;
+  return total;
+}
+
+/** Weighted average ₹ per slot when total slots are greater than zero. */
+export function projectParkingAvgRatePerSlot(
+  structures: StructureNode[] | undefined | null
+): number | null {
+  const slots = projectParkingTotal(structures);
+  if (slots <= 0) return null;
+  const value = projectParkingValueTotal(structures);
+  return value / slots;
 }
 
 export function totalStructureLeafArea(
@@ -253,6 +285,7 @@ export function defaultRootStructures(
     floorsPerStructure: floorsPerWing,
     unitsPerFloor,
     parkingCount: 0,
+    parkingRate: 0,
     children: []
   }));
 }

@@ -11,6 +11,8 @@ export type CrmProject = {
   base_rate: number | null;
   min_rate: number | null;
   max_rate: number | null;
+  parking_slots: number | null;
+  parking_rate: number | null;
 };
 
 /** Extended fields returned by GET `/api/crm/projects` for list cards */

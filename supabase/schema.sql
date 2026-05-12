@@ -80,6 +80,8 @@ create table if not exists public.projects (
   base_rate int,
   min_rate int,
   max_rate int,
+  parking_slots int,
+  parking_rate int,
   created_at timestamptz not null default now()
 );
 

@@ -33,6 +33,8 @@ type CreateProjectBody = {
     base_rate?: number | null;
     min_rate?: number | null;
     max_rate?: number | null;
+    parking_slots?: number | null;
+    parking_rate?: number | null;
   };
   wings: string[];
   unitTypes: string[];
@@ -85,7 +87,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('projects')
     .select(
-      'id,name,location,type,status,fy,rera_no,floors_per_wing,units_per_floor,base_rate,min_rate,max_rate'
+      'id,name,location,type,status,fy,rera_no,floors_per_wing,units_per_floor,base_rate,min_rate,max_rate,parking_slots,parking_rate'
     )
     .order('created_at', { ascending: false });
 

@@ -44,6 +44,8 @@ type ProjectRow = {
   rera_no: string | null;
   floors_per_wing: number;
   units_per_floor: number;
+  parking_slots: number | null;
+  parking_rate: number | null;
 };
 
 type BookingPreview = {
@@ -619,7 +621,7 @@ export default function InventoryPage() {
       supabase
         .from('projects')
         .select(
-          'name, location, rera_no, floors_per_wing, units_per_floor'
+          'name, location, rera_no, floors_per_wing, units_per_floor, parking_slots, parking_rate'
         )
         .eq('id', activeProjectId)
         .maybeSingle(),
@@ -921,6 +923,23 @@ export default function InventoryPage() {
                       ],
                       ['Floors (default)', project.floors_per_wing ?? '—'],
                       ['Units / floor (def.)', project.units_per_floor ?? '—'],
+                      [
+                        'Parking slots',
+                        project.parking_slots != null &&
+                        project.parking_slots > 0
+                          ? String(project.parking_slots)
+                          : '—'
+                      ],
+                      [
+                        'Parking rate',
+                        project.parking_slots != null &&
+                        project.parking_slots > 0 &&
+                        project.parking_rate != null
+                          ? `₹${project.parking_rate.toLocaleString(
+                              'en-IN'
+                            )} / slot`
+                          : '—'
+                      ],
                       [
                         'Unit Types',
                         typeOptions.length ? typeOptions.join(', ') : '—'

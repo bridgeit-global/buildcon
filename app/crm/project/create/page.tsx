@@ -17,7 +17,9 @@ import {
   countProjectUnits,
   normalizeStructures,
   getStructureLeaves,
-  projectParkingTotal
+  projectParkingAvgRatePerSlot,
+  projectParkingTotal,
+  projectParkingValueTotal
 } from '../project-structure-utils';
 import {
   FloorConfigureStep,
@@ -145,6 +147,9 @@ export default function CreateProjectPage() {
         draft.units_per_floor || 1
       );
 
+      const parkingSlotsTotal = projectParkingTotal(draft.structures);
+      const parkingAvg = projectParkingAvgRatePerSlot(draft.structures);
+
       const res = await fetch('/api/crm/projects', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -160,7 +165,13 @@ export default function CreateProjectPage() {
             units_per_floor: metaUnits,
             base_rate: Number(draft.base_rate || 0) || null,
             min_rate: Number(draft.min_rate || 0) || null,
-            max_rate: Number(draft.max_rate || 0) || null
+            max_rate: Number(draft.max_rate || 0) || null,
+            parking_slots:
+              parkingSlotsTotal > 0 ? parkingSlotsTotal : null,
+            parking_rate:
+              parkingSlotsTotal > 0
+                ? Math.round(parkingAvg ?? 0)
+                : null
           },
           wings,
           unitTypes,
@@ -230,6 +241,27 @@ export default function CreateProjectPage() {
     }
     return countProjectUnits(draft.structures);
   }, [draft.floorProvisions, draft.structures]);
+
+  const parkingSlots = useMemo(
+    () => projectParkingTotal(draft.structures),
+    [draft.structures]
+  );
+  const parkingValueInr = useMemo(
+    () => projectParkingValueTotal(draft.structures),
+    [draft.structures]
+  );
+  const parkingAvgRate = useMemo(
+    () => projectParkingAvgRatePerSlot(draft.structures),
+    [draft.structures]
+  );
+  const parkingReviewLine = useMemo(() => {
+    if (parkingSlots <= 0) return '—';
+    if (parkingValueInr <= 0) return `${parkingSlots} slots`;
+    const avg = parkingAvgRate ?? 0;
+    return `${parkingSlots} slots · avg ₹${avg.toLocaleString(
+      'en-IN'
+    )}/slot · ₹${parkingValueInr.toLocaleString('en-IN')} total`;
+  }, [parkingAvgRate, parkingSlots, parkingValueInr]);
 
   if (loading || !canCreateProject) {
     return (
@@ -452,7 +484,20 @@ export default function CreateProjectPage() {
                   </span>
                   <span>
                     <span className="text-emerald-700">Parking</span>{' '}
-                    <strong>{projectParkingTotal(draft.structures)}</strong>
+                    <strong>{parkingSlots}</strong>
+                    {parkingSlots > 0 && parkingValueInr > 0 && parkingAvgRate != null ? (
+                      <>
+                        {' · avg '}
+                        <strong>
+                          ₹{parkingAvgRate.toLocaleString('en-IN')}
+                        </strong>
+                        /slot ·{' '}
+                        <strong>
+                          ₹{parkingValueInr.toLocaleString('en-IN')}
+                        </strong>{' '}
+                        total
+                      </>
+                    ) : null}
                   </span>
                   <span>
                     <span className="text-emerald-700">Total units</span>{' '}
@@ -681,6 +726,7 @@ export default function CreateProjectPage() {
                     `${draft.floors_per_wing} / ${draft.units_per_floor}`
                   ],
                   ['Units to seed', String(previewUnitTotal)],
+                  ['Parking (slots / value)', parkingReviewLine],
                   [
                     'Floor provision rows',
                     String(draft.floorProvisions.length)

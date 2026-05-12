@@ -163,9 +163,9 @@ export function StructureTreeFields({
                       className="h-8 text-[11px]"
                     />
                   </div>
-                  <div className="w-[90px]">
+                  <div className="w-[78px]">
                     <div className="text-[10px] text-muted-foreground">
-                      Parking
+                      Parking #
                     </div>
                     <Input
                       type="number"
@@ -179,6 +179,32 @@ export function StructureTreeFields({
                             arr[i] = {
                               ...arr[i],
                               parkingCount: Math.max(
+                                0,
+                                parseInt(e.target.value, 10) || 0
+                              )
+                            };
+                          })
+                        );
+                      }}
+                      className="h-8 text-[11px]"
+                    />
+                  </div>
+                  <div className="w-[100px]">
+                    <div className="text-[10px] text-muted-foreground">
+                      ₹ / slot
+                    </div>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={
+                        node.parkingRate != null ? node.parkingRate : 0
+                      }
+                      onChange={(e) => {
+                        onNodesChange(
+                          updateAtPath(nodes, path, (arr, i) => {
+                            arr[i] = {
+                              ...arr[i],
+                              parkingRate: Math.max(
                                 0,
                                 parseInt(e.target.value, 10) || 0
                               )
@@ -227,6 +253,7 @@ export function StructureTreeFields({
               floorsPerStructure: defaultFloors,
               unitsPerFloor: defaultUnitsPerFloor,
               parkingCount: 0,
+              parkingRate: 0,
               children: []
             }
           ])
