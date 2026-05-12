@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,17 +29,108 @@ type CustomerInquiryRow = {
   id: string;
   created_at: string;
   lead_source: string;
+  broker_id: string | null;
+  brokers: { full_name: string } | { full_name: string }[] | null;
   interested_in: string | null;
   projects: { name: string } | { name: string }[] | null;
   units:
-  | { unit_code: string; wing_name: string }
-  | { unit_code: string; wing_name: string }[]
-  | null;
+    | { unit_code: string; wing_name: string }
+    | { unit_code: string; wing_name: string }[]
+    | null;
 };
+
+type AddressRow = {
+  id: string;
+  kind: string;
+  address_line1: string | null;
+  city: string | null;
+  state: string | null;
+  pin: string | null;
+};
+
+type NomineeRow = {
+  id: string;
+  nominee_name: string | null;
+  relationship: string | null;
+  nominee_dob: string | null;
+};
+
+type BankRow = {
+  id: string;
+  bank_name: string | null;
+  account_no: string | null;
+  ifsc: string | null;
+  branch: string | null;
+};
+
+type KycDocRow = {
+  id: string;
+  doc_type: string;
+  verified_status: string;
+  uploaded_at: string;
+  storage_path: string;
+};
+
+type DetailTab = 'profile' | 'kyc' | 'address' | 'nominee' | 'bank';
 
 function embedOne<T>(x: T | T[] | null | undefined): T | null {
   if (x == null) return null;
   return Array.isArray(x) ? (x[0] ?? null) : x;
+}
+
+function initialsFromName(name: string) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3 border-b border-gray-100 py-2.5 last:border-b-0">
+      <div className="w-[140px] shrink-0 text-xs font-medium text-gray-500">
+        {label}
+      </div>
+      <div className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+const DETAIL_TABS: { id: DetailTab; label: string }[] = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'kyc', label: 'KYC' },
+  { id: 'address', label: 'Address' },
+  { id: 'nominee', label: 'Nominee' },
+  { id: 'bank', label: 'Bank' }
+];
+
+const KYC_BUCKET = 'kyc';
+
+const KYC_DOC_TYPES: { value: string; label: string }[] = [
+  { value: 'aadhaar', label: 'Aadhaar' },
+  { value: 'pan', label: 'PAN' },
+  { value: 'photo', label: 'Photo' },
+  { value: 'address_proof', label: 'Address proof' },
+  { value: 'other', label: 'Other' }
+];
+
+function extensionFromFile(file: File): string {
+  const name = file.name;
+  const dot = name.lastIndexOf('.');
+  if (dot >= 0 && dot < name.length - 1) {
+    return name.slice(dot).toLowerCase();
+  }
+  const t = file.type;
+  if (t === 'application/pdf') return '.pdf';
+  if (t === 'image/jpeg' || t === 'image/jpg') return '.jpg';
+  if (t === 'image/png') return '.png';
+  if (t === 'image/webp') return '.webp';
+  return '.bin';
 }
 
 export default function CustomersPage() {
@@ -52,8 +143,17 @@ export default function CustomersPage() {
   const [error, setError] = useState('');
 
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
+    full_name: '',
+    phone: '',
+    email: '',
+    dob: '',
+    occupation: '',
+    nationality: 'Indian'
+  });
+  const [editDraft, setEditDraft] = useState({
     full_name: '',
     phone: '',
     email: '',
@@ -66,6 +166,48 @@ export default function CustomersPage() {
     CustomerInquiryRow[]
   >([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
+
+  const [detailTab, setDetailTab] = useState<DetailTab>('profile');
+  const [addresses, setAddresses] = useState<AddressRow[]>([]);
+  const [nominees, setNominees] = useState<NomineeRow[]>([]);
+  const [bankRows, setBankRows] = useState<BankRow[]>([]);
+  const [kycDocs, setKycDocs] = useState<KycDocRow[]>([]);
+  const [loadingExtras, setLoadingExtras] = useState(false);
+
+  const [extrasSaving, setExtrasSaving] = useState(false);
+  const [extrasError, setExtrasError] = useState('');
+
+  const [addressFormOpen, setAddressFormOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [addressForm, setAddressForm] = useState({
+    kind: 'current' as 'current' | 'permanent',
+    address_line1: '',
+    city: '',
+    state: '',
+    pin: ''
+  });
+
+  const [nomineeFormOpen, setNomineeFormOpen] = useState(false);
+  const [editingNomineeId, setEditingNomineeId] = useState<string | null>(null);
+  const [nomineeForm, setNomineeForm] = useState({
+    nominee_name: '',
+    relationship: '',
+    nominee_dob: ''
+  });
+
+  const [bankFormOpen, setBankFormOpen] = useState(false);
+  const [editingBankId, setEditingBankId] = useState<string | null>(null);
+  const [bankForm, setBankForm] = useState({
+    bank_name: '',
+    account_no: '',
+    ifsc: '',
+    branch: ''
+  });
+
+  const [kycFormOpen, setKycFormOpen] = useState(false);
+  const [kycDocType, setKycDocType] = useState('aadhaar');
+  const kycFileRef = useRef<HTMLInputElement>(null);
+  const [kycAlert, setKycAlert] = useState('');
 
   async function load() {
     setLoading(true);
@@ -105,6 +247,8 @@ export default function CustomersPage() {
           id,
           created_at,
           lead_source,
+          broker_id,
+          brokers ( full_name ),
           interested_in,
           projects ( name ),
           units ( unit_code, wing_name )
@@ -119,6 +263,52 @@ export default function CustomersPage() {
           setCustomerInquiries((data ?? []) as unknown as CustomerInquiryRow[]);
         setLoadingInquiries(false);
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, supabase]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setAddresses([]);
+      setNominees([]);
+      setBankRows([]);
+      setKycDocs([]);
+      setLoadingExtras(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingExtras(true);
+      const [a, n, b, k] = await Promise.all([
+        supabase
+          .from('customer_addresses')
+          .select('id,kind,address_line1,city,state,pin')
+          .eq('customer_id', selectedId)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('customer_nominees')
+          .select('id,nominee_name,relationship,nominee_dob')
+          .eq('customer_id', selectedId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('customer_bank_details')
+          .select('id,bank_name,account_no,ifsc,branch')
+          .eq('customer_id', selectedId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('customer_kyc_documents')
+          .select('id,doc_type,verified_status,uploaded_at,storage_path')
+          .eq('customer_id', selectedId)
+          .order('uploaded_at', { ascending: false })
+      ]);
+      if (cancelled) return;
+      setAddresses((a.data ?? []) as AddressRow[]);
+      setNominees((n.data ?? []) as NomineeRow[]);
+      setBankRows((b.data ?? []) as BankRow[]);
+      setKycDocs((k.data ?? []) as KycDocRow[]);
+      setLoadingExtras(false);
     })();
     return () => {
       cancelled = true;
@@ -140,6 +330,13 @@ export default function CustomersPage() {
     filtered.find((c) => c.id === selectedId) ??
     customers.find((c) => c.id === selectedId) ??
     null;
+
+  const latestInquiry = customerInquiries[0] ?? null;
+  const latestBrokerName =
+    latestInquiry &&
+    String(latestInquiry.lead_source || '').toLowerCase() === 'broker'
+      ? embedOne(latestInquiry.brokers)?.full_name ?? null
+      : null;
 
   async function createCustomer() {
     setSaving(true);
@@ -180,6 +377,460 @@ export default function CustomersPage() {
     }
   }
 
+  async function updateCustomer() {
+    if (!selectedId) return;
+    setSaving(true);
+    setError('');
+    try {
+      const { data, error: upErr } = await supabase
+        .from('customers')
+        .update({
+          full_name: editDraft.full_name,
+          phone: editDraft.phone || null,
+          email: editDraft.email || null,
+          dob: editDraft.dob || null,
+          occupation: editDraft.occupation || null,
+          nationality: editDraft.nationality || null
+        })
+        .eq('id', selectedId)
+        .select(
+          'id,full_name,phone,email,dob,occupation,nationality,created_at'
+        )
+        .single();
+
+      if (upErr) throw upErr;
+      const row = data as CustomerRow;
+      setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
+      setEditOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update customer');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEditDialog() {
+    if (!selected) return;
+    setError('');
+    setEditDraft({
+      full_name: selected.full_name,
+      phone: selected.phone ?? '',
+      email: selected.email ?? '',
+      dob: selected.dob ? String(selected.dob).slice(0, 10) : '',
+      occupation: selected.occupation ?? '',
+      nationality: selected.nationality || 'Indian'
+    });
+    setEditOpen(true);
+  }
+
+  function openAddressCreate() {
+    setExtrasError('');
+    setEditingAddressId(null);
+    setAddressForm({
+      kind: 'current',
+      address_line1: '',
+      city: '',
+      state: '',
+      pin: ''
+    });
+    setAddressFormOpen(true);
+  }
+
+  function openAddressEdit(row: AddressRow) {
+    setExtrasError('');
+    setEditingAddressId(row.id);
+    setAddressForm({
+      kind: row.kind === 'permanent' ? 'permanent' : 'current',
+      address_line1: row.address_line1 ?? '',
+      city: row.city ?? '',
+      state: row.state ?? '',
+      pin: row.pin ?? ''
+    });
+    setAddressFormOpen(true);
+  }
+
+  async function saveAddress() {
+    if (!selectedId) return;
+    const line = addressForm.address_line1.trim();
+    if (!line) {
+      setExtrasError('Address line is required.');
+      return;
+    }
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      const payload = {
+        kind: addressForm.kind,
+        address_line1: line,
+        city: addressForm.city.trim() || null,
+        state: addressForm.state.trim() || null,
+        pin: addressForm.pin.trim() || null
+      };
+      if (editingAddressId) {
+        const { data, error: upErr } = await supabase
+          .from('customer_addresses')
+          .update(payload)
+          .eq('id', editingAddressId)
+          .eq('customer_id', selectedId)
+          .select('id,kind,address_line1,city,state,pin')
+          .single();
+        if (upErr) throw upErr;
+        const row = data as AddressRow;
+        setAddresses((prev) =>
+          prev.map((a) => (a.id === row.id ? row : a))
+        );
+      } else {
+        const { data, error: insErr } = await supabase
+          .from('customer_addresses')
+          .insert({ customer_id: selectedId, ...payload })
+          .select('id,kind,address_line1,city,state,pin')
+          .single();
+        if (insErr) throw insErr;
+        const row = data as AddressRow;
+        setAddresses((prev) => [...prev, row]);
+      }
+      setAddressFormOpen(false);
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to save address'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  async function deleteAddress(id: string) {
+    if (!selectedId) return;
+    if (!window.confirm('Remove this address?')) return;
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      const { error: delErr } = await supabase
+        .from('customer_addresses')
+        .delete()
+        .eq('id', id)
+        .eq('customer_id', selectedId);
+      if (delErr) throw delErr;
+      setAddresses((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to remove address'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  function openNomineeCreate() {
+    setExtrasError('');
+    setEditingNomineeId(null);
+    setNomineeForm({
+      nominee_name: '',
+      relationship: '',
+      nominee_dob: ''
+    });
+    setNomineeFormOpen(true);
+  }
+
+  function openNomineeEdit(row: NomineeRow) {
+    setExtrasError('');
+    setEditingNomineeId(row.id);
+    setNomineeForm({
+      nominee_name: row.nominee_name ?? '',
+      relationship: row.relationship ?? '',
+      nominee_dob: row.nominee_dob
+        ? String(row.nominee_dob).slice(0, 10)
+        : ''
+    });
+    setNomineeFormOpen(true);
+  }
+
+  async function saveNominee() {
+    if (!selectedId) return;
+    const name = nomineeForm.nominee_name.trim();
+    if (!name) {
+      setExtrasError('Nominee name is required.');
+      return;
+    }
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      const payload = {
+        nominee_name: name,
+        relationship: nomineeForm.relationship.trim() || null,
+        nominee_dob: nomineeForm.nominee_dob || null
+      };
+      if (editingNomineeId) {
+        const { data, error: upErr } = await supabase
+          .from('customer_nominees')
+          .update(payload)
+          .eq('id', editingNomineeId)
+          .eq('customer_id', selectedId)
+          .select('id,nominee_name,relationship,nominee_dob')
+          .single();
+        if (upErr) throw upErr;
+        const row = data as NomineeRow;
+        setNominees((prev) =>
+          prev.map((n) => (n.id === row.id ? row : n))
+        );
+      } else {
+        const { data, error: insErr } = await supabase
+          .from('customer_nominees')
+          .insert({ customer_id: selectedId, ...payload })
+          .select('id,nominee_name,relationship,nominee_dob')
+          .single();
+        if (insErr) throw insErr;
+        const row = data as NomineeRow;
+        setNominees((prev) => [row, ...prev]);
+      }
+      setNomineeFormOpen(false);
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to save nominee'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  async function deleteNominee(id: string) {
+    if (!selectedId) return;
+    if (!window.confirm('Remove this nominee?')) return;
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      const { error: delErr } = await supabase
+        .from('customer_nominees')
+        .delete()
+        .eq('id', id)
+        .eq('customer_id', selectedId);
+      if (delErr) throw delErr;
+      setNominees((prev) => prev.filter((n) => n.id !== id));
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to remove nominee'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  function openBankCreate() {
+    setExtrasError('');
+    setEditingBankId(null);
+    setBankForm({
+      bank_name: '',
+      account_no: '',
+      ifsc: '',
+      branch: ''
+    });
+    setBankFormOpen(true);
+  }
+
+  function openBankEdit(row: BankRow) {
+    setExtrasError('');
+    setEditingBankId(row.id);
+    setBankForm({
+      bank_name: row.bank_name ?? '',
+      account_no: row.account_no ?? '',
+      ifsc: row.ifsc ?? '',
+      branch: row.branch ?? ''
+    });
+    setBankFormOpen(true);
+  }
+
+  async function saveBank() {
+    if (!selectedId) return;
+    const bankName = bankForm.bank_name.trim();
+    if (!bankName) {
+      setExtrasError('Bank name is required.');
+      return;
+    }
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      const payload = {
+        bank_name: bankName,
+        account_no: bankForm.account_no.trim() || null,
+        ifsc: bankForm.ifsc.trim() || null,
+        branch: bankForm.branch.trim() || null
+      };
+      if (editingBankId) {
+        const { data, error: upErr } = await supabase
+          .from('customer_bank_details')
+          .update(payload)
+          .eq('id', editingBankId)
+          .eq('customer_id', selectedId)
+          .select('id,bank_name,account_no,ifsc,branch')
+          .single();
+        if (upErr) throw upErr;
+        const row = data as BankRow;
+        setBankRows((prev) =>
+          prev.map((b) => (b.id === row.id ? row : b))
+        );
+      } else {
+        const { data, error: insErr } = await supabase
+          .from('customer_bank_details')
+          .insert({ customer_id: selectedId, ...payload })
+          .select('id,bank_name,account_no,ifsc,branch')
+          .single();
+        if (insErr) throw insErr;
+        const row = data as BankRow;
+        setBankRows((prev) => [row, ...prev]);
+      }
+      setBankFormOpen(false);
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to save bank details'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  async function deleteBank(id: string) {
+    if (!selectedId) return;
+    if (!window.confirm('Remove this bank record?')) return;
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      const { error: delErr } = await supabase
+        .from('customer_bank_details')
+        .delete()
+        .eq('id', id)
+        .eq('customer_id', selectedId);
+      if (delErr) throw delErr;
+      setBankRows((prev) => prev.filter((b) => b.id !== id));
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to remove bank record'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  function openKycUpload() {
+    setExtrasError('');
+    setKycAlert('');
+    setKycDocType('aadhaar');
+    if (kycFileRef.current) kycFileRef.current.value = '';
+    setKycFormOpen(true);
+  }
+
+  async function uploadKycDocument() {
+    if (!selectedId) return;
+    const file = kycFileRef.current?.files?.[0];
+    if (!file) {
+      setExtrasError('Choose a file to upload.');
+      return;
+    }
+    const maxBytes = 50 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setExtrasError('File is too large (max 50 MB).');
+      return;
+    }
+
+    setExtrasSaving(true);
+    setExtrasError('');
+    setKycAlert('');
+
+    const ext = extensionFromFile(file);
+    const path = `customer/${selectedId}/${kycDocType}/${crypto.randomUUID()}${ext}`;
+
+    try {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+
+      const { error: storageErr } = await supabase.storage
+        .from(KYC_BUCKET)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined
+        });
+
+      if (storageErr) throw storageErr;
+
+      const { data: row, error: insErr } = await supabase
+        .from('customer_kyc_documents')
+        .insert({
+          customer_id: selectedId,
+          doc_type: kycDocType,
+          storage_path: path,
+          uploaded_by: user?.id ?? null,
+          verified_status: 'Pending'
+        })
+        .select('id,doc_type,verified_status,uploaded_at,storage_path')
+        .single();
+
+      if (insErr) {
+        await supabase.storage.from(KYC_BUCKET).remove([path]);
+        throw insErr;
+      }
+
+      setKycDocs((prev) => [row as KycDocRow, ...prev]);
+      setKycFormOpen(false);
+      if (kycFileRef.current) kycFileRef.current.value = '';
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to upload document'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  async function openKycFile(doc: KycDocRow) {
+    setKycAlert('');
+    try {
+      const { data, error: urlErr } = await supabase.storage
+        .from(KYC_BUCKET)
+        .createSignedUrl(doc.storage_path, 3600);
+      if (urlErr || !data?.signedUrl) {
+        throw urlErr ?? new Error('No download URL');
+      }
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setKycAlert(
+        e instanceof Error ? e.message : 'Could not open the file'
+      );
+    }
+  }
+
+  async function deleteKycDoc(doc: KycDocRow) {
+    if (!selectedId) return;
+    if (
+      !window.confirm(
+        'Remove this document from the record and delete the stored file?'
+      )
+    ) {
+      return;
+    }
+    setExtrasSaving(true);
+    setKycAlert('');
+    try {
+      const { error: delErr } = await supabase
+        .from('customer_kyc_documents')
+        .delete()
+        .eq('id', doc.id)
+        .eq('customer_id', selectedId);
+      if (delErr) throw delErr;
+      await supabase.storage.from(KYC_BUCKET).remove([doc.storage_path]);
+      setKycDocs((prev) => prev.filter((d) => d.id !== doc.id));
+    } catch (e) {
+      setKycAlert(
+        e instanceof Error ? e.message : 'Failed to remove document'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
+  }
+
+  const extrasDialogOpen =
+    addressFormOpen || nomineeFormOpen || bankFormOpen || kycFormOpen;
+
   return (
     <div className="grid grid-cols-[260px_1fr] gap-4">
       <Card className="p-3 flex flex-col gap-3 overflow-hidden">
@@ -200,7 +851,7 @@ export default function CustomersPage() {
                 <DialogTitle>Add customer</DialogTitle>
               </DialogHeader>
 
-              {error ? (
+              {open && error ? (
                 <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {error}
                 </div>
@@ -332,7 +983,7 @@ export default function CustomersPage() {
       </Card>
 
       <Card className="p-5">
-        {error ? (
+        {error && !open && !editOpen && !extrasDialogOpen ? (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {error}
           </div>
@@ -340,100 +991,950 @@ export default function CustomersPage() {
 
         {selected ? (
           <div className="flex flex-col gap-4">
-            <div>
-              <div className="text-lg font-semibold text-gray-900">
-                {selected.full_name}
+            <div className="flex flex-wrap items-start gap-4 border-b border-gray-100 pb-4">
+              <div
+                className="flex size-[52px] shrink-0 items-center justify-center rounded-full border-2 border-blue-200 bg-blue-50 text-lg font-bold text-blue-600"
+                aria-hidden
+              >
+                {initialsFromName(selected.full_name)}
               </div>
-              <div className="text-sm text-gray-500">{selected.id}</div>
+              <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                <div className="min-w-0">
+                <div className="text-lg font-semibold text-gray-900">
+                  {selected.full_name}
+                </div>
+                <div className="text-sm text-gray-500">{selected.id}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {latestInquiry ? (
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                        String(latestInquiry.lead_source || '').toLowerCase() ===
+                        'broker'
+                          ? 'border border-teal-200 bg-teal-50 text-teal-800'
+                          : 'border border-gray-200 bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      Latest source: {latestInquiry.lead_source}
+                      {latestBrokerName ? ` · ${latestBrokerName}` : ''}
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+                      No inquiries yet
+                    </span>
+                  )}
+                </div>
+                </div>
+
+                <Dialog
+                  open={editOpen}
+                  onOpenChange={(next) => {
+                    setEditOpen(next);
+                    if (!next) setError('');
+                  }}
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={openEditDialog}
+                  >
+                    Edit
+                  </Button>
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>Edit customer</DialogTitle>
+                    </DialogHeader>
+
+                    {editOpen && error ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {error}
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label>Full name</Label>
+                        <Input
+                          value={editDraft.full_name}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              full_name: e.target.value
+                            }))
+                          }
+                          placeholder="e.g. Mr. Amit Deshmukh"
+                        />
+                      </div>
+                      <div>
+                        <Label>Phone</Label>
+                        <Input
+                          value={editDraft.phone}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              phone: e.target.value
+                            }))
+                          }
+                          placeholder="+91 …"
+                        />
+                      </div>
+                      <div>
+                        <Label>Email</Label>
+                        <Input
+                          value={editDraft.email}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              email: e.target.value
+                            }))
+                          }
+                          placeholder="name@email.com"
+                        />
+                      </div>
+                      <div>
+                        <Label>Date of birth</Label>
+                        <Input
+                          type="date"
+                          value={editDraft.dob}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              dob: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Occupation</Label>
+                        <Input
+                          value={editDraft.occupation}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              occupation: e.target.value
+                            }))
+                          }
+                          placeholder="Salaried / Business…"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Nationality</Label>
+                        <select
+                          value={editDraft.nationality}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              nationality: e.target.value
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option>Indian</option>
+                          <option>NRI</option>
+                          <option>Foreign National</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditOpen(false)}
+                        disabled={saving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => void updateCustomer()}
+                        disabled={saving || !editDraft.full_name}
+                      >
+                        {saving ? 'Saving…' : 'Save'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                ['Phone', selected.phone ?? '—'],
-                ['Email', selected.email ?? '—'],
-                ['DOB', selected.dob ?? '—'],
-                ['Occupation', selected.occupation ?? '—'],
-                ['Nationality', selected.nationality ?? '—'],
-                ['Created', new Date(selected.created_at).toLocaleString()]
-              ].map(([k, v]) => (
-                <div key={k} className="rounded-lg border bg-white p-3">
-                  <div className="text-xs text-gray-500">{k}</div>
-                  <div className="text-sm font-semibold text-gray-900">{v}</div>
-                </div>
+            <div className="flex gap-1 overflow-x-auto border-b border-gray-200 pb-px">
+              {DETAIL_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setDetailTab(t.id)}
+                  className={`shrink-0 rounded-t-md px-3 py-2 text-xs font-semibold transition-colors ${
+                    detailTab === t.id
+                      ? 'border border-b-0 border-gray-200 bg-white text-blue-600'
+                      : 'border border-transparent text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {t.label}
+                </button>
               ))}
             </div>
 
-            <div>
-              <div className="text-sm font-semibold text-gray-900">
-                Sales inquiries
-              </div>
-              <div className="text-xs text-gray-500">
-                Project-scoped leads linked to this customer (from Inquiry).
-              </div>
-              <div className="mt-2 overflow-x-auto rounded-lg border bg-white">
-                <table className="w-full min-w-[520px] text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
-                      <th className="px-3 py-2 font-medium">When</th>
-                      <th className="px-3 py-2 font-medium">Project</th>
-                      <th className="px-3 py-2 font-medium">Unit</th>
-                      <th className="px-3 py-2 font-medium">Source</th>
-                      <th className="px-3 py-2 font-medium">Interest</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingInquiries ? (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-3 py-4 text-center text-gray-500"
-                        >
-                          Loading…
-                        </td>
-                      </tr>
-                    ) : customerInquiries.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-3 py-4 text-center text-gray-500"
-                        >
-                          No inquiries yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      customerInquiries.map((row) => {
-                        const u = embedOne(row.units);
-                        return (
-                          <tr key={row.id} className="border-b border-gray-100">
-                            <td className="whitespace-nowrap px-3 py-2 text-gray-700">
-                              {new Date(row.created_at).toLocaleString()}
-                            </td>
-                            <td className="px-3 py-2 text-gray-900">
-                              {embedOne(row.projects)?.name ?? '—'}
-                            </td>
-                            <td className="px-3 py-2 text-gray-900">
-                              {u ? `${u.unit_code} · ${u.wing_name}` : '—'}
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">
-                              {row.lead_source}
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">
-                              {row.interested_in ?? '—'}
+            {detailTab === 'profile' ? (
+              <div className="flex flex-col gap-4">
+                <div className="rounded-lg border bg-white">
+                  <div className="border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-700">
+                    Contact & identity
+                  </div>
+                  <div className="px-4 py-1">
+                    <InfoRow label="Phone" value={selected.phone ?? '—'} />
+                    <InfoRow label="Email" value={selected.email ?? '—'} />
+                    <InfoRow
+                      label="Date of birth"
+                      value={selected.dob ?? '—'}
+                    />
+                    <InfoRow
+                      label="Occupation"
+                      value={selected.occupation ?? '—'}
+                    />
+                    <InfoRow
+                      label="Nationality"
+                      value={selected.nationality ?? '—'}
+                    />
+                    <InfoRow
+                      label="Customer since"
+                      value={new Date(selected.created_at).toLocaleString()}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    Sales inquiries
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Per-project leads; broker appears when source is Broker.
+                  </div>
+                  <div className="mt-2 overflow-x-auto rounded-lg border bg-white">
+                    <table className="w-full min-w-[640px] text-sm">
+                      <thead>
+                        <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                          <th className="px-3 py-2 font-medium">When</th>
+                          <th className="px-3 py-2 font-medium">Project</th>
+                          <th className="px-3 py-2 font-medium">Unit</th>
+                          <th className="px-3 py-2 font-medium">Source</th>
+                          <th className="px-3 py-2 font-medium">Broker</th>
+                          <th className="px-3 py-2 font-medium">Interest</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loadingInquiries ? (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-3 py-4 text-center text-gray-500"
+                            >
+                              Loading…
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                        ) : customerInquiries.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-3 py-4 text-center text-gray-500"
+                            >
+                              No inquiries yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          customerInquiries.map((row) => {
+                            const u = embedOne(row.units);
+                            const brokerNm = embedOne(row.brokers)?.full_name;
+                            const showBroker =
+                              String(row.lead_source || '').toLowerCase() ===
+                              'broker';
+                            return (
+                              <tr
+                                key={row.id}
+                                className="border-b border-gray-100"
+                              >
+                                <td className="whitespace-nowrap px-3 py-2 text-gray-700">
+                                  {new Date(row.created_at).toLocaleString()}
+                                </td>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {embedOne(row.projects)?.name ?? '—'}
+                                </td>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {u
+                                    ? `${u.unit_code} · ${u.wing_name}`
+                                    : '—'}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {row.lead_source}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {showBroker ? brokerNm ?? '—' : '—'}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {row.interested_in ?? '—'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : null}
 
-            <div className="rounded-lg border bg-gray-50 p-4 text-sm text-gray-600">
-              KYC uploads, address, nominee, and bank details are next — the
-              tables are already in `supabase/schema.sql` and we’ll wire these
-              into this screen.
-            </div>
+            {detailTab === 'kyc' ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-gray-900">
+                    KYC documents
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={openKycUpload}
+                    disabled={extrasSaving || loadingExtras}
+                  >
+                    Upload document
+                  </Button>
+                </div>
+
+                {kycAlert ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {kycAlert}
+                  </div>
+                ) : null}
+
+                <div className="rounded-lg border bg-white">
+                  {loadingExtras ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      Loading…
+                    </div>
+                  ) : kycDocs.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      No documents yet. Upload a PDF or image (max 50 MB).
+                      Files are stored in the private{' '}
+                      <code className="text-xs">kyc</code> bucket.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                            <th className="px-3 py-2 font-medium">Document</th>
+                            <th className="px-3 py-2 font-medium">Status</th>
+                            <th className="px-3 py-2 font-medium">Uploaded</th>
+                            <th className="px-3 py-2 font-medium text-right">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {kycDocs.map((d) => (
+                            <tr
+                              key={d.id}
+                              className="border-b border-gray-100"
+                            >
+                              <td className="px-3 py-2 font-medium text-gray-900">
+                                {d.doc_type}
+                              </td>
+                              <td className="px-3 py-2 text-gray-600">
+                                {d.verified_status}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+                                {new Date(d.uploaded_at).toLocaleString()}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => void openKycFile(d)}
+                                    disabled={
+                                      extrasSaving || !d.storage_path
+                                    }
+                                  >
+                                    Open
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => void deleteKycDoc(d)}
+                                    disabled={extrasSaving}
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <Dialog
+                  open={kycFormOpen}
+                  onOpenChange={(next) => {
+                    setKycFormOpen(next);
+                    if (!next) setExtrasError('');
+                  }}
+                >
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>Upload KYC document</DialogTitle>
+                    </DialogHeader>
+
+                    {kycFormOpen && extrasError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {extrasError}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4">
+                      <div>
+                        <Label>Document type</Label>
+                        <select
+                          value={kycDocType}
+                          onChange={(e) => setKycDocType(e.target.value)}
+                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          {KYC_DOC_TYPES.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label>File</Label>
+                        <input
+                          ref={kycFileRef}
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png,image/webp"
+                          className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Path:{' '}
+                          <code className="text-[11px]">
+                            customer/&lt;id&gt;/&lt;type&gt;/&lt;uuid&gt;
+                          </code>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setKycFormOpen(false)}
+                        disabled={extrasSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => void uploadKycDocument()}
+                        disabled={extrasSaving}
+                      >
+                        {extrasSaving ? 'Uploading…' : 'Upload'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            ) : null}
+
+            {detailTab === 'address' ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-gray-900">
+                    Addresses
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={openAddressCreate}
+                    disabled={extrasSaving || loadingExtras}
+                  >
+                    Add address
+                  </Button>
+                </div>
+
+                {loadingExtras ? (
+                  <div className="text-sm text-gray-500">Loading…</div>
+                ) : addresses.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
+                    No address saved for this customer.
+                  </div>
+                ) : (
+                  addresses.map((a) => (
+                    <div
+                      key={a.id}
+                      className="rounded-lg border bg-white p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                          {a.kind === 'permanent' ? 'Permanent' : 'Current'}{' '}
+                          address
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAddressEdit(a)}
+                            disabled={extrasSaving}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void deleteAddress(a.id)}
+                            disabled={extrasSaving}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-2 space-y-1 text-sm text-gray-900">
+                        <div>{a.address_line1 ?? '—'}</div>
+                        <div className="text-gray-600">
+                          {[a.city, a.state, a.pin].filter(Boolean).join(', ') ||
+                            '—'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                <Dialog
+                  open={addressFormOpen}
+                  onOpenChange={(next) => {
+                    setAddressFormOpen(next);
+                    if (!next) setExtrasError('');
+                  }}
+                >
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingAddressId ? 'Edit address' : 'Add address'}
+                      </DialogTitle>
+                    </DialogHeader>
+
+                    {addressFormOpen && extrasError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {extrasError}
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label>Type</Label>
+                        <select
+                          value={addressForm.kind}
+                          onChange={(e) =>
+                            setAddressForm((f) => ({
+                              ...f,
+                              kind: e.target.value as 'current' | 'permanent'
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="current">Current</option>
+                          <option value="permanent">Permanent</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Address line</Label>
+                        <textarea
+                          value={addressForm.address_line1}
+                          onChange={(e) =>
+                            setAddressForm((f) => ({
+                              ...f,
+                              address_line1: e.target.value
+                            }))
+                          }
+                          rows={2}
+                          placeholder="Street, building, landmark…"
+                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label>City</Label>
+                        <Input
+                          value={addressForm.city}
+                          onChange={(e) =>
+                            setAddressForm((f) => ({
+                              ...f,
+                              city: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>State</Label>
+                        <Input
+                          value={addressForm.state}
+                          onChange={(e) =>
+                            setAddressForm((f) => ({
+                              ...f,
+                              state: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>PIN</Label>
+                        <Input
+                          value={addressForm.pin}
+                          onChange={(e) =>
+                            setAddressForm((f) => ({
+                              ...f,
+                              pin: e.target.value
+                            }))
+                          }
+                          placeholder="e.g. 400001"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setAddressFormOpen(false)}
+                        disabled={extrasSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => void saveAddress()}
+                        disabled={extrasSaving}
+                      >
+                        {extrasSaving ? 'Saving…' : 'Save'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            ) : null}
+
+            {detailTab === 'nominee' ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-gray-900">
+                    Nominees
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={openNomineeCreate}
+                    disabled={extrasSaving || loadingExtras}
+                  >
+                    Add nominee
+                  </Button>
+                </div>
+
+                <div className="rounded-lg border bg-white">
+                  {loadingExtras ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      Loading…
+                    </div>
+                  ) : nominees.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      No nominee records.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {nominees.map((n) => (
+                        <div
+                          key={n.id}
+                          className="flex flex-wrap items-start justify-between gap-2 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {n.nominee_name ?? '—'}
+                            </div>
+                            <div className="mt-1 text-xs text-gray-600">
+                              {n.relationship ?? '—'} · DOB{' '}
+                              {n.nominee_dob
+                                ? new Date(n.nominee_dob).toLocaleDateString()
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openNomineeEdit(n)}
+                              disabled={extrasSaving}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => void deleteNominee(n.id)}
+                              disabled={extrasSaving}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Dialog
+                  open={nomineeFormOpen}
+                  onOpenChange={(next) => {
+                    setNomineeFormOpen(next);
+                    if (!next) setExtrasError('');
+                  }}
+                >
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingNomineeId ? 'Edit nominee' : 'Add nominee'}
+                      </DialogTitle>
+                    </DialogHeader>
+
+                    {nomineeFormOpen && extrasError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {extrasError}
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label>Full name</Label>
+                        <Input
+                          value={nomineeForm.nominee_name}
+                          onChange={(e) =>
+                            setNomineeForm((f) => ({
+                              ...f,
+                              nominee_name: e.target.value
+                            }))
+                          }
+                          placeholder="Nominee name"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Relationship</Label>
+                        <Input
+                          value={nomineeForm.relationship}
+                          onChange={(e) =>
+                            setNomineeForm((f) => ({
+                              ...f,
+                              relationship: e.target.value
+                            }))
+                          }
+                          placeholder="e.g. Spouse, Father"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Date of birth</Label>
+                        <Input
+                          type="date"
+                          value={nomineeForm.nominee_dob}
+                          onChange={(e) =>
+                            setNomineeForm((f) => ({
+                              ...f,
+                              nominee_dob: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setNomineeFormOpen(false)}
+                        disabled={extrasSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => void saveNominee()}
+                        disabled={extrasSaving}
+                      >
+                        {extrasSaving ? 'Saving…' : 'Save'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            ) : null}
+
+            {detailTab === 'bank' ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
+                  <div className="text-sm font-semibold text-gray-900">
+                    Bank accounts
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={openBankCreate}
+                    disabled={extrasSaving || loadingExtras}
+                  >
+                    Add bank
+                  </Button>
+                </div>
+
+                <div className="rounded-lg border bg-white">
+                  {loadingExtras ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      Loading…
+                    </div>
+                  ) : bankRows.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-gray-500">
+                      No bank details on file.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {bankRows.map((b) => (
+                        <div
+                          key={b.id}
+                          className="flex flex-wrap items-start justify-between gap-2 px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900">
+                              {b.bank_name ?? '—'}
+                            </div>
+                            <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-gray-600 sm:grid-cols-2">
+                              <div>Account: {b.account_no ?? '—'}</div>
+                              <div>IFSC: {b.ifsc ?? '—'}</div>
+                              <div className="sm:col-span-2">
+                                Branch: {b.branch ?? '—'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openBankEdit(b)}
+                              disabled={extrasSaving}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => void deleteBank(b.id)}
+                              disabled={extrasSaving}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Dialog
+                  open={bankFormOpen}
+                  onOpenChange={(next) => {
+                    setBankFormOpen(next);
+                    if (!next) setExtrasError('');
+                  }}
+                >
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {editingBankId ? 'Edit bank details' : 'Add bank details'}
+                      </DialogTitle>
+                    </DialogHeader>
+
+                    {bankFormOpen && extrasError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {extrasError}
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label>Bank name</Label>
+                        <Input
+                          value={bankForm.bank_name}
+                          onChange={(e) =>
+                            setBankForm((f) => ({
+                              ...f,
+                              bank_name: e.target.value
+                            }))
+                          }
+                          placeholder="Bank name"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Account number</Label>
+                        <Input
+                          value={bankForm.account_no}
+                          onChange={(e) =>
+                            setBankForm((f) => ({
+                              ...f,
+                              account_no: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>IFSC</Label>
+                        <Input
+                          value={bankForm.ifsc}
+                          onChange={(e) =>
+                            setBankForm((f) => ({
+                              ...f,
+                              ifsc: e.target.value
+                            }))
+                          }
+                          placeholder="IFSC code"
+                        />
+                      </div>
+                      <div>
+                        <Label>Branch</Label>
+                        <Input
+                          value={bankForm.branch}
+                          onChange={(e) =>
+                            setBankForm((f) => ({
+                              ...f,
+                              branch: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setBankFormOpen(false)}
+                        disabled={extrasSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => void saveBank()}
+                        disabled={extrasSaving}
+                      >
+                        {extrasSaving ? 'Saving…' : 'Save'}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="text-sm text-gray-500">Select a customer.</div>
