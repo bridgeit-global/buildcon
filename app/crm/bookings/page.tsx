@@ -40,6 +40,28 @@ type CustomerOption = {
   email: string | null;
 };
 
+type BookingListRow = {
+  id: string;
+  created_at: string;
+  stage: string;
+  payment_mode: string | null;
+  loan_bank: string | null;
+  booking_amount: number | null;
+  units:
+  | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }
+  | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }[]
+  | null;
+  customers:
+  | { full_name: string; phone: string | null }
+  | { full_name: string; phone: string | null }[]
+  | null;
+};
+
+function unwrapJoin<T>(x: T | T[] | null): T | null {
+  if (x == null) return null;
+  return Array.isArray(x) ? x[0] ?? null : x;
+}
+
 function normalizeSearch(s: string) {
   return s.trim().toLowerCase();
 }
@@ -202,47 +224,73 @@ export default function BookingsPage() {
 
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [bookings, setBookings] = useState<BookingListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const [unitId, setUnitId] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [paymentMode, setPaymentMode] = useState('Home Loan');
-  const [loanBank, setLoanBank] = useState('HDFC Bank');
+  const [paymentMode, setPaymentMode] = useState('Cash');
+  const [loanBank, setLoanBank] = useState('');
   const [bookingAmount, setBookingAmount] = useState('500000');
 
   const [creating, setCreating] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   async function load() {
-    if (!activeProjectId) return;
+    if (!activeProjectId) {
+      setBookings([]);
+      return;
+    }
     setLoading(true);
     setError('');
 
-    const [{ data: uData, error: uErr }, { data: cData, error: cErr }] =
-      await Promise.all([
-        supabase
-          .from('units')
-          .select(
-            'id,unit_code,wing_name,floor,unit_type,area,rate,status,project_id'
-          )
-          .eq('project_id', activeProjectId)
-          .eq('status', 'A')
-          .order('wing_name', { ascending: true })
-          .order('floor', { ascending: false })
-          .order('unit_no', { ascending: true })
-          .limit(500),
-        supabase
-          .from('customers')
-          .select('id,full_name,phone,email')
-          .order('created_at', { ascending: false })
-          .limit(200)
-      ]);
+    const [
+      { data: uData, error: uErr },
+      { data: cData, error: cErr },
+      { data: bkData, error: bkErr }
+    ] = await Promise.all([
+      supabase
+        .from('units')
+        .select(
+          'id,unit_code,wing_name,floor,unit_type,area,rate,status,project_id'
+        )
+        .eq('project_id', activeProjectId)
+        .eq('status', 'A')
+        .order('wing_name', { ascending: true })
+        .order('floor', { ascending: false })
+        .order('unit_no', { ascending: true })
+        .limit(500),
+      supabase
+        .from('customers')
+        .select('id,full_name,phone,email')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('bookings')
+        .select(
+          `
+          id,
+          created_at,
+          stage,
+          payment_mode,
+          loan_bank,
+          booking_amount,
+          units ( unit_code, wing_name, floor, unit_type ),
+          customers ( full_name, phone )
+        `
+        )
+        .eq('project_id', activeProjectId)
+        .order('created_at', { ascending: false })
+        .limit(100)
+    ]);
 
     if (uErr) setError(uErr.message);
     if (cErr) setError(cErr.message);
+    if (bkErr) setError(bkErr.message);
     setUnits((uData ?? []) as UnitOption[]);
     setCustomers((cData ?? []) as CustomerOption[]);
+    setBookings((bkData ?? []) as BookingListRow[]);
 
     setLoading(false);
   }
@@ -501,6 +549,94 @@ export default function BookingsPage() {
             {creating ? 'Creating…' : 'Confirm booking'}
           </Button>
         </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">
+              Booking list
+            </div>
+            <div className="text-xs text-gray-500">
+              Recent bookings for this project ({bookings.length}).
+            </div>
+          </div>
+        </div>
+
+        {!activeProjectId ? (
+          <div className="mt-4 text-sm text-muted-foreground">
+            Select a project to view bookings.
+          </div>
+        ) : bookings.length === 0 ? (
+          <div className="mt-4 rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+            {loading ? 'Loading bookings…' : 'No bookings yet.'}
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs font-semibold text-muted-foreground">
+                  <th className="pb-2 pr-3 font-medium">Unit</th>
+                  <th className="pb-2 pr-3 font-medium">Customer</th>
+                  <th className="pb-2 pr-3 font-medium">Stage</th>
+                  <th className="pb-2 pr-3 font-medium">Payment</th>
+                  <th className="pb-2 pr-3 font-medium text-right">Amount</th>
+                  <th className="pb-2 font-medium">Booked on</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((b) => {
+                  const u = unwrapJoin(b.units);
+                  const c = unwrapJoin(b.customers);
+                  const amt = b.booking_amount;
+                  const pay =
+                    b.payment_mode === 'Home Loan' && b.loan_bank
+                      ? `${b.payment_mode} · ${b.loan_bank}`
+                      : (b.payment_mode ?? '—');
+                  return (
+                    <tr key={b.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2.5 pr-3 align-top">
+                        <span className="font-medium text-gray-900">
+                          {u?.unit_code ?? '—'}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {u
+                            ? `${u.wing_name} · F${u.floor}${u.unit_type ? ` · ${u.unit_type}` : ''}`
+                            : ''}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-3 align-top">
+                        <span className="font-medium text-gray-900">
+                          {c?.full_name ?? '—'}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {c?.phone ?? ''}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-3 align-top capitalize text-gray-700">
+                        {b.stage.replace(/_/g, ' ')}
+                      </td>
+                      <td className="py-2.5 pr-3 align-top text-gray-700">
+                        {pay}
+                      </td>
+                      <td className="py-2.5 pr-3 align-top text-right tabular-nums text-gray-900">
+                        {amt != null
+                          ? `₹${Number(amt).toLocaleString('en-IN')}`
+                          : '—'}
+                      </td>
+                      <td className="py-2.5 align-top text-gray-600">
+                        {new Date(b.created_at).toLocaleString('en-IN', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short'
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
     </div>
   );
