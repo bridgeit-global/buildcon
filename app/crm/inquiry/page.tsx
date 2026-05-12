@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
@@ -9,10 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import {
-  STATUS_LABEL,
-  agreementValueLac,
-  formatFloorLabel
-} from '../inventory/inventory-utils';
+  type ProjectParkingMeta,
+  computeBookingCostBreakdown,
+  formatProjectParkingSummary
+} from '../booking-cost-utils';
+import { writeBookingPrefill } from '../booking-prefill-storage';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -71,31 +74,6 @@ function unitPriceLacs(u: UnitRow) {
   return Math.round(total);
 }
 
-/** Maps inquiry parking_count option to a number for cost (4+ → 4). */
-function parkingCountNumeric(count: string): number {
-  const t = String(count || '').trim();
-  if (t === '4+') return 4;
-  const n = parseInt(t, 10);
-  return Number.isFinite(n) ? Math.max(1, n) : 1;
-}
-
-type ProjectParkingMeta = {
-  parking_slots: number | null;
-  parking_rate: number | null;
-};
-
-function formatProjectParkingSummary(p: ProjectParkingMeta | null): string {
-  if (!p) return '—';
-  const s = p.parking_slots;
-  const r = p.parking_rate;
-  if (s == null || s <= 0) return 'Not configured on project';
-  const ratePart =
-    r != null && r > 0
-      ? ` · ₹${r.toLocaleString('en-IN')} / slot`
-      : '';
-  return `${s} slot${s !== 1 ? 's' : ''} available${ratePart}`;
-}
-
 const selectClass =
   'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
 
@@ -142,6 +120,7 @@ type InquiryRowDb = {
 };
 
 export default function InquiryPage() {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { activeProjectId } = useActiveProjectContext();
 
@@ -451,6 +430,64 @@ export default function InquiryPage() {
     }
   }, [supabase, userLabel.id, sellerForm.customerName, sellerForm.phone, sellerForm.email]);
 
+  const navigateToBookingFromInquiry = useCallback(
+    (inq: InquiryRowDb) => {
+      if (!activeProjectId || !String(inq.unit_id || '').trim()) return;
+      writeBookingPrefill({
+        projectId: activeProjectId,
+        inquiryId: inq.id,
+        inquiryRef: inquiryReference(inq.id),
+        customerId: inq.customer_id,
+        unitId: inq.unit_id,
+        parkingRequired: inq.parking_required === 'Yes' ? 'Yes' : 'No',
+        parkingCount: inq.parking_count,
+        parkingSlotsAvailable: inq.parking_slots_available,
+        parkingRateSnapshot: inq.parking_rate_snapshot
+      });
+      router.push('/crm/bookings');
+    },
+    [activeProjectId, router]
+  );
+
+  const continueToBookingFromReview = useCallback(async () => {
+    if (!canSave || !projectId || !userLabel.id || !selectedUnit) return;
+    setSaving(true);
+    setError('');
+    try {
+      const customerId = await persistCustomerToDb();
+      if (!customerId) return;
+      writeBookingPrefill({
+        projectId,
+        inquiryId: null,
+        inquiryRef: null,
+        customerId,
+        unitId: sellerForm.selectedUnitId,
+        parkingRequired: sellerForm.parkingRequired,
+        parkingCount: sellerForm.parkingCount,
+        parkingSlotsAvailable: projectParking?.parking_slots ?? null,
+        parkingRateSnapshot: projectParking?.parking_rate ?? null
+      });
+      router.push('/crm/bookings');
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Could not continue to booking'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    canSave,
+    projectId,
+    userLabel.id,
+    selectedUnit,
+    persistCustomerToDb,
+    sellerForm.selectedUnitId,
+    sellerForm.parkingRequired,
+    sellerForm.parkingCount,
+    projectParking,
+    router
+  ]);
+
   async function goNext() {
     if (!stepValid[step] || saving) return;
     if (step === 1) {
@@ -665,14 +702,25 @@ export default function InquiryPage() {
                 {saving && step === 1 ? 'Saving…' : step === 1 ? 'Save & next' : 'Next'}
               </Button>
             ) : (
-              <Button
-                type="button"
-                disabled={!canSave || saving || !userLabel.id}
-                onClick={() => void saveInquiry()}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {saving ? 'Saving…' : 'Save inquiry'}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canSave || saving || !userLabel.id}
+                  onClick={() => void saveInquiry()}
+                >
+                  {saving ? 'Saving…' : 'Save inquiry only'}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!canSave || saving || !userLabel.id}
+                  onClick={() => void continueToBookingFromReview()}
+                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  Confirm booking
+                  <ArrowRight className="size-4" aria-hidden />
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -747,7 +795,8 @@ export default function InquiryPage() {
                   'Broker',
                   'Unit',
                   'Parking',
-                  'Seller'
+                  'Seller',
+                  'Actions'
                 ].map((h) => (
                   <th
                     key={h}
@@ -762,7 +811,7 @@ export default function InquiryPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={11}
                     className="px-2 py-6 text-muted-foreground"
                   >
                     {loadingInquiries
@@ -833,6 +882,24 @@ export default function InquiryPage() {
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">
                         {sellerName}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-2">
+                        {inq.unit_id?.trim() ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                            onClick={() => navigateToBookingFromInquiry(inq)}
+                          >
+                            Booking
+                            <ArrowRight className="size-3.5 opacity-90" />
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">
+                            No unit
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1231,70 +1298,17 @@ function CostSheet({
   parkingCount: string;
   projectParking: ProjectParkingMeta | null;
 }) {
-  const area = Number(unit.area) || 0;
-  const rate = Number(unit.rate) || 0;
-  const basicInr = area * rate;
-  const lac = agreementValueLac(unit.area, unit.rate);
-  const st = String(unit.status || '').toUpperCase();
-  const statusLabel =
-    STATUS_LABEL[unit.status] ??
-    STATUS_LABEL[st] ??
-    (st === 'AVAILABLE' ? 'Available' : unit.status);
   const slotRate =
     projectParking?.parking_rate != null && projectParking.parking_rate > 0
       ? projectParking.parking_rate
       : 0;
-  const slotsAsked =
-    parkingRequired === 'Yes' ? parkingCountNumeric(parkingCount) : 0;
-  const parkingExtraInr =
-    parkingRequired === 'Yes' && slotRate > 0 ? slotsAsked * slotRate : 0;
-  const grandTotalInr = basicInr + parkingExtraInr;
-
-  const rows: [string, string][] = [
-    ['Floor', formatFloorLabel(unit.floor, unit.unit_type)],
-    ['Configuration', unit.unit_type?.trim() || '—'],
-    ['Status', statusLabel || '—'],
-    ['Sale area', area > 0 ? `${area.toLocaleString('en-IN')} sq.ft` : '—'],
-    [
-      'Basic rate',
-      rate > 0 ? `₹ ${rate.toLocaleString('en-IN')} / sq.ft` : '—'
-    ],
-    [
-      'Agreement value (basic)',
-      basicInr > 0
-        ? `₹ ${lac.toFixed(2)} Lac (₹ ${basicInr.toLocaleString('en-IN')})`
-        : '—'
-    ],
-    [
-      'Parking availability (project)',
-      formatProjectParkingSummary(projectParking)
-    ]
-  ];
-  if (parkingRequired === 'Yes') {
-    rows.push([
-      'Parking (customer ask)',
-      `Yes · ${parkingCount} slot${slotsAsked !== 1 ? 's' : ''}`
-    ]);
-    if (slotRate > 0) {
-      rows.push([
-        'Parking extra (est.)',
-        parkingExtraInr > 0
-          ? `₹ ${parkingExtraInr.toLocaleString('en-IN')} (${slotsAsked} × ₹ ${slotRate.toLocaleString('en-IN')})`
-          : '—'
-      ]);
-    } else if (parkingRequired === 'Yes') {
-      rows.push([
-        'Parking extra (est.)',
-        'Set project parking rate to estimate'
-      ]);
-    }
-  }
-  if (grandTotalInr > 0 && parkingRequired === 'Yes' && parkingExtraInr > 0) {
-    rows.push([
-      'Estimated total (basic + parking)',
-      `₹ ${grandTotalInr.toLocaleString('en-IN')}`
-    ]);
-  }
+  const { rows } = computeBookingCostBreakdown(
+    unit,
+    parkingRequired,
+    parkingCount,
+    slotRate,
+    projectParking
+  );
   return (
     <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
       <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
