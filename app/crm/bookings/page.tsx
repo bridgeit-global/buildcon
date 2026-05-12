@@ -1,12 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 type UnitOption = {
   id: string;
@@ -25,6 +39,162 @@ type CustomerOption = {
   phone: string | null;
   email: string | null;
 };
+
+function normalizeSearch(s: string) {
+  return s.trim().toLowerCase();
+}
+
+function SearchablePicker<T extends { id: string }>({
+  label,
+  itemCount,
+  items,
+  selectedId,
+  onSelect,
+  emptyMessage,
+  searchPlaceholder,
+  triggerPlaceholder,
+  matchItem,
+  renderTriggerSummary,
+  renderRow
+}: {
+  label: string;
+  itemCount: number;
+  items: T[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  emptyMessage: string;
+  searchPlaceholder: string;
+  triggerPlaceholder: string;
+  matchItem: (item: T, query: string) => boolean;
+  renderTriggerSummary: (item: T) => ReactNode;
+  renderRow: (item: T) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const selected = items.find((x) => x.id === selectedId) ?? null;
+  const q = normalizeSearch(query);
+
+  const filtered = useMemo(() => {
+    if (!q) return items;
+    return items.filter((item) => matchItem(item, q));
+  }, [items, q, matchItem]);
+
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      const t = window.setTimeout(() => searchRef.current?.focus(), 0);
+      return () => window.clearTimeout(t);
+    }
+  }, [open]);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        {label}{' '}
+        <span className="font-normal text-muted-foreground">({itemCount})</span>
+      </Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <div className="flex gap-2">
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="h-auto min-h-10 w-full flex-1 justify-between px-3 py-2 text-left font-normal"
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {selected ? (
+                  renderTriggerSummary(selected)
+                ) : (
+                  <span className="text-muted-foreground">
+                    {triggerPlaceholder}
+                  </span>
+                )}
+              </span>
+              <ChevronDown className="ml-2 size-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          {selected ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              title="Clear"
+              onClick={(e) => {
+                e.preventDefault();
+                onSelect('');
+              }}
+            >
+              <X className="size-4" />
+            </Button>
+          ) : null}
+        </div>
+        <PopoverContent
+          className="w-[min(calc(100vw-2rem),28rem)] p-0"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+            />
+          </div>
+          <div
+            className="max-h-[min(40vh,280px)] overflow-y-auto overscroll-contain p-1"
+            role="listbox"
+          >
+            {filtered.length === 0 ? (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                {emptyMessage}
+              </div>
+            ) : (
+              filtered.map((item) => {
+                const isSel = item.id === selectedId;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="option"
+                    aria-selected={isSel}
+                    className={cn(
+                      'flex w-full items-start gap-2 rounded-md px-2 py-2 text-left text-sm outline-none transition-colors',
+                      'hover:bg-accent focus-visible:bg-accent',
+                      isSel && 'bg-accent'
+                    )}
+                    onClick={() => {
+                      onSelect(item.id);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        'mt-0.5 size-4 shrink-0',
+                        isSel ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">{renderRow(item)}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 export default function BookingsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -116,6 +286,28 @@ export default function BookingsPage() {
   const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
+  const matchUnit = useCallback((u: UnitOption, q: string) => {
+    const blob = [
+      u.unit_code,
+      u.wing_name,
+      String(u.floor),
+      u.unit_type ?? '',
+      String(u.area ?? ''),
+      String(u.rate ?? ''),
+      u.status
+    ]
+      .join(' ')
+      .toLowerCase();
+    return blob.includes(q);
+  }, []);
+
+  const matchCustomer = useCallback((c: CustomerOption, q: string) => {
+    const blob = [c.full_name, c.phone ?? '', c.email ?? '']
+      .join(' ')
+      .toLowerCase();
+    return blob.includes(q);
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4">
@@ -147,35 +339,79 @@ export default function BookingsPage() {
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <Label>Available units ({units.length})</Label>
-            <select
-              value={unitId}
-              onChange={(e) => setUnitId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Select unit…</option>
-              {units.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.unit_code} · {u.wing_name} · F{u.floor} · {u.unit_type ?? '—'}
-                </option>
-              ))}
-            </select>
+            <SearchablePicker<UnitOption>
+              label="Available units"
+              itemCount={units.length}
+              items={units}
+              selectedId={unitId}
+              onSelect={setUnitId}
+              emptyMessage="No units match your search."
+              searchPlaceholder="Search by code, wing, floor, type…"
+              triggerPlaceholder="Choose an available unit…"
+              matchItem={matchUnit}
+              renderTriggerSummary={(u) => (
+                <span className="block truncate">
+                  <span className="font-medium text-foreground">
+                    {u.unit_code}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {u.wing_name} · F{u.floor}
+                    {u.unit_type ? ` · ${u.unit_type}` : ''}
+                  </span>
+                </span>
+              )}
+              renderRow={(u) => (
+                <span className="block">
+                  <span className="font-medium text-foreground">
+                    {u.unit_code}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {u.wing_name} · Floor {u.floor}
+                    {u.unit_type ? ` · ${u.unit_type}` : ''}
+                    {u.area != null ? ` · ${u.area} sq.ft` : ''}
+                    {u.rate != null
+                      ? ` · ₹${u.rate.toLocaleString()}/sq.ft`
+                      : ''}
+                  </span>
+                </span>
+              )}
+            />
           </div>
 
           <div className="col-span-2">
-            <Label>Customer ({customers.length})</Label>
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Select customer…</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name} · {c.phone ?? '—'}
-                </option>
-              ))}
-            </select>
+            <SearchablePicker<CustomerOption>
+              label="Customer"
+              itemCount={customers.length}
+              items={customers}
+              selectedId={customerId}
+              onSelect={setCustomerId}
+              emptyMessage="No customers match your search."
+              searchPlaceholder="Search by name, phone, email…"
+              triggerPlaceholder="Choose a customer…"
+              matchItem={matchCustomer}
+              renderTriggerSummary={(c) => (
+                <span className="block truncate">
+                  <span className="font-medium text-foreground">
+                    {c.full_name}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {c.phone ?? '—'}
+                  </span>
+                </span>
+              )}
+              renderRow={(c) => (
+                <span className="block">
+                  <span className="font-medium text-foreground">
+                    {c.full_name}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {[c.phone, c.email].filter(Boolean).join(' · ') || '—'}
+                  </span>
+                </span>
+              )}
+            />
           </div>
 
           <div>
