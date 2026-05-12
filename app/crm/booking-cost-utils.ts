@@ -1,3 +1,4 @@
+import { formatInrCompactLacCr } from './inr-format';
 import {
   STATUS_LABEL,
   agreementValueLac,
@@ -77,7 +78,7 @@ export function computeBookingCostBreakdown(
     [
       'Agreement value (basic)',
       basicInr > 0
-        ? `₹ ${lac.toFixed(2)} Lac (₹ ${basicInr.toLocaleString('en-IN')})`
+        ? `${formatInrCompactLacCr(basicInr)} (₹ ${basicInr.toLocaleString('en-IN')})`
         : '—'
     ],
     [
@@ -109,7 +110,7 @@ export function computeBookingCostBreakdown(
   if (grandTotalInr > 0 && parkingRequired === 'Yes' && parkingExtraInr > 0) {
     rows.push([
       'Estimated total (basic + parking)',
-      `₹ ${grandTotalInr.toLocaleString('en-IN')}`
+      `${formatInrCompactLacCr(grandTotalInr)} (₹ ${grandTotalInr.toLocaleString('en-IN')})`
     ]);
   }
 

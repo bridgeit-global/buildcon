@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { formatInrCompactLacCr } from '../inr-format';
 
 type BookingIdRow = { id: string };
 type CollectionSumRow = { received_amount: number };
@@ -131,9 +132,9 @@ export default function ReportsPage() {
       <div className="grid grid-cols-4 gap-3">
         {[
           ['Total inventory', totalInventory],
-          ['Total scheduled', `₹ ${totalSchedules.toLocaleString()}`],
-          ['Total collections', `₹ ${totalCollections.toLocaleString()}`],
-          ['Balance', `₹ ${balance.toLocaleString()}`]
+          ['Total scheduled', formatInrCompactLacCr(totalSchedules)],
+          ['Total collections', formatInrCompactLacCr(totalCollections)],
+          ['Balance', formatInrCompactLacCr(balance)]
         ].map(([k, v]) => (
           <Card key={String(k)} className="p-4">
             <div className="text-xs text-gray-500">{k}</div>

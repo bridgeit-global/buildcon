@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import { formatInr } from '../inr-format';
 
 type LoanRow = {
   id: string;
@@ -305,7 +306,9 @@ export default function BankLoansPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{l.bank ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-700">
-                    {l.amount != null ? `₹ ${Number(l.amount).toLocaleString()}` : '—'}
+                    {l.amount != null
+                      ? `₹ ${formatInr(Number(l.amount), { maximumFractionDigits: 0 })}`
+                      : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full border px-2 py-1 text-xs">

@@ -3,6 +3,7 @@
 import type { CrmProjectListItem } from './types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { formatInr } from '../inr-format';
 
 const PROJECT_TYPE_ACCENT: Record<string, string> = {
   Redevelopment: '#8B5CF6',
@@ -26,11 +27,6 @@ function accentForType(type: string) {
 
 function badgeForStatus(status: string) {
   return STATUS_BADGE[status] ?? { bg: '#F1F5F9', text: '#64748B' };
-}
-
-function formatInr(n: number | null) {
-  if (n == null || Number.isNaN(n)) return null;
-  return n.toLocaleString('en-IN');
 }
 
 export type CrmProjectCardProps = {
@@ -126,7 +122,7 @@ export function CrmProjectCard({
         </span>
         {p.base_rate != null ? (
           <span className="bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
-            ₹ {formatInr(p.base_rate)}/sq.ft
+            ₹ {formatInr(p.base_rate, { maximumFractionDigits: 0 })}/sq.ft
           </span>
         ) : null}
       </div>
@@ -138,7 +134,7 @@ export function CrmProjectCard({
             'Parking',
             p.parking_slots != null && p.parking_slots > 0
               ? p.parking_rate != null
-                ? `${p.parking_slots} · ₹${formatInr(p.parking_rate)}/slot`
+                ? `${p.parking_slots} · ₹${formatInr(p.parking_rate, { maximumFractionDigits: 0 })}/slot`
                 : String(p.parking_slots)
               : '—'
           ],

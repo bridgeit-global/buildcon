@@ -15,6 +15,7 @@ import {
   computeBookingCostBreakdown,
   formatProjectParkingSummary
 } from '../booking-cost-utils';
+import { formatAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 
 const INTEREST_TYPES = [
@@ -66,12 +67,6 @@ type UnitRow = {
 
 function unitDisplayName(u: Pick<UnitRow, 'unit_code' | 'wing_name'>) {
   return `${u.unit_code} · ${u.wing_name}`;
-}
-
-function unitPriceLacs(u: UnitRow) {
-  const total =
-    ((Number(u.area) || 0) * (Number(u.rate) || 0)) / 100_000;
-  return Math.round(total);
 }
 
 const selectClass =
@@ -1236,7 +1231,6 @@ function StepUnit({
         ) : (
           suggestionUnits.map((u) => {
             const active = sellerForm.selectedUnitId === u.id;
-            const lac = unitPriceLacs(u);
             return (
               <button
                 key={u.id}
@@ -1258,7 +1252,7 @@ function StepUnit({
                   {u.unit_type ?? '—'} · {u.wing_name}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-foreground">
-                  ₹ {lac.toLocaleString('en-IN')} Lac
+                  {formatAgreementValueCompact(u.area, u.rate)}
                 </div>
               </button>
             );

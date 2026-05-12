@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { computeBookingCostBreakdown } from '../booking-cost-utils';
+import { formatInr } from '../inr-format';
 import {
   readConsumeBookingPrefillForProject,
   type BookingPrefillV1
@@ -644,7 +645,7 @@ export default function BookingsPage() {
                     {u.unit_type ? ` · ${u.unit_type}` : ''}
                     {u.area != null ? ` · ${u.area} sq.ft` : ''}
                     {u.rate != null
-                      ? ` · ₹${u.rate.toLocaleString()}/sq.ft`
+                      ? ` · ₹${formatInr(u.rate, { maximumFractionDigits: 0 })}/sq.ft`
                       : ''}
                   </span>
                 </span>
@@ -740,7 +741,7 @@ export default function BookingsPage() {
                 <div className="mt-1 text-gray-600">
                   Area: {selectedUnit.area ?? '—'} · Rate:{' '}
                   {selectedUnit.rate != null
-                    ? `₹ ${selectedUnit.rate.toLocaleString()}/sq.ft`
+                    ? `₹ ${formatInr(selectedUnit.rate, { maximumFractionDigits: 0 })}/sq.ft`
                     : '—'}
                 </div>
               </div>

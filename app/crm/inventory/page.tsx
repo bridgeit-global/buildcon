@@ -17,9 +17,12 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
+  formatAgreementValueCompact,
+  formatInrCompactLacCr
+} from '../inr-format';
+import {
   STATUS_COLOR,
   STATUS_LABEL,
-  agreementValueLac,
   formatFloorChipLabel,
   formatFloorLabel
 } from './inventory-utils';
@@ -179,13 +182,9 @@ function UnitDetailDialog({
 
   const area = Number(unit.area) || 0;
   const rate = Number(unit.rate) || 0;
-  const lac = agreementValueLac(unit.area, unit.rate);
   const bookedOn = booking?.created_at
     ? new Date(booking.created_at).toLocaleDateString('en-IN')
     : '—';
-  const tokenLac = booking?.booking_amount
-    ? Number(booking.booking_amount) / 100000
-    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -233,7 +232,7 @@ function UnitDetailDialog({
                 ['Configuration', unit.unit_type ?? '—'],
                 ['Carpet / sale area', `${area} sq.ft`],
                 ['Rate', `₹ ${rate.toLocaleString('en-IN')} / sq.ft`],
-                ['Agreement value', `₹ ${lac.toFixed(2)} Lac`],
+                ['Agreement value', formatAgreementValueCompact(unit.area, unit.rate)],
                 ['Project', projectName || projectId || '—']
               ] as const
             ).map(([label, val]) => (
@@ -309,7 +308,9 @@ function UnitDetailDialog({
                   <span className="text-slate-500">Booking token</span>
                   <br />
                   <strong>
-                    {tokenLac != null ? `₹ ${tokenLac.toFixed(2)} Lac` : '—'}
+                    {booking?.booking_amount != null
+                      ? formatInrCompactLacCr(Number(booking.booking_amount))
+                      : '—'}
                   </strong>
                 </div>
                 <div>
@@ -1177,7 +1178,7 @@ export default function InventoryPage() {
                     ],
                     [
                       'Value',
-                      `₹ ${agreementValueLac(selected.area, selected.rate).toFixed(2)} Lac`
+                      formatAgreementValueCompact(selected.area, selected.rate)
                     ],
                     ['Status', STATUS_LABEL[selected.status] ?? selected.status]
                   ] as const
@@ -1271,7 +1272,7 @@ export default function InventoryPage() {
                     'Type',
                     'Area (sq.ft)',
                     'Rate (₹/sq.ft)',
-                    'Value (₹ Lac)',
+                    'Agreement value',
                     'Status',
                     'Action'
                   ].map((h) => (
@@ -1310,7 +1311,7 @@ export default function InventoryPage() {
                       {(Number(u.rate) || 0).toLocaleString('en-IN')}
                     </td>
                     <td className="px-3 py-2 text-[11px] font-semibold text-blue-500">
-                      {agreementValueLac(u.area, u.rate).toFixed(2)}
+                      {formatAgreementValueCompact(u.area, u.rate)}
                     </td>
                     <td className="px-3 py-2">
                       <StatusBadge code={u.status} />

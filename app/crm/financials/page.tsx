@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatInr } from '../inr-format';
 
 type BookingRow = {
   id: string;
@@ -236,7 +237,7 @@ export default function FinancialsPage() {
             <div className="rounded-lg border bg-white p-3">
               <div className="text-xs text-gray-500">Balance</div>
               <div className="text-sm font-semibold text-gray-900">
-                ₹ {totalBalance.toLocaleString()}
+                ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
               </div>
             </div>
           </div>
@@ -285,13 +286,13 @@ export default function FinancialsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{s.due_date ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      ₹ {Number(s.amount || 0).toLocaleString()}
+                      ₹ {formatInr(Number(s.amount || 0), { maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-4 py-3 text-green-700 font-semibold">
-                      ₹ {rec.toLocaleString()}
+                      ₹ {formatInr(rec, { maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-4 py-3 text-red-700 font-semibold">
-                      ₹ {bal.toLocaleString()}
+                      ₹ {formatInr(bal, { maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full border px-2 py-1 text-xs">
@@ -315,13 +316,13 @@ export default function FinancialsPage() {
                   Total
                 </td>
                 <td className="px-4 py-3 font-semibold text-gray-900">
-                  ₹ {totalAmount.toLocaleString()}
+                  ₹ {formatInr(totalAmount, { maximumFractionDigits: 0 })}
                 </td>
                 <td className="px-4 py-3 font-semibold text-green-700">
-                  ₹ {totalReceived.toLocaleString()}
+                  ₹ {formatInr(totalReceived, { maximumFractionDigits: 0 })}
                 </td>
                 <td className="px-4 py-3 font-semibold text-red-700">
-                  ₹ {totalBalance.toLocaleString()}
+                  ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
                 </td>
                 <td />
               </tr>
@@ -407,7 +408,10 @@ export default function FinancialsPage() {
               >
                 <div>
                   <div className="font-semibold text-gray-900">
-                    ₹ {Number(c.received_amount).toLocaleString()}
+                    ₹{' '}
+                    {formatInr(Number(c.received_amount), {
+                      maximumFractionDigits: 0
+                    })}
                   </div>
                   <div className="text-xs text-gray-500">
                     {c.mode ?? '—'} · {c.received_at ?? '—'} · {c.reference ?? '—'}
