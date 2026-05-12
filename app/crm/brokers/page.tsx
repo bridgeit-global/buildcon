@@ -10,8 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog';
 
 type BrokerRow = {
@@ -25,6 +24,24 @@ type BrokerRow = {
   created_at: string;
 };
 
+type BrokerDraft = {
+  full_name: string;
+  phone: string;
+  email: string;
+  license_no: string;
+  status: 'Active' | 'Inactive';
+  notes: string;
+};
+
+const EMPTY_DRAFT: BrokerDraft = {
+  full_name: '',
+  phone: '',
+  email: '',
+  license_no: '',
+  status: 'Active',
+  notes: ''
+};
+
 export default function BrokersPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -35,15 +52,10 @@ export default function BrokersPage() {
   const [error, setError] = useState('');
 
   const [open, setOpen] = useState(false);
+  /** When set, dialog is editing this broker; otherwise add flow. */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState({
-    full_name: '',
-    phone: '',
-    email: '',
-    license_no: '',
-    status: 'Active' as 'Active' | 'Inactive',
-    notes: ''
-  });
+  const [draft, setDraft] = useState<BrokerDraft>(EMPTY_DRAFT);
 
   async function load() {
     setLoading(true);
@@ -84,38 +96,65 @@ export default function BrokersPage() {
     brokers.find((b) => b.id === selectedId) ??
     null;
 
-  async function createBroker() {
+  function rowToDraft(b: BrokerRow): BrokerDraft {
+    const st = b.status === 'Inactive' ? 'Inactive' : 'Active';
+    return {
+      full_name: b.full_name,
+      phone: b.phone ?? '',
+      email: b.email ?? '',
+      license_no: b.license_no ?? '',
+      status: st,
+      notes: b.notes ?? ''
+    };
+  }
+
+  async function saveBroker() {
     setSaving(true);
     setError('');
     try {
-      const { data, error: insErr } = await supabase
-        .from('brokers')
-        .insert({
-          full_name: draft.full_name.trim(),
-          phone: draft.phone.trim() || null,
-          email: draft.email.trim() || null,
-          license_no: draft.license_no.trim() || null,
-          status: draft.status,
-          notes: draft.notes.trim() || null
-        })
-        .select(
-          'id,full_name,phone,email,license_no,status,notes,created_at'
-        )
-        .single();
+      const payload = {
+        full_name: draft.full_name.trim(),
+        phone: draft.phone.trim() || null,
+        email: draft.email.trim() || null,
+        license_no: draft.license_no.trim() || null,
+        status: draft.status,
+        notes: draft.notes.trim() || null
+      };
 
-      if (insErr) throw insErr;
-      const row = data as BrokerRow;
-      setBrokers((list) => [row, ...list]);
-      setSelectedId(row.id);
+      if (editingId) {
+        const { data, error: updErr } = await supabase
+          .from('brokers')
+          .update(payload)
+          .eq('id', editingId)
+          .select(
+            'id,full_name,phone,email,license_no,status,notes,created_at'
+          )
+          .single();
+
+        if (updErr) throw updErr;
+        const row = data as BrokerRow;
+        setBrokers((list) =>
+          list.map((b) => (b.id === row.id ? row : b))
+        );
+        setSelectedId(row.id);
+      } else {
+        const { data, error: insErr } = await supabase
+          .from('brokers')
+          .insert(payload)
+          .select(
+            'id,full_name,phone,email,license_no,status,notes,created_at'
+          )
+          .single();
+
+        if (insErr) throw insErr;
+        const row = data as BrokerRow;
+        setBrokers((list) => [row, ...list]);
+        setSelectedId(row.id);
+      }
+
       setOpen(false);
-      setDraft({
-        full_name: '',
-        phone: '',
-        email: '',
-        license_no: '',
-        status: 'Active',
-        notes: ''
-      });
+      setEditingId(null);
+      setDraft(EMPTY_DRAFT);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save broker');
     } finally {
@@ -134,13 +173,32 @@ export default function BrokersPage() {
             </div>
           </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">Add</Button>
-            </DialogTrigger>
+          <Dialog
+            open={open}
+            onOpenChange={(next) => {
+              setOpen(next);
+              if (!next) {
+                setEditingId(null);
+                setDraft(EMPTY_DRAFT);
+              }
+            }}
+          >
+            <Button
+              size="sm"
+              onClick={() => {
+                setError('');
+                setEditingId(null);
+                setDraft(EMPTY_DRAFT);
+                setOpen(true);
+              }}
+            >
+              Add
+            </Button>
             <DialogContent className="max-w-xl">
               <DialogHeader>
-                <DialogTitle>Add broker</DialogTitle>
+                <DialogTitle>
+                  {editingId ? 'Edit broker' : 'Add broker'}
+                </DialogTitle>
               </DialogHeader>
 
               {error ? (
@@ -227,7 +285,7 @@ export default function BrokersPage() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={createBroker}
+                  onClick={() => void saveBroker()}
                   disabled={saving || !draft.full_name.trim()}
                 >
                   {saving ? 'Saving…' : 'Save'}
@@ -302,15 +360,29 @@ export default function BrokersPage() {
                 </div>
                 <div className="text-sm text-gray-500">{selected.id}</div>
               </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  selected.status === 'Active'
-                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
-                    : 'border border-gray-200 bg-gray-100 text-gray-600'
-                }`}
-              >
-                {selected.status}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setError('');
+                    setEditingId(selected.id);
+                    setDraft(rowToDraft(selected));
+                    setOpen(true);
+                  }}
+                >
+                  Edit
+                </Button>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    selected.status === 'Active'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                      : 'border border-gray-200 bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {selected.status}
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
