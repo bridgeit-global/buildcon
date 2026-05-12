@@ -250,6 +250,7 @@ export default function BookingsPage() {
   async function load() {
     if (!activeProjectId) {
       setBookings([]);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -298,50 +299,32 @@ export default function BookingsPage() {
     if (uErr) setError(uErr.message);
     if (cErr) setError(cErr.message);
     if (bkErr) setError(bkErr.message);
-    setUnits((uData ?? []) as UnitOption[]);
-    setCustomers((cData ?? []) as CustomerOption[]);
-    setBookings((bkData ?? []) as BookingListRow[]);
 
-    setLoading(false);
-  }
+    const unitsList = (uData ?? []) as UnitOption[];
+    let customerList = (cData ?? []) as CustomerOption[];
 
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
-
-  useEffect(() => {
-    setPrefillMeta(null);
-    setBreakdownUnit(null);
-    setUnitFromInquiryUnavailable(false);
-  }, [activeProjectId]);
-
-  useEffect(() => {
-    if (loading || !activeProjectId) return;
     const p = readConsumeBookingPrefillForProject(activeProjectId);
-    if (!p) return;
+    if (p) {
+      setPrefillMeta(p);
+      setCustomerId(p.customerId);
 
-    setPrefillMeta(p);
-    setCustomerId(p.customerId);
-
-    void (async () => {
-      const { data: cust } = await supabase
+      const { data: custRow } = await supabase
         .from('customers')
         .select('id,full_name,phone,email')
         .eq('id', p.customerId)
         .maybeSingle();
-      if (cust) {
-        setCustomers((prev) =>
-          prev.some((c) => c.id === p.customerId)
-            ? prev
-            : [cust as CustomerOption, ...prev]
-        );
+      if (
+        custRow &&
+        !customerList.some((c) => c.id === (custRow as CustomerOption).id)
+      ) {
+        customerList = [custRow as CustomerOption, ...customerList];
       }
 
-      const avail = units.find((u) => u.id === p.unitId && u.status === 'A');
+      const avail = unitsList.find((u) => u.id === p.unitId && u.status === 'A');
       if (avail) {
         setUnitId(p.unitId);
         setUnitFromInquiryUnavailable(false);
+        setBreakdownUnit(null);
       } else {
         setUnitFromInquiryUnavailable(true);
         setUnitId('');
@@ -353,10 +336,26 @@ export default function BookingsPage() {
           .eq('id', p.unitId)
           .eq('project_id', activeProjectId)
           .maybeSingle();
-        if (urow) setBreakdownUnit(urow as UnitOption);
+        setBreakdownUnit(urow ? (urow as UnitOption) : null);
       }
-    })();
-  }, [loading, activeProjectId, units, supabase]);
+    }
+
+    setUnits(unitsList);
+    setCustomers(customerList);
+    setBookings((bkData ?? []) as BookingListRow[]);
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    setPrefillMeta(null);
+    setBreakdownUnit(null);
+    setUnitFromInquiryUnavailable(false);
+    setUnitId('');
+    setCustomerId('');
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProjectId]);
 
   async function createBooking() {
     if (!activeProjectId || !unitId || !customerId) return;
