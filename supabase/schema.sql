@@ -497,6 +497,8 @@ create table if not exists public.sales_inquiries (
   interested_in text,
   parking_required text not null default 'No',
   parking_count text not null default '1',
+  parking_slots_available int,
+  parking_rate_snapshot int,
   notes text,
   created_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),

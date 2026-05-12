@@ -71,6 +71,31 @@ function unitPriceLacs(u: UnitRow) {
   return Math.round(total);
 }
 
+/** Maps inquiry parking_count option to a number for cost (4+ → 4). */
+function parkingCountNumeric(count: string): number {
+  const t = String(count || '').trim();
+  if (t === '4+') return 4;
+  const n = parseInt(t, 10);
+  return Number.isFinite(n) ? Math.max(1, n) : 1;
+}
+
+type ProjectParkingMeta = {
+  parking_slots: number | null;
+  parking_rate: number | null;
+};
+
+function formatProjectParkingSummary(p: ProjectParkingMeta | null): string {
+  if (!p) return '—';
+  const s = p.parking_slots;
+  const r = p.parking_rate;
+  if (s == null || s <= 0) return 'Not configured on project';
+  const ratePart =
+    r != null && r > 0
+      ? ` · ₹${r.toLocaleString('en-IN')} / slot`
+      : '';
+  return `${s} slot${s !== 1 ? 's' : ''} available${ratePart}`;
+}
+
 const selectClass =
   'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
 
@@ -106,6 +131,8 @@ type InquiryRowDb = {
   interested_in: string | null;
   parking_required: string;
   parking_count: string;
+  parking_slots_available: number | null;
+  parking_rate_snapshot: number | null;
   notes: string | null;
   customer_id: string;
   unit_id: string;
@@ -134,6 +161,8 @@ export default function InquiryPage() {
   const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>(
     []
   );
+  const [projectParking, setProjectParking] =
+    useState<ProjectParkingMeta | null>(null);
 
   const [sellerForm, setSellerForm] = useState({
     customerName: '',
@@ -166,6 +195,8 @@ export default function InquiryPage() {
         interested_in,
         parking_required,
         parking_count,
+        parking_slots_available,
+        parking_rate_snapshot,
         notes,
         customer_id,
         unit_id,
@@ -221,22 +252,44 @@ export default function InquiryPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!activeProjectId) return;
+    if (!activeProjectId) {
+      setProjectParking(null);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoadingUnits(true);
-      const { data, error: uErr } = await supabase
-        .from('units')
-        .select(
-          'id,unit_code,wing_name,floor,unit_no,unit_type,area,rate,status,project_id'
-        )
-        .eq('project_id', activeProjectId)
-        .order('wing_name', { ascending: true })
-        .order('floor', { ascending: false })
-        .order('unit_no', { ascending: true })
-        .limit(500);
-      if (!cancelled && !uErr) {
-        setUnits((data ?? []) as UnitRow[]);
+      const [unitsRes, projRes] = await Promise.all([
+        supabase
+          .from('units')
+          .select(
+            'id,unit_code,wing_name,floor,unit_no,unit_type,area,rate,status,project_id'
+          )
+          .eq('project_id', activeProjectId)
+          .order('wing_name', { ascending: true })
+          .order('floor', { ascending: false })
+          .order('unit_no', { ascending: true })
+          .limit(500),
+        supabase
+          .from('projects')
+          .select('parking_slots, parking_rate')
+          .eq('id', activeProjectId)
+          .maybeSingle()
+      ]);
+      if (!cancelled && !unitsRes.error) {
+        setUnits((unitsRes.data ?? []) as UnitRow[]);
+      }
+      if (!cancelled && projRes.data) {
+        const row = projRes.data as {
+          parking_slots: number | null;
+          parking_rate: number | null;
+        };
+        setProjectParking({
+          parking_slots: row.parking_slots ?? null,
+          parking_rate: row.parking_rate ?? null
+        });
+      } else if (!cancelled) {
+        setProjectParking(null);
       }
       if (!cancelled) setLoadingUnits(false);
     })();
@@ -476,7 +529,7 @@ export default function InquiryPage() {
 
       const brokerId =
         sellerForm.leadSource === 'Broker' &&
-        String(sellerForm.brokerId || '').trim()
+          String(sellerForm.brokerId || '').trim()
           ? sellerForm.brokerId.trim()
           : null;
 
@@ -489,6 +542,8 @@ export default function InquiryPage() {
         interested_in: sellerForm.interestedIn.trim() || null,
         parking_required: sellerForm.parkingRequired,
         parking_count: sellerForm.parkingCount,
+        parking_slots_available: projectParking?.parking_slots ?? null,
+        parking_rate_snapshot: projectParking?.parking_rate ?? null,
         notes: sellerForm.notes.trim() || null,
         created_by: userLabel.id
       });
@@ -552,6 +607,7 @@ export default function InquiryPage() {
             sellerForm={sellerForm}
             setSellerForm={setSellerForm}
             brokers={brokers}
+            projectParking={projectParking}
           />
         ) : null}
 
@@ -562,6 +618,7 @@ export default function InquiryPage() {
             suggestionUnits={suggestionUnits}
             loadingUnits={loadingUnits}
             selectedUnit={selectedUnit}
+            projectParking={projectParking}
           />
         ) : null}
 
@@ -570,6 +627,7 @@ export default function InquiryPage() {
             sellerForm={sellerForm}
             selectedUnit={selectedUnit}
             brokers={brokers}
+            projectParking={projectParking}
           />
         ) : null}
 
@@ -676,7 +734,7 @@ export default function InquiryPage() {
         />
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+          <table className="w-full min-w-[1000px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 {[
@@ -688,6 +746,7 @@ export default function InquiryPage() {
                   'Lead source',
                   'Broker',
                   'Unit',
+                  'Parking',
                   'Seller'
                 ].map((h) => (
                   <th
@@ -703,7 +762,7 @@ export default function InquiryPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-2 py-6 text-muted-foreground"
                   >
                     {loadingInquiries
@@ -746,12 +805,31 @@ export default function InquiryPage() {
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">
                         {String(inq.lead_source || '').toLowerCase() ===
-                        'broker'
+                          'broker'
                           ? embedOne(inq.brokers)?.full_name ?? '—'
                           : '—'}
                       </td>
                       <td className="px-2 py-2 text-xs font-semibold">
                         {unitLabel}
+                      </td>
+                      <td className="max-w-[220px] px-2 py-2 text-[11px] leading-snug">
+                        <div className="font-medium text-foreground">
+                          {inq.parking_required === 'Yes'
+                            ? `Ask × ${inq.parking_count}`
+                            : 'No'}
+                        </div>
+                        {inq.parking_slots_available != null &&
+                          inq.parking_slots_available > 0 ? (
+                          <div className="mt-0.5 text-[10px] text-muted-foreground">
+                            At save: {inq.parking_slots_available} slots
+                            {inq.parking_rate_snapshot != null &&
+                              inq.parking_rate_snapshot > 0
+                              ? ` @ ₹${inq.parking_rate_snapshot.toLocaleString(
+                                'en-IN'
+                              )}/slot`
+                              : ''}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-2 py-2 text-xs text-muted-foreground">
                         {sellerName}
@@ -926,14 +1004,20 @@ function StepCustomer({
 function StepInquiry({
   sellerForm,
   setSellerForm,
-  brokers
+  brokers,
+  projectParking
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   brokers: { id: string; full_name: string }[];
+  projectParking: ProjectParkingMeta | null;
 }) {
   return (
     <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-blue-100 bg-blue-50/90 px-3 py-2 text-[11px] text-blue-900">
+        <span className="font-semibold">Parking inventory (this project): </span>
+        {formatProjectParkingSummary(projectParking)}
+      </div>
       <div>
         <Label>Lead source</Label>
         <select
@@ -1057,13 +1141,15 @@ function StepUnit({
   setSellerForm,
   suggestionUnits,
   loadingUnits,
-  selectedUnit
+  selectedUnit,
+  projectParking
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   suggestionUnits: UnitRow[];
   loadingUnits: boolean;
   selectedUnit: UnitRow | null;
+  projectParking: ProjectParkingMeta | null;
 }) {
   return (
     <div className="mt-6">
@@ -1118,6 +1204,7 @@ function StepUnit({
           unit={selectedUnit}
           parkingRequired={sellerForm.parkingRequired}
           parkingCount={sellerForm.parkingCount}
+          projectParking={projectParking}
         />
       ) : sellerForm.selectedUnitId ? (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -1136,11 +1223,13 @@ function StepUnit({
 function CostSheet({
   unit,
   parkingRequired,
-  parkingCount
+  parkingCount,
+  projectParking
 }: {
   unit: UnitRow;
   parkingRequired: 'Yes' | 'No';
   parkingCount: string;
+  projectParking: ProjectParkingMeta | null;
 }) {
   const area = Number(unit.area) || 0;
   const rate = Number(unit.rate) || 0;
@@ -1151,6 +1240,16 @@ function CostSheet({
     STATUS_LABEL[unit.status] ??
     STATUS_LABEL[st] ??
     (st === 'AVAILABLE' ? 'Available' : unit.status);
+  const slotRate =
+    projectParking?.parking_rate != null && projectParking.parking_rate > 0
+      ? projectParking.parking_rate
+      : 0;
+  const slotsAsked =
+    parkingRequired === 'Yes' ? parkingCountNumeric(parkingCount) : 0;
+  const parkingExtraInr =
+    parkingRequired === 'Yes' && slotRate > 0 ? slotsAsked * slotRate : 0;
+  const grandTotalInr = basicInr + parkingExtraInr;
+
   const rows: [string, string][] = [
     ['Floor', formatFloorLabel(unit.floor, unit.unit_type)],
     ['Configuration', unit.unit_type?.trim() || '—'],
@@ -1165,10 +1264,36 @@ function CostSheet({
       basicInr > 0
         ? `₹ ${lac.toFixed(2)} Lac (₹ ${basicInr.toLocaleString('en-IN')})`
         : '—'
+    ],
+    [
+      'Parking availability (project)',
+      formatProjectParkingSummary(projectParking)
     ]
   ];
   if (parkingRequired === 'Yes') {
-    rows.push(['Parking (customer ask)', `Yes · count ${parkingCount}`]);
+    rows.push([
+      'Parking (customer ask)',
+      `Yes · ${parkingCount} slot${slotsAsked !== 1 ? 's' : ''}`
+    ]);
+    if (slotRate > 0) {
+      rows.push([
+        'Parking extra (est.)',
+        parkingExtraInr > 0
+          ? `₹ ${parkingExtraInr.toLocaleString('en-IN')} (${slotsAsked} × ₹ ${slotRate.toLocaleString('en-IN')})`
+          : '—'
+      ]);
+    } else if (parkingRequired === 'Yes') {
+      rows.push([
+        'Parking extra (est.)',
+        'Set project parking rate to estimate'
+      ]);
+    }
+  }
+  if (grandTotalInr > 0 && parkingRequired === 'Yes' && parkingExtraInr > 0) {
+    rows.push([
+      'Estimated total (basic + parking)',
+      `₹ ${grandTotalInr.toLocaleString('en-IN')}`
+    ]);
   }
   return (
     <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
@@ -1208,11 +1333,13 @@ function CostSheet({
 function StepReview({
   sellerForm,
   selectedUnit,
-  brokers
+  brokers,
+  projectParking
 }: {
   sellerForm: SellerForm;
   selectedUnit: UnitRow | null;
   brokers: { id: string; full_name: string }[];
+  projectParking: ProjectParkingMeta | null;
 }) {
   const brokerLabel =
     sellerForm.leadSource === 'Broker' && sellerForm.brokerId
@@ -1241,6 +1368,10 @@ function StepReview({
         ? `Yes · count ${sellerForm.parkingCount}`
         : 'No'
     ],
+    [
+      'Parking availability (project)',
+      formatProjectParkingSummary(projectParking)
+    ],
     ['Notes', sellerForm.notes.trim() || '—']
   ];
   return (
@@ -1253,6 +1384,7 @@ function StepReview({
             unit={selectedUnit}
             parkingRequired={sellerForm.parkingRequired}
             parkingCount={sellerForm.parkingCount}
+            projectParking={projectParking}
           />
         ) : (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
