@@ -26,6 +26,7 @@ import {
   formatFloorChipLabel,
   formatFloorLabel
 } from './inventory-utils';
+import { writeBookingPrefill } from '../booking-prefill-storage';
 
 type UnitRow = {
   id: string;
@@ -121,7 +122,7 @@ function UnitDetailDialog({
   projectName: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onCreateBooking: () => void;
+  onCreateBooking: (unit: UnitRow) => void;
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [booking, setBooking] = useState<BookingPreview | null>(null);
@@ -334,8 +335,8 @@ function UnitDetailDialog({
           {unit.status === 'A' ? (
             <Button
               onClick={() => {
+                onCreateBooking(unit);
                 onOpenChange(false);
-                onCreateBooking();
               }}
             >
               Create booking
@@ -671,6 +672,30 @@ export default function InventoryPage() {
   }, []);
 
   const projectName = project?.name ?? '';
+
+  const navigateToBookingForUnit = useCallback(
+    (unit: UnitRow) => {
+      if (!activeProjectId || unit.status !== 'A') return;
+      writeBookingPrefill({
+        projectId: activeProjectId,
+        inquiryId: null,
+        inquiryRef: null,
+        customerId: null,
+        unitId: unit.id,
+        parkingRequired: 'No',
+        parkingCount: '1',
+        parkingSlotsAvailable: project?.parking_slots ?? null,
+        parkingRateSnapshot: project?.parking_rate ?? null
+      });
+      router.push('/crm/bookings');
+    },
+    [
+      activeProjectId,
+      project?.parking_rate,
+      project?.parking_slots,
+      router
+    ]
+  );
 
   const structureOptions = useMemo(() => {
     const fromUnits = [...new Set(units.map((u) => u.wing_name))].sort();
@@ -1194,7 +1219,7 @@ export default function InventoryPage() {
                 {selected.status === 'A' ? (
                   <Button
                     className="mt-3 w-full text-[11px]"
-                    onClick={() => router.push('/crm/bookings')}
+                    onClick={() => navigateToBookingForUnit(selected)}
                   >
                     + Create Booking
                   </Button>
@@ -1719,7 +1744,7 @@ export default function InventoryPage() {
           setDetailOpen(o);
           if (!o) setSelected(null);
         }}
-        onCreateBooking={() => router.push('/crm/bookings')}
+        onCreateBooking={navigateToBookingForUnit}
       />
 
       <UnitEditDialog

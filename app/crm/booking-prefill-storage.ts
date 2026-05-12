@@ -5,7 +5,8 @@ export type BookingPrefillV1 = {
   projectId: string;
   inquiryId: string | null;
   inquiryRef: string | null;
-  customerId: string;
+  /** From inquiry flow; null when opening booking from inventory (customer chosen on bookings page). */
+  customerId: string | null;
   unitId: string;
   parkingRequired: 'Yes' | 'No';
   parkingCount: string;
@@ -33,7 +34,7 @@ export function readConsumeBookingPrefillForProject(
     const raw = sessionStorage.getItem(KEY);
     if (!raw) return null;
     const o = JSON.parse(raw) as Partial<BookingPrefillV1>;
-    if (o.version !== 1 || !o.projectId || !o.customerId || !o.unitId) {
+    if (o.version !== 1 || !o.projectId || !o.unitId) {
       sessionStorage.removeItem(KEY);
       return null;
     }

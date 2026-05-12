@@ -307,18 +307,21 @@ export default function BookingsPage() {
     const p = readConsumeBookingPrefillForProject(activeProjectId);
     if (p) {
       setPrefillMeta(p);
-      setCustomerId(p.customerId);
-
-      const { data: custRow } = await supabase
-        .from('customers')
-        .select('id,full_name,phone,email')
-        .eq('id', p.customerId)
-        .maybeSingle();
-      if (
-        custRow &&
-        !customerList.some((c) => c.id === (custRow as CustomerOption).id)
-      ) {
-        customerList = [custRow as CustomerOption, ...customerList];
+      if (p.customerId) {
+        setCustomerId(p.customerId);
+        const { data: custRow } = await supabase
+          .from('customers')
+          .select('id,full_name,phone,email')
+          .eq('id', p.customerId)
+          .maybeSingle();
+        if (
+          custRow &&
+          !customerList.some((c) => c.id === (custRow as CustomerOption).id)
+        ) {
+          customerList = [custRow as CustomerOption, ...customerList];
+        }
+      } else {
+        setCustomerId('');
       }
 
       const avail = unitsList.find((u) => u.id === p.unitId && u.status === 'A');
