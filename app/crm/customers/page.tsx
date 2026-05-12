@@ -212,14 +212,14 @@ export default function CustomersPage() {
   async function load() {
     setLoading(true);
     setError('');
-    const { data, error } = await supabase
+    const { data, error: qErr } = await supabase
       .from('customers')
       .select(
         'id,full_name,phone,email,dob,occupation,nationality,created_at'
       )
       .order('created_at', { ascending: false })
       .limit(200);
-    if (error) setError(error.message);
+    if (qErr) setError(qErr.message);
     const rows = (data ?? []) as CustomerRow[];
     setCustomers(rows);
     setSelectedId((prev) => prev ?? rows[0]?.id ?? null);
@@ -240,7 +240,7 @@ export default function CustomersPage() {
     let cancelled = false;
     (async () => {
       setLoadingInquiries(true);
-      const { data, error } = await supabase
+      const { data, error: qErr } = await supabase
         .from('sales_inquiries')
         .select(
           `
@@ -258,7 +258,7 @@ export default function CustomersPage() {
         .order('created_at', { ascending: false })
         .limit(50);
       if (!cancelled) {
-        if (error) setCustomerInquiries([]);
+        if (qErr) setCustomerInquiries([]);
         else
           setCustomerInquiries((data ?? []) as unknown as CustomerInquiryRow[]);
         setLoadingInquiries(false);
@@ -342,7 +342,7 @@ export default function CustomersPage() {
     setSaving(true);
     setError('');
     try {
-      const { data, error } = await supabase
+      const { data, error: insErr } = await supabase
         .from('customers')
         .insert({
           full_name: draft.full_name,
@@ -357,7 +357,7 @@ export default function CustomersPage() {
         )
         .single();
 
-      if (error) throw error;
+      if (insErr) throw insErr;
       const row = data as CustomerRow;
       setCustomers((cs) => [row, ...cs]);
       setSelectedId(row.id);
@@ -833,7 +833,7 @@ export default function CustomersPage() {
 
   return (
     <div className="grid grid-cols-[260px_1fr] gap-4">
-      <Card className="p-3 flex flex-col gap-3 overflow-hidden">
+      <Card className="flex flex-col gap-3 overflow-hidden p-3">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-semibold text-gray-900">Customers</div>
@@ -949,22 +949,23 @@ export default function CustomersPage() {
           placeholder="Search…"
         />
 
-        <div className="overflow-auto -mx-3 px-3">
+        <div className="-mx-3 overflow-auto px-3">
           <div className="flex flex-col gap-1">
             {filtered.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={`rounded-lg border px-3 py-2 text-left ${selectedId === c.id
-                  ? 'border-blue-200 bg-blue-50'
-                  : 'border-gray-200 bg-white hover:bg-gray-50'
-                  }`}
+                className={`rounded-lg border px-3 py-2 text-left ${
+                  selectedId === c.id
+                    ? 'border-blue-200 bg-blue-50'
+                    : 'border-gray-200 bg-white hover:bg-gray-50'
+                }`}
               >
-                <div className="text-sm font-semibold text-gray-900 line-clamp-1">
+                <div className="line-clamp-1 text-sm font-semibold text-gray-900">
                   {c.full_name}
                 </div>
-                <div className="text-xs text-gray-500 line-clamp-1">
+                <div className="line-clamp-1 text-xs text-gray-500">
                   {c.phone ?? '—'}
                 </div>
               </button>
@@ -1943,4 +1944,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-

@@ -95,10 +95,14 @@ function embedOne<T>(x: T | T[] | null | undefined): T | null {
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
 
+type BrokerEmbed = { full_name: string };
+
 type InquiryRowDb = {
   id: string;
   created_at: string;
   lead_source: string;
+  broker_id: string | null;
+  brokers: BrokerEmbed | BrokerEmbed[] | null;
   interested_in: string | null;
   parking_required: string;
   parking_count: string;
@@ -127,11 +131,16 @@ export default function InquiryPage() {
     name: 'Logged-in user'
   });
 
+  const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>(
+    []
+  );
+
   const [sellerForm, setSellerForm] = useState({
     customerName: '',
     phone: '',
     email: '',
     leadSource: 'Direct' as (typeof LEAD_SOURCES)[number],
+    brokerId: '',
     interestedIn: '',
     parkingRequired: 'No' as 'Yes' | 'No',
     parkingCount: '1',
@@ -152,6 +161,8 @@ export default function InquiryPage() {
         id,
         created_at,
         lead_source,
+        broker_id,
+        brokers ( full_name ),
         interested_in,
         parking_required,
         parking_count,
@@ -193,6 +204,21 @@ export default function InquiryPage() {
   useEffect(() => {
     void loadInquiries();
   }, [loadInquiries]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('brokers')
+        .select('id, full_name')
+        .eq('status', 'Active')
+        .order('full_name');
+      if (!cancelled) setBrokers((data ?? []) as { id: string; full_name: string }[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     if (!activeProjectId) return;
@@ -258,10 +284,14 @@ export default function InquiryPage() {
   }, [inquiries]);
 
   const canSave = useMemo(() => {
+    const brokerOk =
+      sellerForm.leadSource !== 'Broker' ||
+      Boolean(String(sellerForm.brokerId || '').trim());
     return (
       String(sellerForm.customerName || '').trim().length >= 2 &&
       normalizePhone(sellerForm.phone).length === 10 &&
-      String(sellerForm.selectedUnitId || '').trim().length > 0
+      String(sellerForm.selectedUnitId || '').trim().length > 0 &&
+      brokerOk
     );
   }, [sellerForm]);
 
@@ -304,7 +334,9 @@ export default function InquiryPage() {
       String(sellerForm.customerName || '').trim().length >= 2 &&
       normalizePhone(sellerForm.phone).length === 10 &&
       Boolean(userLabel.id);
-    const inquiryOk = true;
+    const inquiryOk =
+      sellerForm.leadSource !== 'Broker' ||
+      Boolean(String(sellerForm.brokerId || '').trim());
     const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
     return { 1: customerOk, 2: inquiryOk, 3: unitOk, 4: true } as Record<
       StepId,
@@ -424,6 +456,7 @@ export default function InquiryPage() {
       phone: '',
       email: '',
       leadSource: 'Direct',
+      brokerId: '',
       interestedIn: '',
       parkingRequired: 'No',
       parkingCount: '1',
@@ -441,11 +474,18 @@ export default function InquiryPage() {
       const customerId = await persistCustomerToDb();
       if (!customerId) return;
 
+      const brokerId =
+        sellerForm.leadSource === 'Broker' &&
+        String(sellerForm.brokerId || '').trim()
+          ? sellerForm.brokerId.trim()
+          : null;
+
       const { error: inqErr } = await supabase.from('sales_inquiries').insert({
         project_id: projectId,
         customer_id: customerId,
         unit_id: sellerForm.selectedUnitId,
         lead_source: sellerForm.leadSource,
+        broker_id: brokerId,
         interested_in: sellerForm.interestedIn.trim() || null,
         parking_required: sellerForm.parkingRequired,
         parking_count: sellerForm.parkingCount,
@@ -511,6 +551,7 @@ export default function InquiryPage() {
           <StepInquiry
             sellerForm={sellerForm}
             setSellerForm={setSellerForm}
+            brokers={brokers}
           />
         ) : null}
 
@@ -528,6 +569,7 @@ export default function InquiryPage() {
           <StepReview
             sellerForm={sellerForm}
             selectedUnit={selectedUnit}
+            brokers={brokers}
           />
         ) : null}
 
@@ -644,6 +686,7 @@ export default function InquiryPage() {
                   'Phone',
                   'Email',
                   'Lead source',
+                  'Broker',
                   'Unit',
                   'Seller'
                 ].map((h) => (
@@ -660,7 +703,7 @@ export default function InquiryPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-2 py-6 text-muted-foreground"
                   >
                     {loadingInquiries
@@ -701,6 +744,12 @@ export default function InquiryPage() {
                       <td className="px-2 py-2 text-xs text-muted-foreground">
                         {inq.lead_source ?? '—'}
                       </td>
+                      <td className="px-2 py-2 text-xs text-muted-foreground">
+                        {String(inq.lead_source || '').toLowerCase() ===
+                        'broker'
+                          ? embedOne(inq.brokers)?.full_name ?? '—'
+                          : '—'}
+                      </td>
                       <td className="px-2 py-2 text-xs font-semibold">
                         {unitLabel}
                       </td>
@@ -724,6 +773,7 @@ type SellerForm = {
   phone: string;
   email: string;
   leadSource: (typeof LEAD_SOURCES)[number];
+  brokerId: string;
   interestedIn: string;
   parkingRequired: 'Yes' | 'No';
   parkingCount: string;
@@ -875,10 +925,12 @@ function StepCustomer({
 
 function StepInquiry({
   sellerForm,
-  setSellerForm
+  setSellerForm,
+  brokers
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
+  brokers: { id: string; full_name: string }[];
 }) {
   return (
     <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -886,12 +938,14 @@ function StepInquiry({
         <Label>Lead source</Label>
         <select
           value={sellerForm.leadSource}
-          onChange={(e) =>
+          onChange={(e) => {
+            const v = e.target.value as (typeof LEAD_SOURCES)[number];
             setSellerForm((s) => ({
               ...s,
-              leadSource: e.target.value as (typeof LEAD_SOURCES)[number]
-            }))
-          }
+              leadSource: v,
+              brokerId: v === 'Broker' ? s.brokerId : ''
+            }));
+          }}
           className={selectClass}
         >
           {LEAD_SOURCES.map((s) => (
@@ -900,6 +954,32 @@ function StepInquiry({
             </option>
           ))}
         </select>
+      </div>
+      <div>
+        <Label>Broker</Label>
+        <select
+          value={sellerForm.brokerId}
+          disabled={sellerForm.leadSource !== 'Broker'}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, brokerId: e.target.value }))
+          }
+          className={cn(
+            selectClass,
+            sellerForm.leadSource !== 'Broker' && 'opacity-60'
+          )}
+        >
+          <option value="">Select broker…</option>
+          {brokers.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.full_name}
+            </option>
+          ))}
+        </select>
+        {sellerForm.leadSource === 'Broker' && brokers.length === 0 ? (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            No active brokers. Add one under CRM → Brokers.
+          </p>
+        ) : null}
       </div>
       <div>
         <Label>Interested in</Label>
@@ -1127,11 +1207,18 @@ function CostSheet({
 
 function StepReview({
   sellerForm,
-  selectedUnit
+  selectedUnit,
+  brokers
 }: {
   sellerForm: SellerForm;
   selectedUnit: UnitRow | null;
+  brokers: { id: string; full_name: string }[];
 }) {
+  const brokerLabel =
+    sellerForm.leadSource === 'Broker' && sellerForm.brokerId
+      ? brokers.find((b) => b.id === sellerForm.brokerId)?.full_name ?? '—'
+      : '—';
+
   const customer: [string, string][] = [
     ['Name', sellerForm.customerName.trim() || '—'],
     [
@@ -1144,6 +1231,9 @@ function StepReview({
   ];
   const inquiry: [string, string][] = [
     ['Lead source', sellerForm.leadSource],
+    ...(sellerForm.leadSource === 'Broker'
+      ? ([['Broker', brokerLabel]] as [string, string][])
+      : []),
     ['Interested in', sellerForm.interestedIn || 'Any'],
     [
       'Parking',
