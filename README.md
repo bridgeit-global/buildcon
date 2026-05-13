@@ -15,6 +15,12 @@ Staff CRM built with Next.js (App Router) and Supabase.
 - ✅ Bank loans (loan cases)
 - ✅ Documents (templates + generated document records)
 - ✅ Reports (basic aggregates)
+- ✅ Sales pipeline (opportunities, funnel stages, follow-ups, site visits) on inquiries
+- ✅ Quotations + project pricing profile (GST / stamp duty / registration estimates)
+- ✅ Collections ledger view (demand vs receipts, outstanding, overdue) for dashboards and finance
+- ✅ Construction-linked demand (CLD) stages and completions
+- ✅ Possession & handover cases (checklist / snag JSON, workflow stages)
+- ✅ Buyer portal at `/portal` for customers linked on their profile (read own bookings and related data)
 
 ## Tech Stack
 
@@ -63,6 +69,7 @@ Staff CRM built with Next.js (App Router) and Supabase.
 5. Access the application:
    - Landing: http://localhost:3000
    - CRM: http://localhost:3000/crm (redirects to `/login` if not authenticated)
+   - Buyer portal: http://localhost:3000/portal (same auth; customer data visible when `linked_customer_id` is set on the user profile)
 
 ## Deployment
 
