@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmailInputField } from '@/components/ui/email-input-field';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -1035,36 +1037,18 @@ function StepCustomer({
             placeholder="Customer name"
           />
         </div>
-        <div>
-          <Label>Phone *</Label>
-          <Input
-            className="mt-1"
-            value={sellerForm.phone}
-            onChange={(e) =>
-              setSellerForm((s) => ({
-                ...s,
-                phone: String(e.target.value || '')
-                  .replace(/\D/g, '')
-                  .slice(0, 10)
-              }))
-            }
-            placeholder="10-digit mobile"
-            inputMode="numeric"
-            maxLength={10}
-          />
-        </div>
-        <div>
-          <Label>Email</Label>
-          <Input
-            className="mt-1"
-            type="email"
-            value={sellerForm.email}
-            onChange={(e) =>
-              setSellerForm((s) => ({ ...s, email: e.target.value }))
-            }
-            placeholder="Email"
-          />
-        </div>
+        <PhoneInputField
+          value={sellerForm.phone}
+          onChange={(v) => setSellerForm((s) => ({ ...s, phone: v }))}
+          label="Phone *"
+          placeholder="10-digit mobile"
+          mode="digits10"
+        />
+        <EmailInputField
+          value={sellerForm.email}
+          onChange={(v) => setSellerForm((s) => ({ ...s, email: v }))}
+          placeholder="Email"
+        />
       </div>
     </div>
   );

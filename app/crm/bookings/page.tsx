@@ -19,6 +19,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmailInputField } from '@/components/ui/email-input-field';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
 import {
   Popover,
   PopoverContent,
@@ -1583,32 +1585,24 @@ export default function BookingsPage() {
                 autoComplete="name"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-cust-phone">Phone (optional)</Label>
-              <Input
-                id="new-cust-phone"
-                value={newCustomerDraft.phone}
-                onChange={(e) =>
-                  setNewCustomerDraft((d) => ({ ...d, phone: e.target.value }))
-                }
-                inputMode="tel"
-                placeholder="Mobile number"
-                autoComplete="tel"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-cust-email">Email (optional)</Label>
-              <Input
-                id="new-cust-email"
-                type="email"
-                value={newCustomerDraft.email}
-                onChange={(e) =>
-                  setNewCustomerDraft((d) => ({ ...d, email: e.target.value }))
-                }
-                placeholder="email@example.com"
-                autoComplete="email"
-              />
-            </div>
+            <PhoneInputField
+              value={newCustomerDraft.phone}
+              onChange={(v) =>
+                setNewCustomerDraft((d) => ({ ...d, phone: v }))
+              }
+              label="Phone (optional)"
+              placeholder="Mobile number"
+              id="new-cust-phone"
+            />
+            <EmailInputField
+              value={newCustomerDraft.email}
+              onChange={(v) =>
+                setNewCustomerDraft((d) => ({ ...d, email: v }))
+              }
+              label="Email (optional)"
+              placeholder="email@example.com"
+              id="new-cust-email"
+            />
           </div>
           <DialogFooter>
             <Button

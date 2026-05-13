@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmailInputField } from '@/components/ui/email-input-field';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -876,26 +878,19 @@ export default function CustomersPage() {
                     placeholder="e.g. Mr. Amit Deshmukh"
                   />
                 </div>
-                <div>
-                  <Label>Phone</Label>
-                  <Input
-                    value={draft.phone}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, phone: e.target.value }))
-                    }
-                    placeholder="+91 …"
-                  />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input
-                    value={draft.email}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, email: e.target.value }))
-                    }
-                    placeholder="name@email.com"
-                  />
-                </div>
+                <PhoneInputField
+                  value={draft.phone}
+                  onChange={(v) =>
+                    setDraft((d) => ({ ...d, phone: v }))
+                  }
+                />
+                <EmailInputField
+                  value={draft.email}
+                  onChange={(v) =>
+                    setDraft((d) => ({ ...d, email: v }))
+                  }
+                  placeholder="name@email.com"
+                />
                 <div>
                   <Label>Date of birth</Label>
                   <Input
@@ -1081,32 +1076,19 @@ export default function CustomersPage() {
                           placeholder="e.g. Mr. Amit Deshmukh"
                         />
                       </div>
-                      <div>
-                        <Label>Phone</Label>
-                        <Input
-                          value={editDraft.phone}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              phone: e.target.value
-                            }))
-                          }
-                          placeholder="+91 …"
-                        />
-                      </div>
-                      <div>
-                        <Label>Email</Label>
-                        <Input
-                          value={editDraft.email}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              email: e.target.value
-                            }))
-                          }
-                          placeholder="name@email.com"
-                        />
-                      </div>
+                      <PhoneInputField
+                        value={editDraft.phone}
+                        onChange={(v) =>
+                          setEditDraft((d) => ({ ...d, phone: v }))
+                        }
+                      />
+                      <EmailInputField
+                        value={editDraft.email}
+                        onChange={(v) =>
+                          setEditDraft((d) => ({ ...d, email: v }))
+                        }
+                        placeholder="name@email.com"
+                      />
                       <div>
                         <Label>Date of birth</Label>
                         <Input

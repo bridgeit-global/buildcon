@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { EmailInputField } from '@/components/ui/email-input-field';
 import { Input } from '@/components/ui/input';
 
 export function LoginClient() {
@@ -69,15 +70,11 @@ export function LoginClient() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">Email</span>
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@company.com"
-              autoComplete="email"
-            />
-          </label>
+          <EmailInputField
+            value={email}
+            onChange={setEmail}
+            placeholder="name@company.com"
+          />
 
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-gray-600">Password</span>

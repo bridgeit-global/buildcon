@@ -6,6 +6,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { EmailInputField } from '@/components/ui/email-input-field';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -226,26 +228,18 @@ export default function BrokersPage() {
                     placeholder="Broker / agency name"
                   />
                 </div>
-                <div>
-                  <Label>Phone</Label>
-                  <Input
-                    value={draft.phone}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, phone: e.target.value }))
-                    }
-                    placeholder="+91 …"
-                  />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={draft.email}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, email: e.target.value }))
-                    }
-                  />
-                </div>
+                <PhoneInputField
+                  value={draft.phone}
+                  onChange={(v) =>
+                    setDraft((d) => ({ ...d, phone: v }))
+                  }
+                />
+                <EmailInputField
+                  value={draft.email}
+                  onChange={(v) =>
+                    setDraft((d) => ({ ...d, email: v }))
+                  }
+                />
                 <div className="col-span-2">
                   <Label>RERA / license no.</Label>
                   <Input
