@@ -17,7 +17,7 @@ export function PhoneInputField({
   value,
   onChange,
   label = 'Phone',
-  placeholder = 'Enter mobile number',
+  placeholder = 'Enter Phone number',
   id,
   mode = 'digits10',
   inputClassName
