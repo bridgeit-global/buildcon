@@ -454,10 +454,10 @@ export function FloorConfigureStep({
                               >
                                 −
                               </button>
-                              <input
+                              <Input
                                 type="number"
                                 min={1}
-                                className="h-full w-14 border-0 bg-transparent text-center text-[11px] outline-none"
+                                className="h-full w-14 border-0 bg-transparent px-0 text-center text-[11px] shadow-none focus-visible:ring-0"
                                 value={unitCount}
                                 onChange={(e) => {
                                   const v = Math.max(

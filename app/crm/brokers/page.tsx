@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -276,13 +277,13 @@ export default function BrokersPage() {
                 </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>
-                  <textarea
+                  <Textarea
                     value={draft.notes}
                     onChange={(e) =>
                       setDraft((d) => ({ ...d, notes: e.target.value }))
                     }
                     rows={3}
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="mt-1"
                   />
                 </div>
               </div>

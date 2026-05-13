@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../../_components/active-project-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -682,15 +683,15 @@ export default function CreateProjectPage() {
                         : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={checked}
-                        onChange={() =>
+                        onCheckedChange={(next) =>
                           setDraft((d) => ({
                             ...d,
-                            memberIds: checked
-                              ? d.memberIds.filter((x) => x !== p.id)
-                              : [...d.memberIds, p.id]
+                            memberIds:
+                              next === true
+                                ? [...d.memberIds, p.id]
+                                : d.memberIds.filter((x) => x !== p.id)
                           }))
                         }
                       />

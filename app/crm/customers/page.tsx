@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -1432,11 +1433,11 @@ export default function CustomersPage() {
                       </div>
                       <div>
                         <Label>File</Label>
-                        <input
+                        <Input
                           ref={kycFileRef}
                           type="file"
                           accept="application/pdf,image/jpeg,image/png,image/webp"
-                          className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                          className="mt-1 block h-auto py-1.5 text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
                         />
                         <p className="mt-1 text-xs text-gray-500">
                           Path:{' '}
@@ -1575,7 +1576,7 @@ export default function CustomersPage() {
                       </div>
                       <div className="col-span-2">
                         <Label>Address line</Label>
-                        <textarea
+                        <Textarea
                           value={addressForm.address_line1}
                           onChange={(e) =>
                             setAddressForm((f) => ({
@@ -1585,7 +1586,7 @@ export default function CustomersPage() {
                           }
                           rows={2}
                           placeholder="Street, building, landmark…"
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          className="mt-1"
                         />
                       </div>
                       <div>

@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -1222,16 +1223,14 @@ function StepInquiry({
       </div>
       <div className="md:col-span-2 xl:col-span-4">
         <Label>Notes</Label>
-        <textarea
+        <Textarea
           value={sellerForm.notes}
           onChange={(e) =>
             setSellerForm((s) => ({ ...s, notes: e.target.value }))
           }
           rows={2}
           placeholder="Notes"
-          className={cn(
-            'mt-1 flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-0.5 focus-visible:ring-ring/50 md:text-sm'
-          )}
+          className="mt-1 min-h-[60px]"
         />
       </div>
     </div>
