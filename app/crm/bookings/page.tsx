@@ -62,12 +62,19 @@ type CoBuyerStored = {
   email: string | null;
 };
 
+type PaymentDetailStored = {
+  utr?: string;
+  cheque_number?: string;
+  neft_ref?: string;
+};
+
 type BookingListRow = {
   id: string;
   created_at: string;
   stage: string;
   payment_mode: string | null;
   loan_bank: string | null;
+  payment_detail: PaymentDetailStored | null;
   booking_amount: number | null;
   co_buyers: CoBuyerStored[] | null;
   units:
@@ -112,6 +119,39 @@ const LOAN_BANK_OPTIONS = [
 function paymentModeNeedsLoanBank(mode: string | null | undefined) {
   const m = String(mode || '').trim();
   return m === 'Home Loan' || m === 'Construction Linked';
+}
+
+function parsePaymentDetailStored(raw: unknown): PaymentDetailStored | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const out: PaymentDetailStored = {};
+  if (typeof o.utr === 'string' && o.utr.trim()) out.utr = o.utr.trim();
+  if (typeof o.cheque_number === 'string' && o.cheque_number.trim()) {
+    out.cheque_number = o.cheque_number.trim();
+  }
+  if (typeof o.neft_ref === 'string' && o.neft_ref.trim()) {
+    out.neft_ref = o.neft_ref.trim();
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function formatBookingPaymentDisplay(
+  mode: string | null,
+  loanBank: string | null,
+  detail: PaymentDetailStored | null
+) {
+  const m = mode ?? '—';
+  if (paymentModeNeedsLoanBank(mode) && loanBank) {
+    return `${m} · ${loanBank}`;
+  }
+  if (mode === 'UPI' && detail?.utr) return `${m} · UTR ${detail.utr}`;
+  if (mode === 'Cheque' && detail?.cheque_number) {
+    return `${m} · Chq ${detail.cheque_number}`;
+  }
+  if (mode === 'NEFT/RTGS' && detail?.neft_ref) {
+    return `${m} · Ref ${detail.neft_ref}`;
+  }
+  return m;
 }
 
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -290,6 +330,9 @@ export default function BookingsPage() {
   const [coBuyerSlots, setCoBuyerSlots] = useState<CoBuyerSlot[]>([]);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [loanBank, setLoanBank] = useState('');
+  const [upiUtr, setUpiUtr] = useState('');
+  const [chequeNo, setChequeNo] = useState('');
+  const [neftRef, setNeftRef] = useState('');
   const [bookingAmount, setBookingAmount] = useState('500000');
 
   const [creating, setCreating] = useState(false);
@@ -344,6 +387,7 @@ export default function BookingsPage() {
           stage,
           payment_mode,
           loan_bank,
+          payment_detail,
           booking_amount,
           co_buyers,
           units ( unit_code, wing_name, floor, unit_type ),
@@ -421,7 +465,7 @@ export default function BookingsPage() {
     setCustomers(customerList);
     setBookings(
       (bkData ?? []).map((row) => {
-        const r = row as BookingListRow;
+        const r = row as BookingListRow & { payment_detail?: unknown };
         const raw = r.co_buyers;
         const coParsed = Array.isArray(raw)
           ? (raw as unknown[]).filter(
@@ -432,7 +476,12 @@ export default function BookingsPage() {
               typeof (x as CoBuyerStored).full_name === 'string'
           )
           : [];
-        return { ...r, co_buyers: coParsed.length ? coParsed : null };
+        const payment_detail = parsePaymentDetailStored(r.payment_detail);
+        return {
+          ...r,
+          co_buyers: coParsed.length ? coParsed : null,
+          payment_detail
+        };
       })
     );
 
@@ -446,6 +495,9 @@ export default function BookingsPage() {
     setUnitId('');
     setCustomerId('');
     setCoBuyerSlots([]);
+    setUpiUtr('');
+    setChequeNo('');
+    setNeftRef('');
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId]);
@@ -457,6 +509,12 @@ export default function BookingsPage() {
       )
     );
   }, [customerId]);
+
+  useEffect(() => {
+    setUpiUtr('');
+    setChequeNo('');
+    setNeftRef('');
+  }, [paymentMode]);
 
   async function createBooking() {
     if (!activeProjectId || !unitId || !customerId) return;
@@ -492,6 +550,19 @@ export default function BookingsPage() {
       return;
     }
 
+    if (paymentMode === 'UPI' && !String(upiUtr || '').trim()) {
+      setError('Enter UPI UTR.');
+      return;
+    }
+    if (paymentMode === 'Cheque' && !String(chequeNo || '').trim()) {
+      setError('Enter cheque number.');
+      return;
+    }
+    if (paymentMode === 'NEFT/RTGS' && !String(neftRef || '').trim()) {
+      setError('Enter NEFT / RTGS reference.');
+      return;
+    }
+
     setCreating(true);
     setError('');
     setCreatedBookingId(null);
@@ -506,6 +577,11 @@ export default function BookingsPage() {
           coBuyerCustomerIds: coIdsOrdered,
           paymentMode,
           loanBank: paymentModeNeedsLoanBank(paymentMode) ? loanBank : null,
+          paymentDetail: {
+            utr: upiUtr.trim(),
+            cheque_number: chequeNo.trim(),
+            neft_ref: neftRef.trim()
+          },
           bookingAmount: bookingAmount ? Number(bookingAmount) : null
         })
       });
@@ -515,6 +591,9 @@ export default function BookingsPage() {
       setUnitId('');
       setCustomerId('');
       setCoBuyerSlots([]);
+      setUpiUtr('');
+      setChequeNo('');
+      setNeftRef('');
       setPrefillMeta(null);
       setBreakdownUnit(null);
       setUnitFromInquiryUnavailable(false);
@@ -994,6 +1073,42 @@ export default function BookingsPage() {
               ))}
             </select>
           </div>
+          {paymentMode === 'UPI' ? (
+            <div className="col-span-2">
+              <Label>UPI UTR</Label>
+              <Input
+                value={upiUtr}
+                onChange={(e) => setUpiUtr(e.target.value)}
+                placeholder="Bank reference / UTR"
+                className="mt-1"
+                autoComplete="off"
+              />
+            </div>
+          ) : null}
+          {paymentMode === 'Cheque' ? (
+            <div className="col-span-2">
+              <Label>Cheque number</Label>
+              <Input
+                value={chequeNo}
+                onChange={(e) => setChequeNo(e.target.value)}
+                placeholder="Cheque no."
+                className="mt-1"
+                autoComplete="off"
+              />
+            </div>
+          ) : null}
+          {paymentMode === 'NEFT/RTGS' ? (
+            <div className="col-span-2">
+              <Label>NEFT / RTGS reference</Label>
+              <Input
+                value={neftRef}
+                onChange={(e) => setNeftRef(e.target.value)}
+                placeholder="Transaction reference"
+                className="mt-1"
+                autoComplete="off"
+              />
+            </div>
+          ) : null}
           <div className="col-span-2">
             <Label>Booking amount (₹)</Label>
             <Input
@@ -1159,10 +1274,11 @@ export default function BookingsPage() {
                     ? (coRaw as CoBuyerStored[])
                     : [];
                   const amt = b.booking_amount;
-                  const pay =
-                    paymentModeNeedsLoanBank(b.payment_mode) && b.loan_bank
-                      ? `${b.payment_mode} · ${b.loan_bank}`
-                      : (b.payment_mode ?? '—');
+                  const pay = formatBookingPaymentDisplay(
+                    b.payment_mode,
+                    b.loan_bank,
+                    b.payment_detail
+                  );
                   return (
                     <tr key={b.id} className="border-b border-gray-100 last:border-0">
                       <td className="py-2.5 pr-3 align-top">

@@ -9,6 +9,12 @@ type CoBuyerStored = {
   email: string | null;
 };
 
+type PaymentDetailPayload = {
+  utr?: string;
+  cheque_number?: string;
+  neft_ref?: string;
+};
+
 type CreateBookingBody = {
   projectId: string;
   unitId: string;
@@ -17,8 +23,24 @@ type CreateBookingBody = {
   coBuyerCustomerIds?: string[];
   paymentMode: string;
   loanBank?: string | null;
+  /** Mode-specific refs stored as JSON on the booking row. */
+  paymentDetail?: PaymentDetailPayload | null;
   bookingAmount?: number | null;
 };
+
+function normalizePaymentDetail(
+  raw: PaymentDetailPayload | null | undefined
+): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  const utr = typeof raw.utr === 'string' ? raw.utr.trim() : '';
+  if (utr) out.utr = utr;
+  const cq = typeof raw.cheque_number === 'string' ? raw.cheque_number.trim() : '';
+  if (cq) out.cheque_number = cq;
+  const neft = typeof raw.neft_ref === 'string' ? raw.neft_ref.trim() : '';
+  if (neft) out.neft_ref = neft;
+  return out;
+}
 
 function normalizePhone(p: string | null | undefined) {
   return String(p ?? '').replace(/\D/g, '');
@@ -42,6 +64,18 @@ export async function POST(request: Request) {
   const ro = await isReadOnlyUser(gate.userId);
   if (!ro.ok) return NextResponse.json({ error: ro.error }, { status: ro.status });
   if (ro.readOnly) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const modeTrim = String(body.paymentMode || '').trim();
+  const paymentDetailObj = normalizePaymentDetail(body.paymentDetail ?? null);
+  if (modeTrim === 'UPI' && !paymentDetailObj.utr) {
+    return NextResponse.json({ error: 'Enter UPI UTR' }, { status: 400 });
+  }
+  if (modeTrim === 'Cheque' && !paymentDetailObj.cheque_number) {
+    return NextResponse.json({ error: 'Enter cheque number' }, { status: 400 });
+  }
+  if (modeTrim === 'NEFT/RTGS' && !paymentDetailObj.neft_ref) {
+    return NextResponse.json({ error: 'Enter NEFT / RTGS reference' }, { status: 400 });
+  }
 
   const rawCoIds = Array.isArray(body.coBuyerCustomerIds)
     ? body.coBuyerCustomerIds
@@ -171,6 +205,7 @@ export async function POST(request: Request) {
       payment_mode: body.paymentMode,
       loan_bank: body.loanBank ?? null,
       booking_amount: body.bookingAmount ?? null,
+      payment_detail: paymentDetailObj,
       created_by: gate.userId
     })
     .select('id')
