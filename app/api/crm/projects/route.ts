@@ -322,7 +322,7 @@ export async function POST(request: Request) {
           unit_type: unitType,
           area,
           rate,
-          status: 'A'
+          status: 'AVAILABLE'
         });
       }
     }
@@ -352,7 +352,7 @@ export async function POST(request: Request) {
             unit_type: unitType,
             area,
             rate: baseRate,
-            status: 'A'
+            status: 'AVAILABLE'
           });
         }
       }

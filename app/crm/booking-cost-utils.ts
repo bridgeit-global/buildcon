@@ -1,8 +1,8 @@
 import { formatInrCompactLacCr } from './inr-format';
 import {
-  STATUS_LABEL,
   agreementValueLac,
-  formatFloorLabel
+  formatFloorLabel,
+  statusLabelForUnit
 } from './inventory/inventory-utils';
 
 /** Maps inquiry parking_count option to a number for cost (4+ → 4). */
@@ -16,6 +16,13 @@ export function parkingSlotsAskedFromCount(count: string): number {
 export type ProjectParkingMeta = {
   parking_slots: number | null;
   parking_rate: number | null;
+};
+
+export type ProjectPricingMeta = {
+  gst_registered: boolean;
+  gst_percent: number;
+  stamp_duty_percent: number;
+  registration_fee: number;
 };
 
 export function formatProjectParkingSummary(p: ProjectParkingMeta | null): string {
@@ -44,17 +51,14 @@ export function computeBookingCostBreakdown(
   parkingCount: string,
   /** Prefer inquiry snapshot; fallback to live project parking rate */
   parkingRatePerSlot: number | null,
-  projectParking?: ProjectParkingMeta | null
+  projectParking?: ProjectParkingMeta | null,
+  pricing?: ProjectPricingMeta | null
 ) {
   const area = Number(unit.area) || 0;
   const rate = Number(unit.rate) || 0;
   const basicInr = area * rate;
   const lac = agreementValueLac(unit.area, unit.rate);
-  const st = String(unit.status || '').toUpperCase();
-  const statusLabel =
-    STATUS_LABEL[unit.status] ??
-    STATUS_LABEL[st] ??
-    (st === 'AVAILABLE' ? 'Available' : unit.status);
+  const statusLabel = statusLabelForUnit(unit.status);
 
   const slotRate =
     parkingRatePerSlot != null && parkingRatePerSlot > 0
@@ -64,7 +68,7 @@ export function computeBookingCostBreakdown(
     parkingRequired === 'Yes' ? parkingSlotsAskedFromCount(parkingCount) : 0;
   const parkingExtraInr =
     parkingRequired === 'Yes' && slotRate > 0 ? slotsAsked * slotRate : 0;
-  const grandTotalInr = basicInr + parkingExtraInr;
+  let grandTotalInr = basicInr + parkingExtraInr;
 
   const rows: [string, string][] = [
     ['Floor', formatFloorLabel(unit.floor, unit.unit_type)],
@@ -105,6 +109,34 @@ export function computeBookingCostBreakdown(
         'Set project parking rate to estimate'
       ]);
     }
+  }
+
+  if (pricing?.gst_registered && (pricing.gst_percent ?? 0) > 0) {
+    const pct = Number(pricing.gst_percent) || 0;
+    const gstAmt = Math.round(grandTotalInr * (pct / 100));
+    rows.push([
+      `GST (est. ${pct}%)`,
+      gstAmt > 0
+        ? `₹ ${gstAmt.toLocaleString('en-IN')}`
+        : '—'
+    ]);
+    grandTotalInr += gstAmt;
+  }
+
+  if (pricing && (pricing.stamp_duty_percent ?? 0) > 0) {
+    const pct = Number(pricing.stamp_duty_percent) || 0;
+    const stamp = Math.round(basicInr * (pct / 100));
+    rows.push([
+      `Stamp duty (est. ${pct}% of basic)`,
+      stamp > 0 ? `₹ ${stamp.toLocaleString('en-IN')}` : '—'
+    ]);
+    grandTotalInr += stamp;
+  }
+
+  if (pricing && (pricing.registration_fee ?? 0) > 0) {
+    const reg = Math.round(Number(pricing.registration_fee));
+    rows.push(['Registration (est.)', `₹ ${reg.toLocaleString('en-IN')}`]);
+    grandTotalInr += reg;
   }
 
   if (grandTotalInr > 0 && parkingRequired === 'Yes' && parkingExtraInr > 0) {

@@ -15,6 +15,7 @@ import {
   PaymentCostOverview,
   type PaymentCostOverviewMode
 } from '../_components/payment-cost-overview';
+import { isUnitAvailableForBooking } from '../inventory/unit-status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +46,8 @@ import { cn } from '@/lib/utils';
 import {
   computeBookingCostBreakdown,
   formatProjectParkingSummary,
-  type ProjectParkingMeta
+  type ProjectParkingMeta,
+  type ProjectPricingMeta
 } from '../booking-cost-utils';
 import { formatInr, formatInrCompactLacCr } from '../inr-format';
 import { formatFloorLabel } from '../inventory/inventory-utils';
@@ -381,6 +383,9 @@ export default function BookingsPage() {
   const [projectParking, setProjectParking] = useState<ProjectParkingMeta | null>(
     null
   );
+  const [projectPricing, setProjectPricing] = useState<ProjectPricingMeta | null>(
+    null
+  );
 
   const [prefillCustomerMissing, setPrefillCustomerMissing] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
@@ -398,6 +403,7 @@ export default function BookingsPage() {
     if (!activeProjectId) {
       setBookings([]);
       setProjectParking(null);
+      setProjectPricing(null);
       setLoading(false);
       return;
     }
@@ -417,7 +423,7 @@ export default function BookingsPage() {
           'id,unit_code,wing_name,floor,unit_type,area,rate,status,project_id'
         )
         .eq('project_id', activeProjectId)
-        .eq('status', 'A')
+        .in('status', ['AVAILABLE', 'A'])
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true })
@@ -448,7 +454,9 @@ export default function BookingsPage() {
         .limit(100),
       supabase
         .from('projects')
-        .select('parking_slots,parking_rate')
+        .select(
+          'parking_slots,parking_rate,pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
+        )
         .eq('id', activeProjectId)
         .maybeSingle()
     ]);
@@ -463,6 +471,17 @@ export default function BookingsPage() {
         ? {
           parking_slots: projData.parking_slots ?? null,
           parking_rate: projData.parking_rate ?? null
+        }
+        : null
+    );
+    const pd = projData as Record<string, unknown> | null;
+    setProjectPricing(
+      pd
+        ? {
+          gst_registered: Boolean(pd.pricing_gst_registered),
+          gst_percent: Number(pd.pricing_gst_percent) || 0,
+          stamp_duty_percent: Number(pd.pricing_stamp_duty_percent) || 0,
+          registration_fee: Number(pd.pricing_registration_fee) || 0
         }
         : null
     );
@@ -494,7 +513,9 @@ export default function BookingsPage() {
         setCustomerId('');
       }
 
-      const avail = unitsList.find((u) => u.id === p.unitId && u.status === 'A');
+      const avail = unitsList.find(
+        (u) => u.id === p.unitId && isUnitAvailableForBooking(u.status)
+      );
       if (avail) {
         setUnitId(p.unitId);
         setUnitFromInquiryUnavailable(false);
@@ -774,15 +795,19 @@ export default function BookingsPage() {
       mismatch ? 'No' : prefillMeta.parkingRequired,
       mismatch ? '1' : prefillMeta.parkingCount,
       rate,
-      projectSnap
+      projectSnap,
+      projectPricing ?? undefined
     );
-  }, [prefillMeta, unitForCostPreview, unitFromInquiryUnavailable]);
+  }, [prefillMeta, unitForCostPreview, unitFromInquiryUnavailable, projectPricing]);
 
   /** Inquiry overview rows plus GST/total so we do not need a second block in the unit card. */
   const inquiryPaymentOverviewRows = useMemo((): [string, string][] => {
     if (!inquiryCostBreakdown) return [];
     const u = unitForCostPreview;
     if (!u) return [...inquiryCostBreakdown.rows];
+    if (projectPricing?.gst_registered) {
+      return [...inquiryCostBreakdown.rows];
+    }
     const area = Number(u.area) || 0;
     const rate = Number(u.rate) || 0;
     const basicInr = area * rate;
@@ -802,7 +827,7 @@ export default function BookingsPage() {
         ]
         : [];
     return [...inquiryCostBreakdown.rows, ...tail];
-  }, [inquiryCostBreakdown, unitForCostPreview]);
+  }, [inquiryCostBreakdown, unitForCostPreview, projectPricing]);
 
   /** Basic + GST (5%) breakdown for the unit being previewed (picker or inquiry snapshot). */
   const unitRateStructureRows = useMemo((): [string, string][] | null => {

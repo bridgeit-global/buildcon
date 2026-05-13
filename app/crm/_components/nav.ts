@@ -3,10 +3,13 @@ import {
   BarChart3,
   Briefcase,
   Building2,
+  Factory,
+  FileSpreadsheet,
   FileText,
   Gauge,
   HandCoins,
   Home,
+  KeyRound,
   KeySquare,
   LayoutGrid,
   MessageCircle,
@@ -24,7 +27,10 @@ export type CrmNavItem = {
   | 'customers'
   | 'brokers'
   | 'financials'
+  | 'quotations'
   | 'documents'
+  | 'cld'
+  | 'possession'
   | 'rehab'
   | 'reports'
   | 'bankloans'
@@ -90,10 +96,31 @@ export const CRM_NAV: CrmNavItem[] = [
     icon: HandCoins
   },
   {
+    id: 'quotations',
+    pageTitle: 'Quotations',
+    label: 'Quotations',
+    href: '/crm/quotations',
+    icon: FileSpreadsheet
+  },
+  {
     id: 'documents',
     label: 'Documents',
     href: '/crm/documents',
     icon: FileText
+  },
+  {
+    id: 'cld',
+    pageTitle: 'Construction-linked demand',
+    label: 'CLD',
+    href: '/crm/cld',
+    icon: Factory
+  },
+  {
+    id: 'possession',
+    pageTitle: 'Possession & handover',
+    label: 'Possession',
+    href: '/crm/possession',
+    icon: KeyRound
   },
   // {
   //   id: 'rehab',

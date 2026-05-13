@@ -115,7 +115,7 @@ export default function RehabPage() {
       .from('units')
       .select('id,unit_code,wing_name,floor,unit_type,status,rehab_member_id')
       .eq('project_id', activeProjectId)
-      .eq('status', 'A')
+      .eq('status', 'AVAILABLE')
       .order('wing_name', { ascending: true })
       .order('floor', { ascending: false })
       .order('unit_no', { ascending: true })
@@ -178,7 +178,7 @@ export default function RehabPage() {
       if (prev?.id) {
         const { error } = await supabase
           .from('units')
-          .update({ status: 'A', rehab_member_id: null })
+          .update({ status: 'AVAILABLE', rehab_member_id: null })
           .eq('id', prev.id)
           .eq('project_id', activeProjectId)
           .eq('rehab_member_id', selected.id);
@@ -187,10 +187,10 @@ export default function RehabPage() {
 
       const { error: mapErr } = await supabase
         .from('units')
-        .update({ status: 'RR', rehab_member_id: selected.id })
+        .update({ status: 'REHAB_RSV', rehab_member_id: selected.id })
         .eq('id', mapUnitId)
         .eq('project_id', activeProjectId)
-        .eq('status', 'A');
+        .eq('status', 'AVAILABLE');
       if (mapErr) throw mapErr;
 
       setMapUnitId('');
@@ -211,7 +211,7 @@ export default function RehabPage() {
       if (!prev) return;
       const { error } = await supabase
         .from('units')
-        .update({ status: 'A', rehab_member_id: null })
+        .update({ status: 'AVAILABLE', rehab_member_id: null })
         .eq('id', prev.id)
         .eq('project_id', activeProjectId)
         .eq('rehab_member_id', selected.id);
@@ -440,7 +440,7 @@ export default function RehabPage() {
               </div>
 
               <div className="mt-3 text-xs text-gray-500">
-                Mapping sets unit status to <strong>RR</strong> and stores the
+                Mapping sets unit status to <strong>REHAB_RSV</strong> and stores the
                 member reference on the unit.
               </div>
             </Card>

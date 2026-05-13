@@ -10,6 +10,7 @@ import { CrmProjectCard } from '../_components/crm-project-card';
 import type { CrmProjectListItem } from '../_components/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -45,6 +46,13 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
+
+  const [pricingGstReg, setPricingGstReg] = useState(false);
+  const [pricingGstPct, setPricingGstPct] = useState('0');
+  const [pricingStampPct, setPricingStampPct] = useState('0');
+  const [pricingRegFee, setPricingRegFee] = useState('0');
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingSaving, setPricingSaving] = useState(false);
 
   const loadProjectsList = useCallback(async () => {
     setListLoading(true);
@@ -159,6 +167,58 @@ export default function ProjectPage() {
     void loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId || !canCreateProject) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setPricingLoading(true);
+      const { data, error } = await supabase
+        .from('projects')
+        .select(
+          'pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
+        )
+        .eq('id', activeProjectId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) setError(error.message);
+      const row = data as Record<string, unknown> | null;
+      if (row) {
+        setPricingGstReg(Boolean(row.pricing_gst_registered));
+        setPricingGstPct(String(row.pricing_gst_percent ?? '0'));
+        setPricingStampPct(String(row.pricing_stamp_duty_percent ?? '0'));
+        setPricingRegFee(String(row.pricing_registration_fee ?? '0'));
+      }
+      setPricingLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, canCreateProject, supabase]);
+
+  async function saveProjectPricing() {
+    if (!activeProjectId || !canCreateProject) return;
+    setPricingSaving(true);
+    setError('');
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          pricing_gst_registered: pricingGstReg,
+          pricing_gst_percent: Number(pricingGstPct) || 0,
+          pricing_stamp_duty_percent: Number(pricingStampPct) || 0,
+          pricing_registration_fee: Number(pricingRegFee) || 0
+        })
+        .eq('id', activeProjectId);
+      if (error) throw error;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save pricing');
+    } finally {
+      setPricingSaving(false);
+    }
+  }
 
   async function upsertMember(userId: string, role: string, status: string) {
     if (!activeProjectId) return;
@@ -443,6 +503,72 @@ export default function ProjectPage() {
           </div>
         ) : null}
       </Card>
+
+      {canCreateProject && activeProjectId ? (
+        <Card className="p-4">
+          <div className="text-sm font-semibold text-gray-900">
+            Pricing and tax defaults
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Used on booking cost sheets and quotations (GST on basic + parking,
+            stamp duty % of basic, flat registration estimate).
+          </p>
+          {pricingLoading ? (
+            <p className="mt-3 text-sm text-gray-500">Loading…</p>
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={pricingGstReg}
+                  onCheckedChange={(v) => setPricingGstReg(Boolean(v))}
+                />
+                GST registered (apply GST line)
+              </label>
+              <div className="grid gap-1">
+                <Label className="text-xs text-gray-500">GST %</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={pricingGstPct}
+                  onChange={(e) => setPricingGstPct(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label className="text-xs text-gray-500">
+                  Stamp duty % (of basic agreement value)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={pricingStampPct}
+                  onChange={(e) => setPricingStampPct(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label className="text-xs text-gray-500">
+                  Registration fee (INR, flat)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={pricingRegFee}
+                  onChange={(e) => setPricingRegFee(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <Button
+            className="mt-4"
+            type="button"
+            disabled={pricingSaving || pricingLoading}
+            onClick={() => void saveProjectPricing()}
+          >
+            {pricingSaving ? 'Saving…' : 'Save pricing'}
+          </Button>
+        </Card>
+      ) : null}
     </div>
   );
 }

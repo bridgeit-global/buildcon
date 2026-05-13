@@ -1,18 +1,17 @@
-export const STATUS_COLOR: Record<string, string> = {
-  A: '#22C55E',
-  B: '#F59E0B',
-  S: '#EF4444',
-  RR: '#818CF8',
-  BL: '#64748B'
-};
-
-export const STATUS_LABEL: Record<string, string> = {
-  A: 'Available',
-  B: 'Booked',
-  S: 'Sold',
-  RR: 'Rehab Rsv',
-  BL: 'Blocked'
-};
+export {
+  STATUS_COLOR,
+  STATUS_LABEL,
+  isUnitAvailableForBooking,
+  isUnitBlockedStatus,
+  isUnitBookedOrBeyond,
+  isUnitLinkedToBookingRecord,
+  isUnitSelectableForInquiry,
+  normalizeUnitStatusCode,
+  statusLabelForUnit,
+  UNIT_STATUS_CODES,
+  unitStatusGridAbbrev
+} from './unit-status';
+export type { UnitStatusCode } from './unit-status';
 
 export function isParkingType(typeValue: string | null | undefined) {
   return String(typeValue || '')

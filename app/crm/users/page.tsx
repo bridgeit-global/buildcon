@@ -24,7 +24,13 @@ import {
   SelectValue
 } from '@/components/ui/select';
 
-type ProfileRow = { id: string; name: string | null; role: string };
+type ProfileRow = {
+  id: string;
+  name: string | null;
+  role: string;
+  linked_customer_id?: string | null;
+  linked_broker_id?: string | null;
+};
 type MemberRow = {
   project_id: string;
   user_id: string;
@@ -59,6 +65,12 @@ export default function UsersPage() {
   });
   const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
 
+  const [portalDirectory, setPortalDirectory] = useState<ProfileRow[]>([]);
+  const [portalUserId, setPortalUserId] = useState('');
+  const [portalCustomerId, setPortalCustomerId] = useState('');
+  const [portalBrokerId, setPortalBrokerId] = useState('');
+  const [savingPortal, setSavingPortal] = useState(false);
+
   async function load() {
     setLoading(true);
     setError('');
@@ -73,7 +85,7 @@ export default function UsersPage() {
     if (user) {
       const { data: myProf, error } = await supabase
         .from('profiles')
-        .select('id,name,role')
+        .select('id,name,role,linked_customer_id,linked_broker_id')
         .eq('id', user.id)
         .maybeSingle();
       if (error) setError(error.message);
@@ -88,6 +100,18 @@ export default function UsersPage() {
       .limit(200);
     if (projErr) setError(projErr.message);
     setProjects((projData ?? []) as Array<{ id: string; name: string }>);
+
+    if (myProfileRole === 'Super Admin') {
+      const { data: dir, error: dirErr } = await supabase
+        .from('profiles')
+        .select('id,name,role,linked_customer_id,linked_broker_id')
+        .order('name', { ascending: true })
+        .limit(500);
+      if (dirErr) setError(dirErr.message);
+      setPortalDirectory((dir ?? []) as ProfileRow[]);
+    } else {
+      setPortalDirectory([]);
+    }
 
     if (activeProjectId) {
       const { data: memberData, error } = await supabase
@@ -112,7 +136,7 @@ export default function UsersPage() {
       if (canManageMembers) {
         const { data: staffData, error: staffErr } = await supabase
           .from('profiles')
-          .select('id,name,role')
+          .select('id,name,role,linked_customer_id,linked_broker_id')
           .order('created_at', { ascending: false })
           .limit(500);
         if (staffErr) setError(staffErr.message);
@@ -204,6 +228,29 @@ export default function UsersPage() {
     const json = (await res.json()) as { error?: string };
     if (!res.ok) setError(json.error || 'Failed to update member');
     await load();
+  }
+
+  async function savePortalLinks() {
+    if (!portalUserId.trim()) return;
+    setSavingPortal(true);
+    setError('');
+    try {
+      const cust = portalCustomerId.trim() || null;
+      const brok = portalBrokerId.trim() || null;
+      const { error: uErr } = await supabase
+        .from('profiles')
+        .update({
+          linked_customer_id: cust,
+          linked_broker_id: brok
+        })
+        .eq('id', portalUserId.trim());
+      if (uErr) throw uErr;
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save portal links');
+    } finally {
+      setSavingPortal(false);
+    }
   }
 
   async function removeMember(userId: string) {
@@ -628,6 +675,73 @@ export default function UsersPage() {
           ) : null}
         </Card>
       </div>
+
+      {profile?.role === 'Super Admin' ? (
+        <Card className="p-4">
+          <div className="text-sm font-semibold text-gray-900">
+            Buyer / channel partner portal
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Link an auth user to a <span className="font-mono">customers</span>{' '}
+            row for the buyer portal, or to a <span className="font-mono">brokers</span>{' '}
+            row for broker-scoped inquiry reads.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <Label className="text-xs">Staff user</Label>
+              <Select
+                value={portalUserId || undefined}
+                onValueChange={(id) => {
+                  setPortalUserId(id);
+                  const row = portalDirectory.find((p) => p.id === id);
+                  setPortalCustomerId(row?.linked_customer_id ?? '');
+                  setPortalBrokerId(row?.linked_broker_id ?? '');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select user…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {portalDirectory.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name || p.id} ({p.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-xs">Linked customer id (UUID)</Label>
+              <Input
+                value={portalCustomerId}
+                onChange={(e) => setPortalCustomerId(e.target.value)}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="grid gap-1 sm:col-span-2">
+              <Label className="text-xs">Linked broker id (UUID, optional)</Label>
+              <Input
+                value={portalBrokerId}
+                onChange={(e) => setPortalBrokerId(e.target.value)}
+                placeholder="Optional"
+                className="font-mono text-xs"
+              />
+            </div>
+          </div>
+          <Button
+            className="mt-3"
+            type="button"
+            disabled={savingPortal || !portalUserId.trim()}
+            onClick={() => void savePortalLinks()}
+          >
+            {savingPortal ? 'Saving…' : 'Save portal links'}
+          </Button>
+          <p className="mt-2 text-xs text-gray-500">
+            Buyer portal: <span className="font-mono">/portal</span> after login.
+          </p>
+        </Card>
+      ) : null}
     </div>
   );
 }

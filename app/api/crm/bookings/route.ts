@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
+import { isUnitAvailableForBooking } from '@/app/crm/inventory/unit-status';
 
 type CoBuyerStored = {
   customer_id: string;
@@ -192,7 +193,7 @@ export async function POST(request: Request) {
   if (!unitRow) {
     return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
   }
-  if (unitRow.status !== 'A') {
+  if (!isUnitAvailableForBooking(unitRow.status as string)) {
     return NextResponse.json(
       { error: 'Unit is not available' },
       { status: 409 }
@@ -201,9 +202,9 @@ export async function POST(request: Request) {
 
   const { error: unitUpdErr } = await admin
     .from('units')
-    .update({ status: 'B' })
+    .update({ status: 'BOOKED' })
     .eq('id', body.unitId)
-    .eq('status', 'A');
+    .eq('status', 'AVAILABLE');
   if (unitUpdErr) {
     return NextResponse.json({ error: unitUpdErr.message }, { status: 500 });
   }
@@ -227,7 +228,7 @@ export async function POST(request: Request) {
 
   if (bookingErr) {
     // Best-effort rollback unit to available
-    await admin.from('units').update({ status: 'A' }).eq('id', body.unitId);
+    await admin.from('units').update({ status: 'AVAILABLE' }).eq('id', body.unitId);
     return NextResponse.json({ error: bookingErr.message }, { status: 500 });
   }
 

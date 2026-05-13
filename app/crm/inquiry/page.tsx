@@ -27,6 +27,11 @@ import {
 } from '../booking-cost-utils';
 import { formatAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
+import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
+import {
+  InquiryPipelineDialog,
+  type OpportunityRow
+} from './inquiry-pipeline-dialog';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -121,6 +126,7 @@ type InquiryRowDb = {
   customers: CustomerEmbed | CustomerEmbed[] | null;
   units: UnitEmbed | UnitEmbed[] | null;
   profiles: ProfileEmbed | ProfileEmbed[] | null;
+  sales_opportunities?: OpportunityRow | OpportunityRow[] | null;
 };
 
 export default function InquiryPage() {
@@ -162,6 +168,11 @@ export default function InquiryPage() {
 
   const [step, setStep] = useState<StepId>(1);
 
+  const [pipeline, setPipeline] = useState<{
+    projectId: string;
+    inquiryId: string;
+  } | null>(null);
+
   const loadInquiries = useCallback(async () => {
     if (!activeProjectId) return;
     setLoadingInquiries(true);
@@ -185,7 +196,14 @@ export default function InquiryPage() {
         unit_id,
         customers ( full_name, phone, email ),
         units ( unit_code, wing_name ),
-        profiles ( name )
+        profiles ( name ),
+        sales_opportunities (
+          id,
+          funnel_stage,
+          assigned_to,
+          sales_follow_ups ( id, due_at, note, completed_at ),
+          sales_site_visits ( id, scheduled_at, status, outcome )
+        )
       `
       )
       .eq('project_id', activeProjectId)
@@ -308,6 +326,12 @@ export default function InquiryPage() {
     });
   }, [inquiries, query]);
 
+  const pipelineOpportunity = useMemo(() => {
+    if (!pipeline) return null;
+    const inq = inquiries.find((i) => i.id === pipeline.inquiryId);
+    return embedOne(inq?.sales_opportunities) ?? null;
+  }, [pipeline, inquiries]);
+
   const stats = useMemo(() => {
     const total = inquiries.length;
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -335,11 +359,7 @@ export default function InquiryPage() {
     const wantedType = String(sellerForm.interestedIn || '')
       .toLowerCase()
       .replace(/\s+/g, '');
-    return (units || [])
-      .filter((u) => {
-        const st = String(u.status || '').toUpperCase();
-        return st === 'A' || st === 'AVAILABLE';
-      })
+    return (units || []).filter((u) => isUnitSelectableForInquiry(u.status))
       .filter((u) => {
         if (!wantedType) return true;
         const unitType = String(u.unit_type || '')
@@ -574,22 +594,27 @@ export default function InquiryPage() {
           ? sellerForm.brokerId.trim()
           : null;
 
-      const { error: inqErr } = await supabase.from('sales_inquiries').insert({
-        project_id: projectId,
-        customer_id: customerId,
-        unit_id: sellerForm.selectedUnitId,
-        lead_source: sellerForm.leadSource,
-        broker_id: brokerId,
-        interested_in: sellerForm.interestedIn.trim() || null,
-        parking_required: sellerForm.parkingRequired,
-        parking_count: sellerForm.parkingCount,
-        parking_slots_available: projectParking?.parking_slots ?? null,
-        parking_rate_snapshot: projectParking?.parking_rate ?? null,
-        notes: sellerForm.notes.trim() || null,
-        created_by: userLabel.id
-      });
+      const { data: inserted, error: inqErr } = await supabase
+        .from('sales_inquiries')
+        .insert({
+          project_id: projectId,
+          customer_id: customerId,
+          unit_id: sellerForm.selectedUnitId,
+          lead_source: sellerForm.leadSource,
+          broker_id: brokerId,
+          interested_in: sellerForm.interestedIn.trim() || null,
+          parking_required: sellerForm.parkingRequired,
+          parking_count: sellerForm.parkingCount,
+          parking_slots_available: projectParking?.parking_slots ?? null,
+          parking_rate_snapshot: projectParking?.parking_rate ?? null,
+          notes: sellerForm.notes.trim() || null,
+          created_by: userLabel.id
+        })
+        .select('id')
+        .single();
 
       if (inqErr) throw inqErr;
+      if (!inserted?.id) throw new Error('Inquiry insert returned no id');
 
       await loadInquiries();
       resetForm();
@@ -798,6 +823,7 @@ export default function InquiryPage() {
                   'Lead source',
                   'Broker',
                   'Unit',
+                  'Stage',
                   'Parking',
                   'Seller',
                   'Actions'
@@ -815,7 +841,7 @@ export default function InquiryPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={12}
                     className="px-2 py-6 text-muted-foreground"
                   >
                     {loadingInquiries
@@ -865,6 +891,9 @@ export default function InquiryPage() {
                       <td className="px-2 py-2 text-xs font-semibold">
                         {unitLabel}
                       </td>
+                      <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">
+                        {embedOne(inq.sales_opportunities)?.funnel_stage ?? '—'}
+                      </td>
                       <td className="max-w-[220px] px-2 py-2 text-[11px] leading-snug">
                         <div className="font-medium text-foreground">
                           {inq.parking_required === 'Yes'
@@ -888,22 +917,38 @@ export default function InquiryPage() {
                         {sellerName}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2">
-                        {inq.unit_id?.trim() ? (
+                        <div className="flex flex-wrap gap-1">
                           <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             size="sm"
-                            className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => navigateToBookingFromInquiry(inq)}
+                            className="h-8"
+                            onClick={() =>
+                              setPipeline({
+                                projectId: activeProjectId ?? '',
+                                inquiryId: inq.id
+                              })
+                            }
                           >
-                            Booking
-                            <ArrowRight className="size-3.5 opacity-90" />
+                            Pipeline
                           </Button>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">
-                            No unit
-                          </span>
-                        )}
+                          {inq.unit_id?.trim() ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                              onClick={() => navigateToBookingFromInquiry(inq)}
+                            >
+                              Booking
+                              <ArrowRight className="size-3.5 opacity-90" />
+                            </Button>
+                          ) : (
+                            <span className="self-center text-[10px] text-muted-foreground">
+                              No unit
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -913,6 +958,17 @@ export default function InquiryPage() {
           </table>
         </div>
       </Card>
+      <InquiryPipelineDialog
+        open={pipeline != null}
+        onOpenChange={(o) => {
+          if (!o) setPipeline(null);
+        }}
+        projectId={pipeline?.projectId ?? ''}
+        opportunity={pipelineOpportunity}
+        onSaved={() => {
+          void loadInquiries();
+        }}
+      />
     </div>
   );
 }

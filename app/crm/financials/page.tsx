@@ -46,6 +46,16 @@ type CollectionRow = {
   reference: string | null;
 };
 
+type OverdueRow = {
+  booking_id: string;
+  schedule_id: string;
+  milestone: string;
+  due_date: string | null;
+  demand_amount: number;
+  outstanding_amount: number;
+  customer_id: string;
+};
+
 export default function FinancialsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { activeProjectId } = useActiveProjectContext();
@@ -69,6 +79,27 @@ export default function FinancialsPage() {
   const [entryMode, setEntryMode] = useState('NEFT');
   const [entryRef, setEntryRef] = useState('');
   const [saving, setSaving] = useState(false);
+  const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
+  const [loadingOverdue, setLoadingOverdue] = useState(false);
+
+  async function loadOverdue() {
+    if (!activeProjectId) {
+      setOverdueRows([]);
+      return;
+    }
+    setLoadingOverdue(true);
+    const { data, error: oErr } = await supabase
+      .from('v_payment_schedule_outstanding')
+      .select(
+        'booking_id,schedule_id,milestone,due_date,demand_amount,outstanding_amount,customer_id'
+      )
+      .eq('project_id', activeProjectId)
+      .eq('is_overdue', true)
+      .order('due_date', { ascending: true })
+      .limit(200);
+    if (!oErr && data) setOverdueRows(data as OverdueRow[]);
+    setLoadingOverdue(false);
+  }
 
   async function loadBookings() {
     if (!activeProjectId) return;
@@ -150,6 +181,7 @@ export default function FinancialsPage() {
 
   useEffect(() => {
     void loadBookings();
+    void loadOverdue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId]);
 
@@ -462,6 +494,70 @@ export default function FinancialsPage() {
               <div className="py-6 text-sm text-gray-500">No collections yet.</div>
             ) : null}
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold text-gray-900">
+            Overdue demands (ledger view)
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void loadOverdue()}
+            disabled={loadingOverdue}
+          >
+            Refresh
+          </Button>
+        </div>
+        <div className="mt-3 overflow-auto">
+          <table className="min-w-[800px] w-full text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500">
+              <tr>
+                {['Booking', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
+                  (h) => (
+                    <th key={h} className="px-3 py-2 text-left font-semibold border-b">
+                      {h}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {overdueRows.map((r) => (
+                <tr key={r.schedule_id} className="border-b">
+                  <td className="px-3 py-2 font-mono text-xs">{r.booking_id}</td>
+                  <td className="px-3 py-2">{r.milestone}</td>
+                  <td className="px-3 py-2 text-gray-600">{r.due_date ?? '—'}</td>
+                  <td className="px-3 py-2">
+                    ₹{' '}
+                    {formatInr(Number(r.demand_amount), {
+                      maximumFractionDigits: 0
+                    })}
+                  </td>
+                  <td className="px-3 py-2 text-red-700 font-semibold">
+                    ₹{' '}
+                    {formatInr(Number(r.outstanding_amount), {
+                      maximumFractionDigits: 0
+                    })}
+                  </td>
+                </tr>
+              ))}
+              {overdueRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                    {loadingOverdue
+                      ? 'Loading…'
+                      : activeProjectId
+                        ? 'No overdue schedule lines for this project.'
+                        : 'Select a project.'}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </Card>
     </div>

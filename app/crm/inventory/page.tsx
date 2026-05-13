@@ -31,7 +31,14 @@ import {
   STATUS_COLOR,
   STATUS_LABEL,
   formatFloorChipLabel,
-  formatFloorLabel
+  formatFloorLabel,
+  isUnitAvailableForBooking,
+  isUnitBlockedStatus,
+  isUnitLinkedToBookingRecord,
+  normalizeUnitStatusCode,
+  statusLabelForUnit,
+  UNIT_STATUS_CODES,
+  unitStatusGridAbbrev
 } from './inventory-utils';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 
@@ -98,7 +105,7 @@ function StatusBadge({
   className?: string;
 }) {
   const bg = STATUS_COLOR[code] ?? '#94A3B8';
-  const label = STATUS_LABEL[code] ?? code;
+  const label = statusLabelForUnit(code);
   return (
     <span
       className={cn(
@@ -139,7 +146,7 @@ function UnitDetailDialog({
       setBooking(null);
       return;
     }
-    if (unit.status !== 'B' && unit.status !== 'S') {
+    if (!isUnitLinkedToBookingRecord(unit.status)) {
       setBooking(null);
       return;
     }
@@ -256,7 +263,7 @@ function UnitDetailDialog({
             ))}
           </div>
 
-          {unit.status === 'BL' && (
+          {isUnitBlockedStatus(unit.status) && (
             <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3">
               <div className="mb-2 text-[10px] font-bold uppercase text-amber-800">
                 Blocked
@@ -269,11 +276,13 @@ function UnitDetailDialog({
             </div>
           )}
 
-          {booking && (unit.status === 'B' || unit.status === 'S') && (
+          {booking && isUnitLinkedToBookingRecord(unit.status) && (
             <div
               className={cn(
                 'mb-4 rounded-lg border px-3 py-3',
-                unit.status === 'S'
+                ['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
+                  normalizeUnitStatusCode(unit.status)
+                )
                   ? 'border-violet-300 bg-violet-50'
                   : 'border-blue-200 bg-blue-50'
               )}
@@ -281,15 +290,27 @@ function UnitDetailDialog({
               <div
                 className={cn(
                   'mb-2 text-[10px] font-bold uppercase',
-                  unit.status === 'S' ? 'text-violet-800' : 'text-blue-800'
+                  ['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
+                    normalizeUnitStatusCode(unit.status)
+                  )
+                    ? 'text-violet-800'
+                    : 'text-blue-800'
                 )}
               >
-                {unit.status === 'S' ? 'Sale completed' : 'Active booking'}
+                {['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
+                  normalizeUnitStatusCode(unit.status)
+                )
+                  ? 'Sale / registration stage'
+                  : 'Active booking'}
               </div>
               <div
                 className={cn(
                   'grid grid-cols-2 gap-2 text-[11px]',
-                  unit.status === 'S' ? 'text-violet-950' : 'text-blue-950'
+                  ['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
+                    normalizeUnitStatusCode(unit.status)
+                  )
+                    ? 'text-violet-950'
+                    : 'text-blue-950'
                 )}
               >
                 <div>
@@ -339,7 +360,7 @@ function UnitDetailDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          {unit.status === 'A' ? (
+          {isUnitAvailableForBooking(unit.status) ? (
             <Button
               onClick={() => {
                 onCreateBooking(unit);
@@ -375,7 +396,7 @@ function UnitEditDialog({
     rate: 0,
     floor: 1,
     unit_no: 1,
-    status: 'A',
+    status: 'AVAILABLE',
     blocked_reason: ''
   });
 
@@ -405,7 +426,7 @@ function UnitEditDialog({
       unit_no: Math.max(1, Number(form.unit_no) || 1),
       status: form.status
     };
-    if (form.status === 'BL') {
+    if (isUnitBlockedStatus(form.status)) {
       payload.blocked_reason = form.blocked_reason || 'Other';
       payload.blocked_on = new Date().toISOString().slice(0, 10);
     } else {
@@ -464,9 +485,9 @@ function UnitEditDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                {UNIT_STATUS_CODES.map((k) => (
                   <SelectItem key={k} value={k}>
-                    {v}
+                    {STATUS_LABEL[k] ?? k}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -531,7 +552,7 @@ function UnitEditDialog({
               className="h-9 text-xs"
             />
           </div>
-          {form.status === 'BL' ? (
+          {isUnitBlockedStatus(form.status) ? (
             <div className="col-span-2 flex flex-col gap-1">
               <Label className="text-[10px] text-slate-500">
                 Blocked reason
@@ -579,7 +600,7 @@ function UnitCell({
         boxShadow: '0 1px 2px rgba(0,0,0,0.15)'
       }}
     >
-      {unit.status}
+      {unitStatusGridAbbrev(unit.status)}
     </button>
   );
 }
@@ -601,7 +622,7 @@ export default function InventoryPage() {
   const [floorFilter, setFloorFilter] = useState('all');
 
   const [search, setSearch] = useState('');
-  const [statusF, setStatusF] = useState<'All' | keyof typeof STATUS_LABEL>('All');
+  const [statusF, setStatusF] = useState<string>('All');
   const [typeF, setTypeF] = useState('All');
   const [structListF, setStructListF] = useState('All');
 
@@ -686,7 +707,7 @@ export default function InventoryPage() {
 
   const navigateToBookingForUnit = useCallback(
     (unit: UnitRow) => {
-      if (!activeProjectId || unit.status !== 'A') return;
+      if (!activeProjectId || !isUnitAvailableForBooking(unit.status)) return;
       writeBookingPrefill({
         projectId: activeProjectId,
         inquiryId: null,
@@ -770,9 +791,7 @@ export default function InventoryPage() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    Object.keys(STATUS_LABEL).forEach((k) => {
-      c[k] = 0;
-    });
+    for (const k of UNIT_STATUS_CODES) c[k] = 0;
     units.forEach((u) => {
       if (c[u.status] !== undefined) c[u.status]++;
     });
@@ -795,7 +814,7 @@ export default function InventoryPage() {
   }, [filteredGrid]);
 
   const blockedUnits = useMemo(
-    () => units.filter((u) => u.status === 'BL'),
+    () => units.filter((u) => isUnitBlockedStatus(u.status)),
     [units]
   );
 
@@ -844,12 +863,12 @@ export default function InventoryPage() {
     const { error } = await supabase
       .from('units')
       .update({
-        status: 'BL',
+        status: 'BLOCKED',
         blocked_reason: blockReason,
         blocked_on: today
       })
       .eq('id', blockUnitId)
-      .eq('status', 'A');
+      .eq('status', 'AVAILABLE');
 
     if (error) setError(error.message);
     setBlockUnitId('');
@@ -864,12 +883,12 @@ export default function InventoryPage() {
     const { error } = await supabase
       .from('units')
       .update({
-        status: 'A',
+        status: 'AVAILABLE',
         blocked_reason: null,
         blocked_on: null
       })
       .eq('id', unitId)
-      .eq('status', 'BL');
+      .eq('status', 'BLOCKED');
     if (error) setError(error.message);
     await load();
   }
@@ -1005,7 +1024,9 @@ export default function InventoryPage() {
               <div className="mb-3 text-[11px] font-semibold text-slate-800">
                 Live Inventory Summary
               </div>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => (
+              {UNIT_STATUS_CODES.map((k) => {
+                const v = STATUS_LABEL[k] ?? k;
+                return (
                 <div
                   key={k}
                   className="flex items-center gap-2.5 border-b border-slate-100 py-1.5"
@@ -1024,7 +1045,7 @@ export default function InventoryPage() {
                     {counts[k] ?? 0}
                   </span>
                 </div>
-              ))}
+              );})}
               <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-xs font-bold text-slate-800">
                 <span>Total</span>
                 <span>{units.length}</span>
@@ -1077,7 +1098,9 @@ export default function InventoryPage() {
               </SelectContent>
             </Select>
             <div className="flex-1" />
-            {Object.entries(STATUS_LABEL).map(([k, v]) => (
+            {UNIT_STATUS_CODES.map((k) => {
+              const v = STATUS_LABEL[k] ?? k;
+              return (
               <div key={k} className="flex items-center gap-1">
                 <div
                   className="h-3 w-3 rounded-sm"
@@ -1087,7 +1110,7 @@ export default function InventoryPage() {
                   {v} ({counts[k] ?? 0})
                 </span>
               </div>
-            ))}
+            );})}
           </div>
 
           <div className="flex gap-3">
@@ -1227,7 +1250,7 @@ export default function InventoryPage() {
                       'Value',
                       formatAgreementValueCompact(selected.area, selected.rate)
                     ],
-                    ['Status', STATUS_LABEL[selected.status] ?? selected.status]
+                    ['Status', statusLabelForUnit(selected.status)]
                   ] as const
                 ).map(([k, v]) => (
                   <div
@@ -1238,7 +1261,7 @@ export default function InventoryPage() {
                     <span className="font-medium text-slate-800">{v}</span>
                   </div>
                 ))}
-                {selected.status === 'A' ? (
+                {isUnitAvailableForBooking(selected.status) ? (
                   <Button
                     className="mt-3 w-full text-[11px]"
                     onClick={() => navigateToBookingForUnit(selected)}
@@ -1279,7 +1302,7 @@ export default function InventoryPage() {
             </Select>
             <Select
               value={statusF}
-              onValueChange={(v) => setStatusF(v as typeof statusF)}
+              onValueChange={setStatusF}
             >
               <SelectTrigger
                 size="sm"
@@ -1287,11 +1310,11 @@ export default function InventoryPage() {
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+                <SelectContent>
                 <SelectItem value="All">All Status</SelectItem>
-                {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                {UNIT_STATUS_CODES.map((k) => (
                   <SelectItem key={k} value={k}>
-                    {v}
+                    {STATUS_LABEL[k] ?? k}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1491,7 +1514,7 @@ export default function InventoryPage() {
                               background: `${c}22`
                             }}
                           >
-                            {STATUS_LABEL[u.status] ?? u.status}
+                            {statusLabelForUnit(u.status)}
                           </div>
                         </button>
                       );
@@ -1543,7 +1566,7 @@ export default function InventoryPage() {
                               background: `${c}22`
                             }}
                           >
-                            {STATUS_LABEL[u.status] ?? u.status}
+                            {statusLabelForUnit(u.status)}
                           </div>
                         </button>
                       );
@@ -1551,7 +1574,9 @@ export default function InventoryPage() {
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap justify-center gap-3">
-                {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                {UNIT_STATUS_CODES.map((k) => {
+                  const v = STATUS_LABEL[k] ?? k;
+                  return (
                   <div key={k} className="flex items-center gap-1">
                     <div
                       className="h-2.5 w-2.5 rounded-sm"
@@ -1559,7 +1584,7 @@ export default function InventoryPage() {
                     />
                     <span className="text-[10px] text-slate-500">{v}</span>
                   </div>
-                ))}
+                );})}
               </div>
             </div>
           </div>
@@ -1665,7 +1690,7 @@ export default function InventoryPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {units
-                        .filter((u) => u.status === 'A')
+                        .filter((u) => isUnitAvailableForBooking(u.status))
                         .map((u) => (
                           <SelectItem key={u.id} value={u.id}>
                             {u.unit_code} — {u.unit_type ?? '—'}
