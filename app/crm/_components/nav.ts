@@ -16,19 +16,19 @@ import {
 
 export type CrmNavItem = {
   id:
-    | 'dashboard'
-    | 'project'
-    | 'inventory'
-    | 'bookings'
-    | 'inquiry'
-    | 'customers'
-    | 'brokers'
-    | 'financials'
-    | 'documents'
-    | 'rehab'
-    | 'reports'
-    | 'bankloans'
-    | 'users';
+  | 'dashboard'
+  | 'project'
+  | 'inventory'
+  | 'bookings'
+  | 'inquiry'
+  | 'customers'
+  | 'brokers'
+  | 'financials'
+  | 'documents'
+  | 'rehab'
+  | 'reports'
+  | 'bankloans'
+  | 'users';
   /** Optional long title in main header (prototype PAGE_TITLES). */
   pageTitle?: string;
   label: string;
@@ -95,26 +95,26 @@ export const CRM_NAV: CrmNavItem[] = [
     href: '/crm/documents',
     icon: FileText
   },
-  {
-    id: 'rehab',
-    pageTitle: 'Rehab – Members & mapping',
-    label: 'Rehab Members',
-    href: '/crm/rehab',
-    icon: Building2
-  },
-  {
-    id: 'reports',
-    label: 'Reports',
-    href: '/crm/reports',
-    icon: BarChart3
-  },
-  {
-    id: 'bankloans',
-    pageTitle: 'Bank & Loans',
-    label: 'Bank & Loans',
-    href: '/crm/bankloans',
-    icon: KeySquare
-  },
+  // {
+  //   id: 'rehab',
+  //   pageTitle: 'Rehab – Members & mapping',
+  //   label: 'Rehab Members',
+  //   href: '/crm/rehab',
+  //   icon: Building2
+  // },
+  // {
+  //   id: 'reports',
+  //   label: 'Reports',
+  //   href: '/crm/reports',
+  //   icon: BarChart3
+  // },
+  // {
+  //   id: 'bankloans',
+  //   pageTitle: 'Bank & Loans',
+  //   label: 'Bank & Loans',
+  //   href: '/crm/bankloans',
+  //   icon: KeySquare
+  // },
   {
     id: 'users',
     pageTitle: 'Users (Admin)',
