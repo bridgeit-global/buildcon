@@ -4,6 +4,13 @@ import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   STRUCTURE_KINDS,
@@ -17,6 +24,8 @@ import {
   totalStructureLeafArea,
   type UnitConfigDraft
 } from './project-structure-utils';
+
+const UNIT_TYPE_AUTO_VALUE = '__unit_type_auto__';
 
 type StructureTreeFieldsProps = {
   nodes: StructureNode[];
@@ -91,23 +100,30 @@ export function StructureTreeFields({
               </div>
               <div className="w-[100px]">
                 <div className="text-[10px] text-muted-foreground">Kind</div>
-                <select
+                <Select
                   value={node.kind || 'wing'}
-                  onChange={(e) => {
+                  onValueChange={(v) => {
                     onNodesChange(
                       updateAtPath(nodes, path, (arr, i) => {
-                        arr[i] = { ...arr[i], kind: e.target.value };
+                        arr[i] = { ...arr[i], kind: v };
                       })
                     );
                   }}
-                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-[11px]"
                 >
-                  {STRUCTURE_KINDS.map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-full px-2 text-[11px] shadow-none"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STRUCTURE_KINDS.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {k}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {!hasKids ? (
                 <>
@@ -632,25 +648,36 @@ function UnitConfigBlock({
         <Label className="text-[10px] text-muted-foreground">
           Unit {uCfg.unitNo} type
         </Label>
-        <select
-          value={uCfg.type || ''}
-          className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-[11px]"
-          onChange={(e) => {
-            const v = e.target.value;
+        <Select
+          value={uCfg.type ? uCfg.type : UNIT_TYPE_AUTO_VALUE}
+          onValueChange={(v) => {
             syncUnitConfigs((list) =>
               list.map((x) =>
-                x.unitNo === uCfg.unitNo ? { ...x, type: v } : x
+                x.unitNo === uCfg.unitNo
+                  ? {
+                      ...x,
+                      type: v === UNIT_TYPE_AUTO_VALUE ? '' : v
+                    }
+                  : x
               )
             );
           }}
         >
-          <option value="">Auto</option>
-          {unitTypes.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            size="sm"
+            className="mt-1 h-8 w-full px-2 text-[11px] shadow-none"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={UNIT_TYPE_AUTO_VALUE}>Auto</SelectItem>
+            {unitTypes.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label className="text-[10px] text-muted-foreground">

@@ -10,6 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_UNIT_TYPES,
@@ -373,37 +380,45 @@ export default function CreateProjectPage() {
               </div>
               <div>
                 <Label>Type</Label>
-                <select
+                <Select
                   value={draft.type}
-                  onChange={(e) =>
+                  onValueChange={(v) =>
                     setDraft((d) => ({
                       ...d,
-                      type: e.target.value as CreateProjectDraft['type']
+                      type: v as CreateProjectDraft['type']
                     }))
                   }
-                  className="mt-1 w-full border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option>Redevelopment</option>
-                  <option>Greenfield</option>
-                  <option>Mixed Use</option>
-                </select>
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Redevelopment">Redevelopment</SelectItem>
+                    <SelectItem value="Greenfield">Greenfield</SelectItem>
+                    <SelectItem value="Mixed Use">Mixed Use</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Status</Label>
-                <select
+                <Select
                   value={draft.status}
-                  onChange={(e) =>
+                  onValueChange={(v) =>
                     setDraft((d) => ({
                       ...d,
-                      status: e.target.value as CreateProjectDraft['status']
+                      status: v as CreateProjectDraft['status']
                     }))
                   }
-                  className="mt-1 w-full border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option>Active</option>
-                  <option>Planning</option>
-                  <option>On Hold</option>
-                </select>
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Planning">Planning</SelectItem>
+                    <SelectItem value="On Hold">On Hold</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>FY</Label>

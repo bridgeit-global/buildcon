@@ -9,6 +9,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   type ProjectParkingMeta,
@@ -69,8 +76,7 @@ function unitDisplayName(u: Pick<UnitRow, 'unit_code' | 'wing_name'>) {
   return `${u.unit_code} · ${u.wing_name}`;
 }
 
-const selectClass =
-  'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
+const INQUIRY_INTEREST_ALL = '__inquiry_interest_all__';
 
 const STEPS = [
   { id: 1, label: 'Customer' },
@@ -1082,45 +1088,58 @@ function StepInquiry({
       </div>
       <div>
         <Label>Lead source</Label>
-        <select
+        <Select
           value={sellerForm.leadSource}
-          onChange={(e) => {
-            const v = e.target.value as (typeof LEAD_SOURCES)[number];
+          onValueChange={(v) => {
+            const nv = v as (typeof LEAD_SOURCES)[number];
             setSellerForm((s) => ({
               ...s,
-              leadSource: v,
-              brokerId: v === 'Broker' ? s.brokerId : ''
+              leadSource: nv,
+              brokerId: nv === 'Broker' ? s.brokerId : ''
             }));
           }}
-          className={selectClass}
         >
-          {LEAD_SOURCES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LEAD_SOURCES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label>Broker</Label>
-        <select
-          value={sellerForm.brokerId}
-          disabled={sellerForm.leadSource !== 'Broker'}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, brokerId: e.target.value }))
+        <Select
+          value={
+            sellerForm.brokerId === ''
+              ? undefined
+              : sellerForm.brokerId
           }
-          className={cn(
-            selectClass,
-            sellerForm.leadSource !== 'Broker' && 'opacity-60'
-          )}
+          onValueChange={(v) =>
+            setSellerForm((s) => ({ ...s, brokerId: v }))
+          }
+          disabled={sellerForm.leadSource !== 'Broker'}
         >
-          <option value="">Select broker…</option>
-          {brokers.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.full_name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            className={cn(
+              'mt-1 w-full',
+              sellerForm.leadSource !== 'Broker' && 'opacity-60'
+            )}
+          >
+            <SelectValue placeholder="Select broker…" />
+          </SelectTrigger>
+          <SelectContent>
+            {brokers.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.full_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {sellerForm.leadSource === 'Broker' && brokers.length === 0 ? (
           <p className="mt-1 text-[10px] text-muted-foreground">
             No active brokers. Add one under CRM → Brokers.
@@ -1129,56 +1148,77 @@ function StepInquiry({
       </div>
       <div>
         <Label>Interested in</Label>
-        <select
-          value={sellerForm.interestedIn}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
+        <Select
+          value={
+            sellerForm.interestedIn === ''
+              ? INQUIRY_INTEREST_ALL
+              : sellerForm.interestedIn
           }
-          className={selectClass}
+          onValueChange={(v) =>
+            setSellerForm((s) => ({
+              ...s,
+              interestedIn: v === INQUIRY_INTEREST_ALL ? '' : v
+            }))
+          }
         >
-          <option value="">All types</option>
-          {INTEREST_TYPES.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={INQUIRY_INTEREST_ALL}>All types</SelectItem>
+            {INTEREST_TYPES.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label>Parking</Label>
-        <select
+        <Select
           value={sellerForm.parkingRequired}
-          onChange={(e) =>
+          onValueChange={(v) =>
             setSellerForm((s) => ({
               ...s,
-              parkingRequired: e.target.value as 'Yes' | 'No'
+              parkingRequired: v as 'Yes' | 'No'
             }))
           }
-          className={selectClass}
         >
-          <option value="No">No parking required</option>
-          <option value="Yes">Parking required</option>
-        </select>
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="No">No parking required</SelectItem>
+            <SelectItem value="Yes">Parking required</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label>Parking count</Label>
-        <select
+        <Select
           value={sellerForm.parkingCount}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, parkingCount: e.target.value }))
+          onValueChange={(v) =>
+            setSellerForm((s) => ({ ...s, parkingCount: v }))
           }
           disabled={sellerForm.parkingRequired !== 'Yes'}
-          className={cn(
-            selectClass,
-            sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
-          )}
         >
-          {(['1', '2', '3', '4+'] as const).map((x) => (
-            <option key={x} value={x}>
-              Parking count: {x}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            className={cn(
+              'mt-1 w-full',
+              sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
+            )}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(['1', '2', '3', '4+'] as const).map((x) => (
+              <SelectItem key={x} value={x}>
+                Parking count: {x}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="md:col-span-2 xl:col-span-4">
         <Label>Notes</Label>

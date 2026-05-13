@@ -12,6 +12,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 type BrokerRow = {
   id: string;
@@ -249,19 +256,23 @@ export default function BrokersPage() {
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <select
+                  <Select
                     value={draft.status}
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       setDraft((d) => ({
                         ...d,
-                        status: e.target.value as 'Active' | 'Inactive'
+                        status: v as 'Active' | 'Inactive'
                       }))
                     }
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>

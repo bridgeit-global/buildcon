@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 type TemplateRow = {
   id: string;
@@ -131,15 +138,18 @@ export default function DocumentsPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px]">
             <Label>Category</Label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {['All', 'Sales', 'Legal', 'Rehab', 'Other'].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['All', 'Sales', 'Legal', 'Rehab', 'Other'].map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="min-w-[260px]">
             <Label>Search</Label>
@@ -182,17 +192,23 @@ export default function DocumentsPage() {
                 </div>
                 <div className="col-span-2">
                   <Label>Category</Label>
-                  <select
+                  <Select
                     value={draft.category}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, category: e.target.value }))
+                    onValueChange={(v) =>
+                      setDraft((d) => ({ ...d, category: v }))
                     }
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    {['Sales', 'Legal', 'Rehab', 'Other'].map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['Sales', 'Legal', 'Rehab', 'Other'].map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="mt-4 flex justify-end gap-2">

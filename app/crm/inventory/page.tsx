@@ -15,6 +15,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   formatAgreementValueCompact,
@@ -447,19 +454,23 @@ function UnitEditDialog({
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Status</Label>
-            <select
+            <Select
               value={form.status}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, status: e.target.value }))
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, status: v }))
               }
-              className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs"
             >
-              {Object.entries(STATUS_LABEL).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Area (sq.ft)</Label>
@@ -1031,29 +1042,40 @@ export default function InventoryPage() {
               tabCardClass()
             )}
           >
-            <select
+            <Select
               value={structFilter}
-              onChange={(e) => setStructFilter(e.target.value)}
-              className="max-w-[220px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800"
+              onValueChange={setStructFilter}
             >
-              <option value="All">All structures</option>
-              {structureOptions.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-            <select
-              value={floorFilter}
-              onChange={(e) => setFloorFilter(e.target.value)}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800"
-            >
-              {floorOptions.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                size="sm"
+                className="max-w-[220px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All structures</SelectItem>
+                {structureOptions.map((w) => (
+                  <SelectItem key={w} value={w}>
+                    {w}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={floorFilter} onValueChange={setFloorFilter}>
+              <SelectTrigger
+                size="sm"
+                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {floorOptions.map((f) => (
+                  <SelectItem key={f.value} value={f.value}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex-1" />
             {Object.entries(STATUS_LABEL).map(([k, v]) => (
               <div key={k} className="flex items-center gap-1">
@@ -1239,44 +1261,57 @@ export default function InventoryPage() {
               placeholder="Search unit name / wing…"
               className="h-8 max-w-[180px] text-[11px]"
             />
-            <select
-              value={structListF}
-              onChange={(e) => setStructListF(e.target.value)}
-              className="max-w-[200px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px]"
-            >
-              <option value="All">All structures</option>
-              {structureOptions.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-            <select
+            <Select value={structListF} onValueChange={setStructListF}>
+              <SelectTrigger
+                size="sm"
+                className="max-w-[200px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All structures</SelectItem>
+                {structureOptions.map((w) => (
+                  <SelectItem key={w} value={w}>
+                    {w}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
               value={statusF}
-              onChange={(e) =>
-                setStatusF(e.target.value as typeof statusF)
-              }
-              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px]"
+              onValueChange={(v) => setStatusF(v as typeof statusF)}
             >
-              <option value="All">All Status</option>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-            <select
-              value={typeF}
-              onChange={(e) => setTypeF(e.target.value)}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px]"
-            >
-              <option value="All">All Types</option>
-              {typeOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                size="sm"
+                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Status</SelectItem>
+                {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={typeF} onValueChange={setTypeF}>
+              <SelectTrigger
+                size="sm"
+                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Types</SelectItem>
+                {typeOptions.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex-1" />
             <span className="text-[11px] text-slate-400">
               {filteredList.length} units
@@ -1621,35 +1656,41 @@ export default function InventoryPage() {
               <div className="flex flex-wrap items-end gap-2.5">
                 <div className="min-w-[200px] flex-[2]">
                   <Label className="text-[10px] text-orange-900">Unit</Label>
-                  <select
-                    value={blockUnitId}
-                    onChange={(e) => setBlockUnitId(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px]"
+                  <Select
+                    value={blockUnitId === '' ? undefined : blockUnitId}
+                    onValueChange={setBlockUnitId}
                   >
-                    <option value="">Select available unit…</option>
-                    {units
-                      .filter((u) => u.status === 'A')
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.unit_code} — {u.unit_type ?? '—'}
-                        </option>
-                      ))}
-                  </select>
+                    <SelectTrigger className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none">
+                      <SelectValue placeholder="Select available unit…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units
+                        .filter((u) => u.status === 'A')
+                        .map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.unit_code} — {u.unit_type ?? '—'}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="min-w-[200px] flex-[3]">
                   <Label className="text-[10px] text-orange-900">Reason</Label>
-                  <select
-                    value={blockReason}
-                    onChange={(e) => setBlockReason(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px]"
+                  <Select
+                    value={blockReason === '' ? undefined : blockReason}
+                    onValueChange={setBlockReason}
                   >
-                    <option value="">Select reason…</option>
-                    {BLOCK_REASONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none">
+                      <SelectValue placeholder="Select reason…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BLOCK_REASONS.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
                   className="bg-orange-900 hover:bg-orange-950"

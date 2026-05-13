@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { formatInr } from '../inr-format';
 
 type LoanRow = {
@@ -173,36 +180,49 @@ export default function BankLoansPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <Label>Customer</Label>
-                    <select
-                      value={draft.customer_id}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, customer_id: e.target.value }))
+                    <Select
+                      value={
+                        draft.customer_id === ''
+                          ? undefined
+                          : draft.customer_id
                       }
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      onValueChange={(v) =>
+                        setDraft((d) => ({ ...d, customer_id: v }))
+                      }
                     >
-                      <option value="">Select customer…</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.full_name} · {c.phone ?? '—'}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue placeholder="Select customer…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.full_name} · {c.phone ?? '—'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Bank</Label>
-                    <select
+                    <Select
                       value={draft.bank}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, bank: e.target.value }))
+                      onValueChange={(v) =>
+                        setDraft((d) => ({ ...d, bank: v }))
                       }
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
-                      {['HDFC Bank', 'SBI Bank', 'Axis Bank', 'ICICI Bank'].map(
-                        (b) => (
-                          <option key={b}>{b}</option>
-                        )
-                      )}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['HDFC Bank', 'SBI Bank', 'Axis Bank', 'ICICI Bank'].map(
+                          (b) => (
+                            <SelectItem key={b} value={b}>
+                              {b}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Amount (₹)</Label>
@@ -215,17 +235,23 @@ export default function BankLoansPage() {
                   </div>
                   <div>
                     <Label>Status</Label>
-                    <select
+                    <Select
                       value={draft.status}
-                      onChange={(e) =>
-                        setDraft((d) => ({ ...d, status: e.target.value }))
+                      onValueChange={(v) =>
+                        setDraft((d) => ({ ...d, status: v }))
                       }
-                      className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
-                      {STATUSES.map((s) => (
-                        <option key={s}>{s}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUSES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Applied at</Label>
@@ -317,15 +343,21 @@ export default function BankLoansPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{l.applied_at ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <select
+                    <Select
                       value={l.status}
-                      onChange={(e) => updateStatus(l.id, e.target.value)}
-                      className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+                      onValueChange={(v) => updateStatus(l.id, v)}
                     >
-                      {STATUSES.map((s) => (
-                        <option key={s}>{s}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger size="sm" className="h-8 w-auto min-w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUSES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
                 </tr>
               ))}

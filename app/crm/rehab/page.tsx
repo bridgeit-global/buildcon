@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 type RehabMemberRow = {
   id: string;
@@ -263,16 +270,20 @@ export default function RehabPage() {
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <select
+                  <Select
                     value={draft.status}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, status: e.target.value }))
+                    onValueChange={(v) =>
+                      setDraft((d) => ({ ...d, status: v }))
                     }
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option>Eligible</option>
-                    <option>Pending</option>
-                  </select>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Eligible">Eligible</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Old area</Label>
@@ -398,19 +409,22 @@ export default function RehabPage() {
               <div className="mt-3 flex flex-wrap gap-3 items-end">
                 <div className="min-w-[360px]">
                   <Label>Select available unit</Label>
-                  <select
-                    value={mapUnitId}
-                    onChange={(e) => setMapUnitId(e.target.value)}
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  <Select
+                    value={mapUnitId === '' ? undefined : mapUnitId}
+                    onValueChange={setMapUnitId}
                   >
-                    <option value="">Select…</option>
-                    {availableUnits.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.unit_code} · {u.wing_name} · F{u.floor} ·{' '}
-                        {u.unit_type ?? '—'}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUnits.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.unit_code} · {u.wing_name} · F{u.floor} ·{' '}
+                          {u.unit_type ?? '—'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Button onClick={applyMapping} disabled={mapping || !mapUnitId}>

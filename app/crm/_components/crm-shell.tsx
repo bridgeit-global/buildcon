@@ -16,6 +16,13 @@ import { useActiveProject } from './use-active-project';
 import { ActiveProjectProvider } from './active-project-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 function initialsFromEmail(email: string | null) {
   if (!email) return '?';
@@ -164,22 +171,37 @@ export function CrmShell({
                   <div className="mt-0.5 text-[9px] text-white/40">
                     FY {activeProject?.fy ?? '—'}
                   </div>
-                  <select
-                    value={activeProjectId ?? ''}
-                    onChange={(e) => setActiveProjectId(e.target.value)}
-                    className="mt-1.5 w-full cursor-pointer border border-white/20 bg-white/8 px-2.5 py-2 text-[11px] text-white outline-none focus-visible:ring-2 focus-visible:ring-(--crm-accent,#7f56d9)/80 disabled:opacity-50"
+                  <Select
+                    value={activeProjectId ?? undefined}
+                    onValueChange={setActiveProjectId}
                     disabled={projects.length === 0}
-                    aria-label="Switch project"
                   >
-                    {projects.length === 0 ? (
-                      <option value="">No accessible projects</option>
-                    ) : null}
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id} className="text-slate-800">
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger
+                      className="mt-1.5 h-auto min-h-9 w-full cursor-pointer border border-white/20 bg-white/8 px-2.5 py-2 text-[11px] text-white shadow-none outline-none hover:bg-white/10 focus-visible:border-white/30 focus-visible:ring-2 focus-visible:ring-white/25 disabled:opacity-50 data-[placeholder]:text-white/45 [&_svg]:text-white/55"
+                      aria-label="Switch project"
+                    >
+                      <SelectValue
+                        placeholder={
+                          projects.length === 0
+                            ? 'No accessible projects'
+                            : 'Select project'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[min(60vh,320px)]">
+                      {projects.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No accessible projects
+                        </SelectItem>
+                      ) : (
+                        projects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}

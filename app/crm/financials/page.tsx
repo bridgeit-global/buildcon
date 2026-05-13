@@ -7,7 +7,17 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { formatInr } from '../inr-format';
+
+const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
+const FIN_BOOKING_NONE = '__fin_booking_none__';
 
 type BookingRow = {
   id: string;
@@ -197,21 +207,27 @@ export default function FinancialsPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[360px]">
             <Label>Booking</Label>
-            <select
-              value={bookingId}
-              onChange={(e) => setBookingId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <Select
+              value={bookingId === '' ? FIN_BOOKING_NONE : bookingId}
+              onValueChange={(v) =>
+                setBookingId(v === FIN_BOOKING_NONE ? '' : v)
+              }
               disabled={loading}
             >
-              <option value="">Select booking…</option>
-              {bookings.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {unitsById[b.unit_id]?.unit_code ?? '—'} ·{' '}
-                  {customersById[b.customer_id]?.full_name ?? '—'} ·{' '}
-                  {new Date(b.created_at).toLocaleDateString()}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FIN_BOOKING_NONE}>Select booking…</SelectItem>
+                {bookings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {unitsById[b.unit_id]?.unit_code ?? '—'} ·{' '}
+                    {customersById[b.customer_id]?.full_name ?? '—'} ·{' '}
+                    {new Date(b.created_at).toLocaleDateString()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex-1" />
@@ -338,19 +354,33 @@ export default function FinancialsPage() {
         <div className="mt-3 grid grid-cols-4 gap-3 items-end">
           <div className="col-span-2">
             <Label>Instalment</Label>
-            <select
-              value={entryScheduleId}
-              onChange={(e) => setEntryScheduleId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <Select
+              value={
+                entryScheduleId === ''
+                  ? FIN_SCHEDULE_UNASSIGNED
+                  : entryScheduleId
+              }
+              onValueChange={(v) =>
+                setEntryScheduleId(
+                  v === FIN_SCHEDULE_UNASSIGNED ? '' : v
+                )
+              }
               disabled={!bookingId}
             >
-              <option value="">(Optional) Unassigned</option>
-              {schedules.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.instalment_no}. {s.milestone}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FIN_SCHEDULE_UNASSIGNED}>
+                  (Optional) Unassigned
+                </SelectItem>
+                {schedules.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.instalment_no}. {s.milestone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Amount (₹)</Label>
@@ -372,16 +402,22 @@ export default function FinancialsPage() {
           </div>
           <div>
             <Label>Mode</Label>
-            <select
+            <Select
               value={entryMode}
-              onChange={(e) => setEntryMode(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onValueChange={setEntryMode}
               disabled={!bookingId}
             >
-              {['NEFT', 'RTGS', 'Cheque', 'Cash', 'UPI'].map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['NEFT', 'RTGS', 'Cheque', 'Cash', 'UPI'].map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="col-span-2">
             <Label>Reference</Label>

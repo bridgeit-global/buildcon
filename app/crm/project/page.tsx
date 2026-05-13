@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -37,6 +44,7 @@ export default function ProjectPage() {
   const [members, setMembers] = useState<ProjectMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
 
   const loadProjectsList = useCallback(async () => {
     setListLoading(true);
@@ -328,34 +336,46 @@ export default function ProjectPage() {
                       </td>
                       <td className="px-3 py-2">
                         {canManageMembers ? (
-                          <select
+                          <Select
                             value={m.role}
-                            onChange={(e) =>
-                              upsertMember(m.user_id, e.target.value, m.status)
+                            onValueChange={(v) =>
+                              upsertMember(m.user_id, v, m.status)
                             }
-                            className="border border-input bg-background px-2 py-1 text-sm"
                           >
-                            {['Member', 'Manager'].map((r) => (
-                              <option key={r}>{r}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="h-8 w-auto min-w-[120px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['Member', 'Manager'].map((r) => (
+                                <SelectItem key={r} value={r}>
+                                  {r}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
                           m.role
                         )}
                       </td>
                       <td className="px-3 py-2">
                         {canManageMembers ? (
-                          <select
+                          <Select
                             value={m.status}
-                            onChange={(e) =>
-                              upsertMember(m.user_id, m.role, e.target.value)
+                            onValueChange={(v) =>
+                              upsertMember(m.user_id, m.role, v)
                             }
-                            className="border border-input bg-background px-2 py-1 text-sm"
                           >
-                            {['Active', 'Inactive'].map((s) => (
-                              <option key={s}>{s}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="h-8 w-auto min-w-[120px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['Active', 'Inactive'].map((s) => (
+                                <SelectItem key={s} value={s}>
+                                  {s}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         ) : (
                           m.status
                         )}
@@ -396,23 +416,26 @@ export default function ProjectPage() {
           <div className="mt-4">
             <div className="text-sm font-semibold text-gray-900">Add member</div>
             <div className="mt-2 flex flex-wrap items-end gap-3">
-              <select
-                value={''}
-                onChange={(e) => {
-                  const uid = e.target.value;
-                  if (uid) void upsertMember(uid, 'Member', 'Active');
+              <Select
+                key={addMemberPickerKey}
+                onValueChange={(uid) => {
+                  void upsertMember(uid, 'Member', 'Active');
+                  setAddMemberPickerKey((k) => k + 1);
                 }}
-                className="mt-1 min-w-[320px] border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="">Select user…</option>
-                {profiles
-                  .filter((p) => !members.some((m) => m.user_id === p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name || p.id} ({p.role})
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger className="mt-1 min-w-[320px] w-[min(320px,100%)]">
+                  <SelectValue placeholder="Select user…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {profiles
+                    .filter((p) => !members.some((m) => m.user_id === p.id))
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name || p.id} ({p.role})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
               <div className="text-xs text-gray-500">
                 Tip: use `/crm/users` to invite a new user first.
               </div>

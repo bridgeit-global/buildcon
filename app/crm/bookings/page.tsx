@@ -24,6 +24,13 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   computeBookingCostBreakdown,
@@ -1049,29 +1056,37 @@ export default function BookingsPage() {
 
           <div>
             <Label>Payment mode</Label>
-            <select
-              value={paymentMode}
-              onChange={(e) => setPaymentMode(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              {PAYMENT_MODE_OPTIONS.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <Select value={paymentMode} onValueChange={setPaymentMode}>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYMENT_MODE_OPTIONS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Loan bank</Label>
-            <select
-              value={loanBank}
-              onChange={(e) => setLoanBank(e.target.value)}
+            <Select
+              value={loanBank === '' ? undefined : loanBank}
+              onValueChange={setLoanBank}
               disabled={!paymentModeNeedsLoanBank(paymentMode)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
             >
-              <option value="">Select bank…</option>
-              {LOAN_BANK_OPTIONS.map((b) => (
-                <option key={b}>{b}</option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue placeholder="Select bank…" />
+              </SelectTrigger>
+              <SelectContent>
+                {LOAN_BANK_OPTIONS.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {paymentMode === 'UPI' ? (
             <div className="col-span-2">

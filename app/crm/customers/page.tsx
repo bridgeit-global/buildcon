@@ -13,6 +13,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 type CustomerRow = {
   id: string;
@@ -910,17 +917,23 @@ export default function CustomersPage() {
                 </div>
                 <div className="col-span-2">
                   <Label>Nationality</Label>
-                  <select
+                  <Select
                     value={draft.nationality}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, nationality: e.target.value }))
+                    onValueChange={(v) =>
+                      setDraft((d) => ({ ...d, nationality: v }))
                     }
-                    className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
-                    <option>Indian</option>
-                    <option>NRI</option>
-                    <option>Foreign National</option>
-                  </select>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Indian">Indian</SelectItem>
+                      <SelectItem value="NRI">NRI</SelectItem>
+                      <SelectItem value="Foreign National">
+                        Foreign National
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1121,20 +1134,26 @@ export default function CustomersPage() {
                       </div>
                       <div className="col-span-2">
                         <Label>Nationality</Label>
-                        <select
+                        <Select
                           value={editDraft.nationality}
-                          onChange={(e) =>
+                          onValueChange={(v) =>
                             setEditDraft((d) => ({
                               ...d,
-                              nationality: e.target.value
+                              nationality: v
                             }))
                           }
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         >
-                          <option>Indian</option>
-                          <option>NRI</option>
-                          <option>Foreign National</option>
-                        </select>
+                          <SelectTrigger className="mt-1 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Indian">Indian</SelectItem>
+                            <SelectItem value="NRI">NRI</SelectItem>
+                            <SelectItem value="Foreign National">
+                              Foreign National
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
@@ -1398,17 +1417,18 @@ export default function CustomersPage() {
                     <div className="grid gap-4">
                       <div>
                         <Label>Document type</Label>
-                        <select
-                          value={kycDocType}
-                          onChange={(e) => setKycDocType(e.target.value)}
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        >
-                          {KYC_DOC_TYPES.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                        <Select value={kycDocType} onValueChange={setKycDocType}>
+                          <SelectTrigger className="mt-1 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {KYC_DOC_TYPES.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label>File</Label>
@@ -1535,19 +1555,23 @@ export default function CustomersPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
                         <Label>Type</Label>
-                        <select
+                        <Select
                           value={addressForm.kind}
-                          onChange={(e) =>
+                          onValueChange={(v) =>
                             setAddressForm((f) => ({
                               ...f,
-                              kind: e.target.value as 'current' | 'permanent'
+                              kind: v as 'current' | 'permanent'
                             }))
                           }
-                          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         >
-                          <option value="current">Current</option>
-                          <option value="permanent">Permanent</option>
-                        </select>
+                          <SelectTrigger className="mt-1 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="current">Current</SelectItem>
+                            <SelectItem value="permanent">Permanent</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="col-span-2">
                         <Label>Address line</Label>
