@@ -2,14 +2,27 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 
+type CoBuyerStored = {
+  customer_id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+};
+
 type CreateBookingBody = {
   projectId: string;
   unitId: string;
   customerId: string;
+  /** Additional buyer customer IDs (order preserved). */
+  coBuyerCustomerIds?: string[];
   paymentMode: string;
   loanBank?: string | null;
   bookingAmount?: number | null;
 };
+
+function normalizePhone(p: string | null | undefined) {
+  return String(p ?? '').replace(/\D/g, '');
+}
 
 function addDaysISO(days: number) {
   const d = new Date();
@@ -30,7 +43,93 @@ export async function POST(request: Request) {
   if (!ro.ok) return NextResponse.json({ error: ro.error }, { status: ro.status });
   if (ro.readOnly) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  const rawCoIds = Array.isArray(body.coBuyerCustomerIds)
+    ? body.coBuyerCustomerIds
+    : [];
+  const coBuyerIdsOrdered: string[] = [];
+  const seen = new Set<string>();
+  for (const id of rawCoIds) {
+    if (typeof id !== 'string' || !id.trim()) continue;
+    if (id === body.customerId) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    coBuyerIdsOrdered.push(id);
+  }
+
   const admin = createSupabaseAdminClient();
+
+  let coBuyersPayload: CoBuyerStored[] = [];
+  if (coBuyerIdsOrdered.length > 0) {
+    const { data: primaryCust, error: pcErr } = await admin
+      .from('customers')
+      .select('id,phone')
+      .eq('id', body.customerId)
+      .maybeSingle();
+    if (pcErr) {
+      return NextResponse.json({ error: pcErr.message }, { status: 500 });
+    }
+    if (!primaryCust) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+    const primaryPhone = normalizePhone(primaryCust.phone as string | null);
+
+    const { data: coRows, error: coErr } = await admin
+      .from('customers')
+      .select('id,full_name,phone,email')
+      .in('id', coBuyerIdsOrdered);
+    if (coErr) {
+      return NextResponse.json({ error: coErr.message }, { status: 500 });
+    }
+    if (!coRows || coRows.length !== coBuyerIdsOrdered.length) {
+      return NextResponse.json(
+        { error: 'One or more co-buyer customers were not found' },
+        { status: 400 }
+      );
+    }
+    const byId = new Map(
+      coRows.map((r) => [
+        r.id as string,
+        r as {
+          id: string;
+          full_name: string;
+          phone: string | null;
+          email: string | null;
+        }
+      ])
+    );
+    const usedCoPhones = new Set<string>();
+    for (const id of coBuyerIdsOrdered) {
+      const row = byId.get(id);
+      if (!row) {
+        return NextResponse.json(
+          { error: 'One or more co-buyer customers were not found' },
+          { status: 400 }
+        );
+      }
+      const p = normalizePhone(row.phone);
+      if (p && primaryPhone && p === primaryPhone) {
+        return NextResponse.json(
+          { error: 'A co-buyer cannot use the same phone number as the primary customer' },
+          { status: 400 }
+        );
+      }
+      if (p) {
+        if (usedCoPhones.has(p)) {
+          return NextResponse.json(
+            { error: 'Co-buyers cannot share the same phone number' },
+            { status: 400 }
+          );
+        }
+        usedCoPhones.add(p);
+      }
+      coBuyersPayload.push({
+        customer_id: row.id,
+        full_name: row.full_name,
+        phone: row.phone,
+        email: row.email
+      });
+    }
+  }
 
   // Ensure unit is available, then mark booked.
   const { data: unitRow, error: unitSelErr } = await admin
@@ -67,6 +166,7 @@ export async function POST(request: Request) {
       project_id: body.projectId,
       unit_id: body.unitId,
       customer_id: body.customerId,
+      co_buyers: coBuyersPayload,
       stage: 'booking',
       payment_mode: body.paymentMode,
       loan_bank: body.loanBank ?? null,

@@ -46,6 +46,13 @@ type CustomerOption = {
   email: string | null;
 };
 
+type CoBuyerStored = {
+  customer_id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+};
+
 type BookingListRow = {
   id: string;
   created_at: string;
@@ -53,6 +60,7 @@ type BookingListRow = {
   payment_mode: string | null;
   loan_bank: string | null;
   booking_amount: number | null;
+  co_buyers: CoBuyerStored[] | null;
   units:
   | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }
   | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }[]
@@ -62,6 +70,16 @@ type BookingListRow = {
   | { full_name: string; phone: string | null }[]
   | null;
 };
+
+type CoBuyerSlot = { key: string; customerId: string };
+
+function normalizePhoneDigits(p: string | null | undefined) {
+  return String(p ?? '').replace(/\D/g, '');
+}
+
+function newCoBuyerSlot(): CoBuyerSlot {
+  return { key: crypto.randomUUID(), customerId: '' };
+}
 
 function unwrapJoin<T>(x: T | T[] | null): T | null {
   if (x == null) return null;
@@ -236,6 +254,7 @@ export default function BookingsPage() {
 
   const [unitId, setUnitId] = useState('');
   const [customerId, setCustomerId] = useState('');
+  const [coBuyerSlots, setCoBuyerSlots] = useState<CoBuyerSlot[]>([]);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [loanBank, setLoanBank] = useState('');
   const [bookingAmount, setBookingAmount] = useState('500000');
@@ -288,6 +307,7 @@ export default function BookingsPage() {
           payment_mode,
           loan_bank,
           booking_amount,
+          co_buyers,
           units ( unit_code, wing_name, floor, unit_type ),
           customers ( full_name, phone )
         `
@@ -346,7 +366,22 @@ export default function BookingsPage() {
 
     setUnits(unitsList);
     setCustomers(customerList);
-    setBookings((bkData ?? []) as BookingListRow[]);
+    setBookings(
+      (bkData ?? []).map((row) => {
+        const r = row as BookingListRow;
+        const raw = r.co_buyers;
+        const coParsed = Array.isArray(raw)
+          ? (raw as unknown[]).filter(
+              (x): x is CoBuyerStored =>
+                !!x &&
+                typeof x === 'object' &&
+                typeof (x as CoBuyerStored).customer_id === 'string' &&
+                typeof (x as CoBuyerStored).full_name === 'string'
+            )
+          : [];
+        return { ...r, co_buyers: coParsed.length ? coParsed : null };
+      })
+    );
 
     setLoading(false);
   }
@@ -357,12 +392,45 @@ export default function BookingsPage() {
     setUnitFromInquiryUnavailable(false);
     setUnitId('');
     setCustomerId('');
+    setCoBuyerSlots([]);
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId]);
 
+  useEffect(() => {
+    setCoBuyerSlots((prev) =>
+      prev.map((s) =>
+        s.customerId === customerId ? { ...s, customerId: '' } : s
+      )
+    );
+  }, [customerId]);
+
   async function createBooking() {
     if (!activeProjectId || !unitId || !customerId) return;
+
+    const coIdsOrdered = coBuyerSlots
+      .map((s) => s.customerId)
+      .filter((id): id is string => Boolean(id));
+    const primaryCust = customers.find((c) => c.id === customerId);
+    const primaryPhone = normalizePhoneDigits(primaryCust?.phone);
+    const seenCoPhones = new Set<string>();
+    for (const id of coIdsOrdered) {
+      const co = customers.find((c) => c.id === id);
+      if (!co) continue;
+      const ph = normalizePhoneDigits(co.phone);
+      if (ph && primaryPhone && ph === primaryPhone) {
+        setError('A co-buyer cannot share the primary customer phone number.');
+        return;
+      }
+      if (ph) {
+        if (seenCoPhones.has(ph)) {
+          setError('Co-buyers cannot share the same phone number.');
+          return;
+        }
+        seenCoPhones.add(ph);
+      }
+    }
+
     setCreating(true);
     setError('');
     setCreatedBookingId(null);
@@ -374,6 +442,7 @@ export default function BookingsPage() {
           projectId: activeProjectId,
           unitId,
           customerId,
+          coBuyerCustomerIds: coIdsOrdered,
           paymentMode,
           loanBank: paymentMode === 'Home Loan' ? loanBank : null,
           bookingAmount: bookingAmount ? Number(bookingAmount) : null
@@ -384,6 +453,7 @@ export default function BookingsPage() {
       setCreatedBookingId(json.bookingId ?? null);
       setUnitId('');
       setCustomerId('');
+      setCoBuyerSlots([]);
       setPrefillMeta(null);
       setBreakdownUnit(null);
       setUnitFromInquiryUnavailable(false);
@@ -477,6 +547,29 @@ export default function BookingsPage() {
     return blob.includes(q);
   }, []);
 
+  const customersForCoBuyerPicker = useCallback(
+    (slotKey: string, selectedInSlot: string) => {
+      if (!customerId) return [];
+      const taken = new Set(
+        coBuyerSlots
+          .filter((s) => s.key !== slotKey && s.customerId)
+          .map((s) => s.customerId)
+      );
+      return customers.filter(
+        (c) =>
+          c.id !== customerId &&
+          (!taken.has(c.id) || c.id === selectedInSlot)
+      );
+    },
+    [customers, coBuyerSlots, customerId]
+  );
+
+  const selectedCoBuyersResolved = useMemo(() => {
+    return coBuyerSlots
+      .map((s) => customers.find((c) => c.id === s.customerId))
+      .filter((c): c is CustomerOption => !!c);
+  }, [coBuyerSlots, customers]);
+
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4">
@@ -486,7 +579,7 @@ export default function BookingsPage() {
               Create booking
             </div>
             <div className="text-xs text-gray-500">
-              Select an available unit and a customer.
+              Select an available unit, primary customer, and optional co-buyers.
             </div>
           </div>
           <Button variant="outline" onClick={load} disabled={loading}>
@@ -691,6 +784,103 @@ export default function BookingsPage() {
             />
           </div>
 
+          <div className="col-span-2 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="text-sm font-medium text-foreground">
+                  Co-buyer(s) (optional)
+                </div>
+                <p className="max-w-xl text-xs text-muted-foreground">
+                  Additional buyers on the same booking. Each row links a customer
+                  record. The same phone number as the primary or another co-buyer
+                  is not allowed.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCoBuyerSlots((s) => [...s, newCoBuyerSlot()])}
+              >
+                + Add co-buyer
+              </Button>
+            </div>
+            {coBuyerSlots.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No co-buyers added.</p>
+            ) : (
+              <div className="space-y-4">
+                {coBuyerSlots.map((slot, idx) => {
+                  const coItems = customersForCoBuyerPicker(
+                    slot.key,
+                    slot.customerId
+                  );
+                  return (
+                    <div key={slot.key} className="space-y-2">
+                      <SearchablePicker<CustomerOption>
+                        label={`Co-buyer ${idx + 1}`}
+                        itemCount={coItems.length}
+                        items={coItems}
+                        selectedId={slot.customerId}
+                        onSelect={(id) =>
+                          setCoBuyerSlots((prev) =>
+                            prev.map((s) =>
+                              s.key === slot.key ? { ...s, customerId: id } : s
+                            )
+                          )
+                        }
+                        emptyMessage={
+                          !customerId
+                            ? 'Choose a primary customer first.'
+                            : 'No customers match your search.'
+                        }
+                        searchPlaceholder="Search by name, phone, email…"
+                        triggerPlaceholder="Choose a co-buyer…"
+                        matchItem={matchCustomer}
+                        renderTriggerSummary={(c) => (
+                          <span className="block truncate">
+                            <span className="font-medium text-foreground">
+                              {c.full_name}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {' '}
+                              · {c.phone ?? '—'}
+                            </span>
+                          </span>
+                        )}
+                        renderRow={(c) => (
+                          <span className="block">
+                            <span className="font-medium text-foreground">
+                              {c.full_name}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {[c.phone, c.email].filter(Boolean).join(' · ') ||
+                                '—'}
+                            </span>
+                          </span>
+                        )}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() =>
+                            setCoBuyerSlots((prev) =>
+                              prev.filter((s) => s.key !== slot.key)
+                            )
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div>
             <Label>Payment mode</Label>
             <select
@@ -756,12 +946,34 @@ export default function BookingsPage() {
             <div className="text-xs font-semibold text-gray-500">Customer</div>
             {selectedCustomer ? (
               <div className="mt-2 text-sm">
-                <div className="font-semibold text-gray-900">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Primary
+                </div>
+                <div className="mt-1 font-semibold text-gray-900">
                   {selectedCustomer.full_name}
                 </div>
                 <div className="text-gray-600">
                   {selectedCustomer.phone ?? '—'} · {selectedCustomer.email ?? '—'}
                 </div>
+                {selectedCoBuyersResolved.length > 0 ? (
+                  <div className="mt-3 border-t border-gray-200 pt-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Co-buyer(s)
+                    </div>
+                    <ul className="mt-2 space-y-2">
+                      {selectedCoBuyersResolved.map((c) => (
+                        <li key={c.id}>
+                          <div className="font-semibold text-gray-900">
+                            {c.full_name}
+                          </div>
+                          <div className="text-gray-600">
+                            {c.phone ?? '—'} · {c.email ?? '—'}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="mt-2 text-sm text-gray-500">
@@ -818,6 +1030,10 @@ export default function BookingsPage() {
                 {bookings.map((b) => {
                   const u = unwrapJoin(b.units);
                   const c = unwrapJoin(b.customers);
+                  const coRaw = b.co_buyers;
+                  const coArr = Array.isArray(coRaw)
+                    ? (coRaw as CoBuyerStored[])
+                    : [];
                   const amt = b.booking_amount;
                   const pay =
                     b.payment_mode === 'Home Loan' && b.loan_bank
@@ -842,6 +1058,14 @@ export default function BookingsPage() {
                         <span className="block text-xs text-muted-foreground">
                           {c?.phone ?? ''}
                         </span>
+                        {coArr.length > 0 ? (
+                          <div className="mt-2 border-t border-gray-100 pt-2 text-xs text-muted-foreground">
+                            <span className="font-semibold text-gray-700">
+                              Co-buyers:{' '}
+                            </span>
+                            {coArr.map((x) => x.full_name).filter(Boolean).join(', ')}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="py-2.5 pr-3 align-top capitalize text-gray-700">
                         {b.stage.replace(/_/g, ' ')}

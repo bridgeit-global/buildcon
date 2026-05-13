@@ -377,6 +377,7 @@ create table if not exists public.bookings (
   payment_mode text,
   loan_bank text,
   booking_amount numeric,
+  co_buyers jsonb not null default '[]'::jsonb,
   created_by uuid references auth.users (id),
   created_at timestamptz not null default now()
 );
