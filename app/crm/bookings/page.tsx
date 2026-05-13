@@ -90,6 +90,30 @@ function newCoBuyerSlot(): CoBuyerSlot {
   return { key: crypto.randomUUID(), customerId: '' };
 }
 
+const PAYMENT_MODE_OPTIONS = [
+  'Cash',
+  'UPI',
+  'Cheque',
+  'NEFT/RTGS',
+  'Card',
+  'Down Payment',
+  'Home Loan',
+  'Construction Linked'
+] as const;
+
+const LOAN_BANK_OPTIONS = [
+  'HDFC Bank',
+  'SBI Bank',
+  'Axis Bank',
+  'ICICI Bank',
+  'Bank of Baroda'
+] as const;
+
+function paymentModeNeedsLoanBank(mode: string | null | undefined) {
+  const m = String(mode || '').trim();
+  return m === 'Home Loan' || m === 'Construction Linked';
+}
+
 function unwrapJoin<T>(x: T | T[] | null): T | null {
   if (x == null) return null;
   return Array.isArray(x) ? x[0] ?? null : x;
@@ -460,6 +484,14 @@ export default function BookingsPage() {
       }
     }
 
+    if (
+      paymentModeNeedsLoanBank(paymentMode) &&
+      !String(loanBank || '').trim()
+    ) {
+      setError('Select the loan or sanctioning bank.');
+      return;
+    }
+
     setCreating(true);
     setError('');
     setCreatedBookingId(null);
@@ -473,7 +505,7 @@ export default function BookingsPage() {
           customerId,
           coBuyerCustomerIds: coIdsOrdered,
           paymentMode,
-          loanBank: paymentMode === 'Home Loan' ? loanBank : null,
+          loanBank: paymentModeNeedsLoanBank(paymentMode) ? loanBank : null,
           bookingAmount: bookingAmount ? Number(bookingAmount) : null
         })
       });
@@ -943,11 +975,9 @@ export default function BookingsPage() {
               onChange={(e) => setPaymentMode(e.target.value)}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              {['Cash', 'Home Loan', 'Construction Linked', 'Down Payment'].map(
-                (m) => (
-                  <option key={m}>{m}</option>
-                )
-              )}
+              {PAYMENT_MODE_OPTIONS.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -955,11 +985,11 @@ export default function BookingsPage() {
             <select
               value={loanBank}
               onChange={(e) => setLoanBank(e.target.value)}
-              disabled={paymentMode !== 'Home Loan'}
+              disabled={!paymentModeNeedsLoanBank(paymentMode)}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
             >
               <option value="">Select bank…</option>
-              {['HDFC Bank', 'SBI Bank', 'Axis Bank', 'ICICI Bank'].map((b) => (
+              {LOAN_BANK_OPTIONS.map((b) => (
                 <option key={b}>{b}</option>
               ))}
             </select>
@@ -1130,7 +1160,7 @@ export default function BookingsPage() {
                     : [];
                   const amt = b.booking_amount;
                   const pay =
-                    b.payment_mode === 'Home Loan' && b.loan_bank
+                    paymentModeNeedsLoanBank(b.payment_mode) && b.loan_bank
                       ? `${b.payment_mode} · ${b.loan_bank}`
                       : (b.payment_mode ?? '—');
                   return (
