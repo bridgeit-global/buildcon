@@ -92,20 +92,34 @@ export async function POST(request: Request) {
 
   const admin = createSupabaseAdminClient();
 
+  const { data: primaryCust, error: primaryErr } = await admin
+    .from('customers')
+    .select('id,full_name,phone')
+    .eq('id', body.customerId)
+    .maybeSingle();
+  if (primaryErr) {
+    return NextResponse.json({ error: primaryErr.message }, { status: 500 });
+  }
+  if (!primaryCust) {
+    return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+  }
+  if (!String(primaryCust.full_name ?? '').trim()) {
+    return NextResponse.json(
+      { error: 'Customer name is required' },
+      { status: 400 }
+    );
+  }
+  const primaryPhoneDigits = normalizePhone(primaryCust.phone as string | null);
+  if (primaryPhoneDigits.length !== 10) {
+    return NextResponse.json(
+      { error: 'Customer phone number must be 10 digits' },
+      { status: 400 }
+    );
+  }
+
   let coBuyersPayload: CoBuyerStored[] = [];
   if (coBuyerIdsOrdered.length > 0) {
-    const { data: primaryCust, error: pcErr } = await admin
-      .from('customers')
-      .select('id,phone')
-      .eq('id', body.customerId)
-      .maybeSingle();
-    if (pcErr) {
-      return NextResponse.json({ error: pcErr.message }, { status: 500 });
-    }
-    if (!primaryCust) {
-      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-    }
-    const primaryPhone = normalizePhone(primaryCust.phone as string | null);
+    const primaryPhone = primaryPhoneDigits;
 
     const { data: coRows, error: coErr } = await admin
       .from('customers')

@@ -298,9 +298,9 @@ function SearchablePicker<T extends { id: string }>({
             />
             {searchTrailing
               ? searchTrailing({
-                  query,
-                  closePopover: () => setOpen(false)
-                })
+                query,
+                closePopover: () => setOpen(false)
+              })
               : null}
           </div>
           <div
@@ -577,7 +577,21 @@ export default function BookingsPage() {
       .map((s) => s.customerId)
       .filter((id): id is string => Boolean(id));
     const primaryCust = customers.find((c) => c.id === customerId);
-    const primaryPhone = normalizePhoneDigits(primaryCust?.phone);
+    if (!primaryCust) {
+      setError('Choose a customer.');
+      return;
+    }
+    if (!String(primaryCust.full_name ?? '').trim()) {
+      setError('Customer name is required.');
+      return;
+    }
+    if (normalizePhoneDigits(primaryCust.phone).length !== 10) {
+      setError(
+        'Customer phone number is required (10 digits). Update the customer record before booking.'
+      );
+      return;
+    }
+    const primaryPhone = normalizePhoneDigits(primaryCust.phone);
     const seenCoPhones = new Set<string>();
     for (const id of coIdsOrdered) {
       const co = customers.find((c) => c.id === id);
@@ -665,15 +679,19 @@ export default function BookingsPage() {
       setError('Customer name is required.');
       return;
     }
+    const digits = normalizePhoneDigits(newCustomerDraft.phone);
+    if (digits.length !== 10) {
+      setError('Enter a 10-digit phone number.');
+      return;
+    }
     setSavingCustomer(true);
     setError('');
     try {
-      const digits = normalizePhoneDigits(newCustomerDraft.phone);
       const { data, error: insErr } = await supabase
         .from('customers')
         .insert({
           full_name,
-          phone: digits || null,
+          phone: digits,
           email: newCustomerDraft.email.trim() || null
         })
         .select('id,full_name,phone,email')
@@ -1036,7 +1054,7 @@ export default function BookingsPage() {
 
           <div className="col-span-2">
             <SearchablePicker<CustomerOption>
-              label="Customer"
+              label="Customer *"
               itemCount={customers.length}
               items={customers}
               selectedId={customerId}
@@ -1163,51 +1181,51 @@ export default function BookingsPage() {
                         emptyFooter={
                           customerId
                             ? ({ query, closePopover }) => (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  className="mx-auto"
-                                  onClick={() => {
-                                    closePopover();
-                                    setNewCustomerDraft({
-                                      full_name: query.trim(),
-                                      phone: '',
-                                      email: ''
-                                    });
-                                    setAddCustomerCoSlotKey(slot.key);
-                                    setAddCustomerOpen(true);
-                                  }}
-                                >
-                                  Add new customer…
-                                </Button>
-                              )
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="mx-auto"
+                                onClick={() => {
+                                  closePopover();
+                                  setNewCustomerDraft({
+                                    full_name: query.trim(),
+                                    phone: '',
+                                    email: ''
+                                  });
+                                  setAddCustomerCoSlotKey(slot.key);
+                                  setAddCustomerOpen(true);
+                                }}
+                              >
+                                Add new customer…
+                              </Button>
+                            )
                             : undefined
                         }
                         searchTrailing={
                           customerId
                             ? ({ query, closePopover }) => (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="shrink-0 gap-1.5"
-                                  title="Add new customer"
-                                  onClick={() => {
-                                    closePopover();
-                                    setNewCustomerDraft({
-                                      full_name: query.trim(),
-                                      phone: '',
-                                      email: ''
-                                    });
-                                    setAddCustomerCoSlotKey(slot.key);
-                                    setAddCustomerOpen(true);
-                                  }}
-                                >
-                                  <UserPlus className="size-3.5" />
-                                  <span className="hidden sm:inline">Add</span>
-                                </Button>
-                              )
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="shrink-0 gap-1.5"
+                                title="Add new customer"
+                                onClick={() => {
+                                  closePopover();
+                                  setNewCustomerDraft({
+                                    full_name: query.trim(),
+                                    phone: '',
+                                    email: ''
+                                  });
+                                  setAddCustomerCoSlotKey(slot.key);
+                                  setAddCustomerOpen(true);
+                                }}
+                              >
+                                <UserPlus className="size-3.5" />
+                                <span className="hidden sm:inline">Add</span>
+                              </Button>
+                            )
                             : undefined
                         }
                         searchPlaceholder="Search by name, phone, email…"
@@ -1571,7 +1589,7 @@ export default function BookingsPage() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="new-cust-name">Full name</Label>
+              <Label htmlFor="new-cust-name">Full name *</Label>
               <Input
                 id="new-cust-name"
                 value={newCustomerDraft.full_name}
@@ -1590,10 +1608,12 @@ export default function BookingsPage() {
               onChange={(v) =>
                 setNewCustomerDraft((d) => ({ ...d, phone: v }))
               }
-              label="Phone (optional)"
-              placeholder="Mobile number"
+              label="Phone *"
+              placeholder="Enter Phone number"
               id="new-cust-phone"
+              mode="digits10"
             />
+
             <EmailInputField
               value={newCustomerDraft.email}
               onChange={(v) =>
