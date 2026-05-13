@@ -98,6 +98,10 @@ function initialsFromName(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function normalizePhoneDigits(p: string | null | undefined) {
+  return String(p ?? '').replace(/\D/g, '');
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-3 border-b border-gray-100 py-2.5 last:border-b-0">
@@ -349,14 +353,24 @@ export default function CustomersPage() {
       : null;
 
   async function createCustomer() {
+    const full_name = draft.full_name.trim();
+    if (!full_name) {
+      setError('Customer name is required.');
+      return;
+    }
+    const phoneDigits = normalizePhoneDigits(draft.phone);
+    if (phoneDigits.length !== 10) {
+      setError('Enter a 10-digit phone number.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       const { data, error: insErr } = await supabase
         .from('customers')
         .insert({
-          full_name: draft.full_name,
-          phone: draft.phone || null,
+          full_name,
+          phone: phoneDigits,
           email: draft.email || null,
           dob: draft.dob || null,
           occupation: draft.occupation || null,
@@ -389,14 +403,24 @@ export default function CustomersPage() {
 
   async function updateCustomer() {
     if (!selectedId) return;
+    const full_name = editDraft.full_name.trim();
+    if (!full_name) {
+      setError('Customer name is required.');
+      return;
+    }
+    const phoneDigits = normalizePhoneDigits(editDraft.phone);
+    if (phoneDigits.length !== 10) {
+      setError('Enter a 10-digit phone number.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       const { data, error: upErr } = await supabase
         .from('customers')
         .update({
-          full_name: editDraft.full_name,
-          phone: editDraft.phone || null,
+          full_name,
+          phone: phoneDigits,
           email: editDraft.email || null,
           dob: editDraft.dob || null,
           occupation: editDraft.occupation || null,
@@ -869,7 +893,7 @@ export default function CustomersPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Label>Full name</Label>
+                  <Label>Full name *</Label>
                   <Input
                     value={draft.full_name}
                     onChange={(e) =>
@@ -883,6 +907,7 @@ export default function CustomersPage() {
                   onChange={(v) =>
                     setDraft((d) => ({ ...d, phone: v }))
                   }
+                  label="Phone *"
                 />
                 <EmailInputField
                   value={draft.email}
@@ -943,7 +968,11 @@ export default function CustomersPage() {
                 </Button>
                 <Button
                   onClick={createCustomer}
-                  disabled={saving || !draft.full_name}
+                  disabled={
+                    saving ||
+                    !draft.full_name.trim() ||
+                    normalizePhoneDigits(draft.phone).length !== 10
+                  }
                 >
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
@@ -1064,7 +1093,7 @@ export default function CustomersPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
-                        <Label>Full name</Label>
+                        <Label>Full name *</Label>
                         <Input
                           value={editDraft.full_name}
                           onChange={(e) =>
@@ -1081,6 +1110,7 @@ export default function CustomersPage() {
                         onChange={(v) =>
                           setEditDraft((d) => ({ ...d, phone: v }))
                         }
+                        label="Phone *"
                       />
                       <EmailInputField
                         value={editDraft.email}
@@ -1150,7 +1180,11 @@ export default function CustomersPage() {
                       </Button>
                       <Button
                         onClick={() => void updateCustomer()}
-                        disabled={saving || !editDraft.full_name}
+                        disabled={
+                          saving ||
+                          !editDraft.full_name.trim() ||
+                          normalizePhoneDigits(editDraft.phone).length !== 10
+                        }
                       >
                         {saving ? 'Saving…' : 'Save'}
                       </Button>
