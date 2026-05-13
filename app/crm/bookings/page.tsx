@@ -11,6 +11,10 @@ import {
 import { Check, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
+import {
+  PaymentCostOverview,
+  type PaymentCostOverviewMode
+} from '../_components/payment-cost-overview';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,8 +25,13 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { computeBookingCostBreakdown } from '../booking-cost-utils';
-import { formatInr } from '../inr-format';
+import {
+  computeBookingCostBreakdown,
+  formatProjectParkingSummary,
+  type ProjectParkingMeta
+} from '../booking-cost-utils';
+import { formatInr, formatInrCompactLacCr } from '../inr-format';
+import { formatFloorLabel } from '../inventory/inventory-utils';
 import {
   readConsumeBookingPrefillForProject,
   type BookingPrefillV1
@@ -266,10 +275,14 @@ export default function BookingsPage() {
   const [breakdownUnit, setBreakdownUnit] = useState<UnitOption | null>(null);
   const [unitFromInquiryUnavailable, setUnitFromInquiryUnavailable] =
     useState(false);
+  const [projectParking, setProjectParking] = useState<ProjectParkingMeta | null>(
+    null
+  );
 
   async function load() {
     if (!activeProjectId) {
       setBookings([]);
+      setProjectParking(null);
       setLoading(false);
       return;
     }
@@ -279,7 +292,8 @@ export default function BookingsPage() {
     const [
       { data: uData, error: uErr },
       { data: cData, error: cErr },
-      { data: bkData, error: bkErr }
+      { data: bkData, error: bkErr },
+      { data: projData, error: projErr }
     ] = await Promise.all([
       supabase
         .from('units')
@@ -314,12 +328,27 @@ export default function BookingsPage() {
         )
         .eq('project_id', activeProjectId)
         .order('created_at', { ascending: false })
-        .limit(100)
+        .limit(100),
+      supabase
+        .from('projects')
+        .select('parking_slots,parking_rate')
+        .eq('id', activeProjectId)
+        .maybeSingle()
     ]);
 
     if (uErr) setError(uErr.message);
     if (cErr) setError(cErr.message);
     if (bkErr) setError(bkErr.message);
+    if (projErr) setError(projErr.message);
+
+    setProjectParking(
+      projData
+        ? {
+          parking_slots: projData.parking_slots ?? null,
+          parking_rate: projData.parking_rate ?? null
+        }
+        : null
+    );
 
     const unitsList = (uData ?? []) as UnitOption[];
     let customerList = (cData ?? []) as CustomerOption[];
@@ -372,12 +401,12 @@ export default function BookingsPage() {
         const raw = r.co_buyers;
         const coParsed = Array.isArray(raw)
           ? (raw as unknown[]).filter(
-              (x): x is CoBuyerStored =>
-                !!x &&
-                typeof x === 'object' &&
-                typeof (x as CoBuyerStored).customer_id === 'string' &&
-                typeof (x as CoBuyerStored).full_name === 'string'
-            )
+            (x): x is CoBuyerStored =>
+              !!x &&
+              typeof x === 'object' &&
+              typeof (x as CoBuyerStored).customer_id === 'string' &&
+              typeof (x as CoBuyerStored).full_name === 'string'
+          )
           : [];
         return { ...r, co_buyers: coParsed.length ? coParsed : null };
       })
@@ -465,7 +494,6 @@ export default function BookingsPage() {
     }
   }
 
-  const selectedUnit = units.find((u) => u.id === unitId) ?? null;
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
   const unitForCostPreview = useMemo((): UnitOption | null => {
@@ -491,9 +519,9 @@ export default function BookingsPage() {
 
   const inquiryUnitMismatch = Boolean(
     prefillMeta &&
-      unitForCostPreview &&
-      unitForCostPreview.id !== prefillMeta.unitId &&
-      !unitFromInquiryUnavailable
+    unitForCostPreview &&
+    unitForCostPreview.id !== prefillMeta.unitId &&
+    !unitFromInquiryUnavailable
   );
 
   const inquiryCostBreakdown = useMemo(() => {
@@ -503,16 +531,16 @@ export default function BookingsPage() {
       !unitFromInquiryUnavailable;
     const rate =
       !mismatch &&
-      prefillMeta.parkingRateSnapshot != null &&
-      prefillMeta.parkingRateSnapshot > 0
+        prefillMeta.parkingRateSnapshot != null &&
+        prefillMeta.parkingRateSnapshot > 0
         ? prefillMeta.parkingRateSnapshot
         : 0;
     const projectSnap: {
       parking_slots: number | null;
       parking_rate: number | null;
     } = mismatch
-      ? { parking_slots: null, parking_rate: null }
-      : {
+        ? { parking_slots: null, parking_rate: null }
+        : {
           parking_slots: prefillMeta.parkingSlotsAvailable,
           parking_rate: prefillMeta.parkingRateSnapshot
         };
@@ -524,6 +552,89 @@ export default function BookingsPage() {
       projectSnap
     );
   }, [prefillMeta, unitForCostPreview, unitFromInquiryUnavailable]);
+
+  /** Inquiry overview rows plus GST/total so we do not need a second block in the unit card. */
+  const inquiryPaymentOverviewRows = useMemo((): [string, string][] => {
+    if (!inquiryCostBreakdown) return [];
+    const u = unitForCostPreview;
+    if (!u) return [...inquiryCostBreakdown.rows];
+    const area = Number(u.area) || 0;
+    const rate = Number(u.rate) || 0;
+    const basicInr = area * rate;
+    const gstInr = basicInr * 0.05;
+    const totalInr = basicInr + gstInr;
+    const tail: [string, string][] =
+      basicInr > 0
+        ? [
+          [
+            'GST (5%)',
+            `${formatInrCompactLacCr(gstInr)} (₹ ${gstInr.toLocaleString('en-IN')})`
+          ],
+          [
+            'Total value (incl. GST)',
+            `${formatInrCompactLacCr(totalInr)} (₹ ${totalInr.toLocaleString('en-IN')})`
+          ]
+        ]
+        : [];
+    return [...inquiryCostBreakdown.rows, ...tail];
+  }, [inquiryCostBreakdown, unitForCostPreview]);
+
+  /** Basic + GST (5%) breakdown for the unit being previewed (picker or inquiry snapshot). */
+  const unitRateStructureRows = useMemo((): [string, string][] | null => {
+    const u = unitForCostPreview;
+    if (!u) return null;
+    const area = Number(u.area) || 0;
+    const rate = Number(u.rate) || 0;
+    const basicInr = area * rate;
+    const gstInr = basicInr * 0.05;
+    const totalInr = basicInr + gstInr;
+    return [
+      ['Floor', formatFloorLabel(u.floor, u.unit_type)],
+      ['Configuration', u.unit_type?.trim() || '—'],
+      ['Sale area', area > 0 ? `${area.toLocaleString('en-IN')} sq.ft` : '—'],
+      [
+        'Basic rate',
+        rate > 0 ? `₹ ${rate.toLocaleString('en-IN')} / sq.ft` : '—'
+      ],
+      [
+        'Basic value',
+        basicInr > 0
+          ? `${formatInrCompactLacCr(basicInr)} (₹ ${basicInr.toLocaleString('en-IN')})`
+          : '—'
+      ],
+      [
+        'GST (5%)',
+        basicInr > 0
+          ? `${formatInrCompactLacCr(gstInr)} (₹ ${gstInr.toLocaleString('en-IN')})`
+          : '—'
+      ],
+      [
+        'Total value (incl. GST)',
+        totalInr > 0
+          ? `${formatInrCompactLacCr(totalInr)} (₹ ${totalInr.toLocaleString('en-IN')})`
+          : '—'
+      ],
+      [
+        'Parking (project)',
+        formatProjectParkingSummary(projectParking ?? null)
+      ]
+    ];
+  }, [unitForCostPreview, projectParking]);
+
+  /** Single Payment & cost overview panel for inquiry-prefill and normal booking. */
+  const paymentCostOverviewMode = useMemo((): PaymentCostOverviewMode | null => {
+    if (!unitForCostPreview) return null;
+    if (prefillMeta && inquiryCostBreakdown) return 'inquiry';
+    if (unitRateStructureRows && unitRateStructureRows.length > 0) {
+      return 'standard';
+    }
+    return null;
+  }, [
+    unitForCostPreview,
+    prefillMeta,
+    inquiryCostBreakdown,
+    unitRateStructureRows
+  ]);
 
   const matchUnit = useCallback((u: UnitOption, q: string) => {
     const blob = [
@@ -637,63 +748,7 @@ export default function BookingsPage() {
           </div>
         ) : null}
 
-        {prefillMeta && inquiryCostBreakdown ? (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Payment &amp; cost overview
-                </div>
-                <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-600">
-                  Basic agreement value, parking estimate, and totals. The booking
-                  token you enter below is collected now and becomes the first
-                  milestone (&quot;Booking Amount&quot;) in the payment schedule.
-                </p>
-              </div>
-            </div>
-            {inquiryUnitMismatch ? (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                You selected a different unit than the inquiry. Parking lines below
-                follow the new unit (no inquiry parking until you align with sales).
-              </div>
-            ) : null}
-            <div className="mt-3 text-sm font-semibold text-slate-900">
-              {inquiryCostBreakdown.unitHeadline}
-            </div>
-            <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-              {inquiryCostBreakdown.rows.map(([label, value], idx) => (
-                <div
-                  key={`${idx}-${label}`}
-                  className="flex items-baseline justify-between gap-3 rounded-lg border border-white bg-white px-3 py-2 shadow-sm"
-                >
-                  <dt className="text-[11px] font-semibold text-slate-500">
-                    {label}
-                  </dt>
-                  <dd className="text-right text-xs font-semibold text-slate-900">
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Due at booking (token)
-              </div>
-              <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-                <p className="max-w-md text-xs leading-relaxed text-slate-600">
-                  Enter the amount you are collecting at booking confirmation. Edit
-                  the field below if needed.
-                </p>
-                <div className="text-xl font-bold tabular-nums text-emerald-700">
-                  ₹
-                  {Number(bookingAmount || 0).toLocaleString('en-IN', {
-                    maximumFractionDigits: 0
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
+
 
         {error ? (
           <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -922,21 +977,32 @@ export default function BookingsPage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <Card className="p-4">
             <div className="text-xs font-semibold text-gray-500">Unit</div>
-            {selectedUnit ? (
+            {unitForCostPreview ? (
               <div className="mt-2 text-sm">
                 <div className="font-semibold text-gray-900">
-                  {selectedUnit.unit_code}
+                  {unitForCostPreview.unit_code}
                 </div>
                 <div className="text-gray-600">
-                  {selectedUnit.wing_name} · Floor {selectedUnit.floor} ·{' '}
-                  {selectedUnit.unit_type ?? '—'}
+                  {unitForCostPreview.wing_name} ·{' '}
+                  {formatFloorLabel(
+                    unitForCostPreview.floor,
+                    unitForCostPreview.unit_type
+                  )}{' '}
+                  · {unitForCostPreview.unit_type ?? '—'}
                 </div>
                 <div className="mt-1 text-gray-600">
-                  Area: {selectedUnit.area ?? '—'} · Rate:{' '}
-                  {selectedUnit.rate != null
-                    ? `₹ ${formatInr(selectedUnit.rate, { maximumFractionDigits: 0 })}/sq.ft`
+                  Area: {unitForCostPreview.area ?? '—'} · Rate:{' '}
+                  {unitForCostPreview.rate != null
+                    ? `₹ ${formatInr(unitForCostPreview.rate, { maximumFractionDigits: 0 })}/sq.ft`
                     : '—'}
                 </div>
+                {unitFromInquiryUnavailable ? (
+                  <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-950">
+                    {paymentCostOverviewMode != null
+                      ? 'Inquiry unit — pick another unit above to book. Full cost breakdown is in Payment & cost overview above.'
+                      : 'Inquiry unit — pick another unit above to book; select a unit to see pricing.'}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="mt-2 text-sm text-gray-500">No unit selected.</div>
@@ -982,6 +1048,34 @@ export default function BookingsPage() {
             )}
           </Card>
         </div>
+
+        {paymentCostOverviewMode ? (
+          <PaymentCostOverview
+            mode={paymentCostOverviewMode}
+            unitHeadline={
+              paymentCostOverviewMode === 'inquiry' && inquiryCostBreakdown
+                ? inquiryCostBreakdown.unitHeadline
+                : unitForCostPreview
+                  ? `${unitForCostPreview.unit_code} · ${unitForCostPreview.wing_name}`
+                  : ''
+            }
+            rows={
+              paymentCostOverviewMode === 'inquiry'
+                ? inquiryPaymentOverviewRows
+                : (unitRateStructureRows ?? [])
+            }
+            bookingAmount={Number(bookingAmount || 0)}
+            alert={
+              paymentCostOverviewMode === 'inquiry' && inquiryUnitMismatch ? (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  You selected a different unit than the inquiry. Parking lines
+                  below follow the new unit (no inquiry parking until you align with
+                  sales).
+                </div>
+              ) : undefined
+            }
+          />
+        ) : null}
 
         <div className="mt-4 flex justify-end">
           <Button
