@@ -722,25 +722,62 @@ function InquiryPageContent() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {(
             [
-              ['Total enquiries', kpiStats.total, `${kpiStats.createdToday} today`],
-              ['New', kpiStats.newLeads, 'Stage: Enquiry'],
-              ['Qualified', kpiStats.qualified, 'In funnel'],
-              ['Converted', kpiStats.converted, 'Booking or Won']
+              {
+                title: 'Total enquiries',
+                value: kpiStats.total,
+                hint: `${kpiStats.createdToday} today`,
+                href: '/crm/inquiry/list'
+              },
+              {
+                title: 'New',
+                value: kpiStats.newLeads,
+                hint: 'Stage: Enquiry'
+              },
+              {
+                title: 'Qualified',
+                value: kpiStats.qualified,
+                hint: 'In funnel'
+              },
+              {
+                title: 'Converted',
+                value: kpiStats.converted,
+                hint: 'Booking or Won'
+              }
             ] as const
-          ).map(([title, value, hint]) => (
-            <div
-              key={title}
-              className="rounded-lg border border-border bg-muted/30 px-3 py-3"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                {title}
+          ).map((tile) => {
+            const body = (
+              <>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                  {tile.title}
+                </div>
+                <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                  {loadingInquiries ? '…' : tile.value}
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {tile.hint}
+                </div>
+              </>
+            );
+            const shellClass =
+              'rounded-lg border border-border bg-muted/30 px-3 py-3';
+            if ('href' in tile && tile.href) {
+              return (
+                <Link
+                  key={tile.title}
+                  href={tile.href}
+                  aria-label="View full inquiry list"
+                  className={`${shellClass} block transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                >
+                  {body}
+                </Link>
+              );
+            }
+            return (
+              <div key={tile.title} className={shellClass}>
+                {body}
               </div>
-              <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                {loadingInquiries ? '…' : value}
-              </div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 

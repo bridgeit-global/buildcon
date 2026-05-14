@@ -103,92 +103,91 @@ export function InquiryListCard(props: InquiryListCardProps) {
         placeholder="Search by customer, phone, email, source, or unit"
       />
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[1000px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              {[
-                'Inquiry ID',
-                'Created',
-                'Customer',
-                'Phone',
-                'Email',
-                'Lead source',
-                'Broker',
-                'Unit',
-                'Stage',
-                'Parking',
-                'Seller',
-                'Actions'
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="whitespace-nowrap px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={12} className="px-2 py-6 text-muted-foreground">
-                  {loadingInquiries
-                    ? 'Loading…'
-                    : 'No inquiries found for this project.'}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((inq) => {
-                const u = embedOne(inq.units);
-                const unitLabel =
-                  u != null
-                    ? unitDisplayName(u)
-                    : unitNameById.get(inq.unit_id) || inq.unit_id || '—';
-                const sellerName = embedOne(inq.profiles)?.name ?? '—';
-                return (
-                  <tr key={inq.id} className="border-b border-border/80">
-                    <td className="whitespace-nowrap px-2 py-2 text-xs font-semibold">
+      <div className="mt-4 flex flex-col gap-2" role="list">
+        {filtered.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+            {loadingInquiries
+              ? 'Loading…'
+              : 'No inquiries found for this project.'}
+          </div>
+        ) : (
+          filtered.map((inq) => {
+            const u = embedOne(inq.units);
+            const unitLabel =
+              u != null
+                ? unitDisplayName(u)
+                : unitNameById.get(inq.unit_id) || inq.unit_id || '—';
+            const sellerName = embedOne(inq.profiles)?.name ?? '—';
+            const c = embedOne(inq.customers);
+            const stage =
+              embedOne(inq.sales_opportunities)?.funnel_stage ?? '—';
+            const brokerName =
+              String(inq.lead_source || '').toLowerCase() === 'broker'
+                ? embedOne(inq.brokers)?.full_name ?? '—'
+                : null;
+
+            return (
+              <div
+                key={inq.id}
+                role="listitem"
+                className="rounded-lg border border-border bg-muted/10 px-3 py-3 shadow-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/60 pb-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-foreground">
                       {inquiryReference(inq.id)}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">
                       {inq.created_at
                         ? new Date(inq.created_at).toLocaleString()
                         : '—'}
-                    </td>
-                    <td className="px-2 py-2 text-xs">
-                      {embedOne(inq.customers)?.full_name ?? '—'}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-muted-foreground">
-                      {embedOne(inq.customers)?.phone ?? '—'}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-muted-foreground">
-                      {embedOne(inq.customers)?.email ?? '—'}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-muted-foreground">
+                    </div>
+                  </div>
+                  <div className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {stage}
+                  </div>
+                </div>
+
+                <div className="mt-2 text-sm font-medium text-foreground">
+                  {c?.full_name ?? '—'}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>{c?.phone ?? '—'}</span>
+                  {c?.email ? <span className="break-all">{c.email}</span> : null}
+                </div>
+
+                <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-[11px] sm:grid-cols-2">
+                  <div className="flex gap-2">
+                    <dt className="shrink-0 text-muted-foreground">Source</dt>
+                    <dd className="min-w-0 font-medium text-foreground">
                       {inq.lead_source ?? '—'}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-muted-foreground">
-                      {String(inq.lead_source || '').toLowerCase() === 'broker'
-                        ? embedOne(inq.brokers)?.full_name ?? '—'
-                        : '—'}
-                    </td>
-                    <td className="px-2 py-2 text-xs font-semibold">
+                    </dd>
+                  </div>
+                  {brokerName ? (
+                    <div className="flex gap-2">
+                      <dt className="shrink-0 text-muted-foreground">Broker</dt>
+                      <dd className="min-w-0 font-medium text-foreground">
+                        {brokerName}
+                      </dd>
+                    </div>
+                  ) : null}
+                  <div className="flex gap-2 sm:col-span-2">
+                    <dt className="shrink-0 text-muted-foreground">Unit</dt>
+                    <dd className="min-w-0 font-semibold text-foreground">
                       {unitLabel}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">
-                      {embedOne(inq.sales_opportunities)?.funnel_stage ?? '—'}
-                    </td>
-                    <td className="max-w-[220px] px-2 py-2 text-[11px] leading-snug">
-                      <div className="font-medium text-foreground">
+                    </dd>
+                  </div>
+                  <div className="flex gap-2 sm:col-span-2">
+                    <dt className="shrink-0 text-muted-foreground">Parking</dt>
+                    <dd className="min-w-0 text-foreground">
+                      <span className="font-medium">
                         {inq.parking_required === 'Yes'
                           ? `Ask × ${inq.parking_count}`
                           : 'No'}
-                      </div>
+                      </span>
                       {inq.parking_slots_available != null &&
                       inq.parking_slots_available > 0 ? (
-                        <div className="mt-0.5 text-[10px] text-muted-foreground">
+                        <span className="mt-0.5 block text-[10px] text-muted-foreground">
                           At save: {inq.parking_slots_available} slots
                           {inq.parking_rate_snapshot != null &&
                           inq.parking_rate_snapshot > 0
@@ -196,51 +195,51 @@ export function InquiryListCard(props: InquiryListCardProps) {
                                 'en-IN'
                               )}/slot`
                             : ''}
-                        </div>
+                        </span>
                       ) : null}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-muted-foreground">
-                      {sellerName}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          onClick={() =>
-                            router.push(
-                              `/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`
-                            )
-                          }
-                        >
-                          Pipeline
-                        </Button>
-                        {inq.unit_id?.trim() ? (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
-                            onClick={() => navigateToBookingFromInquiry(inq)}
-                          >
-                            Booking
-                            <ArrowRight className="size-3.5 opacity-90" />
-                          </Button>
-                        ) : (
-                          <span className="self-center text-[10px] text-muted-foreground">
-                            No unit
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                    </dd>
+                  </div>
+                  <div className="flex gap-2 sm:col-span-2">
+                    <dt className="shrink-0 text-muted-foreground">Seller</dt>
+                    <dd className="min-w-0 text-foreground">{sellerName}</dd>
+                  </div>
+                </dl>
+
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() =>
+                      router.push(
+                        `/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`
+                      )
+                    }
+                  >
+                    Pipeline
+                  </Button>
+                  {inq.unit_id?.trim() ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={() => navigateToBookingFromInquiry(inq)}
+                    >
+                      Booking
+                      <ArrowRight className="size-3.5 opacity-90" />
+                    </Button>
+                  ) : (
+                    <span className="self-center text-[10px] text-muted-foreground">
+                      No unit
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </Card>
   );
