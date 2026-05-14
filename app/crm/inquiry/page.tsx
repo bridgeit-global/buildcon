@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
@@ -129,8 +129,9 @@ type InquiryRowDb = {
   sales_opportunities?: OpportunityRow | OpportunityRow[] | null;
 };
 
-export default function InquiryPage() {
+function InquiryPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { activeProjectId } = useActiveProjectContext();
 
@@ -236,6 +237,15 @@ export default function InquiryPage() {
   useEffect(() => {
     void loadInquiries();
   }, [loadInquiries]);
+
+  useEffect(() => {
+    const q = searchParams.get('pipelineInquiry')?.trim();
+    if (!q || !activeProjectId || loadingInquiries) return;
+    const exists = inquiries.some((i) => i.id === q);
+    if (exists) {
+      setPipeline({ projectId: activeProjectId, inquiryId: q });
+    }
+  }, [searchParams, activeProjectId, inquiries, loadingInquiries]);
 
   useEffect(() => {
     let cancelled = false;
@@ -961,7 +971,12 @@ export default function InquiryPage() {
       <InquiryPipelineDialog
         open={pipeline != null}
         onOpenChange={(o) => {
-          if (!o) setPipeline(null);
+          if (!o) {
+            setPipeline(null);
+            if (searchParams.get('pipelineInquiry')) {
+              router.replace('/crm/inquiry', { scroll: false });
+            }
+          }
         }}
         projectId={pipeline?.projectId ?? ''}
         opportunity={pipelineOpportunity}
@@ -1511,5 +1526,19 @@ function ReviewBlock({
         ))}
       </dl>
     </div>
+  );
+}
+
+export default function InquiryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-muted-foreground">
+          Loading inquiries…
+        </div>
+      }
+    >
+      <InquiryPageContent />
+    </Suspense>
   );
 }

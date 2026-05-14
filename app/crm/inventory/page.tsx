@@ -83,15 +83,19 @@ const BLOCK_REASONS = [
 ];
 
 const TABS = [
-  'Inventory Info',
   'Grid View',
   'Unit List',
+  'Inventory Info',
   'Floor Plan',
   'Map 3D',
   'Blocked Units'
 ] as const;
 
 type InventoryTab = (typeof TABS)[number];
+
+function inventoryTabLabel(t: InventoryTab) {
+  return t === 'Map 3D' ? 'Map 3D (soon)' : t;
+}
 
 function tabCardClass() {
   return 'rounded-lg border border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]';
@@ -589,10 +593,12 @@ function UnitCell({
   onClick: (u: UnitRow) => void;
 }) {
   const bg = STATUS_COLOR[unit.status] ?? '#94A3B8';
+  const title = `${unit.unit_code} | ${unit.unit_type ?? ''} | ${unit.area ?? ''} sq.ft`;
   return (
     <button
       type="button"
-      title={`${unit.unit_code} | ${unit.unit_type ?? ''} | ${unit.area ?? ''} sq.ft`}
+      title={title}
+      aria-label={title}
       onClick={() => onClick(unit)}
       className="inline-flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[5px] text-[9px] font-bold text-white shadow-sm transition-transform hover:scale-105"
       style={{
@@ -610,7 +616,7 @@ export default function InventoryPage() {
   const router = useRouter();
   const { activeProjectId } = useActiveProjectContext();
 
-  const [tab, setTab] = useState<InventoryTab>('Inventory Info');
+  const [tab, setTab] = useState<InventoryTab>('Grid View');
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [wingNames, setWingNames] = useState<string[]>([]);
@@ -931,7 +937,7 @@ export default function InventoryPage() {
                 : undefined
             }
           >
-            {t}
+            {inventoryTabLabel(t)}
           </button>
         ))}
       </div>
@@ -1057,6 +1063,11 @@ export default function InventoryPage() {
 
       {tab === 'Grid View' && (
         <>
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
+            <span className="font-semibold text-slate-800">Sales view: </span>
+            choose wing and floor, then click a cell for unit details. Status
+            colours match the legend on the right of the filters.
+          </div>
           <div
             className={cn(
               'flex flex-wrap items-center gap-2.5 px-4 py-3',
@@ -1600,16 +1611,16 @@ export default function InventoryPage() {
             )}
           >
             <div className="text-xs font-bold text-slate-800">
-              Unit Abstraction
+              Interactive map (coming soon)
             </div>
             <p className="text-[10px] leading-relaxed text-slate-500">
-              Full MapLibre GL + 3D extrusions (as in the POS prototype) are not
-              bundled in this app. Use the grid and floor plan tabs for spatial
-              views; install <code className="text-slate-700">maplibre-gl</code>{' '}
-              and wire scene GeoJSON to enable an interactive map here.
+              Full MapLibre GL + 3D extrusions are not bundled yet. Prefer the{' '}
+              <strong>Grid view</strong> tab for sales-ready inventory. To enable
+              this tab, install <code className="text-slate-700">maplibre-gl</code>{' '}
+              and wire scene GeoJSON.
             </p>
-            <div className="rounded-lg border border-dashed border-slate-300 p-2.5 text-[10px] text-slate-500">
-              No map layer — placeholder matches prototype layout.
+            <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50/80 p-2.5 text-[10px] text-amber-900">
+              Placeholder only — no live map layer in this build.
             </div>
             <div className="max-h-[280px] overflow-y-auto border-t border-slate-100 pt-2">
               {[...new Set(units.map((u) => u.wing_name))]

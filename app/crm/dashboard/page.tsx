@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
@@ -121,6 +122,42 @@ export default function DashboardPage() {
           {error}
         </div>
       ) : null}
+
+      <Card className="border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-4">
+        <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/80">
+          Next actions
+        </div>
+        <p className="mt-1 text-[11px] text-blue-900/60">
+          Jump to daily follow-up, inventory matrix, finance, or leads.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/crm/work"
+            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
+          >
+            Work queue
+          </Link>
+          <Link
+            href="/crm/inquiry"
+            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
+          >
+            Leads & pipeline
+          </Link>
+          <Link
+            href="/crm/inventory"
+            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
+          >
+            Inventory grid
+          </Link>
+          <Link
+            href="/crm/financials#crm-financials-overdue"
+            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
+          >
+            Overdue demands
+          </Link>
+        </div>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

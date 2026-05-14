@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getSupabasePublicEnv } from '@/lib/supabase/env';
+import { PortalNav } from './_components/portal-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,11 +36,9 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       <header className="border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <span className="text-sm font-semibold text-slate-900">Buyer portal</span>
-          <Link href="/crm/dashboard" className="text-xs text-slate-600 underline">
-            Staff CRM
-          </Link>
         </div>
       </header>
+      <PortalNav />
       <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
     </div>
   );

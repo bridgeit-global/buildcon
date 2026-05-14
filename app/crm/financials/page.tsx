@@ -223,6 +223,20 @@ export default function FinancialsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const scrollToOverdue = () => {
+      if (window.location.hash !== '#crm-financials-overdue') return;
+      document.getElementById('crm-financials-overdue')?.scrollIntoView({
+        block: 'start',
+        behavior: 'smooth'
+      });
+    };
+    scrollToOverdue();
+    window.addEventListener('hashchange', scrollToOverdue);
+    return () => window.removeEventListener('hashchange', scrollToOverdue);
+  }, [overdueRows.length, activeProjectId]);
+
   const receivedBySchedule = collections.reduce<Record<string, number>>(
     (acc, c) => {
       if (c.schedule_id) acc[c.schedule_id] = (acc[c.schedule_id] || 0) + c.received_amount;
@@ -546,72 +560,74 @@ export default function FinancialsPage() {
         </div>
       </Card>
 
-      <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-gray-900">
-            Overdue demands (ledger view)
+      <div id="crm-financials-overdue">
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-900">
+              Overdue demands (ledger view)
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadOverdue()}
+              disabled={loadingOverdue}
+            >
+              Refresh
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void loadOverdue()}
-            disabled={loadingOverdue}
-          >
-            Refresh
-          </Button>
-        </div>
-        <div className="mt-3 overflow-auto">
-          <table className="min-w-[800px] w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500">
-              <tr>
-                {['Booking', '#', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
-                  (h) => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold border-b">
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {overdueRows.map((r) => (
-                <tr key={r.schedule_id} className="border-b">
-                  <td className="px-3 py-2 font-mono text-xs">{r.booking_id}</td>
-                  <td className="px-3 py-2 text-gray-600">
-                    {r.instalment_no != null ? r.instalment_no : '—'}
-                  </td>
-                  <td className="px-3 py-2">{r.milestone}</td>
-                  <td className="px-3 py-2 text-gray-600">{r.due_date ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    ₹{' '}
-                    {formatInr(Number(r.demand_amount), {
-                      maximumFractionDigits: 0
-                    })}
-                  </td>
-                  <td className="px-3 py-2 text-red-700 font-semibold">
-                    ₹{' '}
-                    {formatInr(Number(r.outstanding_amount), {
-                      maximumFractionDigits: 0
-                    })}
-                  </td>
-                </tr>
-              ))}
-              {overdueRows.length === 0 ? (
+          <div className="mt-3 overflow-auto">
+            <table className="min-w-[800px] w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
-                    {loadingOverdue
-                      ? 'Loading…'
-                      : activeProjectId
-                        ? 'No overdue schedule lines for this project.'
-                        : 'Select a project.'}
-                  </td>
+                  {['Booking', '#', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
+                    (h) => (
+                      <th key={h} className="px-3 py-2 text-left font-semibold border-b">
+                        {h}
+                      </th>
+                    )
+                  )}
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {overdueRows.map((r) => (
+                  <tr key={r.schedule_id} className="border-b">
+                    <td className="px-3 py-2 font-mono text-xs">{r.booking_id}</td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {r.instalment_no != null ? r.instalment_no : '—'}
+                    </td>
+                    <td className="px-3 py-2">{r.milestone}</td>
+                    <td className="px-3 py-2 text-gray-600">{r.due_date ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      ₹{' '}
+                      {formatInr(Number(r.demand_amount), {
+                        maximumFractionDigits: 0
+                      })}
+                    </td>
+                    <td className="px-3 py-2 text-red-700 font-semibold">
+                      ₹{' '}
+                      {formatInr(Number(r.outstanding_amount), {
+                        maximumFractionDigits: 0
+                      })}
+                    </td>
+                  </tr>
+                ))}
+                {overdueRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
+                      {loadingOverdue
+                        ? 'Loading…'
+                        : activeProjectId
+                          ? 'No overdue schedule lines for this project.'
+                          : 'Select a project.'}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -41,6 +41,9 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+/** Next.js 16+ edge entry: keep logic in `proxy` and export as `middleware`. */
+export const middleware = proxy;
+
 export const config = {
   matcher: [
     /*

@@ -6,11 +6,19 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Building2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   LogOut
 } from 'lucide-react';
-import { CRM_NAV } from './nav';
+import {
+  CRM_NAV_GROUPS,
+  flattenCrmNav,
+  getDefaultNavSectionOpen,
+  matchCrmNavItem,
+  persistNavSectionOpen,
+  readNavSectionOpenFromStorage
+} from './nav';
 import type { CrmProject } from './types';
 import { useActiveProject } from './use-active-project';
 import { ActiveProjectProvider } from './active-project-context';
@@ -52,26 +60,50 @@ export function CrmShell({
     useActiveProject(projects);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(getDefaultNavSectionOpen);
 
   const showRehab =
     !activeProject || activeProject.type?.toLowerCase() !== 'greenfield';
 
-  const navItems = useMemo(
-    () =>
-      CRM_NAV.filter((i) => (showRehab ? true : i.id !== 'rehab')).map(
-        (item) => ({
-          ...item,
-          showAdminDivider: item.id === 'users'
-        })
-      ),
+  const flatNav = useMemo(
+    () => flattenCrmNav({ showRehab }),
     [showRehab]
   );
 
-  const matchedNav = CRM_NAV.find(
-    (n) => pathname === n.href || pathname.startsWith(`${n.href}/`)
+  useEffect(() => {
+    const stored = readNavSectionOpenFromStorage();
+    if (!stored) return;
+    setSectionOpen((prev) => {
+      const next = { ...prev };
+      for (const g of CRM_NAV_GROUPS) {
+        if (typeof stored[g.id] === 'boolean') next[g.id] = stored[g.id]!;
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSection = (groupId: string) => {
+    setSectionOpen((prev) => {
+      const next = { ...prev, [groupId]: !prev[groupId] };
+      persistNavSectionOpen(next);
+      return next;
+    });
+  };
+
+  const matchedNav = useMemo(
+    () => matchCrmNavItem(pathname, flatNav),
+    [pathname, flatNav]
   );
-  const pageHeading =
-    matchedNav?.pageTitle ?? matchedNav?.label ?? 'BuildCon CRM';
+
+  const pageHeading = pathname.startsWith('/crm/select-project')
+    ? 'Select project'
+    : (matchedNav?.pageTitle ?? matchedNav?.label ?? 'BuildCon CRM');
+
+  const isDashboardRoot = pathname === '/crm/dashboard';
+  const onSelectProject = pathname.startsWith('/crm/select-project');
+  const breadcrumbModule = onSelectProject
+    ? 'Select project'
+    : (matchedNav?.label ?? pageHeading);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -214,33 +246,73 @@ export function CrmShell({
             )}
             aria-label="Main navigation"
           >
-            {navItems.map((item) => (
-              <Fragment key={item.id}>
-                {item.showAdminDivider ? (
-                  sidebarCollapsed ? (
-                    <div
-                      className="mx-0.5 my-2 border-t border-white/15"
-                      role="separator"
-                      aria-hidden
-                    />
-                  ) : (
-                    <div className="px-1.5 pb-1.5 pt-2.5 text-[9px] font-extrabold uppercase tracking-widest text-white/35">
-                      Admin
-                    </div>
-                  )
-                ) : null}
-                <CrmNavLink
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  collapsed={sidebarCollapsed}
-                  active={
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`)
-                  }
-                />
-              </Fragment>
-            ))}
+            {sidebarCollapsed
+              ? flatNav.map((item) => (
+                  <CrmNavLink
+                    key={item.id}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                    collapsed
+                    active={
+                      pathname === item.href ||
+                      pathname.startsWith(`${item.href}/`)
+                    }
+                  />
+                ))
+              : CRM_NAV_GROUPS.map((group, gi) => {
+                  const visible = group.items.filter(
+                    (i) => i.id !== 'rehab' || showRehab
+                  );
+                  if (!visible.length) return null;
+                  const open = sectionOpen[group.id] ?? true;
+                  const isAdmin = group.id === 'admin';
+                  return (
+                    <Fragment key={group.id}>
+                      {isAdmin ? (
+                        <div
+                          className="mx-0.5 my-2 border-t border-white/15"
+                          role="separator"
+                          aria-hidden
+                        />
+                      ) : null}
+                      <div className={cn(gi > 0 && !isAdmin ? 'mt-2' : '')}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSection(group.id)}
+                          className="flex w-full items-center justify-between gap-1 rounded-md px-1.5 py-1.5 text-left text-[9px] font-extrabold uppercase tracking-widest text-white/40 transition-colors hover:bg-white/5 hover:text-white/55"
+                          aria-expanded={open}
+                        >
+                          <span className="truncate">{group.label}</span>
+                          <ChevronDown
+                            className={cn(
+                              'size-3.5 shrink-0 text-white/35 transition-transform',
+                              open ? 'rotate-0' : '-rotate-90'
+                            )}
+                            aria-hidden
+                          />
+                        </button>
+                        {open ? (
+                          <div className="space-y-px pb-1">
+                            {visible.map((item) => (
+                              <CrmNavLink
+                                key={item.id}
+                                href={item.href}
+                                label={item.label}
+                                icon={item.icon}
+                                collapsed={false}
+                                active={
+                                  pathname === item.href ||
+                                  pathname.startsWith(`${item.href}/`)
+                                }
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </Fragment>
+                  );
+                })}
           </nav>
 
           <div
@@ -295,6 +367,33 @@ export function CrmShell({
         >
           <main className="crm-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="p-4">
+              <nav
+                className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-[#667085]"
+                aria-label="Breadcrumb"
+              >
+                <Link
+                  href="/crm/dashboard"
+                  className="font-medium text-[#475467] underline-offset-2 hover:text-[#101828] hover:underline"
+                >
+                  Dashboard
+                </Link>
+                <span className="text-[#98A2B3]" aria-hidden>
+                  /
+                </span>
+                <span className="max-w-[200px] truncate">
+                  {onSelectProject ? 'Select project' : (activeProject?.name ?? '—')}
+                </span>
+                {!isDashboardRoot && !onSelectProject ? (
+                  <>
+                    <span className="text-[#98A2B3]" aria-hidden>
+                      /
+                    </span>
+                    <span className="max-w-[220px] truncate font-medium text-[#101828]">
+                      {breadcrumbModule}
+                    </span>
+                  </>
+                ) : null}
+              </nav>
               <div className="mb-3">
                 <h1 className="text-base font-bold leading-snug text-[#101828]">
                   {pageHeading}
