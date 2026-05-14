@@ -12,6 +12,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { formatUnitAgreementValueCompact } from '../inr-format';
 import {
   STRUCTURE_KINDS,
   type FloorProvisionDraft,
@@ -337,8 +338,9 @@ export function FloorConfigureStep({
               Floor-wise configure
             </div>
             <div className="mt-0.5 text-[10px] text-muted-foreground">
-              Set units per floor, types, areas, and rates. Floor area is the
-              sum of unit areas.
+              Set units per floor: carpet/BUA/RERA, outdoor areas, rate, floor-rise
+              and PLC, and parking per unit. Floor area is the sum of legacy unit
+              areas.
             </div>
           </div>
           <Button
@@ -624,102 +626,225 @@ function UnitConfigBlock({
     onPatchProvision(actualIdx, { unitConfigs: list });
   }
 
+  const effRate = uCfg.rate || cfg.rate || baseRate;
+  const listPreview = formatUnitAgreementValueCompact({
+    area: uCfg.area,
+    carpet_area: uCfg.carpet_area ?? null,
+    bua_area: uCfg.bua_area ?? null,
+    rate: effRate,
+    floor_rise_charge: uCfg.floor_rise_charge ?? null,
+    plc_charge: uCfg.plc_charge ?? null
+  });
+
+  function patchField<K extends keyof UnitConfigDraft>(
+    key: K,
+    value: UnitConfigDraft[K]
+  ) {
+    syncUnitConfigs((list) =>
+      list.map((x) => (x.unitNo === uCfg.unitNo ? { ...x, [key]: value } : x))
+    );
+  }
+
+  function optionalSqft(
+    key:
+      | 'carpet_area'
+      | 'bua_area'
+      | 'rera_area'
+      | 'terrace_sqft'
+      | 'deck_sqft'
+      | 'loading_sqft',
+    label: string
+  ) {
+    const raw = uCfg[key];
+    return (
+      <div key={key}>
+        <Label className="text-[10px] text-muted-foreground">{label}</Label>
+        <Input
+          type="number"
+          min={0}
+          placeholder="—"
+          value={raw != null && raw > 0 ? raw : ''}
+          className="h-8 text-[11px]"
+          onChange={(e) => {
+            const t = e.target.value.trim();
+            if (t === '') {
+              patchField(key, undefined);
+              return;
+            }
+            const v = Math.max(0, Number(t) || 0);
+            patchField(key, v > 0 ? v : undefined);
+          }}
+        />
+      </div>
+    );
+  }
+
+  function optionalInr(
+    key: 'floor_rise_charge' | 'plc_charge',
+    label: string
+  ) {
+    const raw = uCfg[key];
+    return (
+      <div key={key}>
+        <Label className="text-[10px] text-muted-foreground">{label}</Label>
+        <Input
+          type="number"
+          min={0}
+          placeholder="0"
+          value={raw != null ? raw : ''}
+          className="h-8 text-[11px]"
+          onChange={(e) => {
+            const t = e.target.value.trim();
+            if (t === '') {
+              patchField(key, undefined);
+              return;
+            }
+            patchField(key, Math.max(0, Math.round(Number(t) || 0)));
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-2 rounded-md border border-slate-100 bg-slate-50/80 p-2 sm:grid-cols-2 lg:grid-cols-6">
-      <div>
-        <Label className="text-[10px] text-muted-foreground">
-          Unit {uCfg.unitNo} name
-        </Label>
-        <Input
-          value={uCfg.name || ''}
-          placeholder={`Auto (e.g. ${cfg.floor || 1}0${uCfg.unitNo})`}
-          className="h-8 text-[11px]"
-          onChange={(e) => {
-            const v = e.target.value;
-            syncUnitConfigs((list) =>
-              list.map((x) =>
-                x.unitNo === uCfg.unitNo ? { ...x, name: v } : x
-              )
-            );
-          }}
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] text-muted-foreground">
-          Unit {uCfg.unitNo} type
-        </Label>
-        <Select
-          value={uCfg.type ? uCfg.type : UNIT_TYPE_AUTO_VALUE}
-          onValueChange={(v) => {
-            syncUnitConfigs((list) =>
-              list.map((x) =>
-                x.unitNo === uCfg.unitNo
-                  ? {
-                      ...x,
-                      type: v === UNIT_TYPE_AUTO_VALUE ? '' : v
-                    }
-                  : x
-              )
-            );
-          }}
-        >
-          <SelectTrigger
-            size="sm"
-            className="mt-1 h-8 w-full px-2 text-[11px] shadow-none"
+    <div className="flex flex-col gap-2 rounded-md border border-slate-100 bg-slate-50/80 p-2">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">
+            Unit {uCfg.unitNo} name
+          </Label>
+          <Input
+            value={uCfg.name || ''}
+            placeholder={`Auto (e.g. ${cfg.floor || 1}0${uCfg.unitNo})`}
+            className="h-8 text-[11px]"
+            onChange={(e) => {
+              const v = e.target.value;
+              syncUnitConfigs((list) =>
+                list.map((x) =>
+                  x.unitNo === uCfg.unitNo ? { ...x, name: v } : x
+                )
+              );
+            }}
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">
+            Unit {uCfg.unitNo} type
+          </Label>
+          <Select
+            value={uCfg.type ? uCfg.type : UNIT_TYPE_AUTO_VALUE}
+            onValueChange={(v) => {
+              syncUnitConfigs((list) =>
+                list.map((x) =>
+                  x.unitNo === uCfg.unitNo
+                    ? {
+                        ...x,
+                        type: v === UNIT_TYPE_AUTO_VALUE ? '' : v
+                      }
+                    : x
+                )
+              );
+            }}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={UNIT_TYPE_AUTO_VALUE}>Auto</SelectItem>
-            {unitTypes.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger
+              size="sm"
+              className="mt-1 h-8 w-full px-2 text-[11px] shadow-none"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIT_TYPE_AUTO_VALUE}>Auto</SelectItem>
+              {unitTypes.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">
+            Sale area (sq.ft)
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            value={uCfg.area}
+            className="h-8 text-[11px]"
+            onChange={(e) => {
+              const v = Math.max(1, Number(e.target.value) || 1);
+              syncUnitConfigs((list) =>
+                list.map((x) =>
+                  x.unitNo === uCfg.unitNo ? { ...x, area: v } : x
+                )
+              );
+            }}
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">
+            Rate (₹/sq.ft)
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            value={effRate}
+            className="h-8 text-[11px]"
+            onChange={(e) => {
+              const v = Math.max(1, Number(e.target.value) || 1);
+              syncUnitConfigs((list) =>
+                list.map((x) =>
+                  x.unitNo === uCfg.unitNo ? { ...x, rate: v } : x
+                )
+              );
+            }}
+          />
+        </div>
+        <div className="flex flex-col justify-end lg:col-span-2">
+          <div className="text-[10px] font-semibold text-slate-700">
+            List price (preview)
+          </div>
+          <div className="text-[11px] font-bold text-blue-600">{listPreview}</div>
+          <div className="text-[9px] text-muted-foreground">
+            {uCfg.type || 'Auto'} · carpet/BUA override sale area for pricing
+          </div>
+        </div>
       </div>
-      <div>
-        <Label className="text-[10px] text-muted-foreground">
-          Unit {uCfg.unitNo} area
-        </Label>
-        <Input
-          type="number"
-          min={1}
-          value={uCfg.area}
-          className="h-8 text-[11px]"
-          onChange={(e) => {
-            const v = Math.max(1, Number(e.target.value) || 1);
-            syncUnitConfigs((list) =>
-              list.map((x) =>
-                x.unitNo === uCfg.unitNo ? { ...x, area: v } : x
-              )
-            );
-          }}
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] text-muted-foreground">
-          Unit {uCfg.unitNo} rate
-        </Label>
-        <Input
-          type="number"
-          min={1}
-          value={uCfg.rate || cfg.rate || baseRate}
-          className="h-8 text-[11px]"
-          onChange={(e) => {
-            const v = Math.max(1, Number(e.target.value) || 1);
-            syncUnitConfigs((list) =>
-              list.map((x) =>
-                x.unitNo === uCfg.unitNo ? { ...x, rate: v } : x
-              )
-            );
-          }}
-        />
-      </div>
-      <div className="flex items-end pb-1 text-[10px] text-muted-foreground lg:col-span-2">
-        {uCfg.type || 'Auto'} · {uCfg.area} sq.ft · ₹
-        {(uCfg.rate || cfg.rate || 0).toLocaleString('en-IN')}
+
+      <div className="grid gap-2 border-t border-slate-200/80 pt-2 sm:grid-cols-3 lg:grid-cols-9">
+        {optionalSqft('carpet_area', 'Carpet')}
+        {optionalSqft('bua_area', 'BUA')}
+        {optionalSqft('rera_area', 'RERA')}
+        {optionalSqft('terrace_sqft', 'Terrace')}
+        {optionalSqft('deck_sqft', 'Deck')}
+        {optionalSqft('loading_sqft', 'Loading')}
+        {optionalInr('floor_rise_charge', 'Floor-rise ₹')}
+        {optionalInr('plc_charge', 'PLC ₹')}
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Pk slots</Label>
+          <Input
+            type="number"
+            min={0}
+            placeholder="0"
+            value={
+              uCfg.parking_slots_included != null
+                ? uCfg.parking_slots_included
+                : ''
+            }
+            className="h-8 text-[11px]"
+            onChange={(e) => {
+              const t = e.target.value.trim();
+              if (t === '') {
+                patchField('parking_slots_included', undefined);
+                return;
+              }
+              patchField(
+                'parking_slots_included',
+                Math.max(0, Math.floor(Number(t) || 0))
+              );
+            }}
+          />
+        </div>
       </div>
     </div>
   );

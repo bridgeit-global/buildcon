@@ -17,6 +17,15 @@ type FloorProvisionInput = {
     type?: string;
     area: number;
     rate: number;
+    carpet_area?: number | null;
+    bua_area?: number | null;
+    rera_area?: number | null;
+    terrace_sqft?: number | null;
+    deck_sqft?: number | null;
+    loading_sqft?: number | null;
+    floor_rise_charge?: number | null;
+    plc_charge?: number | null;
+    parking_slots_included?: number | null;
   }>;
 };
 
@@ -59,6 +68,22 @@ function wingSlugForUnitCode(wingName: string, wingIndex: number) {
 function pickFrom<T>(arr: T[], idx: number) {
   if (arr.length === 0) throw new Error('Empty list');
   return arr[idx % arr.length];
+}
+
+function positiveSqftOrNull(v: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+function intNonNeg(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n);
+}
+
+function parkingSlotsOnUnit(v: unknown): number {
+  return Math.min(32767, Math.max(0, intNonNeg(v)));
 }
 
 function initialsFromName(name: string | null | undefined) {
@@ -321,7 +346,16 @@ export async function POST(request: Request) {
           unit_code: code,
           unit_type: unitType,
           area,
+          carpet_area: positiveSqftOrNull(uc.carpet_area),
+          bua_area: positiveSqftOrNull(uc.bua_area),
+          rera_area: positiveSqftOrNull(uc.rera_area),
+          terrace_sqft: positiveSqftOrNull(uc.terrace_sqft),
+          deck_sqft: positiveSqftOrNull(uc.deck_sqft),
+          loading_sqft: positiveSqftOrNull(uc.loading_sqft),
           rate,
+          floor_rise_charge: intNonNeg(uc.floor_rise_charge),
+          plc_charge: intNonNeg(uc.plc_charge),
+          parking_slots_included: parkingSlotsOnUnit(uc.parking_slots_included),
           status: 'AVAILABLE'
         });
       }

@@ -49,8 +49,21 @@ export type UnitConfigDraft = {
   unitNo: number;
   name?: string;
   type?: string;
+  /** Legacy / primary saleable sq.ft when carpet & BUA are unset */
   area: number;
   rate: number;
+  carpet_area?: number;
+  bua_area?: number;
+  rera_area?: number;
+  terrace_sqft?: number;
+  deck_sqft?: number;
+  loading_sqft?: number;
+  /** ₹ lump floor-rise for this unit */
+  floor_rise_charge?: number;
+  /** ₹ lump PLC */
+  plc_charge?: number;
+  /** Covered slots bundled with the unit */
+  parking_slots_included?: number;
 };
 
 export type FloorProvisionDraft = {
@@ -221,7 +234,20 @@ export function buildUnitConfigs(
       name: typeof old?.name === 'string' ? old.name : '',
       type: old?.type || '',
       area: Math.max(1, Number(old?.area) || baseArea),
-      rate: Math.max(1, Number(old?.rate) || baseRate)
+      rate: Math.max(1, Number(old?.rate) || baseRate),
+      ...(old
+        ? {
+            carpet_area: old.carpet_area,
+            bua_area: old.bua_area,
+            rera_area: old.rera_area,
+            terrace_sqft: old.terrace_sqft,
+            deck_sqft: old.deck_sqft,
+            loading_sqft: old.loading_sqft,
+            floor_rise_charge: old.floor_rise_charge,
+            plc_charge: old.plc_charge,
+            parking_slots_included: old.parking_slots_included
+          }
+        : {})
     });
   }
   return next;

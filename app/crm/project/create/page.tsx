@@ -447,8 +447,9 @@ export default function CreateProjectPage() {
           {createStep === 1 ? (
             <div className="flex flex-col gap-4">
               <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-800">
-                Set structure names, kinds, area, and floors here. Unit counts
-                and types are refined on the next step (floor-wise).
+                Set structure names, kinds, area, and floors here. Unit counts,
+                types, carpet/BUA/RERA, outdoor areas, rates, floor-rise, PLC,
+                and parking per unit are set floor-wise on the next step.
               </div>
               <InventoryConfigSummary
                 draftName={draft.name}
@@ -561,8 +562,9 @@ export default function CreateProjectPage() {
           {createStep === 3 ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
-                Rates are used as defaults when seeding units. Individual units
-                can be adjusted later.
+                Base rate seeds new floor rows and default ₹/sq.ft per unit.
+                Carpet/BUA, floor-rise, PLC, and bundled parking are configured
+                on the Inventory floor step (previous step).
               </div>
               <div className="col-span-2">
                 <Label>Base rate (₹/sq.ft)</Label>
