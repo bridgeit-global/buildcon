@@ -1,0 +1,30 @@
+---
+description: Default to tablet- and mobile-friendly UI and UX whenever building or changing interfaces.
+alwaysApply: true
+---
+
+# Responsive UI and UX (mobile and tablet)
+
+Whenever you add or edit user-facing UI, treat **small and medium viewports** as first-class, not desktop-only polish.
+
+## Layout and structure
+
+- Prefer **fluid layouts** (flex/grid with `minmax`, `fr`, `clamp`, `%`) over fixed pixel widths for main content.
+- Use **responsive breakpoints** (Tailwind `sm`/`md`/`lg` or project tokens) so navigation, sidebars, tables, and multi-column sections **stack or collapse** instead of overflowing horizontally.
+- Avoid horizontal scroll for core reading paths; if a table or wide control is unavoidable on small screens, provide **scroll within a bounded region** or an **alternate compact view** (cards, key columns only).
+
+## Touch and interaction
+
+- **Minimum tap targets** ~44×44px (use padding on links/buttons, not tiny icon-only hit areas without adequate touch padding).
+- Ensure **spacing between** interactive elements so taps do not mis-hit adjacent controls.
+- Do not rely on **hover-only** affordances for critical actions; duplicate or surface the same action for touch (menus, tooltips, row actions).
+
+## Typography and density
+
+- Use **readable base sizes** on small screens; avoid cramming desktop-density grids into mobile without reducing columns or hiding nonessential columns behind toggles.
+- Long forms: **logical grouping**, single-column on narrow widths, and clear primary actions (sticky footer or obvious CTA placement where the stack already does this).
+
+## Verification mindset
+
+- After UI changes, **mentally check** (or briefly describe) behavior at ~375px width (phone) and ~768px width (tablet): overflow, tap targets, nav, modals/dialogs, and tables.
+- If the project already uses a design system or breakpoint conventions, **match them** before inventing new patterns.
