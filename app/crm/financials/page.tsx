@@ -49,6 +49,7 @@ type CollectionRow = {
 type OverdueRow = {
   booking_id: string;
   schedule_id: string;
+  instalment_no?: number;
   milestone: string;
   due_date: string | null;
   demand_amount: number;
@@ -81,6 +82,7 @@ export default function FinancialsPage() {
   const [saving, setSaving] = useState(false);
   const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
   const [loadingOverdue, setLoadingOverdue] = useState(false);
+  const [exporting, setExporting] = useState<null | 'ledger' | 'receipts'>(null);
 
   async function loadOverdue() {
     if (!activeProjectId) {
@@ -91,7 +93,7 @@ export default function FinancialsPage() {
     const { data, error: oErr } = await supabase
       .from('v_payment_schedule_outstanding')
       .select(
-        'booking_id,schedule_id,milestone,due_date,demand_amount,outstanding_amount,customer_id'
+        'booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id'
       )
       .eq('project_id', activeProjectId)
       .eq('is_overdue', true)
@@ -147,6 +149,37 @@ export default function FinancialsPage() {
     }
 
     setLoading(false);
+  }
+
+  async function downloadFinancialsExport(kind: 'ledger' | 'receipts') {
+    if (!activeProjectId) return;
+    setExporting(kind);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/crm/projects/${activeProjectId}/financials/export?kind=${kind}`,
+        { credentials: 'same-origin' }
+      );
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || res.statusText);
+      }
+      const cd = res.headers.get('Content-Disposition');
+      let name = kind === 'ledger' ? 'ledger.csv' : 'receipts.csv';
+      const m = cd?.match(/filename="([^"]+)"/);
+      if (m?.[1]) name = m[1];
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
   }
 
   async function loadFinancials() {
@@ -263,6 +296,22 @@ export default function FinancialsPage() {
           </div>
 
           <div className="flex-1" />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!activeProjectId || exporting !== null}
+            onClick={() => void downloadFinancialsExport('ledger')}
+          >
+            {exporting === 'ledger' ? 'Exporting…' : 'Export ledger CSV'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!activeProjectId || exporting !== null}
+            onClick={() => void downloadFinancialsExport('receipts')}
+          >
+            {exporting === 'receipts' ? 'Exporting…' : 'Export receipts CSV'}
+          </Button>
           <Button variant="outline" onClick={loadBookings} disabled={loading}>
             Refresh
           </Button>
@@ -516,7 +565,7 @@ export default function FinancialsPage() {
           <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
-                {['Booking', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
+                {['Booking', '#', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
                   (h) => (
                     <th key={h} className="px-3 py-2 text-left font-semibold border-b">
                       {h}
@@ -529,6 +578,9 @@ export default function FinancialsPage() {
               {overdueRows.map((r) => (
                 <tr key={r.schedule_id} className="border-b">
                   <td className="px-3 py-2 font-mono text-xs">{r.booking_id}</td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {r.instalment_no != null ? r.instalment_no : '—'}
+                  </td>
                   <td className="px-3 py-2">{r.milestone}</td>
                   <td className="px-3 py-2 text-gray-600">{r.due_date ?? '—'}</td>
                   <td className="px-3 py-2">
@@ -547,7 +599,7 @@ export default function FinancialsPage() {
               ))}
               {overdueRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
                     {loadingOverdue
                       ? 'Loading…'
                       : activeProjectId

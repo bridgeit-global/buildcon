@@ -18,6 +18,7 @@ Staff CRM built with Next.js (App Router) and Supabase.
 - ✅ Sales pipeline (opportunities, funnel stages, follow-ups, site visits) on inquiries
 - ✅ Quotations + project pricing profile (GST / stamp duty / registration estimates)
 - ✅ Collections ledger view (demand vs receipts, outstanding, overdue) for dashboards and finance
+- ✅ Financials CSV export (ledger + receipts) for spreadsheets and manual Tally / ERP import
 - ✅ Construction-linked demand (CLD) stages and completions
 - ✅ Possession & handover cases (checklist / snag JSON, workflow stages)
 - ✅ Buyer portal at `/portal` for customers linked on their profile (read own bookings and related data)
