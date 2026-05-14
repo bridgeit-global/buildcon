@@ -26,7 +26,11 @@ import {
 } from '../booking-cost-utils';
 import { formatUnitAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
-import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
+import {
+  formatFloorLabel,
+  isUnitSelectableForInquiry,
+  statusLabelForUnit
+} from '../inventory/inventory-utils';
 import type { UnitRow } from './inquiry-types';
 
 const INTEREST_TYPES = [
@@ -63,9 +67,9 @@ const INQUIRY_INTEREST_ALL = '__inquiry_interest_all__';
 
 const STEPS = [
   { id: 1, label: 'Customer' },
-  { id: 2, label: 'Inquiry' },
-  { id: 3, label: 'Unit' },
-  { id: 4, label: 'Review' }
+  { id: 2, label: 'Select unit' },
+  { id: 3, label: 'Unit details' },
+  { id: 4, label: 'Confirm' }
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
 
@@ -110,6 +114,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   });
 
   const [step, setStep] = useState<StepId>(1);
+  const [unitPickFilters, setUnitPickFilters] = useState({
+    unitType: '',
+    floor: '',
+    structure: ''
+  });
 
   useEffect(() => {
     void (async () => {
@@ -200,21 +209,42 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     );
   }, [sellerForm]);
 
-  const suggestionUnits = useMemo(() => {
-    const wantedType = String(sellerForm.interestedIn || '')
-      .toLowerCase()
-      .replace(/\s+/g, '');
-    return (units || [])
-      .filter((u) => isUnitSelectableForInquiry(u.status))
-      .filter((u) => {
-        if (!wantedType) return true;
-        const unitType = String(u.unit_type || '')
-          .toLowerCase()
-          .replace(/\s+/g, '');
-        return unitType.includes(wantedType);
-      })
-      .slice(0, 8);
-  }, [units, sellerForm.interestedIn]);
+  const selectableUnits = useMemo(
+    () => (units || []).filter((u) => isUnitSelectableForInquiry(u.status)),
+    [units]
+  );
+
+  const unitPickFilterOptions = useMemo(() => {
+    const typeSet = new Set<string>();
+    const floors = new Set<number>();
+    const structures = new Set<string>();
+    for (const u of selectableUnits) {
+      const t = String(u.unit_type || '').trim();
+      if (t) typeSet.add(t);
+      if (Number.isFinite(u.floor)) floors.add(u.floor);
+      const w = String(u.wing_name || '').trim();
+      if (w) structures.add(w);
+    }
+    return {
+      unitTypes: [...typeSet].sort((a, b) => a.localeCompare(b)),
+      floors: [...floors].sort((a, b) => b - a),
+      structures: [...structures].sort((a, b) => a.localeCompare(b))
+    };
+  }, [selectableUnits]);
+
+  const filteredSelectableUnits = useMemo(() => {
+    const wantType = String(unitPickFilters.unitType || '').trim();
+    const wantFloor = String(unitPickFilters.floor || '').trim();
+    const wantStructure = String(unitPickFilters.structure || '').trim();
+    return selectableUnits.filter((u) => {
+      if (wantType && String(u.unit_type || '').trim() !== wantType)
+        return false;
+      if (wantFloor && String(u.floor) !== wantFloor) return false;
+      if (wantStructure && String(u.wing_name || '').trim() !== wantStructure)
+        return false;
+      return true;
+    });
+  }, [selectableUnits, unitPickFilters]);
 
   const selectedUnit = useMemo(() => {
     const id = String(sellerForm.selectedUnitId || '').trim();
@@ -227,14 +257,16 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       String(sellerForm.customerName || '').trim().length >= 2 &&
       normalizePhone(sellerForm.phone).length === 10 &&
       Boolean(userLabel.id);
-    const inquiryOk =
+    const leadOk =
       sellerForm.leadSource !== 'Broker' ||
       Boolean(String(sellerForm.brokerId || '').trim());
     const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
-    return { 1: customerOk, 2: inquiryOk, 3: unitOk, 4: true } as Record<
-      StepId,
-      boolean
-    >;
+    return {
+      1: customerOk && leadOk,
+      2: unitOk,
+      3: unitOk,
+      4: true
+    } as Record<StepId, boolean>;
   }, [sellerForm, userLabel.id]);
 
   const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
@@ -402,6 +434,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       notes: ''
     });
     setStep(1);
+    setUnitPickFilters({ unitType: '', floor: '', structure: '' });
   }
 
   async function saveInquiry() {
@@ -467,36 +500,38 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       />
 
       {step === 1 ? (
-        <StepCustomer
+        <StepCustomerAndLead
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
+          brokers={brokers}
           signedIn={Boolean(userLabel.id)}
         />
       ) : null}
 
       {step === 2 ? (
-        <StepInquiry
+        <StepSelectUnit
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
-          brokers={brokers}
-          projectParking={projectParking}
+          loadingUnits={loadingUnits}
+          filteredUnits={filteredSelectableUnits}
+          filterOptions={unitPickFilterOptions}
+          filters={unitPickFilters}
+          setFilters={setUnitPickFilters}
         />
       ) : null}
 
       {step === 3 ? (
-        <StepUnit
+        <StepUnitDetails
           sellerForm={sellerForm}
-          setSellerForm={setSellerForm}
-          suggestionUnits={suggestionUnits}
-          loadingUnits={loadingUnits}
           selectedUnit={selectedUnit}
           projectParking={projectParking}
         />
       ) : null}
 
       {step === 4 ? (
-        <StepReview
+        <StepConfirm
           sellerForm={sellerForm}
+          setSellerForm={setSellerForm}
           selectedUnit={selectedUnit}
           brokers={brokers}
           projectParking={projectParking}
@@ -657,17 +692,27 @@ function Stepper({
   );
 }
 
-function StepCustomer({
+type UnitPickFilters = {
+  unitType: string;
+  floor: string;
+  structure: string;
+};
+
+const UNIT_FILTER_ALL = '__unit_filter_all__';
+
+function StepCustomerAndLead({
   sellerForm,
   setSellerForm,
+  brokers,
   signedIn
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
+  brokers: { id: string; full_name: string }[];
   signedIn: boolean;
 }) {
   return (
-    <div className="mt-6 space-y-3">
+    <div className="mt-6 space-y-4">
       {!signedIn ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           Sign in to save customer details to the database and continue to the
@@ -704,84 +749,329 @@ function StepCustomer({
           placeholder="Email"
         />
       </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <Label>Lead source *</Label>
+          <Select
+            value={sellerForm.leadSource}
+            onValueChange={(v) => {
+              const nv = v as (typeof LEAD_SOURCES)[number];
+              setSellerForm((s) => ({
+                ...s,
+                leadSource: nv,
+                brokerId: nv === 'Broker' ? s.brokerId : ''
+              }));
+            }}
+          >
+            <SelectTrigger className="mt-1 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LEAD_SOURCES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Broker</Label>
+          <Select
+            value={
+              sellerForm.brokerId === '' ? undefined : sellerForm.brokerId
+            }
+            onValueChange={(v) =>
+              setSellerForm((s) => ({ ...s, brokerId: v }))
+            }
+            disabled={sellerForm.leadSource !== 'Broker'}
+          >
+            <SelectTrigger
+              className={cn(
+                'mt-1 w-full',
+                sellerForm.leadSource !== 'Broker' && 'opacity-60'
+              )}
+            >
+              <SelectValue placeholder="Select broker…" />
+            </SelectTrigger>
+            <SelectContent>
+              {brokers.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {sellerForm.leadSource === 'Broker' && brokers.length === 0 ? (
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              No active brokers. Add one under CRM → Brokers.
+            </p>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
 
-function StepInquiry({
+function StepSelectUnit({
   sellerForm,
   setSellerForm,
-  brokers,
+  loadingUnits,
+  filteredUnits,
+  filterOptions,
+  filters,
+  setFilters
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+  loadingUnits: boolean;
+  filteredUnits: UnitRow[];
+  filterOptions: {
+    unitTypes: string[];
+    floors: number[];
+    structures: string[];
+  };
+  filters: UnitPickFilters;
+  setFilters: Dispatch<SetStateAction<UnitPickFilters>>;
+}) {
+  return (
+    <div className="mt-6 space-y-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[140px] flex-1">
+          <Label>Unit type</Label>
+          <Select
+            value={filters.unitType === '' ? UNIT_FILTER_ALL : filters.unitType}
+            onValueChange={(v) =>
+              setFilters((f) => ({
+                ...f,
+                unitType: v === UNIT_FILTER_ALL ? '' : v
+              }))
+            }
+          >
+            <SelectTrigger className="mt-1 w-full">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIT_FILTER_ALL}>All types</SelectItem>
+              {filterOptions.unitTypes.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[140px] flex-1">
+          <Label>Floor</Label>
+          <Select
+            value={filters.floor === '' ? UNIT_FILTER_ALL : filters.floor}
+            onValueChange={(v) =>
+              setFilters((f) => ({
+                ...f,
+                floor: v === UNIT_FILTER_ALL ? '' : v
+              }))
+            }
+          >
+            <SelectTrigger className="mt-1 w-full">
+              <SelectValue placeholder="All floors" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIT_FILTER_ALL}>All floors</SelectItem>
+              {filterOptions.floors.map((fl) => (
+                <SelectItem key={fl} value={String(fl)}>
+                  {formatFloorLabel(fl, null)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[160px] flex-1">
+          <Label>Structure (wing)</Label>
+          <Select
+            value={
+              filters.structure === '' ? UNIT_FILTER_ALL : filters.structure
+            }
+            onValueChange={(v) =>
+              setFilters((f) => ({
+                ...f,
+                structure: v === UNIT_FILTER_ALL ? '' : v
+              }))
+            }
+          >
+            <SelectTrigger className="mt-1 w-full">
+              <SelectValue placeholder="All structures" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIT_FILTER_ALL}>All wings</SelectItem>
+              {filterOptions.structures.map((w) => (
+                <SelectItem key={w} value={w}>
+                  {w}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="text-xs font-semibold text-foreground">
+        Available units
+        {loadingUnits ? (
+          <span className="ml-2 font-normal text-muted-foreground">
+            Loading inventory…
+          </span>
+        ) : (
+          <span className="ml-2 font-normal text-muted-foreground">
+            ({filteredUnits.length} shown)
+          </span>
+        )}
+      </div>
+      <div className="max-h-[min(420px,55vh)] overflow-y-auto rounded-lg border border-border bg-muted/20 p-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredUnits.length === 0 ? (
+            <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+              No units match these filters. Clear a filter or check inventory
+              status.
+            </div>
+          ) : (
+            filteredUnits.map((u) => {
+              const active = sellerForm.selectedUnitId === u.id;
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() =>
+                    setSellerForm((s) => ({ ...s, selectedUnitId: u.id }))
+                  }
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    active
+                      ? 'border-blue-400 bg-blue-50'
+                      : 'border-border bg-background hover:bg-muted/50'
+                  )}
+                >
+                  <div className="text-xs font-bold text-foreground">
+                    {u.unit_code}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    {u.unit_type ?? '—'} · {u.wing_name} ·{' '}
+                    {formatFloorLabel(u.floor, u.unit_type)}
+                  </div>
+                  <div className="mt-1.5 text-xs font-semibold text-foreground">
+                    {formatUnitAgreementValueCompact(u)}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+      {!sellerForm.selectedUnitId ? (
+        <p className="text-[11px] text-muted-foreground">
+          Select a unit, then continue to view full details and pricing.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function StepUnitDetails({
+  sellerForm,
+  selectedUnit,
+  projectParking
+}: {
+  sellerForm: SellerForm;
+  selectedUnit: UnitRow | null;
+  projectParking: ProjectParkingMeta | null;
+}) {
+  if (!selectedUnit) {
+    return (
+      <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+        {sellerForm.selectedUnitId
+          ? 'Selected unit is no longer in the loaded list. Go back and pick another unit.'
+          : 'Choose a unit in the previous step to see its details here.'}
+      </div>
+    );
+  }
+
+  const u = selectedUnit;
+  const specRows: [string, string][] = [
+    ['Unit code', u.unit_code],
+    ['Structure (wing)', u.wing_name || '—'],
+    ['Floor', formatFloorLabel(u.floor, u.unit_type)],
+    ['Unit no.', String(u.unit_no)],
+    ['Unit type', u.unit_type?.trim() || '—'],
+    ['Status', statusLabelForUnit(u.status)],
+    ['Carpet area', u.carpet_area != null ? `${u.carpet_area} sq.ft` : '—'],
+    ['BUA', u.bua_area != null ? `${u.bua_area} sq.ft` : '—'],
+    ['Saleable area', u.area != null ? `${u.area} sq.ft` : '—'],
+    [
+      'Base rate',
+      u.rate != null ? `₹${u.rate.toLocaleString('en-IN')}/sq.ft` : '—'
+    ],
+    [
+      'Floor rise',
+      u.floor_rise_charge != null
+        ? `₹${u.floor_rise_charge.toLocaleString('en-IN')}`
+        : '—'
+    ],
+    [
+      'PLC',
+      u.plc_charge != null
+        ? `₹${u.plc_charge.toLocaleString('en-IN')}`
+        : '—'
+    ]
+  ];
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="rounded-lg border border-border bg-background p-4">
+        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Unit specification
+        </div>
+        <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {specRows.map(([label, value]) => (
+            <div
+              key={label}
+              className="flex items-baseline justify-between gap-3 rounded-md border border-border/80 px-3 py-2"
+            >
+              <dt className="text-[11px] font-semibold text-muted-foreground">
+                {label}
+              </dt>
+              <dd className="text-right text-xs font-semibold text-foreground">
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <CostSheet
+        unit={selectedUnit}
+        parkingRequired={sellerForm.parkingRequired}
+        parkingCount={sellerForm.parkingCount}
+        projectParking={projectParking}
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Parking and enquiry notes are set on the confirmation step. The cost
+        sheet above uses your current parking selection.
+      </p>
+    </div>
+  );
+}
+
+function InquiryPreferenceFields({
+  sellerForm,
+  setSellerForm,
   projectParking
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
-  brokers: { id: string; full_name: string }[];
   projectParking: ProjectParkingMeta | null;
 }) {
   return (
-    <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
       <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-blue-100 bg-blue-50/90 px-3 py-2 text-[11px] text-blue-900">
         <span className="font-semibold">Parking inventory (this project): </span>
         {formatProjectParkingSummary(projectParking)}
-      </div>
-      <div>
-        <Label>Lead source</Label>
-        <Select
-          value={sellerForm.leadSource}
-          onValueChange={(v) => {
-            const nv = v as (typeof LEAD_SOURCES)[number];
-            setSellerForm((s) => ({
-              ...s,
-              leadSource: nv,
-              brokerId: nv === 'Broker' ? s.brokerId : ''
-            }));
-          }}
-        >
-          <SelectTrigger className="mt-1 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LEAD_SOURCES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label>Broker</Label>
-        <Select
-          value={
-            sellerForm.brokerId === '' ? undefined : sellerForm.brokerId
-          }
-          onValueChange={(v) =>
-            setSellerForm((s) => ({ ...s, brokerId: v }))
-          }
-          disabled={sellerForm.leadSource !== 'Broker'}
-        >
-          <SelectTrigger
-            className={cn(
-              'mt-1 w-full',
-              sellerForm.leadSource !== 'Broker' && 'opacity-60'
-            )}
-          >
-            <SelectValue placeholder="Select broker…" />
-          </SelectTrigger>
-          <SelectContent>
-            {brokers.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                {b.full_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {sellerForm.leadSource === 'Broker' && brokers.length === 0 ? (
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            No active brokers. Add one under CRM → Brokers.
-          </p>
-        ) : null}
       </div>
       <div>
         <Label>Interested in</Label>
@@ -873,85 +1163,76 @@ function StepInquiry({
   );
 }
 
-function StepUnit({
+function StepConfirm({
   sellerForm,
   setSellerForm,
-  suggestionUnits,
-  loadingUnits,
   selectedUnit,
+  brokers,
   projectParking
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
-  suggestionUnits: UnitRow[];
-  loadingUnits: boolean;
   selectedUnit: UnitRow | null;
+  brokers: { id: string; full_name: string }[];
   projectParking: ProjectParkingMeta | null;
 }) {
+  const brokerLabel =
+    sellerForm.leadSource === 'Broker' && sellerForm.brokerId
+      ? (brokers.find((b) => b.id === sellerForm.brokerId)?.full_name ?? '—')
+      : '—';
+
+  const customer: [string, string][] = [
+    ['Name', sellerForm.customerName.trim() || '—'],
+    [
+      'Phone',
+      normalizePhone(sellerForm.phone).length === 10
+        ? sellerForm.phone
+        : '—'
+    ],
+    ['Email', sellerForm.email.trim() || '—']
+  ];
+  const leadRows: [string, string][] = [
+    ['Lead source', sellerForm.leadSource],
+    ...(sellerForm.leadSource === 'Broker'
+      ? ([['Broker', brokerLabel]] as [string, string][])
+      : [])
+  ];
   return (
-    <div className="mt-6">
-      <div className="text-xs font-semibold text-foreground">
-        Suggested units
-        {loadingUnits ? (
-          <span className="ml-2 font-normal text-muted-foreground">
-            Loading inventory…
-          </span>
-        ) : null}
+    <div className="mt-6 space-y-4">
+      <div className="rounded-lg border border-border bg-muted/20 p-4">
+        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Inquiry preferences
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Adjust parking and notes before saving. Use the stepper to change
+          customer, lead, or unit.
+        </p>
+        <div className="mt-3">
+          <InquiryPreferenceFields
+            sellerForm={sellerForm}
+            setSellerForm={setSellerForm}
+            projectParking={projectParking}
+          />
+        </div>
       </div>
-      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-        {suggestionUnits.length === 0 ? (
-          <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-            No available units match the current interest type.
-          </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ReviewBlock title="Customer" rows={customer} />
+        <ReviewBlock title="Lead" rows={leadRows} />
+      </div>
+      <div>
+        {selectedUnit ? (
+          <CostSheet
+            unit={selectedUnit}
+            parkingRequired={sellerForm.parkingRequired}
+            parkingCount={sellerForm.parkingCount}
+            projectParking={projectParking}
+          />
         ) : (
-          suggestionUnits.map((u) => {
-            const active = sellerForm.selectedUnitId === u.id;
-            return (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() =>
-                  setSellerForm((s) => ({ ...s, selectedUnitId: u.id }))
-                }
-                className={cn(
-                  'rounded-lg border p-3 text-left transition-colors',
-                  active
-                    ? 'border-blue-400 bg-blue-50'
-                    : 'border-border bg-background hover:bg-muted/50'
-                )}
-              >
-                <div className="text-xs font-bold text-foreground">
-                  {u.unit_code}
-                </div>
-                <div className="mt-0.5 text-[10px] text-muted-foreground">
-                  {u.unit_type ?? '—'} · {u.wing_name}
-                </div>
-                <div className="mt-1.5 text-xs font-semibold text-foreground">
-                  {formatUnitAgreementValueCompact(u)}
-                </div>
-              </button>
-            );
-          })
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            No unit selected. Go back to step 2 to pick a unit.
+          </div>
         )}
       </div>
-
-      {selectedUnit ? (
-        <CostSheet
-          unit={selectedUnit}
-          parkingRequired={sellerForm.parkingRequired}
-          parkingCount={sellerForm.parkingCount}
-          projectParking={projectParking}
-        />
-      ) : sellerForm.selectedUnitId ? (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Selected unit details are not in the current list. Refresh inventory
-          or pick another unit.
-        </div>
-      ) : (
-        <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-[11px] text-muted-foreground">
-          Pick a unit to see its cost sheet.
-        </div>
-      )}
     </div>
   );
 }
@@ -1010,72 +1291,6 @@ function CostSheet({
         estimated from the project rate. Stamp duty, registration, GST, and
         other charges depend on project terms and local law.
       </p>
-    </div>
-  );
-}
-
-function StepReview({
-  sellerForm,
-  selectedUnit,
-  brokers,
-  projectParking
-}: {
-  sellerForm: SellerForm;
-  selectedUnit: UnitRow | null;
-  brokers: { id: string; full_name: string }[];
-  projectParking: ProjectParkingMeta | null;
-}) {
-  const brokerLabel =
-    sellerForm.leadSource === 'Broker' && sellerForm.brokerId
-      ? (brokers.find((b) => b.id === sellerForm.brokerId)?.full_name ?? '—')
-      : '—';
-
-  const customer: [string, string][] = [
-    ['Name', sellerForm.customerName.trim() || '—'],
-    [
-      'Phone',
-      normalizePhone(sellerForm.phone).length === 10
-        ? sellerForm.phone
-        : '—'
-    ],
-    ['Email', sellerForm.email.trim() || '—']
-  ];
-  const inquiry: [string, string][] = [
-    ['Lead source', sellerForm.leadSource],
-    ...(sellerForm.leadSource === 'Broker'
-      ? ([['Broker', brokerLabel]] as [string, string][])
-      : []),
-    ['Interested in', sellerForm.interestedIn || 'Any'],
-    [
-      'Parking',
-      sellerForm.parkingRequired === 'Yes'
-        ? `Yes · count ${sellerForm.parkingCount}`
-        : 'No'
-    ],
-    [
-      'Parking availability (project)',
-      formatProjectParkingSummary(projectParking)
-    ],
-    ['Notes', sellerForm.notes.trim() || '—']
-  ];
-  return (
-    <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <ReviewBlock title="Customer" rows={customer} />
-      <ReviewBlock title="Inquiry" rows={inquiry} />
-      <div className="lg:col-span-2">
-        {selectedUnit ? (
-          <CostSheet
-            unit={selectedUnit}
-            parkingRequired={sellerForm.parkingRequired}
-            parkingCount={sellerForm.parkingCount}
-            projectParking={projectParking}
-          />
-        ) : (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            No unit selected. Go back to step 3 to pick a unit.
-          </div>
-        )}
-      </div>
     </div>
   );
 }
