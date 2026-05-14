@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { FUNNEL_STAGES, type OpportunityRow } from './inquiry-pipeline-dialog';
 
@@ -30,11 +30,6 @@ function unitDisplayName(u: { unit_code: string; wing_name: string }) {
 type Props = {
   inquiries: PipelineBoardInquiry[];
   loading: boolean;
-  pendingInquiryId: string | null;
-  onStageChange: (
-    inquiryId: string,
-    stage: (typeof FUNNEL_STAGES)[number]
-  ) => void | Promise<void>;
   onOpenPipeline: (inquiryId: string) => void;
 };
 
@@ -48,16 +43,7 @@ export const PIPELINE_KANBAN_STAGES = [
 ] as const;
 
 export function InquiryPipelineBoard(props: Props) {
-  const {
-    inquiries,
-    loading,
-    pendingInquiryId,
-    onStageChange,
-    onOpenPipeline
-  } = props;
-
-  const [dragInquiryId, setDragInquiryId] = useState<string | null>(null);
-  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const { inquiries, loading, onOpenPipeline } = props;
 
   const byStage = useMemo(() => {
     const map = new Map<string, PipelineBoardInquiry[]>();
@@ -92,24 +78,8 @@ export function InquiryPipelineBoard(props: Props) {
               key={stage}
               className={cn(
                 'flex w-[min(100%,220px)] shrink-0 flex-col rounded-lg border bg-muted/15',
-                isOutcome ? 'border-border/80' : 'border-border',
-                dragOverStage === stage && 'ring-2 ring-blue-400/60'
+                isOutcome ? 'border-border/80' : 'border-border'
               )}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                setDragOverStage(stage);
-              }}
-              onDragLeave={() => setDragOverStage((s) => (s === stage ? null : s))}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverStage(null);
-                const id = e.dataTransfer.getData('application/x-inquiry-id');
-                if (!id) return;
-                if (pendingInquiryId) return;
-                void onStageChange(id, stage);
-                setDragInquiryId(null);
-              }}
             >
               <div
                 className={cn(
@@ -128,25 +98,12 @@ export function InquiryPipelineBoard(props: Props) {
                 {column.map((inq) => {
                   const c = embedOne(inq.customers);
                   const u = embedOne(inq.units);
-                  const busy = pendingInquiryId === inq.id;
-                  const dragging = dragInquiryId === inq.id;
                   return (
                     <button
                       key={inq.id}
                       type="button"
-                      draggable={!busy}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/x-inquiry-id', inq.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                        setDragInquiryId(inq.id);
-                      }}
-                      onDragEnd={() => setDragInquiryId(null)}
                       onClick={() => onOpenPipeline(inq.id)}
-                      className={cn(
-                        'w-full cursor-grab rounded-md border border-border bg-card p-2.5 text-left text-xs shadow-sm transition-[opacity,transform] active:cursor-grabbing',
-                        dragging && 'opacity-50',
-                        busy && 'pointer-events-none opacity-60'
-                      )}
+                      className="w-full cursor-pointer rounded-md border border-border bg-card p-2.5 text-left text-xs shadow-sm transition-[opacity,transform]"
                     >
                       <div className="font-semibold leading-snug text-foreground">
                         {c?.full_name ?? '—'}
