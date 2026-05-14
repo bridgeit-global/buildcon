@@ -32,7 +32,6 @@ export type CrmNavItemId =
   | 'documents'
   | 'cld'
   | 'possession'
-  | 'rehab'
   | 'reports'
   | 'bankloans'
   | 'users';
@@ -197,13 +196,6 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         label: 'Bank & loans',
         href: '/crm/bankloans',
         icon: KeySquare
-      },
-      {
-        id: 'rehab',
-        pageTitle: 'Rehab – Members & mapping',
-        label: 'Rehab members',
-        href: '/crm/rehab',
-        icon: Building2
       }
     ]
   },
@@ -256,12 +248,10 @@ export function persistNavSectionOpen(map: Record<string, boolean>) {
   }
 }
 
-/** Flatten nav items; optionally drop rehab for greenfield-only projects */
-export function flattenCrmNav(opts: { showRehab: boolean }): CrmNavItem[] {
+export function flattenCrmNav(): CrmNavItem[] {
   const out: CrmNavItem[] = [];
   for (const g of CRM_NAV_GROUPS) {
     for (const item of g.items) {
-      if (item.id === 'rehab' && !opts.showRehab) continue;
       out.push(item);
     }
   }
@@ -288,4 +278,4 @@ export function matchCrmNavItem(
 }
 
 /** @deprecated Prefer CRM_NAV_GROUPS + flattenCrmNav — kept for funnel imports */
-export const CRM_NAV: CrmNavItem[] = flattenCrmNav({ showRehab: true });
+export const CRM_NAV: CrmNavItem[] = flattenCrmNav();

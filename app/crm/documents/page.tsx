@@ -143,7 +143,7 @@ export default function DocumentsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['All', 'Sales', 'Legal', 'Rehab', 'Other'].map((c) => (
+                {['All', 'Sales', 'Legal', 'Other'].map((c) => (
                   <SelectItem key={c} value={c}>
                     {c}
                   </SelectItem>
@@ -202,7 +202,7 @@ export default function DocumentsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {['Sales', 'Legal', 'Rehab', 'Other'].map((c) => (
+                      {['Sales', 'Legal', 'Other'].map((c) => (
                         <SelectItem key={c} value={c}>
                           {c}
                         </SelectItem>

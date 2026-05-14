@@ -6,18 +6,11 @@ import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInrCompactLacCr } from '../inr-format';
+import { statusLabelForUnit } from '../inventory/unit-status';
 
 type BookingIdRow = { id: string };
 type CollectionSumRow = { received_amount: number };
 type ScheduleSumRow = { amount: number };
-
-const STATUS_LABEL: Record<string, string> = {
-  A: 'Available',
-  B: 'Booked',
-  S: 'Sold',
-  RR: 'Rehab Reserved',
-  BL: 'Blocked'
-};
 
 export default function ReportsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -148,14 +141,20 @@ export default function ReportsPage() {
           Inventory by status
         </div>
         <div className="mt-3 grid grid-cols-3 gap-3">
-          {Object.entries(STATUS_LABEL).map(([k, label]) => (
-            <div key={k} className="rounded-lg border bg-white p-3">
-              <div className="text-xs text-gray-500">{label}</div>
-              <div className="text-lg font-semibold text-gray-900">
-                {unitCounts[k] || 0}
-              </div>
-            </div>
-          ))}
+          {Object.keys(unitCounts).length === 0 ? (
+            <div className="col-span-3 text-xs text-gray-500">No units.</div>
+          ) : (
+            Object.entries(unitCounts)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, n]) => (
+                <div key={k} className="rounded-lg border bg-white p-3">
+                  <div className="text-xs text-gray-500">
+                    {statusLabelForUnit(k)}
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">{n}</div>
+                </div>
+              ))
+          )}
         </div>
       </Card>
 

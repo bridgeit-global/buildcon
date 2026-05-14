@@ -91,7 +91,6 @@ const BLOCK_REASONS = [
   'Legal hold',
   'Management reserve',
   'Bank hold',
-  'Rehab pipeline',
   'Other'
 ];
 

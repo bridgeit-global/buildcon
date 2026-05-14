@@ -9,8 +9,7 @@ export const UNIT_STATUS_CODES = [
   'REGISTERED',
   'PRE_POSSESSION',
   'POSSESSED',
-  'CANCELLED',
-  'REHAB_RSV'
+  'CANCELLED'
 ] as const;
 
 export type UnitStatusCode = (typeof UNIT_STATUS_CODES)[number];
@@ -30,13 +29,11 @@ export const STATUS_LABEL: Record<string, string> = {
   PRE_POSSESSION: 'Possession ready',
   POSSESSED: 'Possession given',
   CANCELLED: 'Cancelled',
-  REHAB_RSV: 'Rehab reserved',
   // legacy
   A: 'Available',
   BL: 'Blocked',
   B: 'Booked',
   S: 'Registered',
-  RR: 'Rehab reserved',
   RF: 'Available'
 };
 
@@ -50,12 +47,10 @@ export const STATUS_COLOR: Record<string, string> = {
   PRE_POSSESSION: '#14B8A6',
   POSSESSED: '#059669',
   CANCELLED: '#EF4444',
-  REHAB_RSV: '#818CF8',
   A: '#22C55E',
   BL: '#64748B',
   B: '#3B82F6',
-  S: '#6366F1',
-  RR: '#818CF8'
+  S: '#6366F1'
 };
 
 export function normalizeUnitStatusCode(status: string | null | undefined): string {
@@ -115,8 +110,7 @@ const GRID_ABBREV: Record<string, string> = {
   REGISTERED: 'RG',
   PRE_POSSESSION: 'PP',
   POSSESSED: 'PC',
-  CANCELLED: 'CX',
-  REHAB_RSV: 'RR'
+  CANCELLED: 'CX'
 };
 
 export function unitStatusGridAbbrev(status: string | null | undefined): string {

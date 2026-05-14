@@ -62,13 +62,7 @@ export function CrmShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionOpen, setSectionOpen] = useState(getDefaultNavSectionOpen);
 
-  const showRehab =
-    !activeProject || activeProject.type?.toLowerCase() !== 'greenfield';
-
-  const flatNav = useMemo(
-    () => flattenCrmNav({ showRehab }),
-    [showRehab]
-  );
+  const flatNav = useMemo(() => flattenCrmNav(), []);
 
   useEffect(() => {
     const stored = readNavSectionOpenFromStorage();
@@ -261,9 +255,7 @@ export function CrmShell({
                   />
                 ))
               : CRM_NAV_GROUPS.map((group, gi) => {
-                  const visible = group.items.filter(
-                    (i) => i.id !== 'rehab' || showRehab
-                  );
+                  const visible = group.items;
                   if (!visible.length) return null;
                   const open = sectionOpen[group.id] ?? true;
                   const isAdmin = group.id === 'admin';

@@ -201,7 +201,6 @@ create table if not exists public.units (
   blocked_reason text,
   blocked_by uuid references auth.users (id),
   blocked_on date,
-  rehab_member_id uuid,
   created_at timestamptz not null default now(),
   unique (project_id, unit_code)
 );
@@ -539,78 +538,6 @@ on public.sales_inquiries
 for all
 using (public.has_project_access(project_id))
 with check (public.has_project_access(project_id));
-
--- -----------------------------------------------------------------------------
--- Rehab
--- -----------------------------------------------------------------------------
-
-create table if not exists public.rehab_members (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects (id) on delete cascade,
-  name text not null,
-  old_unit text,
-  old_area numeric,
-  carpet_area numeric,
-  floor_pref text,
-  status text not null default 'Eligible',
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.rehab_rent_entries (
-  id uuid primary key default gen_random_uuid(),
-  rehab_member_id uuid not null references public.rehab_members (id) on delete cascade,
-  month text not null,
-  amount numeric not null default 0,
-  status text not null default 'Paid',
-  cheque_no text,
-  created_at timestamptz not null default now()
-);
-
-alter table public.rehab_members enable row level security;
-alter table public.rehab_rent_entries enable row level security;
-
-create policy "rehab_members_select_project"
-on public.rehab_members
-for select
-using (public.has_project_access(project_id));
-
-create policy "rehab_members_mutate_project"
-on public.rehab_members
-for all
-using (public.has_project_access(project_id))
-with check (public.has_project_access(project_id));
-
-create policy "rehab_rent_entries_select_via_member"
-on public.rehab_rent_entries
-for select
-using (
-  exists (
-    select 1
-    from public.rehab_members rm
-    where rm.id = rehab_rent_entries.rehab_member_id
-      and public.has_project_access(rm.project_id)
-  )
-);
-
-create policy "rehab_rent_entries_mutate_via_member"
-on public.rehab_rent_entries
-for all
-using (
-  exists (
-    select 1
-    from public.rehab_members rm
-    where rm.id = rehab_rent_entries.rehab_member_id
-      and public.has_project_access(rm.project_id)
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.rehab_members rm
-    where rm.id = rehab_rent_entries.rehab_member_id
-      and public.has_project_access(rm.project_id)
-  )
-);
 
 -- -----------------------------------------------------------------------------
 -- Loans
