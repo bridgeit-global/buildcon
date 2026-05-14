@@ -30,8 +30,10 @@ import { writeBookingPrefill } from '../booking-prefill-storage';
 import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
 import {
   InquiryPipelineDialog,
+  FUNNEL_STAGES,
   type OpportunityRow
 } from './inquiry-pipeline-dialog';
+import { InquiryPipelineBoard } from './inquiry-pipeline-board';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -244,6 +246,9 @@ function InquiryPageContent() {
     projectId: string;
     inquiryId: string;
   } | null>(null);
+  const [stageMoveInquiryId, setStageMoveInquiryId] = useState<string | null>(
+    null
+  );
 
   const loadInquiries = useCallback(async () => {
     if (!activeProjectId) return;
@@ -290,6 +295,46 @@ function InquiryPageContent() {
     }
     setLoadingInquiries(false);
   }, [activeProjectId, supabase]);
+
+  const commitOpportunityStage = useCallback(
+    async (
+      inquiryId: string,
+      newStage: (typeof FUNNEL_STAGES)[number]
+    ) => {
+      if (!activeProjectId) return;
+      setStageMoveInquiryId(inquiryId);
+      setError('');
+      try {
+        const inq = inquiries.find((i) => i.id === inquiryId);
+        const opp = inq ? embedOne(inq.sales_opportunities) : null;
+        if (opp) {
+          const { error: uErr } = await supabase
+            .from('sales_opportunities')
+            .update({ funnel_stage: newStage })
+            .eq('id', opp.id);
+          if (uErr) throw uErr;
+        } else {
+          const { error: iErr } = await supabase
+            .from('sales_opportunities')
+            .insert({
+              project_id: activeProjectId,
+              sales_inquiry_id: inquiryId,
+              funnel_stage: newStage,
+              assigned_to: null
+            });
+          if (iErr) throw iErr;
+        }
+        await loadInquiries();
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : 'Could not update pipeline stage'
+        );
+      } finally {
+        setStageMoveInquiryId(null);
+      }
+    },
+    [activeProjectId, inquiries, loadInquiries, supabase]
+  );
 
   useEffect(() => {
     void (async () => {
@@ -922,6 +967,21 @@ function InquiryPageContent() {
           </ul>
         </Card>
       </div>
+
+      {/* <Card className="p-4" id="inquiry-pipeline-board">
+        <InquiryPipelineBoard
+          inquiries={filtered}
+          loading={loadingInquiries}
+          pendingInquiryId={stageMoveInquiryId}
+          onStageChange={(id, stage) => void commitOpportunityStage(id, stage)}
+          onOpenPipeline={(inquiryId) =>
+            setPipeline({
+              projectId: activeProjectId ?? '',
+              inquiryId
+            })
+          }
+        />
+      </Card> */}
 
       <Card className="p-4">
         <div className="text-sm font-semibold text-foreground">Follow-ups</div>

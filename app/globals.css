@@ -85,10 +85,10 @@
   --color-ds-warning-700: var(--ds-warning-700);
   --color-ds-warning-800: var(--ds-warning-800);
   --color-ds-warning-900: var(--ds-warning-900);
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 :root {
@@ -154,7 +154,7 @@
   --ds-warning-800: #93370d;
   --ds-warning-900: #7a2e0e;
 
-  --radius: 0;
+  --radius: 0.5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
@@ -322,6 +322,7 @@
 .emoji-picker-container .epr-search {
   margin: 8px;
   border: 1px solid hsl(var(--input));
+  border-radius: var(--radius-md);
   background-color: hsl(var(--background));
 }
 
