@@ -20,6 +20,8 @@ function embedOne<T>(x: T | T[] | null | undefined): T | null {
 
 type InquiryPipelineFetchRow = {
   id: string;
+  customers: { full_name: string } | { full_name: string }[] | null;
+  units: { unit_code: string } | { unit_code: string }[] | null;
   sales_opportunities: OpportunityRow | OpportunityRow[] | null;
 };
 
@@ -34,6 +36,10 @@ export default function LeadPipelinePage() {
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [opportunity, setOpportunity] = useState<OpportunityRow | null>(null);
+  const [inquiryContext, setInquiryContext] = useState<{
+    customerName?: string;
+    unitCode?: string;
+  }>({});
 
   const backHref = '/crm/inquiry';
 
@@ -42,6 +48,7 @@ export default function LeadPipelinePage() {
       setLoading(false);
       setMissing(!inquiryId);
       setOpportunity(null);
+      setInquiryContext({});
       return;
     }
     setLoading(true);
@@ -51,11 +58,13 @@ export default function LeadPipelinePage() {
       .select(
         `
         id,
+        customers ( full_name ),
+        units ( unit_code ),
         sales_opportunities (
           id,
           funnel_stage,
           assigned_to,
-          stage_data,
+          sales_pipeline_stages ( id, stage, payload, updated_at ),
           sales_follow_ups ( id, due_at, note, completed_at ),
           sales_site_visits ( id, scheduled_at, status, outcome )
         )
@@ -69,10 +78,17 @@ export default function LeadPipelinePage() {
     if (error || !data) {
       setMissing(true);
       setOpportunity(null);
+      setInquiryContext({});
       return;
     }
     const row = data as unknown as InquiryPipelineFetchRow;
     setOpportunity(embedOne(row.sales_opportunities));
+    const cust = embedOne(row.customers);
+    const unit = embedOne(row.units);
+    setInquiryContext({
+      customerName: cust?.full_name?.trim() || undefined,
+      unitCode: unit?.unit_code?.trim() || undefined
+    });
   }, [activeProjectId, inquiryId, supabase]);
 
   useEffect(() => {
@@ -124,6 +140,7 @@ export default function LeadPipelinePage() {
           <InquiryPipelinePanel
             projectId={activeProjectId}
             opportunity={opportunity}
+            inquiryContext={inquiryContext}
             onSaved={() => {
               void loadOpportunity();
             }}

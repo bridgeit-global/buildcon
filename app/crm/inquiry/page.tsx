@@ -92,7 +92,7 @@ function InquiryPageContent() {
           id,
           funnel_stage,
           assigned_to,
-          stage_data,
+          sales_pipeline_stages ( id, stage, payload, updated_at ),
           sales_follow_ups ( id, due_at, note, completed_at ),
           sales_site_visits ( id, scheduled_at, status, outcome )
         )

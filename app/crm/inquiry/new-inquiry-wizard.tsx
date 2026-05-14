@@ -57,10 +57,17 @@ type StepId = (typeof STEPS)[number]['id'];
 export type NewInquiryWizardProps = {
   projectId: string;
   onInquirySaved?: () => void | Promise<void>;
+  /** Called with the new inquiry id after successful save (skips form reset). */
+  onCreated?: (inquiryId: string) => void;
+  /** Notifies parent when the internal step changes (1 = Customer, 2 = Unit, 3 = Review). */
+  onStepChange?: (step: number) => void;
+  /** When true the internal 3-step stepper is hidden (parent supplies its own progress indicator). */
+  hideStepper?: boolean;
 };
 
 export function NewInquiryWizard(props: NewInquiryWizardProps) {
-  const { projectId, onInquirySaved } = props;
+  const { projectId, onInquirySaved, onCreated, onStepChange, hideStepper } =
+    props;
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -97,6 +104,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     floor: '',
     structure: ''
   });
+
+  useEffect(() => {
+    onStepChange?.(step);
+  }, [step, onStepChange]);
 
   useEffect(() => {
     void (async () => {
@@ -444,10 +455,15 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       if (inqErr) throw inqErr;
       if (!inserted?.id) throw new Error('Inquiry insert returned no id');
 
-      await onInquirySaved?.();
-      resetForm();
-      setSaveMsg('Inquiry saved.');
-      window.setTimeout(() => setSaveMsg(''), 1800);
+      if (onCreated) {
+        onCreated((inserted as { id: string }).id);
+        await onInquirySaved?.();
+      } else {
+        await onInquirySaved?.();
+        resetForm();
+        setSaveMsg('Inquiry saved.');
+        window.setTimeout(() => setSaveMsg(''), 1800);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save inquiry');
     } finally {
@@ -463,12 +479,14 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         </div>
       ) : null}
 
-      <Stepper
-        current={step}
-        onStepClick={gotoStep}
-        valid={stepValid}
-        disabled={saving}
-      />
+      {!hideStepper && (
+        <Stepper
+          current={step}
+          onStepClick={gotoStep}
+          valid={stepValid}
+          disabled={saving}
+        />
+      )}
 
       {step === 1 ? (
         <StepCustomer
