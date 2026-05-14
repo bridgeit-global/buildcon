@@ -894,58 +894,58 @@ export function InquiryPipelinePanel(props: {
         )}
 
         {macroStep === 'enquiry' && (
-          <div className="flex flex-col gap-3 md:flex-row md:items-start">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             <VerticalEnquiryStageStepper
               current={activeStage}
               onSelect={(stage) => setActiveStage(stage)}
             />
             <div className="min-w-0 flex-1 space-y-3">
               <ActiveStageGuide stage={activeStage} />
+              {error ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {error}
+                </div>
+              ) : saved ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
+                  Saved.
+                </div>
+              ) : null}
+              {activeStage === 'Enquiry' && (
+                <EnquiryForm
+                  data={stageData.enquiry ?? {}}
+                  onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
+                />
+              )}
+              {activeStage === 'Qualified' && (
+                <QualifiedForm
+                  data={stageData.qualified ?? {}}
+                  onChange={(d) => setStageData((s) => ({ ...s, qualified: d }))}
+                />
+              )}
+              {activeStage === 'Site Visit' && (
+                <SiteVisitForm
+                  data={stageData.site_visit ?? {}}
+                  onChange={(d) =>
+                    setStageData((s) => ({ ...s, site_visit: d }))
+                  }
+                />
+              )}
+              {activeStage === 'Negotiation' && (
+                <NegotiationForm
+                  data={stageData.negotiation ?? {}}
+                  onChange={(d) =>
+                    setStageData((s) => ({ ...s, negotiation: d }))
+                  }
+                />
+              )}
+              {activeStage === 'Token' && (
+                <TokenForm
+                  data={stageData.token ?? {}}
+                  onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
+                />
+              )}
             </div>
           </div>
-        )}
-      </div>
-
-      {error ? (
-        <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {error}
-        </div>
-      ) : saved ? (
-        <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
-          Saved.
-        </div>
-      ) : null}
-
-      <div>
-        {macroStep === 'enquiry' && activeStage === 'Enquiry' && (
-          <EnquiryForm
-            data={stageData.enquiry ?? {}}
-            onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
-          />
-        )}
-        {macroStep === 'enquiry' && activeStage === 'Qualified' && (
-          <QualifiedForm
-            data={stageData.qualified ?? {}}
-            onChange={(d) => setStageData((s) => ({ ...s, qualified: d }))}
-          />
-        )}
-        {macroStep === 'enquiry' && activeStage === 'Site Visit' && (
-          <SiteVisitForm
-            data={stageData.site_visit ?? {}}
-            onChange={(d) => setStageData((s) => ({ ...s, site_visit: d }))}
-          />
-        )}
-        {macroStep === 'enquiry' && activeStage === 'Negotiation' && (
-          <NegotiationForm
-            data={stageData.negotiation ?? {}}
-            onChange={(d) => setStageData((s) => ({ ...s, negotiation: d }))}
-          />
-        )}
-        {macroStep === 'enquiry' && activeStage === 'Token' && (
-          <TokenForm
-            data={stageData.token ?? {}}
-            onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
-          />
         )}
       </div>
 
