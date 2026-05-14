@@ -351,7 +351,7 @@ export function InquiryListTable({
                 className="h-8"
                 onClick={() =>
                   router.push(
-                    `/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`
+                    `/crm/inquiry/new?inquiry=${encodeURIComponent(inq.id)}`
                   )
                 }
               >

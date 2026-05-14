@@ -120,9 +120,12 @@ function InquiryPageContent() {
     if (!q || !activeProjectId || loadingInquiries) return;
     const exists = inquiries.some((i) => i.id === q);
     if (exists) {
-      router.replace(`/crm/inquiry/pipeline/${encodeURIComponent(q)}`, {
-        scroll: false
-      });
+      router.replace(
+        `/crm/inquiry/new?inquiry=${encodeURIComponent(q)}`,
+        {
+          scroll: false
+        }
+      );
     }
   }, [
     searchParams,
@@ -356,9 +359,9 @@ function InquiryPageContent() {
                 return (
                   <li key={inq.id} className="p-0">
                     <Link
-                      href={`/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`}
+                      href={`/crm/inquiry/new?inquiry=${encodeURIComponent(inq.id)}`}
                       className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                      aria-label={`Open pipeline for ${c?.full_name ?? 'enquiry'}`}
+                      aria-label={`Open enquiry workspace for ${c?.full_name ?? 'enquiry'}`}
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-foreground">

@@ -695,8 +695,20 @@ export function InquiryPipelinePanel(props: {
   inquiryContext?: InquiryPipelineInquiryContext;
   onSaved: () => void;
   onClose: () => void;
+  /**
+   * When true, the horizontal pipeline stepper is omitted (e.g. parent already shows a unified progress bar).
+   * A compact stage selector is shown instead so users can still jump between stage forms.
+   */
+  hidePipelineStepper?: boolean;
 }) {
-  const { projectId, opportunity, inquiryContext, onSaved, onClose } = props;
+  const {
+    projectId,
+    opportunity,
+    inquiryContext,
+    onSaved,
+    onClose,
+    hidePipelineStepper
+  } = props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
@@ -821,10 +833,38 @@ export function InquiryPipelinePanel(props: {
   return (
     <>
       <div className="mt-1 space-y-3 pb-3">
-        <PipelineStepper
-          current={activeStage}
-          onSelect={(stage) => setActiveStage(stage)}
-        />
+        {hidePipelineStepper ? (
+          <div className="grid max-w-sm gap-1.5">
+            <Label htmlFor="inquiry-pipeline-stage" className="text-xs">
+              Stage to edit
+            </Label>
+            <Select
+              value={activeStage}
+              onValueChange={(v) =>
+                setActiveStage(v as PipelineAnchorStage)
+              }
+            >
+              <SelectTrigger
+                id="inquiry-pipeline-stage"
+                className="h-9 text-xs"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PIPELINE_STEPS.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <PipelineStepper
+            current={activeStage}
+            onSelect={(stage) => setActiveStage(stage)}
+          />
+        )}
         {inquiryContext &&
           (inquiryContext.customerName?.trim() ||
             inquiryContext.unitCode?.trim()) &&

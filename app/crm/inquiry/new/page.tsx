@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -162,10 +162,16 @@ function PhaseBadge({ phase }: { phase: 'create' | 'pipeline' }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function NewInquiryPage() {
+function NewInquiryPageInner() {
   const { activeProjectId } = useActiveProjectContext();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  const resumeInquiryId = useMemo(
+    () => searchParams.get('inquiry')?.trim() ?? '',
+    [searchParams]
+  );
 
   const [wizardStep, setWizardStep] = useState(1);
   const [phase, setPhase] = useState<'create' | 'pipeline'>('create');
@@ -175,9 +181,13 @@ export default function NewInquiryPage() {
   const [inquiryId, setInquiryId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [unitCode, setUnitCode] = useState('');
+  const [resumeReady, setResumeReady] = useState(() => !resumeInquiryId);
+  const [resumeError, setResumeError] = useState(false);
+  const prevResumeInquiryRef = useRef('');
 
   const loadOpportunity = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<boolean> => {
+      if (!activeProjectId) return false;
       const { data } = await supabase
         .from('sales_inquiries')
         .select(
@@ -195,18 +205,68 @@ export default function NewInquiryPage() {
         `
         )
         .eq('id', id)
+        .eq('project_id', activeProjectId)
         .maybeSingle();
 
-      if (!data) return;
+      if (!data) return false;
       const row = data as unknown as InquiryFetchRow;
       const opp = embedOne(row.sales_opportunities);
       setOpportunity(opp);
       if (opp?.funnel_stage) setFunnelStage(opp.funnel_stage);
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
+      return true;
     },
-    [supabase]
+    [supabase, activeProjectId]
   );
+
+  useEffect(() => {
+    if (!resumeInquiryId) {
+      setResumeReady(true);
+      setResumeError(false);
+      if (prevResumeInquiryRef.current) {
+        setPhase('create');
+        setInquiryId('');
+        setOpportunity(null);
+        setWizardStep(1);
+        setFunnelStage('Enquiry');
+        setCustomerName('');
+        setUnitCode('');
+      }
+      prevResumeInquiryRef.current = '';
+      return;
+    }
+    if (!activeProjectId) return;
+
+    prevResumeInquiryRef.current = resumeInquiryId;
+    let cancelled = false;
+    setResumeReady(false);
+    setResumeError(false);
+
+    void (async () => {
+      const ok = await loadOpportunity(resumeInquiryId);
+      if (cancelled) return;
+      if (ok) {
+        setInquiryId(resumeInquiryId);
+        setPhase('pipeline');
+        setWizardStep(2);
+      } else {
+        setResumeError(true);
+        setOpportunity(null);
+        setInquiryId('');
+        setPhase('create');
+        setWizardStep(1);
+        setFunnelStage('Enquiry');
+        setCustomerName('');
+        setUnitCode('');
+      }
+      setResumeReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeInquiryId, activeProjectId, loadOpportunity]);
 
   const handleInquiryCreated = useCallback(
     async (id: string) => {
@@ -234,6 +294,8 @@ export default function NewInquiryPage() {
     phase === 'create'
       ? 'Fill in customer details and select a unit to create the enquiry.'
       : [unitCode, funnelStage].filter(Boolean).join(' · ');
+
+  const resuming = Boolean(resumeInquiryId && !resumeReady);
 
   return (
     <div className="flex flex-col gap-4">
@@ -277,7 +339,31 @@ export default function NewInquiryPage() {
 
         {/* ── Content area ─────────────────────────────────────────────────── */}
         <div className="px-4 py-4 sm:px-6">
-          {phase === 'create' ? (
+          {resuming ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <div className="size-8 animate-spin rounded-full border-2 border-border border-t-emerald-600" />
+              <p className="text-sm text-muted-foreground">Loading enquiry…</p>
+            </div>
+          ) : resumeError && resumeInquiryId ? (
+            <div className="space-y-4 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                This enquiry was not found for the current project, or you no
+                longer have access.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/crm/inquiry">Leads overview</Link>
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => router.replace('/crm/inquiry/new')}
+                >
+                  New enquiry
+                </Button>
+              </div>
+            </div>
+          ) : phase === 'create' ? (
             <NewInquiryWizard
               projectId={activeProjectId}
               hideStepper
@@ -295,6 +381,7 @@ export default function NewInquiryPage() {
             <InquiryPipelinePanel
               projectId={activeProjectId}
               opportunity={opportunity}
+              hidePipelineStepper
               inquiryContext={{
                 customerName: customerName || undefined,
                 unitCode: unitCode || undefined
@@ -308,5 +395,19 @@ export default function NewInquiryPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function NewInquiryPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          Loading…
+        </Card>
+      }
+    >
+      <NewInquiryPageInner />
+    </Suspense>
   );
 }
