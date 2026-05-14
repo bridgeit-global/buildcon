@@ -22,7 +22,8 @@ import { cn } from '@/lib/utils';
 import {
   type ProjectParkingMeta,
   computeBookingCostBreakdown,
-  formatProjectParkingSummary
+  formatProjectParkingSummary,
+  parkingSlotsAskedFromCount
 } from '../booking-cost-utils';
 import { formatUnitAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
@@ -517,6 +518,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           filterOptions={unitPickFilterOptions}
           filters={unitPickFilters}
           setFilters={setUnitPickFilters}
+          projectParking={projectParking}
         />
       ) : null}
 
@@ -813,6 +815,202 @@ function StepCustomerAndLead({
   );
 }
 
+function ProjectParkingHighlight({
+  projectParking,
+  parkingRequired,
+  parkingCount
+}: {
+  projectParking: ProjectParkingMeta | null;
+  parkingRequired: 'Yes' | 'No';
+  parkingCount: string;
+}) {
+  const slots = projectParking?.parking_slots;
+  const rate = projectParking?.parking_rate;
+  const asked =
+    parkingRequired === 'Yes' ? parkingSlotsAskedFromCount(parkingCount) : 0;
+
+  if (slots == null || slots <= 0) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50/95 p-4 text-sm text-amber-950">
+        <div className="text-xs font-bold uppercase tracking-wide text-amber-900/90">
+          Project parking
+        </div>
+        <p className="mt-2 text-xs leading-relaxed">
+          No parking slot count is configured on this project. Extra parking
+          pricing may need to be confirmed manually.
+        </p>
+      </div>
+    );
+  }
+
+  const overAsk =
+    parkingRequired === 'Yes' && asked > 0 && asked > slots;
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-4',
+        overAsk
+          ? 'border-amber-300 bg-amber-50/95'
+          : 'border-blue-200 bg-linear-to-br from-blue-50/90 to-background'
+      )}
+    >
+      <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+        Available parking (this project)
+      </div>
+      <div className="mt-2 flex flex-wrap items-end gap-6">
+        <div>
+          <div className="text-3xl font-bold tabular-nums tracking-tight text-foreground">
+            {slots}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            slot{slots !== 1 ? 's' : ''} on the project
+          </div>
+        </div>
+        {rate != null && rate > 0 ? (
+          <div className="text-sm">
+            <span className="font-semibold text-foreground">
+              ₹{rate.toLocaleString('en-IN')}
+            </span>
+            <span className="text-muted-foreground"> / extra slot (estimate)</span>
+          </div>
+        ) : (
+          <div className="text-[11px] text-muted-foreground">
+            Extra-slot rate not set on project
+          </div>
+        )}
+      </div>
+      {parkingRequired === 'Yes' ? (
+        <p
+          className={cn(
+            'mt-3 text-xs leading-relaxed',
+            overAsk ? 'font-semibold text-amber-950' : 'text-muted-foreground'
+          )}
+        >
+          Customer needs{' '}
+          <span className="font-semibold text-foreground">{asked}</span> extra
+          slot{asked !== 1 ? 's' : ''} (from count below).
+          {overAsk
+            ? ` That exceeds the ${slots} slot(s) recorded on the project — align with inventory before committing.`
+            : null}
+        </p>
+      ) : (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          If the customer wants more parking than the unit includes, set
+          “Parking required” below and pick how many slots they are aiming for.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CustomerUnitNeedsGrid({
+  sellerForm,
+  setSellerForm,
+  notesPlaceholder
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+  notesPlaceholder: string;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="md:col-span-2">
+        <Label>Looking for (layout / configuration)</Label>
+        <Select
+          value={
+            sellerForm.interestedIn === ''
+              ? INQUIRY_INTEREST_ALL
+              : sellerForm.interestedIn
+          }
+          onValueChange={(v) =>
+            setSellerForm((s) => ({
+              ...s,
+              interestedIn: v === INQUIRY_INTEREST_ALL ? '' : v
+            }))
+          }
+        >
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue placeholder="What are they shopping for?" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={INQUIRY_INTEREST_ALL}>
+              Not sure / open to options
+            </SelectItem>
+            {INTEREST_TYPES.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          When this matches an inventory label, the unit-type filter below
+          updates to match.
+        </p>
+      </div>
+      <div>
+        <Label>Extra parking needed?</Label>
+        <Select
+          value={sellerForm.parkingRequired}
+          onValueChange={(v) =>
+            setSellerForm((s) => ({
+              ...s,
+              parkingRequired: v as 'Yes' | 'No'
+            }))
+          }
+        >
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="No">No extra parking</SelectItem>
+            <SelectItem value="Yes">Yes, extra parking</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>How many extra slots?</Label>
+        <Select
+          value={sellerForm.parkingCount}
+          onValueChange={(v) =>
+            setSellerForm((s) => ({ ...s, parkingCount: v }))
+          }
+          disabled={sellerForm.parkingRequired !== 'Yes'}
+        >
+          <SelectTrigger
+            className={cn(
+              'mt-1 w-full',
+              sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
+            )}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(['1', '2', '3', '4+'] as const).map((x) => (
+              <SelectItem key={x} value={x}>
+                {x} slot{x === '1' ? '' : 's'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="md:col-span-2 xl:col-span-4">
+        <Label>Other requirements</Label>
+        <Textarea
+          value={sellerForm.notes}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, notes: e.target.value }))
+          }
+          rows={3}
+          placeholder={notesPlaceholder}
+          className="mt-1 min-h-[72px] resize-y"
+        />
+      </div>
+    </div>
+  );
+}
+
 function StepSelectUnit({
   sellerForm,
   setSellerForm,
@@ -820,7 +1018,8 @@ function StepSelectUnit({
   filteredUnits,
   filterOptions,
   filters,
-  setFilters
+  setFilters,
+  projectParking
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
@@ -833,9 +1032,56 @@ function StepSelectUnit({
   };
   filters: UnitPickFilters;
   setFilters: Dispatch<SetStateAction<UnitPickFilters>>;
+  projectParking: ProjectParkingMeta | null;
 }) {
+  useEffect(() => {
+    const raw = sellerForm.interestedIn.trim();
+    if (!raw) return;
+    const norm = raw.replace(/\s+/g, '').toLowerCase();
+    const hit = filterOptions.unitTypes.find((t) => {
+      const tn = String(t).replace(/\s+/g, '').toLowerCase();
+      return tn === norm || tn.includes(norm) || norm.includes(tn);
+    });
+    if (hit) {
+      setFilters((f) => (f.unitType === hit ? f : { ...f, unitType: hit }));
+    }
+  }, [sellerForm.interestedIn, filterOptions.unitTypes, setFilters]);
+
   return (
-    <div className="mt-6 space-y-3">
+    <div className="mt-6 space-y-8">
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="space-y-1">
+          <h2 className="text-sm font-bold text-foreground">
+            What does the customer need?
+          </h2>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Record layout preference, parking appetite, and any must-haves before
+            you shortlist units. This is saved with the enquiry and drives the
+            cost estimate.
+          </p>
+        </div>
+        <div className="mt-4 space-y-4">
+          <ProjectParkingHighlight
+            projectParking={projectParking}
+            parkingRequired={sellerForm.parkingRequired}
+            parkingCount={sellerForm.parkingCount}
+          />
+          <CustomerUnitNeedsGrid
+            sellerForm={sellerForm}
+            setSellerForm={setSellerForm}
+            notesPlaceholder="e.g. higher floor, corner, sea view, budget band, timeline, Vastu, family size…"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="space-y-1">
+          <h2 className="text-sm font-bold text-foreground">Shortlist a unit</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Narrow by inventory labels, floor, and wing, then tap a unit. Cards
+            only show statuses you can attach to an enquiry.
+          </p>
+        </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[140px] flex-1">
           <Label>Unit type</Label>
@@ -970,6 +1216,7 @@ function StepSelectUnit({
           Select a unit, then continue to view full details and pricing.
         </p>
       ) : null}
+      </section>
     </div>
   );
 }
@@ -1051,114 +1298,10 @@ function StepUnitDetails({
         projectParking={projectParking}
       />
       <p className="text-[11px] text-muted-foreground">
-        Parking and enquiry notes are set on the confirmation step. The cost
-        sheet above uses your current parking selection.
+        Requirements and parking were captured while selecting a unit. The cost
+        sheet uses that parking choice; you can fine-tune parking on the final
+        confirm step before saving.
       </p>
-    </div>
-  );
-}
-
-function InquiryPreferenceFields({
-  sellerForm,
-  setSellerForm,
-  projectParking
-}: {
-  sellerForm: SellerForm;
-  setSellerForm: SetSellerForm;
-  projectParking: ProjectParkingMeta | null;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-blue-100 bg-blue-50/90 px-3 py-2 text-[11px] text-blue-900">
-        <span className="font-semibold">Parking inventory (this project): </span>
-        {formatProjectParkingSummary(projectParking)}
-      </div>
-      <div>
-        <Label>Interested in</Label>
-        <Select
-          value={
-            sellerForm.interestedIn === ''
-              ? INQUIRY_INTEREST_ALL
-              : sellerForm.interestedIn
-          }
-          onValueChange={(v) =>
-            setSellerForm((s) => ({
-              ...s,
-              interestedIn: v === INQUIRY_INTEREST_ALL ? '' : v
-            }))
-          }
-        >
-          <SelectTrigger className="mt-1 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={INQUIRY_INTEREST_ALL}>All types</SelectItem>
-            {INTEREST_TYPES.map((v) => (
-              <SelectItem key={v} value={v}>
-                {v}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label>Parking</Label>
-        <Select
-          value={sellerForm.parkingRequired}
-          onValueChange={(v) =>
-            setSellerForm((s) => ({
-              ...s,
-              parkingRequired: v as 'Yes' | 'No'
-            }))
-          }
-        >
-          <SelectTrigger className="mt-1 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="No">No parking required</SelectItem>
-            <SelectItem value="Yes">Parking required</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label>Parking count</Label>
-        <Select
-          value={sellerForm.parkingCount}
-          onValueChange={(v) =>
-            setSellerForm((s) => ({ ...s, parkingCount: v }))
-          }
-          disabled={sellerForm.parkingRequired !== 'Yes'}
-        >
-          <SelectTrigger
-            className={cn(
-              'mt-1 w-full',
-              sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
-            )}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(['1', '2', '3', '4+'] as const).map((x) => (
-              <SelectItem key={x} value={x}>
-                Parking count: {x}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="md:col-span-2 xl:col-span-4">
-        <Label>Notes</Label>
-        <Textarea
-          value={sellerForm.notes}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, notes: e.target.value }))
-          }
-          rows={2}
-          placeholder="Notes"
-          className="mt-1 min-h-[60px]"
-        />
-      </div>
     </div>
   );
 }
@@ -1197,27 +1340,104 @@ function StepConfirm({
       ? ([['Broker', brokerLabel]] as [string, string][])
       : [])
   ];
+  const unitSummaryRows: [string, string][] = [
+    [
+      'Looking for',
+      sellerForm.interestedIn.trim() || 'Open to options'
+    ],
+    [
+      'Extra parking',
+      sellerForm.parkingRequired === 'Yes'
+        ? `Yes · ${sellerForm.parkingCount} slot${
+            sellerForm.parkingCount === '1' ? '' : 's'
+          }`
+        : 'No'
+    ],
+    [
+      'Project parking (inventory)',
+      formatProjectParkingSummary(projectParking)
+    ]
+  ];
+
   return (
     <div className="mt-6 space-y-4">
       <div className="rounded-lg border border-border bg-muted/20 p-4">
         <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          Inquiry preferences
+          Confirm & save
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Adjust parking and notes before saving. Use the stepper to change
-          customer, lead, or unit.
+          Double-check parking against project availability — it flows into the
+          enquiry and the quote below. Use the stepper to go back and change
+          customer, lead, unit, or written requirements.
         </p>
-        <div className="mt-3">
-          <InquiryPreferenceFields
-            sellerForm={sellerForm}
-            setSellerForm={setSellerForm}
+        <div className="mt-4 space-y-4">
+          <ProjectParkingHighlight
             projectParking={projectParking}
+            parkingRequired={sellerForm.parkingRequired}
+            parkingCount={sellerForm.parkingCount}
           />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Extra parking needed?</Label>
+              <Select
+                value={sellerForm.parkingRequired}
+                onValueChange={(v) =>
+                  setSellerForm((s) => ({
+                    ...s,
+                    parkingRequired: v as 'Yes' | 'No'
+                  }))
+                }
+              >
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="No">No extra parking</SelectItem>
+                  <SelectItem value="Yes">Yes, extra parking</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>How many extra slots?</Label>
+              <Select
+                value={sellerForm.parkingCount}
+                onValueChange={(v) =>
+                  setSellerForm((s) => ({ ...s, parkingCount: v }))
+                }
+                disabled={sellerForm.parkingRequired !== 'Yes'}
+              >
+                <SelectTrigger
+                  className={cn(
+                    'mt-1 w-full',
+                    sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
+                  )}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(['1', '2', '3', '4+'] as const).map((x) => (
+                    <SelectItem key={x} value={x}>
+                      {x} slot{x === '1' ? '' : 's'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ReviewBlock title="Customer" rows={customer} />
         <ReviewBlock title="Lead" rows={leadRows} />
+      </div>
+      <ReviewBlock title="Unit requirements (from step 2)" rows={unitSummaryRows} />
+      <div className="rounded-lg border border-border bg-background p-4">
+        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Other requirements
+        </div>
+        <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+          {sellerForm.notes.trim() || '—'}
+        </p>
       </div>
       <div>
         {selectedUnit ? (
