@@ -115,7 +115,7 @@ function parseListUrlColumnFilters(sp: {
   return filters;
 }
 
-export type InquiryListTableProps = {
+type InquiryListTableProps = {
   inquiries: InquiryRowDb[];
   loadingInquiries: boolean;
   loadInquiries: () => void | Promise<void>;

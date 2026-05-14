@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -27,17 +27,17 @@ export const FUNNEL_STAGES = [
   'Won',
   'Lost'
 ] as const;
-export type FunnelStage = (typeof FUNNEL_STAGES)[number];
+type FunnelStage = (typeof FUNNEL_STAGES)[number];
 
 /** First five funnel columns: one DB row per stage in `sales_pipeline_stages`. */
-export const PIPELINE_ANCHOR_STAGES = [
+const PIPELINE_ANCHOR_STAGES = [
   'Enquiry',
   'Qualified',
   'Site Visit',
   'Negotiation',
   'Token'
 ] as const;
-export type PipelineAnchorStage = (typeof PIPELINE_ANCHOR_STAGES)[number];
+type PipelineAnchorStage = (typeof PIPELINE_ANCHOR_STAGES)[number];
 
 const PIPELINE_STEPS: {
   id: PipelineAnchorStage;
@@ -87,14 +87,13 @@ function stageIndex(s: string) {
 
 // ─── In-memory stage form shape (persisted as `sales_pipeline_stages.payload`) ─
 
-export type EnquiryStageData = {
-  assigned_to?: string;
+type EnquiryStageData = {
   follow_up_date?: string;
   /** Quotation id, sheet version, or free-text reference to the shared cost sheet. */
   cost_sheet_notes?: string;
   notes?: string;
 };
-export type QualifiedStageData = {
+type QualifiedStageData = {
   budget_min?: string;
   budget_max?: string;
   financing?: string;
@@ -102,27 +101,27 @@ export type QualifiedStageData = {
   follow_up_date?: string;
   notes?: string;
 };
-export type SiteVisitStageData = {
+type SiteVisitStageData = {
   scheduled_at?: string;
   status?: string;
   outcome?: string;
   notes?: string;
 };
-export type NegotiationStageData = {
+type NegotiationStageData = {
   offered_price?: string;
   discount_pct?: string;
   counter_offer?: string;
   expected_close?: string;
   notes?: string;
 };
-export type TokenStageData = {
+type TokenStageData = {
   amount?: string;
   date?: string;
   mode?: string;
   reference?: string;
   notes?: string;
 };
-export type StageData = {
+type StageData = {
   enquiry?: EnquiryStageData;
   qualified?: QualifiedStageData;
   site_visit?: SiteVisitStageData;
@@ -139,7 +138,7 @@ type FollowRow = {
   completed_at: string | null;
 };
 
-export type PipelineStageRowDb = {
+type PipelineStageRowDb = {
   id: string;
   stage: string;
   payload: Record<string, unknown> | null;
@@ -322,40 +321,13 @@ function ActiveStageGuide({ stage }: { stage: string }) {
 
 function EnquiryForm({
   data,
-  onChange,
-  members,
-  assignedTo,
-  onAssignedToChange
+  onChange
 }: {
   data: EnquiryStageData;
   onChange: (d: EnquiryStageData) => void;
-  members: { user_id: string; name: string }[];
-  assignedTo: string;
-  onAssignedToChange: (v: string) => void;
 }) {
   return (
     <div className="grid gap-3">
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Assigned to</Label>
-        <Select
-          value={assignedTo || '__unassigned__'}
-          onValueChange={(v) =>
-            onAssignedToChange(v === '__unassigned__' ? '' : v)
-          }
-        >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Unassigned" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__unassigned__">Unassigned</SelectItem>
-            {members.map((m) => (
-              <SelectItem key={m.user_id} value={m.user_id}>
-                {m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <div className="grid gap-1.5">
         <Label className="text-xs">Follow-up date</Label>
         <Input
@@ -683,39 +655,22 @@ function TokenForm({
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
-export type InquiryPipelineInquiryContext = {
+type InquiryPipelineInquiryContext = {
   customerName?: string;
   unitCode?: string;
 };
 
 export function InquiryPipelinePanel(props: {
-  projectId: string;
   opportunity: OpportunityRow | null;
   /** Read-only enquiry record labels (customer + unit live on `sales_inquiries`). */
   inquiryContext?: InquiryPipelineInquiryContext;
   onSaved: () => void;
   onClose: () => void;
-  /**
-   * When true, the horizontal pipeline stepper is omitted (e.g. parent already shows a unified progress bar).
-   * A compact stage selector is shown instead so users can still jump between stage forms.
-   */
-  hidePipelineStepper?: boolean;
 }) {
-  const {
-    projectId,
-    opportunity,
-    inquiryContext,
-    onSaved,
-    onClose,
-    hidePipelineStepper
-  } = props;
+  const { opportunity, inquiryContext, onSaved, onClose } = props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
-  const [assignedTo, setAssignedTo] = useState('');
-  const [members, setMembers] = useState<{ user_id: string; name: string }[]>(
-    []
-  );
   const [stageData, setStageData] = useState<StageData>(emptyStageData());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -726,7 +681,6 @@ export function InquiryPipelinePanel(props: {
     const currentStage = (opportunity.funnel_stage ?? 'Enquiry') as FunnelStage;
     const inPipeline = PIPELINE_STEPS.some((p) => p.id === currentStage);
     setActiveStage(inPipeline ? currentStage : 'Enquiry');
-    setAssignedTo(opportunity.assigned_to ?? '');
     setStageData(
       mergeStageDataFromPipelineRows(
         embedList(opportunity.sales_pipeline_stages)
@@ -735,32 +689,6 @@ export function InquiryPipelinePanel(props: {
     setError('');
     setSaved(false);
   }, [opportunity]);
-
-  const loadMembers = useCallback(async () => {
-    if (!projectId) return;
-    const { data: memRows } = await supabase
-      .from('project_members')
-      .select('user_id')
-      .eq('project_id', projectId)
-      .eq('status', 'Active');
-    if (!memRows?.length) {
-      setMembers([]);
-      return;
-    }
-    const ids = memRows.map((r) => r.user_id as string);
-    const { data: profRows } = await supabase
-      .from('profiles')
-      .select('id, name')
-      .in('id', ids);
-    const nameBy = new Map(
-      (profRows ?? []).map((p) => [p.id as string, (p.name as string) || p.id])
-    );
-    setMembers(ids.map((id) => ({ user_id: id, name: nameBy.get(id) ?? id })));
-  }, [projectId, supabase]);
-
-  useEffect(() => {
-    void loadMembers();
-  }, [loadMembers]);
 
   async function save(nextStage?: FunnelStage) {
     if (!opportunity) return;
@@ -772,8 +700,7 @@ export function InquiryPipelinePanel(props: {
       const { error: uErr } = await supabase
         .from('sales_opportunities')
         .update({
-          funnel_stage: targetStage,
-          assigned_to: assignedTo.trim() || null
+          funnel_stage: targetStage
         })
         .eq('id', opportunity.id);
       if (uErr) throw uErr;
@@ -833,38 +760,10 @@ export function InquiryPipelinePanel(props: {
   return (
     <>
       <div className="mt-1 space-y-3 pb-3">
-        {hidePipelineStepper ? (
-          <div className="grid max-w-sm gap-1.5">
-            <Label htmlFor="inquiry-pipeline-stage" className="text-xs">
-              Stage to edit
-            </Label>
-            <Select
-              value={activeStage}
-              onValueChange={(v) =>
-                setActiveStage(v as PipelineAnchorStage)
-              }
-            >
-              <SelectTrigger
-                id="inquiry-pipeline-stage"
-                className="h-9 text-xs"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PIPELINE_STEPS.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <PipelineStepper
-            current={activeStage}
-            onSelect={(stage) => setActiveStage(stage)}
-          />
-        )}
+        <PipelineStepper
+          current={activeStage}
+          onSelect={(stage) => setActiveStage(stage)}
+        />
         {inquiryContext &&
           (inquiryContext.customerName?.trim() ||
             inquiryContext.unitCode?.trim()) &&
@@ -901,9 +800,6 @@ export function InquiryPipelinePanel(props: {
           <EnquiryForm
             data={stageData.enquiry ?? {}}
             onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
-            members={members}
-            assignedTo={assignedTo}
-            onAssignedToChange={setAssignedTo}
           />
         )}
         {activeStage === 'Qualified' && (

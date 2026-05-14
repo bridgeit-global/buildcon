@@ -54,7 +54,7 @@ const STEPS = [
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
 
-export type NewInquiryWizardProps = {
+type NewInquiryWizardProps = {
   projectId: string;
   onInquirySaved?: () => void | Promise<void>;
   /** Called with the new inquiry id after successful save (skips form reset). */

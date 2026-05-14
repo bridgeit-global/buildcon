@@ -11,8 +11,3 @@ export function embedOne<T>(x: T | T[] | null | undefined): T | null {
   if (x == null) return null;
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
-
-export function embedList<T>(x: T | T[] | null | undefined): T[] {
-  if (x == null) return [];
-  return Array.isArray(x) ? x : [x];
-}

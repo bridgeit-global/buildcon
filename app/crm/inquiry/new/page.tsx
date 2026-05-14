@@ -379,9 +379,7 @@ function NewInquiryPageInner() {
             </div>
           ) : (
             <InquiryPipelinePanel
-              projectId={activeProjectId}
               opportunity={opportunity}
-              hidePipelineStepper
               inquiryContext={{
                 customerName: customerName || undefined,
                 unitCode: unitCode || undefined
