@@ -513,6 +513,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         <StepSelectUnit
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
+          selectedUnit={selectedUnit}
           loadingUnits={loadingUnits}
           filteredUnits={filteredSelectableUnits}
           filterOptions={unitPickFilterOptions}
@@ -904,6 +905,51 @@ function ProjectParkingHighlight({
   );
 }
 
+function CustomerLookingForField({
+  sellerForm,
+  setSellerForm
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+}) {
+  return (
+    <div>
+      <Label>Looking for (layout / configuration)</Label>
+      <Select
+        value={
+          sellerForm.interestedIn === ''
+            ? INQUIRY_INTEREST_ALL
+            : sellerForm.interestedIn
+        }
+        onValueChange={(v) =>
+          setSellerForm((s) => ({
+            ...s,
+            interestedIn: v === INQUIRY_INTEREST_ALL ? '' : v
+          }))
+        }
+      >
+        <SelectTrigger className="mt-1 w-full">
+          <SelectValue placeholder="What are they shopping for?" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={INQUIRY_INTEREST_ALL}>
+            Not sure / open to options
+          </SelectItem>
+          {INTEREST_TYPES.map((v) => (
+            <SelectItem key={v} value={v}>
+              {v}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="mt-1 text-[10px] text-muted-foreground">
+        When this matches an inventory label, the unit-type filter below updates
+        to match.
+      </p>
+    </div>
+  );
+}
+
 function CustomerUnitNeedsGrid({
   sellerForm,
   setSellerForm,
@@ -914,41 +960,7 @@ function CustomerUnitNeedsGrid({
   notesPlaceholder: string;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <div className="md:col-span-2">
-        <Label>Looking for (layout / configuration)</Label>
-        <Select
-          value={
-            sellerForm.interestedIn === ''
-              ? INQUIRY_INTEREST_ALL
-              : sellerForm.interestedIn
-          }
-          onValueChange={(v) =>
-            setSellerForm((s) => ({
-              ...s,
-              interestedIn: v === INQUIRY_INTEREST_ALL ? '' : v
-            }))
-          }
-        >
-          <SelectTrigger className="mt-1 w-full">
-            <SelectValue placeholder="What are they shopping for?" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={INQUIRY_INTEREST_ALL}>
-              Not sure / open to options
-            </SelectItem>
-            {INTEREST_TYPES.map((v) => (
-              <SelectItem key={v} value={v}>
-                {v}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          When this matches an inventory label, the unit-type filter below
-          updates to match.
-        </p>
-      </div>
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <div>
         <Label>Extra parking needed?</Label>
         <Select
@@ -995,7 +1007,7 @@ function CustomerUnitNeedsGrid({
           </SelectContent>
         </Select>
       </div>
-      <div className="md:col-span-2 xl:col-span-4">
+      <div className="md:col-span-2">
         <Label>Other requirements</Label>
         <Textarea
           value={sellerForm.notes}
@@ -1014,6 +1026,7 @@ function CustomerUnitNeedsGrid({
 function StepSelectUnit({
   sellerForm,
   setSellerForm,
+  selectedUnit,
   loadingUnits,
   filteredUnits,
   filterOptions,
@@ -1023,6 +1036,7 @@ function StepSelectUnit({
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
+  selectedUnit: UnitRow | null;
   loadingUnits: boolean;
   filteredUnits: UnitRow[];
   filterOptions: {
@@ -1049,38 +1063,20 @@ function StepSelectUnit({
 
   return (
     <div className="mt-6 space-y-8">
-      <section className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-        <div className="space-y-1">
-          <h2 className="text-sm font-bold text-foreground">
-            What does the customer need?
-          </h2>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Record layout preference, parking appetite, and any must-haves before
-            you shortlist units. This is saved with the enquiry and drives the
-            cost estimate.
-          </p>
-        </div>
-        <div className="mt-4 space-y-4">
-          <ProjectParkingHighlight
-            projectParking={projectParking}
-            parkingRequired={sellerForm.parkingRequired}
-            parkingCount={sellerForm.parkingCount}
-          />
-          <CustomerUnitNeedsGrid
-            sellerForm={sellerForm}
-            setSellerForm={setSellerForm}
-            notesPlaceholder="e.g. higher floor, corner, sea view, budget band, timeline, Vastu, family size…"
-          />
-        </div>
-      </section>
-
       <section className="space-y-3">
         <div className="space-y-1">
           <h2 className="text-sm font-bold text-foreground">Shortlist a unit</h2>
           <p className="text-[11px] text-muted-foreground">
-            Narrow by inventory labels, floor, and wing, then tap a unit. Cards
-            only show statuses you can attach to an enquiry.
+            Narrow by inventory labels, floor, and wing, then tap a unit. After
+            you pick one, parking and other requirements appear below. Cards only
+            show statuses you can attach to an enquiry.
           </p>
+        </div>
+        <div className="max-w-md">
+          <CustomerLookingForField
+            sellerForm={sellerForm}
+            setSellerForm={setSellerForm}
+          />
         </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[140px] flex-1">
@@ -1213,10 +1209,41 @@ function StepSelectUnit({
       </div>
       {!sellerForm.selectedUnitId ? (
         <p className="text-[11px] text-muted-foreground">
-          Select a unit, then continue to view full details and pricing.
+          Select a unit above, then answer parking and other requirements below
+          before continuing.
         </p>
       ) : null}
       </section>
+
+      {sellerForm.selectedUnitId ? (
+        <section className="rounded-xl border border-blue-200/80 bg-card p-4 shadow-sm sm:p-5">
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-foreground">
+              Parking and requirements
+            </h2>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              For{' '}
+              <span className="font-semibold text-foreground">
+                {selectedUnit?.unit_code ?? 'this unit'}
+              </span>
+              . This is saved with the enquiry and drives the cost estimate on the
+              next steps.
+            </p>
+          </div>
+          <div className="mt-4 space-y-4">
+            <ProjectParkingHighlight
+              projectParking={projectParking}
+              parkingRequired={sellerForm.parkingRequired}
+              parkingCount={sellerForm.parkingCount}
+            />
+            <CustomerUnitNeedsGrid
+              sellerForm={sellerForm}
+              setSellerForm={setSellerForm}
+              notesPlaceholder="e.g. higher floor, corner, sea view, budget band, timeline, Vastu, family size…"
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -1298,9 +1325,9 @@ function StepUnitDetails({
         projectParking={projectParking}
       />
       <p className="text-[11px] text-muted-foreground">
-        Requirements and parking were captured while selecting a unit. The cost
-        sheet uses that parking choice; you can fine-tune parking on the final
-        confirm step before saving.
+        Parking and notes were captured after you chose the unit. The cost sheet
+        uses that parking choice; you can fine-tune parking on the final confirm
+        step before saving.
       </p>
     </div>
   );

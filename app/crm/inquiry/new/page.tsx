@@ -28,20 +28,14 @@ export default function NewInquiryPage() {
           </Link>
         </Button>
       </div>
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          New enquiry
-        </h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Same steps as the overview modal, on a dedicated page for longer entry
-          sessions.
-        </p>
-      </div>
       <Card className="overflow-hidden p-0">
         <div className="border-b border-border bg-muted/20 px-6 py-3">
-          <p className="text-[11px] text-muted-foreground">
-            Creates or updates a customer by mobile number, then saves the
-            enquiry.
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">
+            New enquiry
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Same steps as the overview modal, on a dedicated page for longer entry
+            sessions.
           </p>
         </div>
         <div className="px-6 py-4">
