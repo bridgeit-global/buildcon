@@ -569,7 +569,7 @@ using (public.has_project_access(project_id))
 with check (public.has_project_access(project_id));
 
 -- -----------------------------------------------------------------------------
--- Documents (templates + generated docs + signatures)
+-- Documents (templates + generated docs)
 -- -----------------------------------------------------------------------------
 
 create table if not exists public.document_templates (
@@ -593,18 +593,8 @@ create table if not exists public.generated_documents (
   generated_at timestamptz not null default now()
 );
 
-create table if not exists public.project_signatures (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects (id) on delete cascade,
-  name text not null,
-  storage_path text not null,
-  active boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
 alter table public.document_templates enable row level security;
 alter table public.generated_documents enable row level security;
-alter table public.project_signatures enable row level security;
 
 create policy "document_templates_select_project"
 on public.document_templates
@@ -624,17 +614,6 @@ using (public.has_project_access(project_id));
 
 create policy "generated_documents_mutate_project"
 on public.generated_documents
-for all
-using (public.has_project_access(project_id))
-with check (public.has_project_access(project_id));
-
-create policy "project_signatures_select_project"
-on public.project_signatures
-for select
-using (public.has_project_access(project_id));
-
-create policy "project_signatures_mutate_project"
-on public.project_signatures
 for all
 using (public.has_project_access(project_id))
 with check (public.has_project_access(project_id));
