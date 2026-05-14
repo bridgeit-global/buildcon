@@ -81,11 +81,6 @@ export function InquiryPipelineBoard(props: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="text-sm font-semibold text-foreground">Pipeline board</div>
-      <p className="text-xs text-muted-foreground">
-        Drag a card between stages to update the lead. Stages:{' '}
-        {PIPELINE_KANBAN_STAGES.join(' → ')} — then Booking, Won, or Lost.
-      </p>
       <div className="flex gap-3 overflow-x-auto pb-1 pt-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
         {FUNNEL_STAGES.map((stage) => {
           const column = byStage.get(stage) ?? [];

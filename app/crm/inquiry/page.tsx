@@ -19,6 +19,13 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
   type ProjectParkingMeta,
@@ -33,7 +40,10 @@ import {
   FUNNEL_STAGES,
   type OpportunityRow
 } from './inquiry-pipeline-dialog';
-import { InquiryPipelineBoard } from './inquiry-pipeline-board';
+import {
+  InquiryPipelineBoard,
+  PIPELINE_KANBAN_STAGES
+} from './inquiry-pipeline-board';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -249,6 +259,7 @@ function InquiryPageContent() {
   const [stageMoveInquiryId, setStageMoveInquiryId] = useState<string | null>(
     null
   );
+  const [newInquiryOpen, setNewInquiryOpen] = useState(false);
 
   const loadInquiries = useCallback(async () => {
     if (!activeProjectId) return;
@@ -677,6 +688,7 @@ function InquiryPageContent() {
         parkingSlotsAvailable: projectParking?.parking_slots ?? null,
         parkingRateSnapshot: projectParking?.parking_rate ?? null
       });
+      setNewInquiryOpen(false);
       router.push('/crm/bookings');
     } catch (e) {
       setError(
@@ -804,6 +816,7 @@ function InquiryPageContent() {
 
       await loadInquiries();
       resetForm();
+      setNewInquiryOpen(false);
       setSaveMsg('Inquiry saved.');
       window.setTimeout(() => setSaveMsg(''), 1800);
     } catch (e) {
@@ -828,6 +841,11 @@ function InquiryPageContent() {
           {error}
         </div>
       ) : null}
+      {!newInquiryOpen && saveMsg ? (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          {saveMsg}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -841,11 +859,10 @@ function InquiryPageContent() {
         <Button
           type="button"
           className="gap-1 bg-blue-600 hover:bg-blue-700"
-          onClick={() =>
-            document
-              .getElementById('new-inquiry-form')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
+          onClick={() => {
+            resetForm();
+            setNewInquiryOpen(true);
+          }}
         >
           + Add enquiry
         </Button>
@@ -968,172 +985,136 @@ function InquiryPageContent() {
           </ul>
         </Card>
       </div>
-
-      {/* <Card className="p-4" id="inquiry-pipeline-board">
-        <InquiryPipelineBoard
-          inquiries={filtered}
-          loading={loadingInquiries}
-          pendingInquiryId={stageMoveInquiryId}
-          onStageChange={(id, stage) => void commitOpportunityStage(id, stage)}
-          onOpenPipeline={(inquiryId) =>
-            setPipeline({
-              projectId: activeProjectId ?? '',
-              inquiryId
-            })
+      <Dialog
+        open={newInquiryOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            resetForm();
+            setSaveMsg('');
           }
-        />
-      </Card> */}
+          setNewInquiryOpen(open);
+        }}
+      >
+        <DialogContent className="max-h-[min(92vh,900px)] gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="border-b border-border px-6 py-4 text-left">
+            <DialogTitle className="text-base">New enquiry</DialogTitle>
+            <DialogDescription className="text-xs">
+              Creates or updates a customer by mobile number, then saves the
+              enquiry.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[min(78vh,720px)] overflow-y-auto px-6 py-4">
+            <Stepper
+              current={step}
+              onStepClick={gotoStep}
+              valid={stepValid}
+              disabled={saving}
+            />
 
-      <Card className="p-4">
-        <div className="text-sm font-semibold text-foreground">Follow-ups</div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Open follow-ups with due times (soonest first).
-        </p>
-        <ul className="mt-3 space-y-2">
-          {upcomingFollowUps.length === 0 ? (
-            <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
-              {loadingInquiries
-                ? 'Loading…'
-                : 'No open follow-ups. Add one from Pipeline on an enquiry.'}
-            </li>
-          ) : (
-            upcomingFollowUps.map((row) => {
-              const summary = String(row.note || '').trim() || 'Follow-up';
-              return (
-                <li key={row.followId}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40"
-                    onClick={() =>
-                      setPipeline({
-                        projectId: activeProjectId ?? '',
-                        inquiryId: row.inquiryId
-                      })
-                    }
-                  >
-                    <span className="font-semibold text-foreground">
-                      {row.customerName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {summary} — {formatFollowDueLabel(row.dueAt)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })
-          )}
-        </ul>
-      </Card>
+            {step === 1 ? (
+              <StepCustomer
+                sellerForm={sellerForm}
+                setSellerForm={setSellerForm}
+                signedIn={Boolean(userLabel.id)}
+              />
+            ) : null}
 
-      <Card className="p-4" id="new-inquiry-form">
-        <div className="text-sm font-semibold text-foreground">
-          New inquiry form
-        </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          Creates or updates a customer by mobile number, then saves the inquiry.
-        </div>
+            {step === 2 ? (
+              <StepInquiry
+                sellerForm={sellerForm}
+                setSellerForm={setSellerForm}
+                brokers={brokers}
+                projectParking={projectParking}
+              />
+            ) : null}
 
-        <Stepper
-          current={step}
-          onStepClick={gotoStep}
-          valid={stepValid}
-          disabled={saving}
-        />
+            {step === 3 ? (
+              <StepUnit
+                sellerForm={sellerForm}
+                setSellerForm={setSellerForm}
+                suggestionUnits={suggestionUnits}
+                loadingUnits={loadingUnits}
+                selectedUnit={selectedUnit}
+                projectParking={projectParking}
+              />
+            ) : null}
 
-        {step === 1 ? (
-          <StepCustomer
-            sellerForm={sellerForm}
-            setSellerForm={setSellerForm}
-            signedIn={Boolean(userLabel.id)}
-          />
-        ) : null}
-
-        {step === 2 ? (
-          <StepInquiry
-            sellerForm={sellerForm}
-            setSellerForm={setSellerForm}
-            brokers={brokers}
-            projectParking={projectParking}
-          />
-        ) : null}
-
-        {step === 3 ? (
-          <StepUnit
-            sellerForm={sellerForm}
-            setSellerForm={setSellerForm}
-            suggestionUnits={suggestionUnits}
-            loadingUnits={loadingUnits}
-            selectedUnit={selectedUnit}
-            projectParking={projectParking}
-          />
-        ) : null}
-
-        {step === 4 ? (
-          <StepReview
-            sellerForm={sellerForm}
-            selectedUnit={selectedUnit}
-            brokers={brokers}
-            projectParking={projectParking}
-          />
-        ) : null}
-
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={goBack}
-              disabled={step === 1 || saving}
-            >
-              Back
-            </Button>
-            <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
-              Reset
-            </Button>
+            {step === 4 ? (
+              <StepReview
+                sellerForm={sellerForm}
+                selectedUnit={selectedUnit}
+                brokers={brokers}
+                projectParking={projectParking}
+              />
+            ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            {!userLabel.id ? (
-              <span className="text-xs text-amber-700">
-                Sign in required to save.
-              </span>
-            ) : null}
-            {saveMsg ? (
-              <span className="text-xs font-semibold text-green-700">
-                {saveMsg}
-              </span>
-            ) : null}
-            {step < 4 ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/20 px-6 py-4">
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
-                onClick={() => void goNext()}
-                disabled={!stepValid[step] || saving}
+                variant="outline"
+                onClick={goBack}
+                disabled={step === 1 || saving}
               >
-                {saving && step === 1 ? 'Saving…' : step === 1 ? 'Save & next' : 'Next'}
+                Back
               </Button>
-            ) : (
-              <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={resetForm}
+                disabled={saving}
+              >
+                Reset
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!userLabel.id ? (
+                <span className="text-xs text-amber-700">
+                  Sign in required to save.
+                </span>
+              ) : null}
+              {saveMsg ? (
+                <span className="text-xs font-semibold text-green-700">
+                  {saveMsg}
+                </span>
+              ) : null}
+              {step < 4 ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  disabled={!canSave || saving || !userLabel.id}
-                  onClick={() => void saveInquiry()}
+                  onClick={() => void goNext()}
+                  disabled={!stepValid[step] || saving}
                 >
-                  {saving ? 'Saving…' : 'Save inquiry only'}
+                  {saving && step === 1
+                    ? 'Saving…'
+                    : step === 1
+                      ? 'Save & next'
+                      : 'Next'}
                 </Button>
-                <Button
-                  type="button"
-                  disabled={!canSave || saving || !userLabel.id}
-                  onClick={() => void continueToBookingFromReview()}
-                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-                >
-                  Confirm booking
-                  <ArrowRight className="size-4" aria-hidden />
-                </Button>
-              </>
-            )}
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!canSave || saving || !userLabel.id}
+                    onClick={() => void saveInquiry()}
+                  >
+                    {saving ? 'Saving…' : 'Save enquiry only'}
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={!canSave || saving || !userLabel.id}
+                    onClick={() => void continueToBookingFromReview()}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    Confirm booking
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       <Card className="p-4" id="inquiry-list">
         <div className="flex flex-wrap items-start justify-between gap-3">
