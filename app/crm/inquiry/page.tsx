@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -35,7 +36,9 @@ import {
 import { formatUnitAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
-import { type OpportunityRow } from './inquiry-pipeline-dialog';
+import { embedOne, embedList, inquiryReference } from './inquiry-helpers';
+import { InquiryListCard } from './inquiry-list-card';
+import type { InquiryRowDb, UnitRow } from './inquiry-types';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -67,31 +70,6 @@ function normalizePhone(p: string) {
   return String(p || '').replace(/\D/g, '');
 }
 
-function inquiryReference(id: string) {
-  const compact = id.replace(/-/g, '');
-  return `INQ-${compact.slice(0, 10).toUpperCase()}`;
-}
-
-type UnitRow = {
-  id: string;
-  unit_code: string;
-  wing_name: string;
-  floor: number;
-  unit_no: number;
-  unit_type: string | null;
-  area: number | null;
-  carpet_area: number | null;
-  bua_area: number | null;
-  rate: number | null;
-  floor_rise_charge: number | null;
-  plc_charge: number | null;
-  status: string;
-};
-
-function unitDisplayName(u: Pick<UnitRow, 'unit_code' | 'wing_name'>) {
-  return `${u.unit_code} · ${u.wing_name}`;
-}
-
 const INQUIRY_INTEREST_ALL = '__inquiry_interest_all__';
 
 const STEPS = [
@@ -101,24 +79,6 @@ const STEPS = [
   { id: 4, label: 'Review' }
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
-
-type CustomerEmbed = {
-  full_name: string;
-  phone: string | null;
-  email: string | null;
-};
-type UnitEmbed = { unit_code: string; wing_name: string };
-type ProfileEmbed = { name: string | null };
-
-function embedOne<T>(x: T | T[] | null | undefined): T | null {
-  if (x == null) return null;
-  return Array.isArray(x) ? (x[0] ?? null) : x;
-}
-
-function embedList<T>(x: T | T[] | null | undefined): T[] {
-  if (x == null) return [];
-  return Array.isArray(x) ? x : [x];
-}
 
 const LEAD_SOURCE_COLOR: Record<string, string> = {
   Website: '#2563eb',
@@ -182,35 +142,12 @@ function funnelStageLabel(stage: string) {
   return s || 'New';
 }
 
-type BrokerEmbed = { full_name: string };
-
-type InquiryRowDb = {
-  id: string;
-  created_at: string;
-  lead_source: string;
-  broker_id: string | null;
-  brokers: BrokerEmbed | BrokerEmbed[] | null;
-  interested_in: string | null;
-  parking_required: string;
-  parking_count: string;
-  parking_slots_available: number | null;
-  parking_rate_snapshot: number | null;
-  notes: string | null;
-  customer_id: string;
-  unit_id: string;
-  customers: CustomerEmbed | CustomerEmbed[] | null;
-  units: UnitEmbed | UnitEmbed[] | null;
-  profiles: ProfileEmbed | ProfileEmbed[] | null;
-  sales_opportunities?: OpportunityRow | OpportunityRow[] | null;
-};
-
 function InquiryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { activeProjectId } = useActiveProjectContext();
 
-  const [query, setQuery] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
   const [error, setError] = useState('');
   const [units, setUnits] = useState<UnitRow[]>([]);
@@ -392,31 +329,6 @@ function InquiryPageContent() {
 
   const projectId = activeProjectId ?? '';
 
-  const filtered = useMemo(() => {
-    const q = String(query || '').trim().toLowerCase();
-    if (!q) return inquiries;
-    return inquiries.filter((inq) => {
-      const c = embedOne(inq.customers);
-      const name = String(c?.full_name || '').toLowerCase();
-      const phone = String(c?.phone || '').toLowerCase();
-      const email = String(c?.email || '').toLowerCase();
-      const unitId = String(inq?.unit_id || '').toLowerCase();
-      const u = embedOne(inq.units);
-      const unitCode = String(u?.unit_code || '').toLowerCase();
-      const source = String(inq.lead_source || '').toLowerCase();
-      const ref = inquiryReference(inq.id).toLowerCase();
-      return (
-        name.includes(q) ||
-        phone.includes(q) ||
-        email.includes(q) ||
-        unitId.includes(q) ||
-        unitCode.includes(q) ||
-        source.includes(q) ||
-        ref.includes(q)
-      );
-    });
-  }, [inquiries, query]);
-
   const kpiStats = useMemo(() => {
     const total = inquiries.length;
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -513,15 +425,6 @@ function InquiryPageContent() {
       })
       .slice(0, 8);
   }, [units, sellerForm.interestedIn]);
-
-  const unitNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    units.forEach((u) => {
-      if (!u?.id) return;
-      map.set(u.id, unitDisplayName(u));
-    });
-    return map;
-  }, [units]);
 
   const selectedUnit = useMemo(() => {
     const id = String(sellerForm.selectedUnitId || '').trim();
@@ -1063,185 +966,18 @@ function InquiryPageContent() {
         </DialogContent>
       </Dialog>
 
-      <Card className="p-4" id="inquiry-list">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-foreground">
-              Inquiry list
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Stored in the database with linked customer and unit.{' '}
-              <span className="tabular-nums text-foreground">
-                {loadingInquiries ? 'Loading…' : `${inquiries.length} loaded`}
-              </span>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => void loadInquiries()}
-            disabled={loadingInquiries}
-          >
-            Refresh
+      <InquiryListCard
+        inquiries={inquiries}
+        loadingInquiries={loadingInquiries}
+        loadInquiries={loadInquiries}
+        units={units}
+        navigateToBookingFromInquiry={navigateToBookingFromInquiry}
+        headerExtra={
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/crm/inquiry/list">Full-page list</Link>
           </Button>
-        </div>
-
-        <Label className="sr-only">Search inquiries</Label>
-        <Input
-          className="mt-4"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by customer, phone, email, source, or unit"
-        />
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[1000px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                {[
-                  'Inquiry ID',
-                  'Created',
-                  'Customer',
-                  'Phone',
-                  'Email',
-                  'Lead source',
-                  'Broker',
-                  'Unit',
-                  'Stage',
-                  'Parking',
-                  'Seller',
-                  'Actions'
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="whitespace-nowrap px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={12}
-                    className="px-2 py-6 text-muted-foreground"
-                  >
-                    {loadingInquiries
-                      ? 'Loading…'
-                      : 'No inquiries found for this project.'}
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((inq) => {
-                  const u = embedOne(inq.units);
-                  const unitLabel =
-                    u != null
-                      ? unitDisplayName(u)
-                      : unitNameById.get(inq.unit_id) || inq.unit_id || '—';
-                  const sellerName = embedOne(inq.profiles)?.name ?? '—';
-                  return (
-                    <tr
-                      key={inq.id}
-                      className="border-b border-border/80"
-                    >
-                      <td className="whitespace-nowrap px-2 py-2 text-xs font-semibold">
-                        {inquiryReference(inq.id)}
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">
-                        {inq.created_at
-                          ? new Date(inq.created_at).toLocaleString()
-                          : '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs">
-                        {embedOne(inq.customers)?.full_name ?? '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-muted-foreground">
-                        {embedOne(inq.customers)?.phone ?? '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-muted-foreground">
-                        {embedOne(inq.customers)?.email ?? '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-muted-foreground">
-                        {inq.lead_source ?? '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-muted-foreground">
-                        {String(inq.lead_source || '').toLowerCase() ===
-                          'broker'
-                          ? embedOne(inq.brokers)?.full_name ?? '—'
-                          : '—'}
-                      </td>
-                      <td className="px-2 py-2 text-xs font-semibold">
-                        {unitLabel}
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">
-                        {embedOne(inq.sales_opportunities)?.funnel_stage ?? '—'}
-                      </td>
-                      <td className="max-w-[220px] px-2 py-2 text-[11px] leading-snug">
-                        <div className="font-medium text-foreground">
-                          {inq.parking_required === 'Yes'
-                            ? `Ask × ${inq.parking_count}`
-                            : 'No'}
-                        </div>
-                        {inq.parking_slots_available != null &&
-                          inq.parking_slots_available > 0 ? (
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
-                            At save: {inq.parking_slots_available} slots
-                            {inq.parking_rate_snapshot != null &&
-                              inq.parking_rate_snapshot > 0
-                              ? ` @ ₹${inq.parking_rate_snapshot.toLocaleString(
-                                'en-IN'
-                              )}/slot`
-                              : ''}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-2 py-2 text-xs text-muted-foreground">
-                        {sellerName}
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                            onClick={() =>
-                              router.push(
-                                `/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`
-                              )
-                            }
-                          >
-                            Pipeline
-                          </Button>
-                          {inq.unit_id?.trim() ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
-                              onClick={() => navigateToBookingFromInquiry(inq)}
-                            >
-                              Booking
-                              <ArrowRight className="size-3.5 opacity-90" />
-                            </Button>
-                          ) : (
-                            <span className="self-center text-[10px] text-muted-foreground">
-                              No unit
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+        }
+      />
     </div>
   );
 }
