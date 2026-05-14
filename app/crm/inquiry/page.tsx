@@ -111,6 +111,73 @@ function embedOne<T>(x: T | T[] | null | undefined): T | null {
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
 
+function embedList<T>(x: T | T[] | null | undefined): T[] {
+  if (x == null) return [];
+  return Array.isArray(x) ? x : [x];
+}
+
+const LEAD_SOURCE_COLOR: Record<string, string> = {
+  Website: '#2563eb',
+  'Social Media': '#ea580c',
+  'Walk-in': '#38bdf8',
+  Direct: '#64748b',
+  Broker: '#9333ea',
+  Referral: '#a855f7'
+};
+
+function leadSourceColor(label: string, index: number) {
+  const trimmed = String(label || '').trim();
+  if (LEAD_SOURCE_COLOR[trimmed]) return LEAD_SOURCE_COLOR[trimmed];
+  const l = trimmed.toLowerCase();
+  if (l.includes('whatsapp')) return '#16a34a';
+  if (l.includes('facebook') || l.includes('instagram')) return '#ea580c';
+  if (l.includes('website')) return '#2563eb';
+  const palette = ['#7c3aed', '#0d9488', '#db2777', '#ca8a04', '#4f46e5'];
+  return palette[index % palette.length];
+}
+
+function formatFollowDueLabel(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const sod = (t: Date) =>
+    new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const diffDays = Math.round((sod(d) - sod(new Date())) / 86400000);
+  const time = d.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+  if (diffDays === 0) return `Today ${time}`;
+  if (diffDays === 1) return `Tomorrow ${time}`;
+  if (diffDays === -1) return `Yesterday ${time}`;
+  return `${d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric'
+  })} · ${time}`;
+}
+
+function funnelStageBadgeClass(stage: string) {
+  const s = String(stage || '').trim();
+  if (!s || s === 'Enquiry') {
+    return 'border-red-200 bg-red-50 text-red-800';
+  }
+  if (s === 'Qualified') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+  }
+  if (s === 'Site Visit') {
+    return 'border-green-200 bg-green-50 text-green-900';
+  }
+  if (s === 'Lost') return 'border-slate-200 bg-slate-100 text-slate-700';
+  if (s === 'Won' || s === 'Booking') {
+    return 'border-violet-200 bg-violet-50 text-violet-900';
+  }
+  return 'border-blue-200 bg-blue-50 text-blue-900';
+}
+
+function funnelStageLabel(stage: string) {
+  const s = String(stage || '').trim();
+  return s || 'New';
+}
+
 type BrokerEmbed = { full_name: string };
 
 type InquiryRowDb = {
@@ -346,15 +413,74 @@ function InquiryPageContent() {
     return embedOne(inq?.sales_opportunities) ?? null;
   }, [pipeline, inquiries]);
 
-  const stats = useMemo(() => {
+  const kpiStats = useMemo(() => {
     const total = inquiries.length;
     const todayStr = new Date().toISOString().slice(0, 10);
-    const today = inquiries.filter(
+    const createdToday = inquiries.filter(
       (i) => String(i?.created_at || '').slice(0, 10) === todayStr
     ).length;
-    const withUnit = inquiries.filter((i) => String(i?.unit_id || '').trim())
-      .length;
-    return { total, today, withUnit };
+    let newLeads = 0;
+    let qualified = 0;
+    let converted = 0;
+    for (const inq of inquiries) {
+      const opp = embedOne(inq.sales_opportunities);
+      const s = String(opp?.funnel_stage || '').trim();
+      if (!opp || s === 'Enquiry') newLeads++;
+      else if (s === 'Qualified') qualified++;
+      else if (s === 'Won' || s === 'Booking') converted++;
+    }
+    return { total, createdToday, newLeads, qualified, converted };
+  }, [inquiries]);
+
+  const leadSourceSlices = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const inq of inquiries) {
+      const src = String(inq.lead_source || 'Unknown').trim() || 'Unknown';
+      counts.set(src, (counts.get(src) ?? 0) + 1);
+    }
+    const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((s, [, n]) => s + n, 0);
+    return entries.map(([label, count], i) => ({
+      label,
+      count,
+      color: leadSourceColor(label, i),
+      pct: total > 0 ? Math.round((count / total) * 1000) / 10 : 0
+    }));
+  }, [inquiries]);
+
+  const recentInquiriesPreview = useMemo(
+    () => inquiries.slice(0, 6),
+    [inquiries]
+  );
+
+  const upcomingFollowUps = useMemo(() => {
+    type Row = {
+      followId: string;
+      inquiryId: string;
+      dueAt: string;
+      note: string | null;
+      customerName: string;
+    };
+    const rows: Row[] = [];
+    for (const inq of inquiries) {
+      const opp = embedOne(inq.sales_opportunities);
+      if (!opp) continue;
+      const name = embedOne(inq.customers)?.full_name ?? '—';
+      for (const f of embedList(opp.sales_follow_ups)) {
+        if (f.completed_at) continue;
+        rows.push({
+          followId: f.id,
+          inquiryId: inq.id,
+          dueAt: f.due_at,
+          note: f.note,
+          customerName: name
+        });
+      }
+    }
+    rows.sort(
+      (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()
+    );
+    return rows.slice(0, 10);
   }, [inquiries]);
 
   const canSave = useMemo(() => {
@@ -657,9 +783,188 @@ function InquiryPageContent() {
         </div>
       ) : null}
 
-
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">
+            Enquiries
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Capture leads, run pipeline, and convert to booking.
+          </p>
+        </div>
+        <Button
+          type="button"
+          className="gap-1 bg-blue-600 hover:bg-blue-700"
+          onClick={() =>
+            document
+              .getElementById('new-inquiry-form')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
+          + Add enquiry
+        </Button>
+      </div>
 
       <Card className="p-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {(
+            [
+              ['Total enquiries', kpiStats.total, `${kpiStats.createdToday} today`],
+              ['New', kpiStats.newLeads, 'Stage: Enquiry'],
+              ['Qualified', kpiStats.qualified, 'In funnel'],
+              ['Converted', kpiStats.converted, 'Booking or Won']
+            ] as const
+          ).map(([title, value, hint]) => (
+            <div
+              key={title}
+              className="rounded-lg border border-border bg-muted/30 px-3 py-3"
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {title}
+              </div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                {loadingInquiries ? '…' : value}
+              </div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <div className="text-sm font-semibold text-foreground">
+            Enquiry source
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Lead source for loaded enquiries (up to 500).
+          </p>
+          <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+            <LeadSourceDonut slices={leadSourceSlices} />
+            <ul className="w-full max-w-sm flex-1 space-y-2 text-sm">
+              {leadSourceSlices.length === 0 ? (
+                <li className="text-xs text-muted-foreground">
+                  {loadingInquiries
+                    ? 'Loading…'
+                    : 'No enquiries yet for this project.'}
+                </li>
+              ) : (
+                leadSourceSlices.map((s) => (
+                  <li
+                    key={s.label}
+                    className="flex items-center justify-between gap-2 border-b border-border/60 pb-2 last:border-0 last:pb-0"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="size-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: s.color }}
+                        aria-hidden
+                      />
+                      <span className="truncate font-medium text-foreground">
+                        {s.label}
+                      </span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                      {s.pct}% · {s.count}
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="text-sm font-semibold text-foreground">
+            Recent enquiries
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Latest by created date.
+          </p>
+          <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
+            {recentInquiriesPreview.length === 0 ? (
+              <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+                {loadingInquiries
+                  ? 'Loading…'
+                  : 'No enquiries yet for this project.'}
+              </li>
+            ) : (
+              recentInquiriesPreview.map((inq) => {
+                const c = embedOne(inq.customers);
+                const stage =
+                  embedOne(inq.sales_opportunities)?.funnel_stage ?? '';
+                const label = funnelStageLabel(stage);
+                return (
+                  <li
+                    key={inq.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">
+                        {c?.full_name ?? '—'}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {c?.phone ?? '—'}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                        funnelStageBadgeClass(stage)
+                      )}
+                    >
+                      {label}
+                    </span>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <div className="text-sm font-semibold text-foreground">Follow-ups</div>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Open follow-ups with due times (soonest first).
+        </p>
+        <ul className="mt-3 space-y-2">
+          {upcomingFollowUps.length === 0 ? (
+            <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+              {loadingInquiries
+                ? 'Loading…'
+                : 'No open follow-ups. Add one from Pipeline on an enquiry.'}
+            </li>
+          ) : (
+            upcomingFollowUps.map((row) => {
+              const summary = String(row.note || '').trim() || 'Follow-up';
+              return (
+                <li key={row.followId}>
+                  <button
+                    type="button"
+                    className="flex w-full flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40"
+                    onClick={() =>
+                      setPipeline({
+                        projectId: activeProjectId ?? '',
+                        inquiryId: row.inquiryId
+                      })
+                    }
+                  >
+                    <span className="font-semibold text-foreground">
+                      {row.customerName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {summary} — {formatFollowDueLabel(row.dueAt)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </Card>
+
+      <Card className="p-4" id="new-inquiry-form">
         <div className="text-sm font-semibold text-foreground">
           New inquiry form
         </div>
@@ -769,56 +1074,33 @@ function InquiryPageContent() {
         </div>
       </Card>
 
-      <Card className="p-4">
+      <Card className="p-4" id="inquiry-list">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-foreground">
               Inquiry list
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Stored in the database with linked customer and unit.
+              Stored in the database with linked customer and unit.{' '}
+              <span className="tabular-nums text-foreground">
+                {loadingInquiries ? 'Loading…' : `${inquiries.length} loaded`}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {loadingInquiries ? 'Loading…' : `${inquiries.length} saved`}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => void loadInquiries()}
-              disabled={loadingInquiries}
-            >
-              Refresh
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => void loadInquiries()}
+            disabled={loadingInquiries}
+          >
+            Refresh
+          </Button>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {(
-            [
-              ['Total inquiries', stats.total],
-              ['Created today', stats.today],
-              ['Unit selected', stats.withUnit]
-            ] as const
-          ).map(([k, v]) => (
-            <div
-              key={k}
-              className="rounded-lg border border-border bg-muted/40 px-3 py-2"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                {k}
-              </div>
-              <div className="mt-0.5 text-lg font-bold tabular-nums text-foreground">
-                {v}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-      <Card className="p-4" id="inquiry-list">
+
         <Label className="sr-only">Search inquiries</Label>
         <Input
+          className="mt-4"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by customer, phone, email, source, or unit"
@@ -988,6 +1270,48 @@ function InquiryPageContent() {
           void loadInquiries();
         }}
       />
+    </div>
+  );
+}
+
+function LeadSourceDonut({
+  slices
+}: {
+  slices: { label: string; count: number; color: string }[];
+}) {
+  const total = slices.reduce((s, x) => s + x.count, 0);
+  if (total <= 0) {
+    return (
+      <div
+        className="flex size-44 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-center text-[11px] leading-snug text-muted-foreground"
+        aria-hidden
+      >
+        No source data
+      </div>
+    );
+  }
+  let accPct = 0;
+  const gradientParts: string[] = [];
+  for (const sl of slices) {
+    const pct = (sl.count / total) * 100;
+    const start = accPct;
+    accPct += pct;
+    gradientParts.push(`${sl.color} ${start}% ${accPct}%`);
+  }
+  return (
+    <div className="relative mx-auto size-44 shrink-0 sm:mx-0">
+      <div
+        className="size-44 rounded-full shadow-inner ring-1 ring-black/5 dark:ring-white/10"
+        style={{ background: `conic-gradient(${gradientParts.join(', ')})` }}
+      />
+      <div className="absolute inset-[26%] flex flex-col items-center justify-center rounded-full bg-card text-center shadow-sm ring-1 ring-border">
+        <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Sources
+        </span>
+        <span className="text-lg font-bold tabular-nums leading-none text-foreground">
+          {total}
+        </span>
+      </div>
     </div>
   );
 }

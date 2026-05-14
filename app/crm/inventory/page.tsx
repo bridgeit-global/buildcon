@@ -384,7 +384,7 @@ function UnitDetailDialog({
                 [
                   'Floor-rise (₹)',
                   unit.floor_rise_charge != null &&
-                  Number(unit.floor_rise_charge) > 0
+                    Number(unit.floor_rise_charge) > 0
                     ? `₹ ${Number(unit.floor_rise_charge).toLocaleString('en-IN')}`
                     : '—'
                 ],
@@ -397,7 +397,7 @@ function UnitDetailDialog({
                 [
                   'Parking (slots on unit)',
                   unit.parking_slots_included != null &&
-                  Number(unit.parking_slots_included) > 0
+                    Number(unit.parking_slots_included) > 0
                     ? String(unit.parking_slots_included)
                     : '—'
                 ],
@@ -1087,7 +1087,7 @@ export default function InventoryPage() {
       }
       setBulkMsg(
         `Upserted ${payloads.length} unit(s).` +
-          (skipped ? ` Skipped ${skipped} row(s) without unit_code.` : '')
+        (skipped ? ` Skipped ${skipped} row(s) without unit_code.` : '')
       );
       setBulkCsv('');
       await load();
@@ -1390,7 +1390,6 @@ export default function InventoryPage() {
       {tab === 'Inventory Info' && (
         <div className="flex flex-col gap-3.5">
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-[11px] text-blue-600">
-            <span aria-hidden>ℹ️</span>
             <span>
               Inventory configuration is set during{' '}
               <strong>Project Creation</strong>. To change wings, floors, or
@@ -1427,18 +1426,18 @@ export default function InventoryPage() {
                       [
                         'Parking slots',
                         project.parking_slots != null &&
-                        project.parking_slots > 0
+                          project.parking_slots > 0
                           ? String(project.parking_slots)
                           : '—'
                       ],
                       [
                         'Parking rate',
                         project.parking_slots != null &&
-                        project.parking_slots > 0 &&
-                        project.parking_rate != null
+                          project.parking_slots > 0 &&
+                          project.parking_rate != null
                           ? `₹${project.parking_rate.toLocaleString(
-                              'en-IN'
-                            )} / slot`
+                            'en-IN'
+                          )} / slot`
                           : '—'
                       ],
                       [
@@ -1472,25 +1471,26 @@ export default function InventoryPage() {
               {UNIT_STATUS_CODES.map((k) => {
                 const v = STATUS_LABEL[k] ?? k;
                 return (
-                <div
-                  key={k}
-                  className="flex items-center gap-2.5 border-b border-slate-100 py-1.5"
-                >
                   <div
-                    className="h-3 w-3 shrink-0 rounded-sm"
-                    style={{ background: STATUS_COLOR[k] }}
-                  />
-                  <span className="flex-1 text-[11px] text-slate-500">
-                    {v}
-                  </span>
-                  <span
-                    className="text-[13px] font-bold"
-                    style={{ color: STATUS_COLOR[k] }}
+                    key={k}
+                    className="flex items-center gap-2.5 border-b border-slate-100 py-1.5"
                   >
-                    {counts[k] ?? 0}
-                  </span>
-                </div>
-              );})}
+                    <div
+                      className="h-3 w-3 shrink-0 rounded-sm"
+                      style={{ background: STATUS_COLOR[k] }}
+                    />
+                    <span className="flex-1 text-[11px] text-slate-500">
+                      {v}
+                    </span>
+                    <span
+                      className="text-[13px] font-bold"
+                      style={{ color: STATUS_COLOR[k] }}
+                    >
+                      {counts[k] ?? 0}
+                    </span>
+                  </div>
+                );
+              })}
               <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-xs font-bold text-slate-800">
                 <span>Total</span>
                 <span>{units.length}</span>
@@ -1589,16 +1589,17 @@ export default function InventoryPage() {
             {UNIT_STATUS_CODES.map((k) => {
               const v = STATUS_LABEL[k] ?? k;
               return (
-              <div key={k} className="flex items-center gap-1">
-                <div
-                  className="h-3 w-3 rounded-sm"
-                  style={{ background: STATUS_COLOR[k] }}
-                />
-                <span className="text-[10px] text-slate-500">
-                  {v} ({counts[k] ?? 0})
-                </span>
-              </div>
-            );})}
+                <div key={k} className="flex items-center gap-1">
+                  <div
+                    className="h-3 w-3 rounded-sm"
+                    style={{ background: STATUS_COLOR[k] }}
+                  />
+                  <span className="text-[10px] text-slate-500">
+                    {v} ({counts[k] ?? 0})
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex gap-3">
@@ -1732,14 +1733,14 @@ export default function InventoryPage() {
                       'Carpet / BUA / RERA',
                       [
                         selected.carpet_area != null &&
-                        Number(selected.carpet_area) > 0
+                          Number(selected.carpet_area) > 0
                           ? `C ${selected.carpet_area}`
                           : null,
                         selected.bua_area != null && Number(selected.bua_area) > 0
                           ? `B ${selected.bua_area}`
                           : null,
                         selected.rera_area != null &&
-                        Number(selected.rera_area) > 0
+                          Number(selected.rera_area) > 0
                           ? `R ${selected.rera_area}`
                           : null
                       ]
@@ -1751,15 +1752,15 @@ export default function InventoryPage() {
                       'Outdoor (T/D/L)',
                       [
                         selected.terrace_sqft != null &&
-                        Number(selected.terrace_sqft) > 0
+                          Number(selected.terrace_sqft) > 0
                           ? `T ${selected.terrace_sqft}`
                           : null,
                         selected.deck_sqft != null &&
-                        Number(selected.deck_sqft) > 0
+                          Number(selected.deck_sqft) > 0
                           ? `D ${selected.deck_sqft}`
                           : null,
                         selected.loading_sqft != null &&
-                        Number(selected.loading_sqft) > 0
+                          Number(selected.loading_sqft) > 0
                           ? `L ${selected.loading_sqft}`
                           : null
                       ]
@@ -1776,16 +1777,16 @@ export default function InventoryPage() {
                       'Floor-rise + PLC',
                       [
                         selected.floor_rise_charge != null &&
-                        Number(selected.floor_rise_charge) > 0
+                          Number(selected.floor_rise_charge) > 0
                           ? `FR ₹${Number(
-                              selected.floor_rise_charge
-                            ).toLocaleString('en-IN')}`
+                            selected.floor_rise_charge
+                          ).toLocaleString('en-IN')}`
                           : null,
                         selected.plc_charge != null &&
-                        Number(selected.plc_charge) > 0
+                          Number(selected.plc_charge) > 0
                           ? `PLC ₹${Number(selected.plc_charge).toLocaleString(
-                              'en-IN'
-                            )}`
+                            'en-IN'
+                          )}`
                           : null
                       ]
                         .filter(Boolean)
@@ -1794,7 +1795,7 @@ export default function InventoryPage() {
                     [
                       'Parking (unit)',
                       selected.parking_slots_included != null &&
-                      Number(selected.parking_slots_included) > 0
+                        Number(selected.parking_slots_included) > 0
                         ? String(selected.parking_slots_included)
                         : '—'
                     ],
@@ -1862,7 +1863,7 @@ export default function InventoryPage() {
               >
                 <SelectValue />
               </SelectTrigger>
-                <SelectContent>
+              <SelectContent>
                 <SelectItem value="All">All Status</SelectItem>
                 {UNIT_STATUS_CODES.map((k) => (
                   <SelectItem key={k} value={k}>
@@ -1963,7 +1964,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-3 py-2 text-[11px] text-slate-600">
                       {u.parking_slots_included != null &&
-                      Number(u.parking_slots_included) > 0
+                        Number(u.parking_slots_included) > 0
                         ? String(u.parking_slots_included)
                         : '—'}
                     </td>
@@ -2156,14 +2157,15 @@ export default function InventoryPage() {
                 {UNIT_STATUS_CODES.map((k) => {
                   const v = STATUS_LABEL[k] ?? k;
                   return (
-                  <div key={k} className="flex items-center gap-1">
-                    <div
-                      className="h-2.5 w-2.5 rounded-sm"
-                      style={{ background: STATUS_COLOR[k] }}
-                    />
-                    <span className="text-[10px] text-slate-500">{v}</span>
-                  </div>
-                );})}
+                    <div key={k} className="flex items-center gap-1">
+                      <div
+                        className="h-2.5 w-2.5 rounded-sm"
+                        style={{ background: STATUS_COLOR[k] }}
+                      />
+                      <span className="text-[10px] text-slate-500">{v}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
