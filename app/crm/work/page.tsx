@@ -299,7 +299,7 @@ export default function WorkQueuePage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Link
-                          href={`/crm/inquiry?pipelineInquiry=${encodeURIComponent(r.inquiryId)}`}
+                          href={`/crm/inquiry/pipeline/${encodeURIComponent(r.inquiryId)}`}
                           className="text-xs font-semibold text-blue-700 underline"
                         >
                           Open pipeline
@@ -360,7 +360,7 @@ export default function WorkQueuePage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Link
-                          href={`/crm/inquiry?pipelineInquiry=${encodeURIComponent(r.inquiryId)}`}
+                          href={`/crm/inquiry/pipeline/${encodeURIComponent(r.inquiryId)}`}
                           className="text-xs font-semibold text-blue-700 underline"
                         >
                           Open pipeline

@@ -35,10 +35,7 @@ import {
 import { formatUnitAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
-import {
-  InquiryPipelineDialog,
-  type OpportunityRow
-} from './inquiry-pipeline-dialog';
+import { type OpportunityRow } from './inquiry-pipeline-dialog';
 
 const INTEREST_TYPES = [
   '1RK',
@@ -247,10 +244,6 @@ function InquiryPageContent() {
 
   const [step, setStep] = useState<StepId>(1);
 
-  const [pipeline, setPipeline] = useState<{
-    projectId: string;
-    inquiryId: string;
-  } | null>(null);
   const [newInquiryOpen, setNewInquiryOpen] = useState(false);
 
   const loadInquiries = useCallback(async () => {
@@ -323,9 +316,17 @@ function InquiryPageContent() {
     if (!q || !activeProjectId || loadingInquiries) return;
     const exists = inquiries.some((i) => i.id === q);
     if (exists) {
-      setPipeline({ projectId: activeProjectId, inquiryId: q });
+      router.replace(`/crm/inquiry/pipeline/${encodeURIComponent(q)}`, {
+        scroll: false
+      });
     }
-  }, [searchParams, activeProjectId, inquiries, loadingInquiries]);
+  }, [
+    searchParams,
+    activeProjectId,
+    inquiries,
+    loadingInquiries,
+    router
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -415,12 +416,6 @@ function InquiryPageContent() {
       );
     });
   }, [inquiries, query]);
-
-  const pipelineOpportunity = useMemo(() => {
-    if (!pipeline) return null;
-    const inq = inquiries.find((i) => i.id === pipeline.inquiryId);
-    return embedOne(inq?.sales_opportunities) ?? null;
-  }, [pipeline, inquiries]);
 
   const kpiStats = useMemo(() => {
     const total = inquiries.length;
@@ -1214,10 +1209,9 @@ function InquiryPageContent() {
                             size="sm"
                             className="h-8"
                             onClick={() =>
-                              setPipeline({
-                                projectId: activeProjectId ?? '',
-                                inquiryId: inq.id
-                              })
+                              router.push(
+                                `/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`
+                              )
                             }
                           >
                             Pipeline
@@ -1248,22 +1242,6 @@ function InquiryPageContent() {
           </table>
         </div>
       </Card>
-      <InquiryPipelineDialog
-        open={pipeline != null}
-        onOpenChange={(o) => {
-          if (!o) {
-            setPipeline(null);
-            if (searchParams.get('pipelineInquiry')) {
-              router.replace('/crm/inquiry', { scroll: false });
-            }
-          }
-        }}
-        projectId={pipeline?.projectId ?? ''}
-        opportunity={pipelineOpportunity}
-        onSaved={() => {
-          void loadInquiries();
-        }}
-      />
     </div>
   );
 }

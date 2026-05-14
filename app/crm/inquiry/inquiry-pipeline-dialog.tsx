@@ -2,12 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -558,16 +552,15 @@ function TokenForm({
   );
 }
 
-// ─── Main dialog ──────────────────────────────────────────────────────────────
+// ─── Main panel (full page or embedded in a dialog) ───────────────────────────
 
-export function InquiryPipelineDialog(props: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
+export function InquiryPipelinePanel(props: {
   projectId: string;
   opportunity: OpportunityRow | null;
   onSaved: () => void;
+  onClose: () => void;
 }) {
-  const { open, onOpenChange, projectId, opportunity, onSaved } = props;
+  const { projectId, opportunity, onSaved, onClose } = props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
@@ -580,18 +573,16 @@ export function InquiryPipelineDialog(props: {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
-  // initialise local state from opportunity on open
   useEffect(() => {
-    if (!open || !opportunity) return;
+    if (!opportunity) return;
     const currentStage = (opportunity.funnel_stage ?? 'Enquiry') as FunnelStage;
-    // Only show pipeline stages (not Booking / Won / Lost)
     const inPipeline = PIPELINE_STEPS.some((p) => p.id === currentStage);
     setActiveStage(inPipeline ? currentStage : 'Enquiry');
     setAssignedTo(opportunity.assigned_to ?? '');
     setStageData(mergeStageData(opportunity.stage_data));
     setError('');
     setSaved(false);
-  }, [open, opportunity]);
+  }, [opportunity]);
 
   const loadMembers = useCallback(async () => {
     if (!projectId) return;
@@ -613,8 +604,8 @@ export function InquiryPipelineDialog(props: {
   }, [projectId, supabase]);
 
   useEffect(() => {
-    if (open) void loadMembers();
-  }, [open, loadMembers]);
+    void loadMembers();
+  }, [loadMembers]);
 
   async function save(nextStage?: FunnelStage) {
     if (!opportunity) return;
@@ -653,120 +644,99 @@ export function InquiryPipelineDialog(props: {
 
   if (!opportunity) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pipeline</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            No opportunity row is linked to this inquiry yet. Save the inquiry
-            again or refresh after migration.
-          </p>
-          <div className="flex justify-end pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <>
+        <p className="text-sm text-muted-foreground">
+          No opportunity row is linked to this inquiry yet. Save the inquiry again
+          or refresh after migration.
+        </p>
+        <div className="flex justify-end pt-2">
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-base">Lead pipeline</DialogTitle>
-        </DialogHeader>
+    <>
+      <div className="mt-1 pb-4">
+        <PipelineStepper
+          current={activeStage}
+          onSelect={(stage) => setActiveStage(stage)}
+        />
+      </div>
 
-        {/* Stepper */}
-        <div className="mt-1 pb-4">
-          <PipelineStepper
-            current={activeStage}
-            onSelect={(stage) => setActiveStage(stage)}
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      ) : null}
+      {saved && !error ? (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+          Saved successfully.
+        </div>
+      ) : null}
+
+      <div className="mt-2">
+        {activeStage === 'Enquiry' && (
+          <EnquiryForm
+            data={stageData.enquiry ?? {}}
+            onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
+            members={members}
+            assignedTo={assignedTo}
+            onAssignedToChange={setAssignedTo}
           />
-        </div>
+        )}
+        {activeStage === 'Qualified' && (
+          <QualifiedForm
+            data={stageData.qualified ?? {}}
+            onChange={(d) => setStageData((s) => ({ ...s, qualified: d }))}
+          />
+        )}
+        {activeStage === 'Site Visit' && (
+          <SiteVisitForm
+            data={stageData.site_visit ?? {}}
+            onChange={(d) => setStageData((s) => ({ ...s, site_visit: d }))}
+          />
+        )}
+        {activeStage === 'Negotiation' && (
+          <NegotiationForm
+            data={stageData.negotiation ?? {}}
+            onChange={(d) => setStageData((s) => ({ ...s, negotiation: d }))}
+          />
+        )}
+        {activeStage === 'Token' && (
+          <TokenForm
+            data={stageData.token ?? {}}
+            onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
+          />
+        )}
+      </div>
 
-        {/* Error / success banners */}
-        {error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {error}
-          </div>
-        ) : null}
-        {saved && !error ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-            Saved successfully.
-          </div>
-        ) : null}
-
-        {/* Stage form */}
-        <div className="mt-2">
-          {activeStage === 'Enquiry' && (
-            <EnquiryForm
-              data={stageData.enquiry ?? {}}
-              onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
-              members={members}
-              assignedTo={assignedTo}
-              onAssignedToChange={setAssignedTo}
-            />
-          )}
-          {activeStage === 'Qualified' && (
-            <QualifiedForm
-              data={stageData.qualified ?? {}}
-              onChange={(d) => setStageData((s) => ({ ...s, qualified: d }))}
-            />
-          )}
-          {activeStage === 'Site Visit' && (
-            <SiteVisitForm
-              data={stageData.site_visit ?? {}}
-              onChange={(d) => setStageData((s) => ({ ...s, site_visit: d }))}
-            />
-          )}
-          {activeStage === 'Negotiation' && (
-            <NegotiationForm
-              data={stageData.negotiation ?? {}}
-              onChange={(d) =>
-                setStageData((s) => ({ ...s, negotiation: d }))
-              }
-            />
-          )}
-          {activeStage === 'Token' && (
-            <TokenForm
-              data={stageData.token ?? {}}
-              onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
-            />
-          )}
-        </div>
-
-        {/* Footer actions */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+        <Button variant="outline" onClick={onClose} disabled={saving}>
+          Close
+        </Button>
+        <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
             disabled={saving}
+            onClick={() => void save()}
           >
-            Close
+            {saving ? 'Saving…' : 'Save'}
           </Button>
-          <div className="flex gap-2">
+          {!isLastPipelineStage && (
             <Button
-              variant="outline"
               disabled={saving}
-              onClick={() => void save()}
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => advanceStage()}
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : 'Save & advance →'}
             </Button>
-            {!isLastPipelineStage && (
-              <Button
-                disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => advanceStage()}
-              >
-                {saving ? 'Saving…' : 'Save & advance →'}
-              </Button>
-            )}
-          </div>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   );
 }
