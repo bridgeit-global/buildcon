@@ -49,7 +49,7 @@ import {
   type ProjectParkingMeta,
   type ProjectPricingMeta
 } from '../booking-cost-utils';
-import { formatInr, formatInrCompactLacCr } from '../inr-format';
+import { formatInr, formatInrCompactLacCr, unitAgreementTotalInr, unitBillableAreaSqft } from '../inr-format';
 import { formatFloorLabel } from '../inventory/inventory-utils';
 import {
   readConsumeBookingPrefillForProject,
@@ -63,7 +63,12 @@ type UnitOption = {
   floor: number;
   unit_type: string | null;
   area: number | null;
+  carpet_area: number | null;
+  bua_area: number | null;
   rate: number | null;
+  floor_rise_charge: number | null;
+  plc_charge: number | null;
+  parking_slots_included: number | null;
   status: string;
 };
 
@@ -420,7 +425,7 @@ export default function BookingsPage() {
       supabase
         .from('units')
         .select(
-          'id,unit_code,wing_name,floor,unit_type,area,rate,status,project_id'
+          'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
         )
         .eq('project_id', activeProjectId)
         .in('status', ['AVAILABLE', 'A'])
@@ -526,7 +531,7 @@ export default function BookingsPage() {
         const { data: urow } = await supabase
           .from('units')
           .select(
-            'id,unit_code,wing_name,floor,unit_type,area,rate,status,project_id'
+            'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
           )
           .eq('id', p.unitId)
           .eq('project_id', activeProjectId)
@@ -808,13 +813,11 @@ export default function BookingsPage() {
     if (projectPricing?.gst_registered) {
       return [...inquiryCostBreakdown.rows];
     }
-    const area = Number(u.area) || 0;
-    const rate = Number(u.rate) || 0;
-    const basicInr = area * rate;
-    const gstInr = basicInr * 0.05;
-    const totalInr = basicInr + gstInr;
+    const dwellingInr = unitAgreementTotalInr(u);
+    const gstInr = Math.round(dwellingInr * 0.05);
+    const totalInr = dwellingInr + gstInr;
     const tail: [string, string][] =
-      basicInr > 0
+      dwellingInr > 0
         ? [
           [
             'GST (5%)',
@@ -833,28 +836,35 @@ export default function BookingsPage() {
   const unitRateStructureRows = useMemo((): [string, string][] | null => {
     const u = unitForCostPreview;
     if (!u) return null;
-    const area = Number(u.area) || 0;
+    const billable = unitBillableAreaSqft(u);
+    const legacyArea = Number(u.area) || 0;
     const rate = Number(u.rate) || 0;
-    const basicInr = area * rate;
-    const gstInr = basicInr * 0.05;
-    const totalInr = basicInr + gstInr;
+    const dwellingInr = unitAgreementTotalInr(u);
+    const gstInr = Math.round(dwellingInr * 0.05);
+    const totalInr = dwellingInr + gstInr;
+    const saleArea =
+      billable > 0
+        ? `${billable.toLocaleString('en-IN')} sq.ft billable`
+        : legacyArea > 0
+          ? `${legacyArea.toLocaleString('en-IN')} sq.ft`
+          : '—';
     return [
       ['Floor', formatFloorLabel(u.floor, u.unit_type)],
       ['Configuration', u.unit_type?.trim() || '—'],
-      ['Sale area', area > 0 ? `${area.toLocaleString('en-IN')} sq.ft` : '—'],
+      ['Sale area', saleArea],
       [
         'Basic rate',
         rate > 0 ? `₹ ${rate.toLocaleString('en-IN')} / sq.ft` : '—'
       ],
       [
-        'Basic value',
-        basicInr > 0
-          ? `${formatInrCompactLacCr(basicInr)} (₹ ${basicInr.toLocaleString('en-IN')})`
+        'Dwelling agreement',
+        dwellingInr > 0
+          ? `${formatInrCompactLacCr(dwellingInr)} (₹ ${dwellingInr.toLocaleString('en-IN')})`
           : '—'
       ],
       [
         'GST (5%)',
-        basicInr > 0
+        dwellingInr > 0
           ? `${formatInrCompactLacCr(gstInr)} (₹ ${gstInr.toLocaleString('en-IN')})`
           : '—'
       ],
@@ -1398,7 +1408,15 @@ export default function BookingsPage() {
                   · {unitForCostPreview.unit_type ?? '—'}
                 </div>
                 <div className="mt-1 text-gray-600">
-                  Area: {unitForCostPreview.area ?? '—'} · Rate:{' '}
+                  Billable:{' '}
+                  {unitBillableAreaSqft(unitForCostPreview) ||
+                    unitForCostPreview.area ||
+                    '—'}{' '}
+                  sq.ft · List:{' '}
+                  {formatInrCompactLacCr(
+                    unitAgreementTotalInr(unitForCostPreview)
+                  )}{' '}
+                  · Rate:{' '}
                   {unitForCostPreview.rate != null
                     ? `₹ ${formatInr(unitForCostPreview.rate, { maximumFractionDigits: 0 })}/sq.ft`
                     : '—'}

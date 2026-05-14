@@ -36,7 +36,12 @@ type UnitPick = {
   floor: number;
   unit_type: string | null;
   area: number | null;
+  carpet_area: number | null;
+  bua_area: number | null;
   rate: number | null;
+  floor_rise_charge: number | null;
+  plc_charge: number | null;
+  parking_slots_included: number | null;
   status: string;
 };
 
@@ -87,7 +92,9 @@ export default function QuotationsPage() {
         .limit(200),
       supabase
         .from('units')
-        .select('id,unit_code,wing_name,floor,unit_type,area,rate,status')
+        .select(
+          'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status'
+        )
         .eq('project_id', activeProjectId)
         .order('unit_code', { ascending: true })
         .limit(500),

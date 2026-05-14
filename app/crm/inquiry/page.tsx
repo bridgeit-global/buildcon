@@ -1428,9 +1428,10 @@ function CostSheet({
         ))}
       </dl>
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-        Basic cost is area × rate. Stamp duty, registration, GST, and other
-        charges depend on project terms and local law — add them in the booking
-        or agreement workflow.
+        Dwelling line uses billable carpet/BUA when set, plus floor-rise and PLC
+        lump sums. Extra parking beyond what is bundled with the unit is
+        estimated from the project rate. Stamp duty, registration, GST, and
+        other charges depend on project terms and local law.
       </p>
     </div>
   );
