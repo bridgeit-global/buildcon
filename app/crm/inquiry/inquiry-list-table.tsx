@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   flexRender,
   getCoreRowModel,
@@ -9,6 +9,7 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type ColumnFiltersState,
   type FilterFn
 } from '@tanstack/react-table';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -68,6 +69,52 @@ const equalsOrAll: FilterFn<InquiryRowDb> = (row, columnId, raw) => {
   return String(row.getValue(columnId) ?? '').trim() === v;
 };
 
+/** Matches dashboard KPI tiles: Enquiry or missing opportunity. */
+const STAGE_FILTER_NEW_LEADS = '__new_leads__';
+/** Matches dashboard “Converted” KPI: Won or Booking. */
+const STAGE_FILTER_CONVERTED = '__converted__';
+
+const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
+  const v = String(raw ?? '').trim();
+  if (!v || v === '__all__') return true;
+  const inq = row.original;
+  const opp = embedOne(inq.sales_opportunities);
+  const stage = String(opp?.funnel_stage || '').trim();
+  if (v === STAGE_FILTER_CONVERTED) {
+    return stage === 'Won' || stage === 'Booking';
+  }
+  if (v === STAGE_FILTER_NEW_LEADS) {
+    return !opp || stage === 'Enquiry';
+  }
+  const display = stage || '—';
+  return display === v;
+};
+
+function parseListUrlColumnFilters(sp: {
+  get: (name: string) => string | null;
+}): ColumnFiltersState {
+  const filters: ColumnFiltersState = [];
+  const stageRaw = sp.get('stage')?.trim();
+  if (stageRaw) {
+    const lower = stageRaw.toLowerCase();
+    if (lower === 'converted') {
+      filters.push({ id: 'funnelStage', value: STAGE_FILTER_CONVERTED });
+    } else if (lower === 'new') {
+      filters.push({ id: 'funnelStage', value: STAGE_FILTER_NEW_LEADS });
+    } else {
+      const match = [...FUNNEL_STAGES].find(
+        (s) => s.toLowerCase() === lower
+      );
+      if (match) filters.push({ id: 'funnelStage', value: match });
+    }
+  }
+  const sourceRaw = sp.get('source')?.trim();
+  if (sourceRaw) {
+    filters.push({ id: 'leadSource', value: sourceRaw });
+  }
+  return filters;
+}
+
 export type InquiryListTableProps = {
   inquiries: InquiryRowDb[];
   loadingInquiries: boolean;
@@ -84,7 +131,20 @@ export function InquiryListTable({
   navigateToBookingFromInquiry
 }: InquiryListTableProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [globalFilter, setGlobalFilter] = useState('');
+
+  const filtersFromUrl = useMemo(
+    () => parseListUrlColumnFilters(searchParams),
+    [searchParams]
+  );
+
+  const [columnFilters, setColumnFilters] =
+    useState<ColumnFiltersState>(filtersFromUrl);
+
+  useEffect(() => {
+    setColumnFilters(filtersFromUrl);
+  }, [filtersFromUrl]);
 
   const unitNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -171,7 +231,7 @@ export function InquiryListTable({
         accessorFn: (row) =>
           String(embedOne(row.sales_opportunities)?.funnel_stage || '').trim() ||
           '—',
-        filterFn: equalsOrAll,
+        filterFn: funnelStageFilterFn,
         cell: ({ getValue }) => {
           const label = String(getValue() || '—');
           return (
@@ -324,8 +384,9 @@ export function InquiryListTable({
   const table = useReactTable({
     data: inquiries,
     columns,
-    state: { globalFilter },
+    state: { globalFilter, columnFilters },
     onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
     globalFilterFn: globalInquiryFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -400,6 +461,12 @@ export function InquiryListTable({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All stages</SelectItem>
+                <SelectItem value={STAGE_FILTER_NEW_LEADS}>
+                  New (Enquiry / no opportunity)
+                </SelectItem>
+                <SelectItem value={STAGE_FILTER_CONVERTED}>
+                  Converted (Won and Booking)
+                </SelectItem>
                 {stageOptions.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}

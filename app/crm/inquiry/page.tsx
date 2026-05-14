@@ -209,22 +209,29 @@ function InquiryPageContent() {
               title: 'Total enquiries',
               value: kpiStats.total,
               hint: `${kpiStats.createdToday} today`,
-              href: '/crm/inquiry/list'
+              href: '/crm/inquiry/list',
+              ariaLabel: 'Open the full enquiry list'
             },
             {
               title: 'New',
               value: kpiStats.newLeads,
-              hint: 'Stage: Enquiry'
+              hint: 'Enquiry or no opportunity',
+              href: '/crm/inquiry/list?stage=new',
+              ariaLabel: 'Open list filtered to new enquiries'
             },
             {
               title: 'Qualified',
               value: kpiStats.qualified,
-              hint: 'In funnel'
+              hint: 'In funnel',
+              href: '/crm/inquiry/list?stage=Qualified',
+              ariaLabel: 'Open list filtered to qualified stage'
             },
             {
               title: 'Converted',
               value: kpiStats.converted,
-              hint: 'Booking or Won'
+              hint: 'Booking or Won',
+              href: '/crm/inquiry/list?stage=converted',
+              ariaLabel: 'Open list filtered to won and booking'
             }
           ] as const
         ).map((tile) => {
@@ -243,22 +250,15 @@ function InquiryPageContent() {
           );
           const shellClass =
             'rounded-lg border border-border bg-muted/30 px-3 py-3';
-          if ('href' in tile && tile.href) {
-            return (
-              <Link
-                key={tile.title}
-                href={tile.href}
-                aria-label="View full inquiry list"
-                className={`${shellClass} block transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-              >
-                {body}
-              </Link>
-            );
-          }
           return (
-            <div key={tile.title} className={shellClass}>
+            <Link
+              key={tile.title}
+              href={tile.href}
+              aria-label={tile.ariaLabel}
+              className={`${shellClass} block transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            >
               {body}
-            </div>
+            </Link>
           );
         })}
         </div>
@@ -266,12 +266,22 @@ function InquiryPageContent() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Enquiry source
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Enquiry source
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Lead source for loaded enquiries (up to 500).
+              </p>
+            </div>
+            <Link
+              href="/crm/inquiry/list"
+              className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"
+            >
+              View list
+            </Link>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Lead source for loaded enquiries (up to 500).
-          </p>
           <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
             <LeadSourceDonut slices={leadSourceSlices} />
             <ul className="w-full max-w-sm flex-1 space-y-2 text-sm">
@@ -285,21 +295,27 @@ function InquiryPageContent() {
                 leadSourceSlices.map((s) => (
                   <li
                     key={s.label}
-                    className="flex items-center justify-between gap-2 border-b border-border/60 pb-2 last:border-0 last:pb-0"
+                    className="border-b border-border/60 pb-2 last:border-0 last:pb-0"
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: s.color }}
-                        aria-hidden
-                      />
-                      <span className="truncate font-medium text-foreground">
-                        {s.label}
+                    <Link
+                      href={`/crm/inquiry/list?source=${encodeURIComponent(s.label)}`}
+                      className="-mx-1 flex items-center justify-between gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`Open list filtered by lead source ${s.label}`}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: s.color }}
+                          aria-hidden
+                        />
+                        <span className="truncate font-medium text-foreground">
+                          {s.label}
+                        </span>
                       </span>
-                    </span>
-                    <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-                      {s.pct}% · {s.count}
-                    </span>
+                      <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                        {s.pct}% · {s.count}
+                      </span>
+                    </Link>
                   </li>
                 ))
               )}
@@ -308,12 +324,22 @@ function InquiryPageContent() {
         </Card>
 
         <Card className="p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Recent enquiries
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Recent enquiries
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Latest by created date.
+              </p>
+            </div>
+            <Link
+              href="/crm/inquiry/list"
+              className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"
+            >
+              View list
+            </Link>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Latest by created date.
-          </p>
           <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
             {recentInquiriesPreview.length === 0 ? (
               <li className="px-3 py-6 text-center text-xs text-muted-foreground">
@@ -328,26 +354,29 @@ function InquiryPageContent() {
                   embedOne(inq.sales_opportunities)?.funnel_stage ?? '';
                 const label = funnelStageLabel(stage);
                 return (
-                  <li
-                    key={inq.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-foreground">
-                        {c?.full_name ?? '—'}
-                      </div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {c?.phone ?? '—'}
-                      </div>
-                    </div>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                        funnelStageBadgeClass(stage)
-                      )}
+                  <li key={inq.id} className="p-0">
+                    <Link
+                      href={`/crm/inquiry/pipeline/${encodeURIComponent(inq.id)}`}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                      aria-label={`Open pipeline for ${c?.full_name ?? 'enquiry'}`}
                     >
-                      {label}
-                    </span>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {c?.full_name ?? '—'}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {c?.phone ?? '—'}
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                          funnelStageBadgeClass(stage)
+                        )}
+                      >
+                        {label}
+                      </span>
+                    </Link>
                   </li>
                 );
               })

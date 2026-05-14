@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,13 +43,21 @@ export default function InquiryListPage() {
         </div>
       ) : null}
 
-      <InquiryListTable
-        inquiries={inquiries}
-        loadingInquiries={loadingInquiries}
-        loadInquiries={loadInquiries}
-        units={units}
-        navigateToBookingFromInquiry={navigateToBookingFromInquiry}
-      />
+      <Suspense
+        fallback={
+          <Card className="p-4 text-sm text-muted-foreground">
+            Loading inquiry table…
+          </Card>
+        }
+      >
+        <InquiryListTable
+          inquiries={inquiries}
+          loadingInquiries={loadingInquiries}
+          loadInquiries={loadInquiries}
+          units={units}
+          navigateToBookingFromInquiry={navigateToBookingFromInquiry}
+        />
+      </Suspense>
     </div>
   );
 }
