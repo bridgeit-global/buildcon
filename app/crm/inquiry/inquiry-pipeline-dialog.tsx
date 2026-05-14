@@ -85,6 +85,18 @@ function stageIndex(s: string) {
   return PIPELINE_STEPS.findIndex((p) => p.id === s);
 }
 
+type PipelineMacroStep = 'customer' | 'unit' | 'enquiry';
+
+const MACRO_STEPS: { id: PipelineMacroStep; label: string }[] = [
+  { id: 'customer', label: 'Customer' },
+  { id: 'unit', label: 'Unit' },
+  { id: 'enquiry', label: 'Enquiry' }
+];
+
+function macroStepIndex(m: PipelineMacroStep) {
+  return MACRO_STEPS.findIndex((s) => s.id === m);
+}
+
 // ─── In-memory stage form shape (persisted as `sales_pipeline_stages.payload`) ─
 
 type EnquiryStageData = {
@@ -239,16 +251,16 @@ function ToggleGroup<T extends string>({
   );
 }
 
-// ─── Pipeline stepper ─────────────────────────────────────────────────────────
+// ─── Pipeline progress: macro (Customer → Unit → Enquiry) + vertical funnel ─
 
-function PipelineStepper({
+function MacroPipelineStepper({
   current,
   onSelect
 }: {
-  current: string;
-  onSelect: (stage: PipelineAnchorStage) => void;
+  current: PipelineMacroStep;
+  onSelect: (step: PipelineMacroStep) => void;
 }) {
-  const currentIdx = stageIndex(current);
+  const currentIdx = macroStepIndex(current);
   return (
     <div className="overflow-x-auto pb-1">
       <div className="relative flex min-w-max items-start justify-between gap-0 px-1">
@@ -257,7 +269,7 @@ function PipelineStepper({
           style={{ zIndex: 0 }}
           aria-hidden
         />
-        {PIPELINE_STEPS.map((step, idx) => {
+        {MACRO_STEPS.map((step, idx) => {
           const isActive = step.id === current;
           const isDone = idx < currentIdx;
           return (
@@ -265,7 +277,7 @@ function PipelineStepper({
               key={step.id}
               type="button"
               onClick={() => onSelect(step.id)}
-              className="relative z-10 flex min-h-[44px] min-w-[44px] flex-col items-center gap-1 px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
+              className="relative z-10 flex min-h-[44px] min-w-0 flex-1 flex-col items-center gap-1 px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
               aria-current={isActive ? 'step' : undefined}
             >
               <span
@@ -278,11 +290,11 @@ function PipelineStepper({
                       : 'border-border bg-white text-muted-foreground'
                 )}
               >
-                {isDone ? '✓' : step.step}
+                {isDone ? '✓' : idx + 1}
               </span>
               <span
                 className={cn(
-                  'max-w-20 text-center text-[10px] font-semibold leading-tight sm:max-w-24',
+                  'max-w-22 text-center text-[10px] font-semibold leading-tight sm:max-w-none',
                   isActive
                     ? 'text-emerald-700'
                     : isDone
@@ -297,6 +309,76 @@ function PipelineStepper({
         })}
       </div>
     </div>
+  );
+}
+
+function VerticalEnquiryStageStepper({
+  current,
+  onSelect
+}: {
+  current: string;
+  onSelect: (stage: PipelineAnchorStage) => void;
+}) {
+  const currentIdx = stageIndex(current);
+  return (
+    <nav
+      className="shrink-0 rounded-lg border border-border bg-muted/20 p-2 sm:p-3 md:w-44"
+      aria-label="Enquiry pipeline stages"
+    >
+      <ol className="flex flex-col">
+        {PIPELINE_STEPS.map((step, idx) => {
+          const isActive = step.id === current;
+          const isDone = idx < currentIdx;
+          const isLast = idx === PIPELINE_STEPS.length - 1;
+          return (
+            <li key={step.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(step.id)}
+                className="flex w-full min-h-[44px] gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3"
+                aria-current={isActive ? 'step' : undefined}
+              >
+                <div className="flex shrink-0 flex-col items-center">
+                  <div className="flex h-9 items-center justify-center">
+                    <span
+                      className={cn(
+                        'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors',
+                        isActive
+                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                          : isDone
+                            ? 'border-emerald-500 bg-background text-emerald-600'
+                            : 'border-border bg-background text-muted-foreground'
+                      )}
+                    >
+                      {isDone ? '✓' : step.step}
+                    </span>
+                  </div>
+                  {!isLast ? (
+                    <div
+                      className="w-0.5 shrink-0 bg-border"
+                      style={{ height: '10px' }}
+                      aria-hidden
+                    />
+                  ) : null}
+                </div>
+                <span
+                  className={cn(
+                    'flex flex-1 items-center text-xs font-semibold leading-snug',
+                    isActive
+                      ? 'text-emerald-700'
+                      : isDone
+                        ? 'text-emerald-600'
+                        : 'text-muted-foreground'
+                  )}
+                >
+                  {step.label}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
@@ -671,6 +753,7 @@ export function InquiryPipelinePanel(props: {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
+  const [macroStep, setMacroStep] = useState<PipelineMacroStep>('enquiry');
   const [stageData, setStageData] = useState<StageData>(emptyStageData());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -681,6 +764,7 @@ export function InquiryPipelinePanel(props: {
     const currentStage = (opportunity.funnel_stage ?? 'Enquiry') as FunnelStage;
     const inPipeline = PIPELINE_STEPS.some((p) => p.id === currentStage);
     setActiveStage(inPipeline ? currentStage : 'Enquiry');
+    setMacroStep('enquiry');
     setStageData(
       mergeStageDataFromPipelineRows(
         embedList(opportunity.sales_pipeline_stages)
@@ -760,29 +844,66 @@ export function InquiryPipelinePanel(props: {
   return (
     <>
       <div className="mt-1 space-y-3 pb-3">
-        <PipelineStepper
-          current={activeStage}
-          onSelect={(stage) => setActiveStage(stage)}
+        <MacroPipelineStepper
+          current={macroStep}
+          onSelect={setMacroStep}
         />
-        {inquiryContext &&
-          (inquiryContext.customerName?.trim() ||
-            inquiryContext.unitCode?.trim()) &&
-          activeStage === 'Enquiry' && (
-            <div className="rounded-md border border-dashed border-border bg-background/80 px-3 py-2 text-xs leading-snug text-muted-foreground">
-              <span className="font-medium text-foreground">Enquiry record</span>
-              {inquiryContext.customerName?.trim() ? (
-                <span className="mt-0.5 block">
-                  Customer: {inquiryContext.customerName.trim()}
-                </span>
-              ) : null}
-              {inquiryContext.unitCode?.trim() ? (
-                <span className="mt-0.5 block">
-                  Unit: {inquiryContext.unitCode.trim()}
-                </span>
-              ) : null}
+
+        {macroStep === 'customer' && (
+          <div
+            className="rounded-lg border border-border bg-muted/30 px-3 py-3 sm:px-4"
+            role="region"
+            aria-label="Customer on enquiry"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Customer
+            </p>
+            {inquiryContext?.customerName?.trim() ? (
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {inquiryContext.customerName.trim()}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No customer name on this enquiry yet. Add it on the inquiry
+                record.
+              </p>
+            )}
+          </div>
+        )}
+
+        {macroStep === 'unit' && (
+          <div
+            className="rounded-lg border border-border bg-muted/30 px-3 py-3 sm:px-4"
+            role="region"
+            aria-label="Unit on enquiry"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Unit
+            </p>
+            {inquiryContext?.unitCode?.trim() ? (
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {inquiryContext.unitCode.trim()}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No unit selected on this enquiry yet. Link a unit on the inquiry
+                record.
+              </p>
+            )}
+          </div>
+        )}
+
+        {macroStep === 'enquiry' && (
+          <div className="flex flex-col gap-3 md:flex-row md:items-start">
+            <VerticalEnquiryStageStepper
+              current={activeStage}
+              onSelect={(stage) => setActiveStage(stage)}
+            />
+            <div className="min-w-0 flex-1 space-y-3">
+              <ActiveStageGuide stage={activeStage} />
             </div>
-          )}
-        <ActiveStageGuide stage={activeStage} />
+          </div>
+        )}
       </div>
 
       {error ? (
@@ -796,31 +917,31 @@ export function InquiryPipelinePanel(props: {
       ) : null}
 
       <div>
-        {activeStage === 'Enquiry' && (
+        {macroStep === 'enquiry' && activeStage === 'Enquiry' && (
           <EnquiryForm
             data={stageData.enquiry ?? {}}
             onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
           />
         )}
-        {activeStage === 'Qualified' && (
+        {macroStep === 'enquiry' && activeStage === 'Qualified' && (
           <QualifiedForm
             data={stageData.qualified ?? {}}
             onChange={(d) => setStageData((s) => ({ ...s, qualified: d }))}
           />
         )}
-        {activeStage === 'Site Visit' && (
+        {macroStep === 'enquiry' && activeStage === 'Site Visit' && (
           <SiteVisitForm
             data={stageData.site_visit ?? {}}
             onChange={(d) => setStageData((s) => ({ ...s, site_visit: d }))}
           />
         )}
-        {activeStage === 'Negotiation' && (
+        {macroStep === 'enquiry' && activeStage === 'Negotiation' && (
           <NegotiationForm
             data={stageData.negotiation ?? {}}
             onChange={(d) => setStageData((s) => ({ ...s, negotiation: d }))}
           />
         )}
-        {activeStage === 'Token' && (
+        {macroStep === 'enquiry' && activeStage === 'Token' && (
           <TokenForm
             data={stageData.token ?? {}}
             onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
@@ -832,24 +953,39 @@ export function InquiryPipelinePanel(props: {
         <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
           Close
         </Button>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={saving}
-            onClick={() => void save()}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-          {!isLastPipelineStage && (
+        <div className="flex flex-wrap gap-2">
+          {macroStep !== 'enquiry' ? (
             <Button
               size="sm"
-              disabled={saving}
               className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => advanceStage()}
+              onClick={() => {
+                if (macroStep === 'customer') setMacroStep('unit');
+                else if (macroStep === 'unit') setMacroStep('enquiry');
+              }}
             >
-              {saving ? 'Saving…' : 'Save & advance →'}
+              {macroStep === 'customer' ? 'Continue to unit' : 'Continue to pipeline'}
             </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={saving}
+                onClick={() => void save()}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+              {!isLastPipelineStage && (
+                <Button
+                  size="sm"
+                  disabled={saving}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => advanceStage()}
+                >
+                  {saving ? 'Saving…' : 'Save & advance →'}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

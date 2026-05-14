@@ -29,87 +29,58 @@ function embedOne<T>(x: T | T[] | null | undefined): T | null {
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
 
-// ─── Unified 7-step flow ──────────────────────────────────────────────────────
+// ─── New enquiry: 3 macro steps (pipeline sub-stages live in InquiryPipelinePanel) ─
 
-const FLOW_STAGES = [
-  { id: 'customer', label: 'Customer', phase: 'create' as const },
-  { id: 'unit', label: 'Unit', phase: 'create' as const },
-  { id: 'enquiry', label: 'Enquiry', phase: 'pipeline' as const },
-  { id: 'qualified', label: 'Qualified', phase: 'pipeline' as const },
-  { id: 'site_visit', label: 'Site Visit', phase: 'pipeline' as const },
-  { id: 'negotiation', label: 'Negotiate', phase: 'pipeline' as const },
-  { id: 'token', label: 'Token', phase: 'pipeline' as const }
+const MACRO_FLOW_STAGES = [
+  { id: 'customer', label: 'Customer' },
+  { id: 'unit', label: 'Unit' },
+  { id: 'enquiry', label: 'Enquiry' }
 ] as const;
 
-const FUNNEL_STAGE_TO_IDX: Record<string, number> = {
-  Enquiry: 2,
-  Qualified: 3,
-  'Site Visit': 4,
-  Negotiation: 5,
-  Token: 6,
-  Booking: 6,
-  Won: 6
-};
+/** Wizard steps: 1 = Customer, 2 = Unit, 3 = Review — map to macro indices 0–2. */
+function createPhaseMacroIndex(wizardStep: number) {
+  if (wizardStep <= 1) return 0;
+  if (wizardStep === 2) return 1;
+  return 2;
+}
 
-// ─── FlowProgress ─────────────────────────────────────────────────────────────
+// ─── FlowProgress (create phase only) ─────────────────────────────────────────
 
-function FlowProgress({
-  wizardStep,
-  phase,
-  funnelStage
-}: {
-  wizardStep: number;
-  phase: 'create' | 'pipeline';
-  funnelStage: string;
-}) {
-  const currentIdx =
-    phase === 'create'
-      ? wizardStep >= 2
-        ? 1
-        : 0
-      : (FUNNEL_STAGE_TO_IDX[funnelStage] ?? 2);
+function FlowProgress({ wizardStep }: { wizardStep: number }) {
+  const currentIdx = createPhaseMacroIndex(wizardStep);
+  const last = MACRO_FLOW_STAGES.length - 1;
 
   return (
-    <div className="overflow-x-auto pb-1" aria-label="Enquiry pipeline progress">
+    <div className="overflow-x-auto pb-1" aria-label="New enquiry progress">
       <div className="relative flex min-w-max items-start justify-between px-1">
-        {/* Connector track */}
         <div
           className="absolute left-0 right-0 top-[15px] h-0.5 bg-border"
           aria-hidden
           style={{ zIndex: 0 }}
         />
-        {/* Completed portion overlay */}
         {currentIdx > 0 && (
           <div
             className="absolute left-0 top-[15px] h-0.5 bg-emerald-400 transition-all"
             aria-hidden
             style={{
               zIndex: 1,
-              width: `${(currentIdx / (FLOW_STAGES.length - 1)) * 100}%`
+              width: `${(currentIdx / last) * 100}%`
             }}
           />
         )}
 
-        {FLOW_STAGES.map((stage, idx) => {
+        {MACRO_FLOW_STAGES.map((stage, idx) => {
           const isDone = idx < currentIdx;
           const isActive = idx === currentIdx;
-          const isPipelineStart = idx === 2;
 
           return (
             <div
               key={stage.id}
-              className="relative z-10 flex flex-col items-center gap-1 px-2 sm:px-3"
+              className="relative z-10 flex min-w-0 flex-1 flex-col items-center gap-1 px-2 sm:px-3"
             >
-              {/* Divider marker before pipeline stages */}
-              {isPipelineStart && (
-                <span
-                  className="absolute -left-2 top-3 hidden h-3 w-px bg-border sm:block"
-                  aria-hidden
-                />
-              )}
               <span
                 className={cn(
-                  'flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-200',
+                  'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-200',
                   isActive
                     ? 'border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-200'
                     : isDone
@@ -125,7 +96,7 @@ function FlowProgress({
               </span>
               <span
                 className={cn(
-                  'whitespace-nowrap text-[10px] font-semibold leading-tight',
+                  'max-w-22 text-center text-[10px] font-semibold leading-tight sm:max-w-none sm:whitespace-nowrap',
                   isActive
                     ? 'text-emerald-700'
                     : isDone
@@ -325,17 +296,15 @@ function NewInquiryPageInner() {
           <PhaseBadge phase={phase} />
         </div>
 
-        {/* ── Unified 7-step progress bar ──────────────────────────────────── */}
-        <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
-          <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            {phase === 'create' ? 'Creating enquiry' : 'Pipeline progress'}
-          </p>
-          <FlowProgress
-            wizardStep={wizardStep}
-            phase={phase}
-            funnelStage={funnelStage}
-          />
-        </div>
+        {/* ── Macro progress (Customer → Unit → Enquiry); pipeline detail is in the panel ─ */}
+        {phase === 'create' ? (
+          <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Creating enquiry
+            </p>
+            <FlowProgress wizardStep={wizardStep} />
+          </div>
+        ) : null}
 
         {/* ── Content area ─────────────────────────────────────────────────── */}
         <div className="px-4 py-4 sm:px-6">
