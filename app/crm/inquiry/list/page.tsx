@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { InquiryListCard } from '../inquiry-list-card';
+import { InquiryListTable } from '../inquiry-list-table';
 import { useInquiryListResources } from '../use-inquiry-list-resources';
 
 export default function InquiryListPage() {
@@ -36,23 +36,13 @@ export default function InquiryListPage() {
           </Link>
         </Button>
       </div>
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          Inquiry list
-        </h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Search, refresh, open pipeline, or continue to booking for the active
-          project.
-        </p>
-      </div>
-
       {error ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
-      <InquiryListCard
+      <InquiryListTable
         inquiries={inquiries}
         loadingInquiries={loadingInquiries}
         loadInquiries={loadInquiries}

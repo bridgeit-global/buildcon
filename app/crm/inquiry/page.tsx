@@ -8,10 +8,8 @@ import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { writeBookingPrefill } from '../booking-prefill-storage';
-import { embedOne, inquiryReference } from './inquiry-helpers';
-import { InquiryListCard } from './inquiry-list-card';
-import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
+import { embedOne } from './inquiry-helpers';
+import type { InquiryRowDb } from './inquiry-types';
 
 const LEAD_SOURCE_COLOR: Record<string, string> = {
   Website: '#2563eb',
@@ -63,7 +61,6 @@ function InquiryPageContent() {
   const { activeProjectId } = useActiveProjectContext();
 
   const [error, setError] = useState('');
-  const [units, setUnits] = useState<UnitLabelRow[]>([]);
   const [inquiries, setInquiries] = useState<InquiryRowDb[]>([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
 
@@ -135,30 +132,6 @@ function InquiryPageContent() {
     router
   ]);
 
-  useEffect(() => {
-    if (!activeProjectId) {
-      setUnits([]);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const { data, error: uErr } = await supabase
-        .from('units')
-        .select('id, unit_code, wing_name')
-        .eq('project_id', activeProjectId)
-        .order('wing_name', { ascending: true })
-        .order('floor', { ascending: false })
-        .order('unit_no', { ascending: true })
-        .limit(500);
-      if (!cancelled && !uErr) {
-        setUnits((data ?? []) as UnitLabelRow[]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProjectId, supabase]);
-
   const kpiStats = useMemo(() => {
     const total = inquiries.length;
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -199,25 +172,6 @@ function InquiryPageContent() {
     [inquiries]
   );
 
-  const navigateToBookingFromInquiry = useCallback(
-    (inq: InquiryRowDb) => {
-      if (!activeProjectId || !String(inq.unit_id || '').trim()) return;
-      writeBookingPrefill({
-        projectId: activeProjectId,
-        inquiryId: inq.id,
-        inquiryRef: inquiryReference(inq.id),
-        customerId: inq.customer_id,
-        unitId: inq.unit_id,
-        parkingRequired: inq.parking_required === 'Yes' ? 'Yes' : 'No',
-        parkingCount: inq.parking_count,
-        parkingSlotsAvailable: inq.parking_slots_available,
-        parkingRateSnapshot: inq.parking_rate_snapshot
-      });
-      router.push('/crm/bookings');
-    },
-    [activeProjectId, router]
-  );
-
   if (!activeProjectId) {
     return (
       <Card className="p-4 text-sm text-muted-foreground">
@@ -249,64 +203,64 @@ function InquiryPageContent() {
 
       <Card className="p-4">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {(
-            [
-              {
-                title: 'Total enquiries',
-                value: kpiStats.total,
-                hint: `${kpiStats.createdToday} today`,
-                href: '/crm/inquiry/list'
-              },
-              {
-                title: 'New',
-                value: kpiStats.newLeads,
-                hint: 'Stage: Enquiry'
-              },
-              {
-                title: 'Qualified',
-                value: kpiStats.qualified,
-                hint: 'In funnel'
-              },
-              {
-                title: 'Converted',
-                value: kpiStats.converted,
-                hint: 'Booking or Won'
-              }
-            ] as const
-          ).map((tile) => {
-            const body = (
-              <>
-                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                  {tile.title}
-                </div>
-                <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                  {loadingInquiries ? '…' : tile.value}
-                </div>
-                <div className="mt-0.5 text-[10px] text-muted-foreground">
-                  {tile.hint}
-                </div>
-              </>
-            );
-            const shellClass =
-              'rounded-lg border border-border bg-muted/30 px-3 py-3';
-            if ('href' in tile && tile.href) {
-              return (
-                <Link
-                  key={tile.title}
-                  href={tile.href}
-                  aria-label="View full inquiry list"
-                  className={`${shellClass} block transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-                >
-                  {body}
-                </Link>
-              );
+        {(
+          [
+            {
+              title: 'Total enquiries',
+              value: kpiStats.total,
+              hint: `${kpiStats.createdToday} today`,
+              href: '/crm/inquiry/list'
+            },
+            {
+              title: 'New',
+              value: kpiStats.newLeads,
+              hint: 'Stage: Enquiry'
+            },
+            {
+              title: 'Qualified',
+              value: kpiStats.qualified,
+              hint: 'In funnel'
+            },
+            {
+              title: 'Converted',
+              value: kpiStats.converted,
+              hint: 'Booking or Won'
             }
-            return (
-              <div key={tile.title} className={shellClass}>
-                {body}
+          ] as const
+        ).map((tile) => {
+          const body = (
+            <>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {tile.title}
               </div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+                {loadingInquiries ? '…' : tile.value}
+              </div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">
+                {tile.hint}
+              </div>
+            </>
+          );
+          const shellClass =
+            'rounded-lg border border-border bg-muted/30 px-3 py-3';
+          if ('href' in tile && tile.href) {
+            return (
+              <Link
+                key={tile.title}
+                href={tile.href}
+                aria-label="View full inquiry list"
+                className={`${shellClass} block transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+              >
+                {body}
+              </Link>
             );
-          })}
+          }
+          return (
+            <div key={tile.title} className={shellClass}>
+              {body}
+            </div>
+          );
+        })}
         </div>
       </Card>
 
@@ -402,18 +356,6 @@ function InquiryPageContent() {
         </Card>
       </div>
 
-      <InquiryListCard
-        inquiries={inquiries}
-        loadingInquiries={loadingInquiries}
-        loadInquiries={loadInquiries}
-        units={units}
-        navigateToBookingFromInquiry={navigateToBookingFromInquiry}
-        headerExtra={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/crm/inquiry/list">Full-page list</Link>
-          </Button>
-        }
-      />
     </div>
   );
 }
