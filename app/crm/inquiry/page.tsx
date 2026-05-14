@@ -25,7 +25,7 @@ import {
   computeBookingCostBreakdown,
   formatProjectParkingSummary
 } from '../booking-cost-utils';
-import { formatAgreementValueCompact } from '../inr-format';
+import { formatUnitAgreementValueCompact } from '../inr-format';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
 import {
@@ -76,7 +76,11 @@ type UnitRow = {
   unit_no: number;
   unit_type: string | null;
   area: number | null;
+  carpet_area: number | null;
+  bua_area: number | null;
   rate: number | null;
+  floor_rise_charge: number | null;
+  plc_charge: number | null;
   status: string;
 };
 
@@ -274,7 +278,7 @@ function InquiryPageContent() {
         supabase
           .from('units')
           .select(
-            'id,unit_code,wing_name,floor,unit_no,unit_type,area,rate,status,project_id'
+            'id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,status,project_id'
           )
           .eq('project_id', activeProjectId)
           .order('wing_name', { ascending: true })
@@ -1346,7 +1350,7 @@ function StepUnit({
                   {u.unit_type ?? '—'} · {u.wing_name}
                 </div>
                 <div className="mt-1.5 text-xs font-semibold text-foreground">
-                  {formatAgreementValueCompact(u.area, u.rate)}
+                  {formatUnitAgreementValueCompact(u)}
                 </div>
               </button>
             );

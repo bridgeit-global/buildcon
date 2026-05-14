@@ -40,3 +40,39 @@ export function formatAgreementValueCompact(
   const total = (Number(area) || 0) * (Number(rate) || 0);
   return formatInrCompactLacCr(total);
 }
+
+/** Fields used for carpet/BUA–aware agreement + floor rise + PLC (dynamic list price). */
+export type UnitPricingInput = {
+  area: number | null;
+  carpet_area?: number | null;
+  bua_area?: number | null;
+  rate: number | null;
+  floor_rise_charge?: number | null;
+  plc_charge?: number | null;
+};
+
+export function unitBillableAreaSqft(unit: UnitPricingInput): number {
+  const c = Number(unit.carpet_area);
+  if (Number.isFinite(c) && c > 0) return c;
+  const b = Number(unit.bua_area);
+  if (Number.isFinite(b) && b > 0) return b;
+  const a = Number(unit.area);
+  if (Number.isFinite(a) && a > 0) return a;
+  return 0;
+}
+
+export function unitBaseAgreementInr(unit: UnitPricingInput): number {
+  return unitBillableAreaSqft(unit) * (Number(unit.rate) || 0);
+}
+
+export function unitAgreementTotalInr(unit: UnitPricingInput): number {
+  return (
+    unitBaseAgreementInr(unit) +
+    Math.max(0, Number(unit.floor_rise_charge) || 0) +
+    Math.max(0, Number(unit.plc_charge) || 0)
+  );
+}
+
+export function formatUnitAgreementValueCompact(unit: UnitPricingInput): string {
+  return formatInrCompactLacCr(unitAgreementTotalInr(unit));
+}

@@ -187,6 +187,15 @@ create table if not exists public.units (
   unit_code text not null, -- e.g. A-1032 or T1-1201
   unit_type text,
   area numeric,
+  carpet_area numeric,
+  bua_area numeric,
+  rera_area numeric,
+  terrace_sqft numeric,
+  deck_sqft numeric,
+  loading_sqft numeric,
+  floor_rise_charge integer not null default 0,
+  plc_charge integer not null default 0,
+  parking_slots_included smallint not null default 0,
   rate int,
   status text not null default 'A', -- A|B|S|RR|BL (prototype)
   blocked_reason text,

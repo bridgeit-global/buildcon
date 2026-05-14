@@ -8,6 +8,7 @@ import { useActiveProjectContext } from '../_components/active-project-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -24,8 +25,11 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
-  formatAgreementValueCompact,
-  formatInrCompactLacCr
+  formatInrCompactLacCr,
+  formatUnitAgreementValueCompact,
+  unitAgreementTotalInr,
+  unitBaseAgreementInr,
+  unitBillableAreaSqft
 } from '../inr-format';
 import {
   STATUS_COLOR,
@@ -50,6 +54,15 @@ type UnitRow = {
   unit_no: number;
   unit_type: string | null;
   area: number | null;
+  carpet_area: number | null;
+  bua_area: number | null;
+  rera_area: number | null;
+  terrace_sqft: number | null;
+  deck_sqft: number | null;
+  loading_sqft: number | null;
+  floor_rise_charge: number | null;
+  plc_charge: number | null;
+  parking_slots_included: number | null;
   rate: number | null;
   status: string;
   blocked_reason: string | null;
@@ -81,6 +94,84 @@ const BLOCK_REASONS = [
   'Rehab pipeline',
   'Other'
 ];
+
+const UNIT_STATUS_SET = new Set<string>(UNIT_STATUS_CODES);
+
+function normalizeCsvHeader(cell: string) {
+  return cell
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+}
+
+function parseCsvRows(text: string): Record<string, string>[] {
+  const lines = text
+    .trim()
+    .split(/\r?\n/)
+    .filter((l) => l.trim().length > 0);
+  if (!lines.length) return [];
+  const headers = lines[0].split(',').map(normalizeCsvHeader);
+  const out: Record<string, string>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i]
+      .split(',')
+      .map((c) => c.trim().replace(/^"|"$/g, ''));
+    const row: Record<string, string> = {};
+    headers.forEach((h, j) => {
+      if (h) row[h] = cells[j] ?? '';
+    });
+    out.push(row);
+  }
+  return out;
+}
+
+function csvNumeric(v: string | undefined): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function csvRowToUnitUpsert(
+  projectId: string,
+  raw: Record<string, string>
+): Record<string, unknown> | null {
+  const unit_code = (raw.unit_code || raw.code || '').trim();
+  if (!unit_code) return null;
+  const wing_name =
+    (raw.wing_name || raw.wing || raw.structure || '').trim() || 'Default';
+  const n = (k: string, alt?: string) =>
+    csvNumeric(raw[k]) ?? (alt ? csvNumeric(raw[alt]) : null);
+  const floor = n('floor') ?? 1;
+  const unit_no = n('unit_no') ?? n('slot') ?? 1;
+  const payload: Record<string, unknown> = {
+    project_id: projectId,
+    unit_code,
+    wing_name,
+    floor,
+    unit_no,
+    unit_type: (raw.unit_type || raw.type || '').trim() || null,
+    area: n('area') ?? 1,
+    carpet_area: n('carpet_area', 'carpet'),
+    bua_area: n('bua_area', 'bua'),
+    rera_area: n('rera_area', 'rera'),
+    terrace_sqft: n('terrace_sqft', 'terrace'),
+    deck_sqft: n('deck_sqft', 'deck'),
+    loading_sqft: n('loading_sqft', 'loading'),
+    rate: n('rate') ?? 1,
+    floor_rise_charge: n('floor_rise_charge', 'floor_rise') ?? 0,
+    plc_charge: n('plc_charge', 'plc') ?? 0,
+    parking_slots_included: Math.max(
+      0,
+      Math.floor(n('parking_slots_included', 'parking') ?? 0)
+    )
+  };
+  const statusRaw = (raw.status || '').trim().toUpperCase();
+  if (statusRaw && UNIT_STATUS_SET.has(statusRaw)) {
+    payload.status = statusRaw;
+  }
+  return payload;
+}
 
 const TABS = [
   'Grid View',
@@ -201,6 +292,9 @@ function UnitDetailDialog({
 
   const area = Number(unit.area) || 0;
   const rate = Number(unit.rate) || 0;
+  const billable = unitBillableAreaSqft(unit);
+  const baseInr = unitBaseAgreementInr(unit);
+  const totalInr = unitAgreementTotalInr(unit);
   const bookedOn = booking?.created_at
     ? new Date(booking.created_at).toLocaleDateString('en-IN')
     : '—';
@@ -249,9 +343,73 @@ function UnitDetailDialog({
                   unit.unit_no != null ? `Unit slot ${unit.unit_no}` : '—'
                 ],
                 ['Configuration', unit.unit_type ?? '—'],
-                ['Carpet / sale area', `${area} sq.ft`],
+                [
+                  'Carpet (sq.ft)',
+                  unit.carpet_area != null && Number(unit.carpet_area) > 0
+                    ? String(unit.carpet_area)
+                    : '—'
+                ],
+                [
+                  'BUA (sq.ft)',
+                  unit.bua_area != null && Number(unit.bua_area) > 0
+                    ? String(unit.bua_area)
+                    : '—'
+                ],
+                [
+                  'RERA (sq.ft)',
+                  unit.rera_area != null && Number(unit.rera_area) > 0
+                    ? String(unit.rera_area)
+                    : '—'
+                ],
+                [
+                  'Terrace / deck / loading',
+                  [
+                    unit.terrace_sqft != null && Number(unit.terrace_sqft) > 0
+                      ? `T ${unit.terrace_sqft}`
+                      : null,
+                    unit.deck_sqft != null && Number(unit.deck_sqft) > 0
+                      ? `D ${unit.deck_sqft}`
+                      : null,
+                    unit.loading_sqft != null && Number(unit.loading_sqft) > 0
+                      ? `L ${unit.loading_sqft}`
+                      : null
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || '—'
+                ],
+                [
+                  'Billable area (pricing)',
+                  billable > 0 ? `${billable} sq.ft` : `${area} sq.ft (legacy)`
+                ],
                 ['Rate', `₹ ${rate.toLocaleString('en-IN')} / sq.ft`],
-                ['Agreement value', formatAgreementValueCompact(unit.area, unit.rate)],
+                [
+                  'Floor-rise (₹)',
+                  unit.floor_rise_charge != null &&
+                  Number(unit.floor_rise_charge) > 0
+                    ? `₹ ${Number(unit.floor_rise_charge).toLocaleString('en-IN')}`
+                    : '—'
+                ],
+                [
+                  'PLC (₹)',
+                  unit.plc_charge != null && Number(unit.plc_charge) > 0
+                    ? `₹ ${Number(unit.plc_charge).toLocaleString('en-IN')}`
+                    : '—'
+                ],
+                [
+                  'Parking (slots on unit)',
+                  unit.parking_slots_included != null &&
+                  Number(unit.parking_slots_included) > 0
+                    ? String(unit.parking_slots_included)
+                    : '—'
+                ],
+                [
+                  'Base (area × rate)',
+                  formatInrCompactLacCr(baseInr)
+                ],
+                [
+                  'Agreement value (incl. rise + PLC)',
+                  formatInrCompactLacCr(totalInr)
+                ],
                 ['Project', projectName || projectId || '—']
               ] as const
             ).map(([label, val]) => (
@@ -356,7 +514,8 @@ function UnitDetailDialog({
           )}
 
           <p className="text-[11px] italic text-slate-400">
-            Room-level breakdown is not stored for units in this build.
+            Carpet and BUA drive list price when set; otherwise legacy{' '}
+            <code className="font-mono">area</code> is used.
           </p>
         </div>
 
@@ -397,7 +556,16 @@ function UnitEditDialog({
     unit_code: '',
     unit_type: '',
     area: 0,
+    carpet_area: 0,
+    bua_area: 0,
+    rera_area: 0,
+    terrace_sqft: 0,
+    deck_sqft: 0,
+    loading_sqft: 0,
     rate: 0,
+    floor_rise_charge: 0,
+    plc_charge: 0,
+    parking_slots_included: 0,
     floor: 1,
     unit_no: 1,
     status: 'AVAILABLE',
@@ -410,7 +578,16 @@ function UnitEditDialog({
       unit_code: unit.unit_code,
       unit_type: unit.unit_type ?? '',
       area: Number(unit.area) || 0,
+      carpet_area: Number(unit.carpet_area) || 0,
+      bua_area: Number(unit.bua_area) || 0,
+      rera_area: Number(unit.rera_area) || 0,
+      terrace_sqft: Number(unit.terrace_sqft) || 0,
+      deck_sqft: Number(unit.deck_sqft) || 0,
+      loading_sqft: Number(unit.loading_sqft) || 0,
       rate: Number(unit.rate) || 0,
+      floor_rise_charge: Number(unit.floor_rise_charge) || 0,
+      plc_charge: Number(unit.plc_charge) || 0,
+      parking_slots_included: Number(unit.parking_slots_included) || 0,
       floor: Number(unit.floor) || 1,
       unit_no: Number(unit.unit_no) || 1,
       status: unit.status,
@@ -425,7 +602,22 @@ function UnitEditDialog({
       unit_code: form.unit_code.trim() || unit.unit_code,
       unit_type: form.unit_type || null,
       area: Math.max(1, Number(form.area) || 1),
+      carpet_area:
+        Number(form.carpet_area) > 0 ? Number(form.carpet_area) : null,
+      bua_area: Number(form.bua_area) > 0 ? Number(form.bua_area) : null,
+      rera_area: Number(form.rera_area) > 0 ? Number(form.rera_area) : null,
+      terrace_sqft:
+        Number(form.terrace_sqft) > 0 ? Number(form.terrace_sqft) : null,
+      deck_sqft: Number(form.deck_sqft) > 0 ? Number(form.deck_sqft) : null,
+      loading_sqft:
+        Number(form.loading_sqft) > 0 ? Number(form.loading_sqft) : null,
       rate: Math.max(1, Number(form.rate) || 1),
+      floor_rise_charge: Math.max(0, Number(form.floor_rise_charge) || 0),
+      plc_charge: Math.max(0, Number(form.plc_charge) || 0),
+      parking_slots_included: Math.max(
+        0,
+        Math.floor(Number(form.parking_slots_included) || 0)
+      ),
       floor: Number(form.floor) || 1,
       unit_no: Math.max(1, Number(form.unit_no) || 1),
       status: form.status
@@ -457,6 +649,9 @@ function UnitEditDialog({
           <p className="text-[11px] text-slate-500">{unit.unit_code}</p>
         </DialogHeader>
         <div className="grid max-h-[55vh] grid-cols-2 gap-2.5 overflow-y-auto p-4">
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+            Identification
+          </div>
           <div className="col-span-2 flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Unit code</Label>
             <Input
@@ -497,8 +692,11 @@ function UnitEditDialog({
               </SelectContent>
             </Select>
           </div>
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+            Areas (sq.ft)
+          </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Area (sq.ft)</Label>
+            <Label className="text-[10px] text-slate-500">Legacy / sale area</Label>
             <Input
               type="number"
               min={1}
@@ -511,6 +709,99 @@ function UnitEditDialog({
               }
               className="h-9 text-xs"
             />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Carpet</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.carpet_area || ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  carpet_area: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">BUA</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.bua_area || ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  bua_area: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">RERA</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.rera_area || ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  rera_area: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Terrace</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.terrace_sqft || ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  terrace_sqft: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Deck</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.deck_sqft || ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  deck_sqft: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Loading</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.loading_sqft || ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  loading_sqft: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+            Pricing (₹)
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Rate (₹/sq.ft)</Label>
@@ -526,6 +817,54 @@ function UnitEditDialog({
               }
               className="h-9 text-xs"
             />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Floor-rise (lump)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.floor_rise_charge}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  floor_rise_charge: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">PLC (lump)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.plc_charge}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  plc_charge: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Parking slots (unit)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.parking_slots_included}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  parking_slots_included: Number(e.target.value) || 0
+                }))
+              }
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+            Position
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Floor</Label>
@@ -593,20 +932,36 @@ function UnitCell({
   onClick: (u: UnitRow) => void;
 }) {
   const bg = STATUS_COLOR[unit.status] ?? '#94A3B8';
-  const title = `${unit.unit_code} | ${unit.unit_type ?? ''} | ${unit.area ?? ''} sq.ft`;
+  const total = unitAgreementTotalInr(unit);
+  const bill = unitBillableAreaSqft(unit);
+  const title = `${unit.unit_code} · ${statusLabelForUnit(unit.status)} · ${formatInrCompactLacCr(total)} · ${bill || Number(unit.area) || 0} sq.ft billable`;
   return (
     <button
       type="button"
       title={title}
       aria-label={title}
       onClick={() => onClick(unit)}
-      className="inline-flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[5px] text-[9px] font-bold text-white shadow-sm transition-transform hover:scale-105"
-      style={{
-        background: bg,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.15)'
-      }}
+      className="flex h-[76px] w-[76px] shrink-0 cursor-pointer flex-col items-stretch justify-between rounded-lg border-2 bg-white px-1 py-1 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      style={{ borderColor: bg }}
     >
-      {unitStatusGridAbbrev(unit.status)}
+      <div className="truncate text-[8px] font-bold leading-tight text-slate-800">
+        {unit.unit_code}
+      </div>
+      <div
+        className="self-center text-[11px] font-black leading-none"
+        style={{ color: bg }}
+      >
+        {unitStatusGridAbbrev(unit.status)}
+      </div>
+      <div className="truncate text-[8px] font-semibold leading-tight text-slate-600">
+        {formatInrCompactLacCr(total)}
+      </div>
+      <div
+        className="rounded px-0.5 py-px text-center text-[7px] font-bold text-white"
+        style={{ background: bg }}
+      >
+        {bill > 0 ? `${bill}` : `${Number(unit.area) || '—'}`} sf
+      </div>
     </button>
   );
 }
@@ -644,6 +999,10 @@ export default function InventoryPage() {
   const [floorPlanWing, setFloorPlanWing] = useState<string>('');
   const [floorPlanFloor, setFloorPlanFloor] = useState<number | null>(null);
 
+  const [bulkCsv, setBulkCsv] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState('');
+
   const load = useCallback(async () => {
     if (!activeProjectId) return;
     setLoading(true);
@@ -652,7 +1011,7 @@ export default function InventoryPage() {
       supabase
         .from('units')
         .select(
-          'id,unit_code,wing_name,floor,unit_no,unit_type,area,rate,status,blocked_reason,blocked_on'
+          'id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on'
         )
         .eq('project_id', activeProjectId)
         .order('wing_name', { ascending: true })
@@ -693,9 +1052,90 @@ export default function InventoryPage() {
     setLoading(false);
   }, [activeProjectId, supabase]);
 
+  const runBulkImport = useCallback(async () => {
+    if (!activeProjectId || !bulkCsv.trim()) return;
+    setBulkBusy(true);
+    setBulkMsg('');
+    const rows = parseCsvRows(bulkCsv);
+    if (!rows.length) {
+      setBulkMsg('Add a header row and at least one data row.');
+      setBulkBusy(false);
+      return;
+    }
+    const payloads: Record<string, unknown>[] = [];
+    let skipped = 0;
+    for (const r of rows) {
+      const p = csvRowToUnitUpsert(activeProjectId, r);
+      if (p) payloads.push(p);
+      else skipped++;
+    }
+    if (!payloads.length) {
+      setBulkMsg('No valid rows (each row needs unit_code).');
+      setBulkBusy(false);
+      return;
+    }
+    const BATCH = 40;
+    try {
+      for (let i = 0; i < payloads.length; i += BATCH) {
+        const chunk = payloads.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from('units')
+          .upsert(chunk, { onConflict: 'project_id,unit_code' });
+        if (error) {
+          setBulkMsg(error.message);
+          return;
+        }
+      }
+      setBulkMsg(
+        `Upserted ${payloads.length} unit(s).` +
+          (skipped ? ` Skipped ${skipped} row(s) without unit_code.` : '')
+      );
+      setBulkCsv('');
+      await load();
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [activeProjectId, bulkCsv, load, supabase]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setSelected((prev) => {
+      if (!prev) return prev;
+      return units.find((u) => u.id === prev.id) ?? null;
+    });
+  }, [units]);
+
+  useEffect(() => {
+    setEditUnit((prev) => {
+      if (!prev) return prev;
+      return units.find((u) => u.id === prev.id) ?? prev;
+    });
+  }, [units]);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
+    const channel = supabase
+      .channel(`units-inv-${activeProjectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'units',
+          filter: `project_id=eq.${activeProjectId}`
+        },
+        () => {
+          void load();
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [activeProjectId, supabase, load]);
 
   useEffect(() => {
     try {
@@ -1058,15 +1498,53 @@ export default function InventoryPage() {
               </div>
             </div>
           </div>
+          <div className={cn('p-4', tabCardClass())}>
+            <div className="mb-2 text-[11px] font-semibold text-slate-800">
+              Bulk unit import (CSV)
+            </div>
+            <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
+              Header row required. Required column:{' '}
+              <code className="font-mono">unit_code</code>. Optional: wing_name,
+              floor, unit_no, unit_type, area, carpet_area, bua_area, rera_area,
+              terrace_sqft, deck_sqft, loading_sqft, rate, floor_rise_charge,
+              plc_charge, parking_slots_included, status. Each row upserts on
+              this project + unit code (simple CSV—avoid commas inside cells).
+            </p>
+            <Textarea
+              value={bulkCsv}
+              onChange={(e) => setBulkCsv(e.target.value)}
+              placeholder="unit_code,wing_name,floor,unit_no,rate,carpet_area,floor_rise_charge,plc_charge"
+              className="min-h-[120px] font-mono text-[10px]"
+              disabled={bulkBusy}
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={bulkBusy || !bulkCsv.trim()}
+                onClick={() => void runBulkImport()}
+              >
+                {bulkBusy ? 'Importing…' : 'Import / upsert'}
+              </Button>
+            </div>
+            {bulkMsg ? (
+              <p className="mt-2 text-[11px] text-slate-700">{bulkMsg}</p>
+            ) : null}
+          </div>
         </div>
       )}
 
       {tab === 'Grid View' && (
         <>
-          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
-            <span className="font-semibold text-slate-800">Sales view: </span>
-            choose wing and floor, then click a cell for unit details. Status
-            colours match the legend on the right of the filters.
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              Live
+            </span>
+            <span className="font-semibold text-slate-800">Sales matrix: </span>
+            filter by wing and floor; cells align to unit slots on each floor.
+            Colours follow the legend; carpet/BUA and floor-rise + PLC roll into
+            the list price shown on each cell.
           </div>
           <div
             className={cn(
@@ -1180,34 +1658,35 @@ export default function InventoryPage() {
                                 (Number(a.unit_no) || 0) -
                                 (Number(b.unit_no) || 0)
                             );
-                          const trailingEmpty = Math.max(
-                            0,
-                            wingMaxUnitsPerFloor - flUnits.length
-                          );
                           return (
                             <tr key={String(floor)}>
                               <td className="px-2 py-1 align-middle text-[10px] font-medium text-slate-500">
                                 {formatFloorChipLabel(floor, undefined)}
                               </td>
-                              {flUnits.map((unit) => (
-                                <td
-                                  key={unit.id}
-                                  className="px-1.5 py-1 text-center align-middle"
-                                >
-                                  <UnitCell
-                                    unit={unit}
-                                    onClick={(u) => setSelected(u)}
-                                  />
-                                </td>
-                              ))}
-                              {[...Array(trailingEmpty)].map((_, i) => (
-                                <td
-                                  key={`e-${i}`}
-                                  className="px-1.5 py-1 text-center align-middle"
-                                >
-                                  <div className="inline-block h-[30px] w-[30px] rounded-[5px] bg-slate-50" />
-                                </td>
-                              ))}
+                              {Array.from(
+                                { length: wingMaxUnitsPerFloor },
+                                (_, col) => {
+                                  const slot = col + 1;
+                                  const unit = flUnits.find(
+                                    (u) => Number(u.unit_no) === slot
+                                  );
+                                  return (
+                                    <td
+                                      key={slot}
+                                      className="px-1 py-1 text-center align-middle"
+                                    >
+                                      {unit ? (
+                                        <UnitCell
+                                          unit={unit}
+                                          onClick={(u) => setSelected(u)}
+                                        />
+                                      ) : (
+                                        <div className="inline-flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/80" />
+                                      )}
+                                    </td>
+                                  );
+                                }
+                              )}
                             </tr>
                           );
                         })}
@@ -1224,7 +1703,7 @@ export default function InventoryPage() {
             {selected && tab === 'Grid View' ? (
               <div
                 className={cn(
-                  'w-[220px] shrink-0 self-start p-4',
+                  'w-[280px] shrink-0 self-start p-4',
                   tabCardClass()
                 )}
               >
@@ -1250,7 +1729,44 @@ export default function InventoryPage() {
                       formatFloorLabel(selected.floor, selected.unit_type)
                     ],
                     ['Type', selected.unit_type ?? '—'],
-                    ['Area', `${selected.area ?? '—'} Sq.Ft.`],
+                    [
+                      'Carpet / BUA / RERA',
+                      [
+                        selected.carpet_area != null &&
+                        Number(selected.carpet_area) > 0
+                          ? `C ${selected.carpet_area}`
+                          : null,
+                        selected.bua_area != null && Number(selected.bua_area) > 0
+                          ? `B ${selected.bua_area}`
+                          : null,
+                        selected.rera_area != null &&
+                        Number(selected.rera_area) > 0
+                          ? `R ${selected.rera_area}`
+                          : null
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'
+                    ],
+                    ['Legacy area', `${selected.area ?? '—'} sq.ft`],
+                    [
+                      'Outdoor (T/D/L)',
+                      [
+                        selected.terrace_sqft != null &&
+                        Number(selected.terrace_sqft) > 0
+                          ? `T ${selected.terrace_sqft}`
+                          : null,
+                        selected.deck_sqft != null &&
+                        Number(selected.deck_sqft) > 0
+                          ? `D ${selected.deck_sqft}`
+                          : null,
+                        selected.loading_sqft != null &&
+                        Number(selected.loading_sqft) > 0
+                          ? `L ${selected.loading_sqft}`
+                          : null
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'
+                    ],
                     [
                       'Rate',
                       selected.rate != null
@@ -1258,8 +1774,34 @@ export default function InventoryPage() {
                         : '—'
                     ],
                     [
-                      'Value',
-                      formatAgreementValueCompact(selected.area, selected.rate)
+                      'Floor-rise + PLC',
+                      [
+                        selected.floor_rise_charge != null &&
+                        Number(selected.floor_rise_charge) > 0
+                          ? `FR ₹${Number(
+                              selected.floor_rise_charge
+                            ).toLocaleString('en-IN')}`
+                          : null,
+                        selected.plc_charge != null &&
+                        Number(selected.plc_charge) > 0
+                          ? `PLC ₹${Number(selected.plc_charge).toLocaleString(
+                              'en-IN'
+                            )}`
+                          : null
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'
+                    ],
+                    [
+                      'Parking (unit)',
+                      selected.parking_slots_included != null &&
+                      Number(selected.parking_slots_included) > 0
+                        ? String(selected.parking_slots_included)
+                        : '—'
+                    ],
+                    [
+                      'List price',
+                      formatUnitAgreementValueCompact(selected)
                     ],
                     ['Status', statusLabelForUnit(selected.status)]
                   ] as const
@@ -1364,9 +1906,10 @@ export default function InventoryPage() {
                     'Wing',
                     'Floor',
                     'Type',
-                    'Area (sq.ft)',
-                    'Rate (₹/sq.ft)',
-                    'Agreement value',
+                    'Areas',
+                    'Rate',
+                    'List price',
+                    'Pk',
                     'Status',
                     'Action'
                   ].map((h) => (
@@ -1398,14 +1941,32 @@ export default function InventoryPage() {
                     <td className="px-3 py-2 text-[11px] text-slate-500">
                       {u.unit_type ?? '—'}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-800">
-                      {u.area ?? '—'}
+                    <td className="max-w-[120px] px-3 py-2 text-[10px] leading-snug text-slate-700">
+                      {[
+                        u.carpet_area != null && Number(u.carpet_area) > 0
+                          ? `C ${u.carpet_area}`
+                          : null,
+                        u.bua_area != null && Number(u.bua_area) > 0
+                          ? `B ${u.bua_area}`
+                          : null,
+                        u.rera_area != null && Number(u.rera_area) > 0
+                          ? `R ${u.rera_area}`
+                          : null
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || (u.area ?? '—')}
                     </td>
                     <td className="px-3 py-2 text-[11px] text-slate-800">
                       {(Number(u.rate) || 0).toLocaleString('en-IN')}
                     </td>
                     <td className="px-3 py-2 text-[11px] font-semibold text-blue-500">
-                      {formatAgreementValueCompact(u.area, u.rate)}
+                      {formatUnitAgreementValueCompact(u)}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-slate-600">
+                      {u.parking_slots_included != null &&
+                      Number(u.parking_slots_included) > 0
+                        ? String(u.parking_slots_included)
+                        : '—'}
                     </td>
                     <td className="px-3 py-2">
                       <StatusBadge code={u.status} />
@@ -1516,7 +2077,11 @@ export default function InventoryPage() {
                             {u.unit_type ?? '—'}
                           </div>
                           <div className="text-[10px] text-slate-500">
-                            {u.area ?? '—'} sq.ft
+                            {unitBillableAreaSqft(u) || u.area || '—'} sq.ft
+                            billable
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-700">
+                            {formatUnitAgreementValueCompact(u)}
                           </div>
                           <div
                             className="mt-1.5 inline-block rounded-lg px-1.5 py-0.5 text-[9px] font-bold"
@@ -1568,7 +2133,11 @@ export default function InventoryPage() {
                             {u.unit_type ?? '—'}
                           </div>
                           <div className="text-[10px] text-slate-500">
-                            {u.area ?? '—'} sq.ft
+                            {unitBillableAreaSqft(u) || u.area || '—'} sq.ft
+                            billable
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-700">
+                            {formatUnitAgreementValueCompact(u)}
                           </div>
                           <div
                             className="mt-1.5 inline-block rounded-lg px-1.5 py-0.5 text-[9px] font-bold"
@@ -1773,7 +2342,7 @@ export default function InventoryPage() {
                       {u.unit_type ?? '—'}
                     </td>
                     <td className="px-3 py-2 text-[11px] text-slate-500">
-                      {u.area ?? '—'} sq.ft
+                      {unitBillableAreaSqft(u) || u.area || '—'} sq.ft
                     </td>
                     <td className="px-3 py-2">
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-600">
