@@ -1,0 +1,1112 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { EmailInputField } from '@/components/ui/email-input-field';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import {
+  type ProjectParkingMeta,
+  computeBookingCostBreakdown,
+  formatProjectParkingSummary
+} from '../booking-cost-utils';
+import { formatUnitAgreementValueCompact } from '../inr-format';
+import { writeBookingPrefill } from '../booking-prefill-storage';
+import { isUnitSelectableForInquiry } from '../inventory/inventory-utils';
+import type { UnitRow } from './inquiry-types';
+
+const INTEREST_TYPES = [
+  '1RK',
+  '1BHK',
+  '1.5BHK',
+  '2BHK',
+  '2.5BHK',
+  '3BHK',
+  '3.5BHK',
+  '4BHK',
+  '5BHK',
+  'Studio',
+  'Duplex',
+  'Penthouse',
+  'Shop',
+  'Office'
+] as const;
+
+const LEAD_SOURCES = [
+  'Direct',
+  'Broker',
+  'Referral',
+  'Social Media',
+  'Website',
+  'Walk-in'
+] as const;
+
+function normalizePhone(p: string) {
+  return String(p || '').replace(/\D/g, '');
+}
+
+const INQUIRY_INTEREST_ALL = '__inquiry_interest_all__';
+
+const STEPS = [
+  { id: 1, label: 'Customer' },
+  { id: 2, label: 'Inquiry' },
+  { id: 3, label: 'Unit' },
+  { id: 4, label: 'Review' }
+] as const;
+type StepId = (typeof STEPS)[number]['id'];
+
+export type NewInquiryWizardProps = {
+  projectId: string;
+  /** e.g. refetch list after “save enquiry only” */
+  onInquirySaved?: () => void | Promise<void>;
+};
+
+export function NewInquiryWizard(props: NewInquiryWizardProps) {
+  const { projectId, onInquirySaved } = props;
+  const router = useRouter();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  const [saveMsg, setSaveMsg] = useState('');
+  const [error, setError] = useState('');
+  const [units, setUnits] = useState<UnitRow[]>([]);
+  const [loadingUnits, setLoadingUnits] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [userLabel, setUserLabel] = useState<{ id: string; name: string }>({
+    id: '',
+    name: 'Logged-in user'
+  });
+
+  const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>(
+    []
+  );
+  const [projectParking, setProjectParking] =
+    useState<ProjectParkingMeta | null>(null);
+
+  const [sellerForm, setSellerForm] = useState({
+    customerName: '',
+    phone: '',
+    email: '',
+    leadSource: 'Direct' as (typeof LEAD_SOURCES)[number],
+    brokerId: '',
+    interestedIn: '',
+    parkingRequired: 'No' as 'Yes' | 'No',
+    parkingCount: '1',
+    selectedUnitId: '',
+    notes: ''
+  });
+
+  const [step, setStep] = useState<StepId>(1);
+
+  useEffect(() => {
+    void (async () => {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      const email = user?.email ?? '';
+      const name =
+        (user?.user_metadata?.full_name as string | undefined)?.trim() ||
+        email ||
+        'Logged-in user';
+      setUserLabel({ id: user?.id ?? '', name });
+    })();
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('brokers')
+        .select('id, full_name')
+        .eq('status', 'Active')
+        .order('full_name');
+      if (!cancelled)
+        setBrokers((data ?? []) as { id: string; full_name: string }[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setProjectParking(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingUnits(true);
+      const [unitsRes, projRes] = await Promise.all([
+        supabase
+          .from('units')
+          .select(
+            'id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,status,project_id'
+          )
+          .eq('project_id', projectId)
+          .order('wing_name', { ascending: true })
+          .order('floor', { ascending: false })
+          .order('unit_no', { ascending: true })
+          .limit(500),
+        supabase
+          .from('projects')
+          .select('parking_slots, parking_rate')
+          .eq('id', projectId)
+          .maybeSingle()
+      ]);
+      if (!cancelled && !unitsRes.error) {
+        setUnits((unitsRes.data ?? []) as UnitRow[]);
+      }
+      if (!cancelled && projRes.data) {
+        const row = projRes.data as {
+          parking_slots: number | null;
+          parking_rate: number | null;
+        };
+        setProjectParking({
+          parking_slots: row.parking_slots ?? null,
+          parking_rate: row.parking_rate ?? null
+        });
+      } else if (!cancelled) {
+        setProjectParking(null);
+      }
+      if (!cancelled) setLoadingUnits(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, supabase]);
+
+  const canSave = useMemo(() => {
+    const brokerOk =
+      sellerForm.leadSource !== 'Broker' ||
+      Boolean(String(sellerForm.brokerId || '').trim());
+    return (
+      String(sellerForm.customerName || '').trim().length >= 2 &&
+      normalizePhone(sellerForm.phone).length === 10 &&
+      String(sellerForm.selectedUnitId || '').trim().length > 0 &&
+      brokerOk
+    );
+  }, [sellerForm]);
+
+  const suggestionUnits = useMemo(() => {
+    const wantedType = String(sellerForm.interestedIn || '')
+      .toLowerCase()
+      .replace(/\s+/g, '');
+    return (units || [])
+      .filter((u) => isUnitSelectableForInquiry(u.status))
+      .filter((u) => {
+        if (!wantedType) return true;
+        const unitType = String(u.unit_type || '')
+          .toLowerCase()
+          .replace(/\s+/g, '');
+        return unitType.includes(wantedType);
+      })
+      .slice(0, 8);
+  }, [units, sellerForm.interestedIn]);
+
+  const selectedUnit = useMemo(() => {
+    const id = String(sellerForm.selectedUnitId || '').trim();
+    if (!id) return null;
+    return units.find((u) => u.id === id) ?? null;
+  }, [units, sellerForm.selectedUnitId]);
+
+  const stepValid = useMemo(() => {
+    const customerOk =
+      String(sellerForm.customerName || '').trim().length >= 2 &&
+      normalizePhone(sellerForm.phone).length === 10 &&
+      Boolean(userLabel.id);
+    const inquiryOk =
+      sellerForm.leadSource !== 'Broker' ||
+      Boolean(String(sellerForm.brokerId || '').trim());
+    const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
+    return { 1: customerOk, 2: inquiryOk, 3: unitOk, 4: true } as Record<
+      StepId,
+      boolean
+    >;
+  }, [sellerForm, userLabel.id]);
+
+  const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
+    if (!userLabel.id) {
+      setError('Sign in required to save customer details.');
+      return null;
+    }
+    const digits = normalizePhone(sellerForm.phone);
+    const fullName = String(sellerForm.customerName || '').trim();
+    const email = String(sellerForm.email || '').trim() || null;
+
+    try {
+      const { data: existing, error: findErr } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('phone_normalized', digits)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (findErr) throw findErr;
+
+      let customerId: string;
+      if (existing?.id) {
+        customerId = existing.id;
+        const { error: upErr } = await supabase
+          .from('customers')
+          .update({
+            full_name: fullName,
+            email,
+            phone: digits
+          })
+          .eq('id', customerId);
+        if (upErr) throw upErr;
+      } else {
+        const { data: inserted, error: insErr } = await supabase
+          .from('customers')
+          .insert({
+            full_name: fullName,
+            phone: digits,
+            email
+          })
+          .select('id')
+          .single();
+        if (insErr) throw insErr;
+        customerId = (inserted as { id: string }).id;
+      }
+      return customerId;
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Failed to save customer details'
+      );
+      return null;
+    }
+  }, [
+    supabase,
+    userLabel.id,
+    sellerForm.customerName,
+    sellerForm.phone,
+    sellerForm.email
+  ]);
+
+  const continueToBookingFromReview = useCallback(async () => {
+    if (!canSave || !projectId || !userLabel.id || !selectedUnit) return;
+    setSaving(true);
+    setError('');
+    try {
+      const customerId = await persistCustomerToDb();
+      if (!customerId) return;
+      writeBookingPrefill({
+        projectId,
+        inquiryId: null,
+        inquiryRef: null,
+        customerId,
+        unitId: sellerForm.selectedUnitId,
+        parkingRequired: sellerForm.parkingRequired,
+        parkingCount: sellerForm.parkingCount,
+        parkingSlotsAvailable: projectParking?.parking_slots ?? null,
+        parkingRateSnapshot: projectParking?.parking_rate ?? null
+      });
+      router.push('/crm/bookings');
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'Could not continue to booking'
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    canSave,
+    projectId,
+    userLabel.id,
+    selectedUnit,
+    persistCustomerToDb,
+    sellerForm.selectedUnitId,
+    sellerForm.parkingRequired,
+    sellerForm.parkingCount,
+    projectParking,
+    router
+  ]);
+
+  async function goNext() {
+    if (!stepValid[step] || saving) return;
+    if (step === 1) {
+      setSaving(true);
+      setError('');
+      try {
+        const customerId = await persistCustomerToDb();
+        if (!customerId) return;
+        setStep(2);
+        setSaveMsg('Customer details saved.');
+        window.setTimeout(() => setSaveMsg(''), 2000);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    setStep((s) => Math.min(4, (s as number) + 1) as StepId);
+  }
+  function goBack() {
+    setStep((s) => Math.max(1, (s as number) - 1) as StepId);
+  }
+  async function gotoStep(target: StepId) {
+    if (target === step || saving) return;
+    if (target < step) {
+      setStep(target);
+      return;
+    }
+    if (step === 1 && target > 1) {
+      if (!stepValid[1]) {
+        setStep(1);
+        return;
+      }
+      setSaving(true);
+      setError('');
+      try {
+        const customerId = await persistCustomerToDb();
+        if (!customerId) return;
+        setSaveMsg('Customer details saved.');
+        window.setTimeout(() => setSaveMsg(''), 2000);
+      } finally {
+        setSaving(false);
+      }
+    }
+    for (let i = step; i < target; i++) {
+      if (!stepValid[i as StepId]) {
+        setStep(i as StepId);
+        return;
+      }
+    }
+    setStep(target);
+  }
+
+  function resetForm() {
+    setSellerForm({
+      customerName: '',
+      phone: '',
+      email: '',
+      leadSource: 'Direct',
+      brokerId: '',
+      interestedIn: '',
+      parkingRequired: 'No',
+      parkingCount: '1',
+      selectedUnitId: '',
+      notes: ''
+    });
+    setStep(1);
+  }
+
+  async function saveInquiry() {
+    if (!canSave || !projectId || !userLabel.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      const customerId = await persistCustomerToDb();
+      if (!customerId) return;
+
+      const brokerId =
+        sellerForm.leadSource === 'Broker' &&
+        String(sellerForm.brokerId || '').trim()
+          ? sellerForm.brokerId.trim()
+          : null;
+
+      const { data: inserted, error: inqErr } = await supabase
+        .from('sales_inquiries')
+        .insert({
+          project_id: projectId,
+          customer_id: customerId,
+          unit_id: sellerForm.selectedUnitId,
+          lead_source: sellerForm.leadSource,
+          broker_id: brokerId,
+          interested_in: sellerForm.interestedIn.trim() || null,
+          parking_required: sellerForm.parkingRequired,
+          parking_count: sellerForm.parkingCount,
+          parking_slots_available: projectParking?.parking_slots ?? null,
+          parking_rate_snapshot: projectParking?.parking_rate ?? null,
+          notes: sellerForm.notes.trim() || null,
+          created_by: userLabel.id
+        })
+        .select('id')
+        .single();
+
+      if (inqErr) throw inqErr;
+      if (!inserted?.id) throw new Error('Inquiry insert returned no id');
+
+      await onInquirySaved?.();
+      resetForm();
+      setSaveMsg('Inquiry saved.');
+      window.setTimeout(() => setSaveMsg(''), 1800);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save inquiry');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      <Stepper
+        current={step}
+        onStepClick={gotoStep}
+        valid={stepValid}
+        disabled={saving}
+      />
+
+      {step === 1 ? (
+        <StepCustomer
+          sellerForm={sellerForm}
+          setSellerForm={setSellerForm}
+          signedIn={Boolean(userLabel.id)}
+        />
+      ) : null}
+
+      {step === 2 ? (
+        <StepInquiry
+          sellerForm={sellerForm}
+          setSellerForm={setSellerForm}
+          brokers={brokers}
+          projectParking={projectParking}
+        />
+      ) : null}
+
+      {step === 3 ? (
+        <StepUnit
+          sellerForm={sellerForm}
+          setSellerForm={setSellerForm}
+          suggestionUnits={suggestionUnits}
+          loadingUnits={loadingUnits}
+          selectedUnit={selectedUnit}
+          projectParking={projectParking}
+        />
+      ) : null}
+
+      {step === 4 ? (
+        <StepReview
+          sellerForm={sellerForm}
+          selectedUnit={selectedUnit}
+          brokers={brokers}
+          projectParking={projectParking}
+        />
+      ) : null}
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={goBack}
+            disabled={step === 1 || saving}
+          >
+            Back
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={resetForm}
+            disabled={saving}
+          >
+            Reset
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!userLabel.id ? (
+            <span className="text-xs text-amber-700">
+              Sign in required to save.
+            </span>
+          ) : null}
+          {saveMsg ? (
+            <span className="text-xs font-semibold text-green-700">
+              {saveMsg}
+            </span>
+          ) : null}
+          {step < 4 ? (
+            <Button
+              type="button"
+              onClick={() => void goNext()}
+              disabled={!stepValid[step] || saving}
+            >
+              {saving && step === 1
+                ? 'Saving…'
+                : step === 1
+                  ? 'Save & next'
+                  : 'Next'}
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canSave || saving || !userLabel.id}
+                onClick={() => void saveInquiry()}
+              >
+                {saving ? 'Saving…' : 'Save enquiry only'}
+              </Button>
+              <Button
+                type="button"
+                disabled={!canSave || saving || !userLabel.id}
+                onClick={() => void continueToBookingFromReview()}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+              >
+                Confirm booking
+                <ArrowRight className="size-4" aria-hidden />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+type SellerForm = {
+  customerName: string;
+  phone: string;
+  email: string;
+  leadSource: (typeof LEAD_SOURCES)[number];
+  brokerId: string;
+  interestedIn: string;
+  parkingRequired: 'Yes' | 'No';
+  parkingCount: string;
+  selectedUnitId: string;
+  notes: string;
+};
+type SetSellerForm = Dispatch<SetStateAction<SellerForm>>;
+
+function Stepper({
+  current,
+  onStepClick,
+  valid,
+  disabled
+}: {
+  current: StepId;
+  onStepClick: (s: StepId) => void | Promise<void>;
+  valid: Record<StepId, boolean>;
+  disabled?: boolean;
+}) {
+  return (
+    <ol className="mt-4 flex items-center">
+      {STEPS.map((s, idx) => {
+        const isDone = s.id < current && valid[s.id];
+        const isActive = s.id === current;
+        const isLast = idx === STEPS.length - 1;
+        return (
+          <li
+            key={s.id}
+            className={cn('flex items-center', !isLast && 'flex-1')}
+          >
+            <button
+              type="button"
+              onClick={() => void onStepClick(s.id)}
+              disabled={disabled}
+              className="group flex items-center gap-2 text-left disabled:pointer-events-none disabled:opacity-50"
+              aria-current={isActive ? 'step' : undefined}
+            >
+              <span
+                className={cn(
+                  'flex size-7 items-center justify-center rounded-full border text-[11px] font-bold transition-colors',
+                  isDone && 'border-green-500 bg-green-500 text-white',
+                  isActive &&
+                    'border-blue-500 bg-blue-500 text-white shadow-sm',
+                  !isDone &&
+                    !isActive &&
+                    'border-border bg-background text-muted-foreground group-hover:border-blue-300'
+                )}
+              >
+                {isDone ? '✓' : s.id}
+              </span>
+              <span
+                className={cn(
+                  'text-[11px] font-semibold uppercase tracking-wide',
+                  isActive
+                    ? 'text-foreground'
+                    : isDone
+                      ? 'text-green-700'
+                      : 'text-muted-foreground'
+                )}
+              >
+                {s.label}
+              </span>
+            </button>
+            {!isLast ? (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'mx-3 h-px flex-1 transition-colors',
+                  s.id < current ? 'bg-green-400' : 'bg-border'
+                )}
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function StepCustomer({
+  sellerForm,
+  setSellerForm,
+  signedIn
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+  signedIn: boolean;
+}) {
+  return (
+    <div className="mt-6 space-y-3">
+      {!signedIn ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Sign in to save customer details to the database and continue to the
+          next step.
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Customer is saved when you continue (by phone number — existing
+          customers are updated).
+        </p>
+      )}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div>
+          <Label>Customer name *</Label>
+          <Input
+            className="mt-1"
+            value={sellerForm.customerName}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, customerName: e.target.value }))
+            }
+            placeholder="Customer name"
+          />
+        </div>
+        <PhoneInputField
+          value={sellerForm.phone}
+          onChange={(v) => setSellerForm((s) => ({ ...s, phone: v }))}
+          label="Phone *"
+          placeholder="10-digit mobile"
+          mode="digits10"
+        />
+        <EmailInputField
+          value={sellerForm.email}
+          onChange={(v) => setSellerForm((s) => ({ ...s, email: v }))}
+          placeholder="Email"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepInquiry({
+  sellerForm,
+  setSellerForm,
+  brokers,
+  projectParking
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+  brokers: { id: string; full_name: string }[];
+  projectParking: ProjectParkingMeta | null;
+}) {
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="md:col-span-2 xl:col-span-4 rounded-lg border border-blue-100 bg-blue-50/90 px-3 py-2 text-[11px] text-blue-900">
+        <span className="font-semibold">Parking inventory (this project): </span>
+        {formatProjectParkingSummary(projectParking)}
+      </div>
+      <div>
+        <Label>Lead source</Label>
+        <Select
+          value={sellerForm.leadSource}
+          onValueChange={(v) => {
+            const nv = v as (typeof LEAD_SOURCES)[number];
+            setSellerForm((s) => ({
+              ...s,
+              leadSource: nv,
+              brokerId: nv === 'Broker' ? s.brokerId : ''
+            }));
+          }}
+        >
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LEAD_SOURCES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Broker</Label>
+        <Select
+          value={
+            sellerForm.brokerId === '' ? undefined : sellerForm.brokerId
+          }
+          onValueChange={(v) =>
+            setSellerForm((s) => ({ ...s, brokerId: v }))
+          }
+          disabled={sellerForm.leadSource !== 'Broker'}
+        >
+          <SelectTrigger
+            className={cn(
+              'mt-1 w-full',
+              sellerForm.leadSource !== 'Broker' && 'opacity-60'
+            )}
+          >
+            <SelectValue placeholder="Select broker…" />
+          </SelectTrigger>
+          <SelectContent>
+            {brokers.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.full_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {sellerForm.leadSource === 'Broker' && brokers.length === 0 ? (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            No active brokers. Add one under CRM → Brokers.
+          </p>
+        ) : null}
+      </div>
+      <div>
+        <Label>Interested in</Label>
+        <Select
+          value={
+            sellerForm.interestedIn === ''
+              ? INQUIRY_INTEREST_ALL
+              : sellerForm.interestedIn
+          }
+          onValueChange={(v) =>
+            setSellerForm((s) => ({
+              ...s,
+              interestedIn: v === INQUIRY_INTEREST_ALL ? '' : v
+            }))
+          }
+        >
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={INQUIRY_INTEREST_ALL}>All types</SelectItem>
+            {INTEREST_TYPES.map((v) => (
+              <SelectItem key={v} value={v}>
+                {v}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Parking</Label>
+        <Select
+          value={sellerForm.parkingRequired}
+          onValueChange={(v) =>
+            setSellerForm((s) => ({
+              ...s,
+              parkingRequired: v as 'Yes' | 'No'
+            }))
+          }
+        >
+          <SelectTrigger className="mt-1 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="No">No parking required</SelectItem>
+            <SelectItem value="Yes">Parking required</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Parking count</Label>
+        <Select
+          value={sellerForm.parkingCount}
+          onValueChange={(v) =>
+            setSellerForm((s) => ({ ...s, parkingCount: v }))
+          }
+          disabled={sellerForm.parkingRequired !== 'Yes'}
+        >
+          <SelectTrigger
+            className={cn(
+              'mt-1 w-full',
+              sellerForm.parkingRequired !== 'Yes' && 'opacity-60'
+            )}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(['1', '2', '3', '4+'] as const).map((x) => (
+              <SelectItem key={x} value={x}>
+                Parking count: {x}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="md:col-span-2 xl:col-span-4">
+        <Label>Notes</Label>
+        <Textarea
+          value={sellerForm.notes}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, notes: e.target.value }))
+          }
+          rows={2}
+          placeholder="Notes"
+          className="mt-1 min-h-[60px]"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StepUnit({
+  sellerForm,
+  setSellerForm,
+  suggestionUnits,
+  loadingUnits,
+  selectedUnit,
+  projectParking
+}: {
+  sellerForm: SellerForm;
+  setSellerForm: SetSellerForm;
+  suggestionUnits: UnitRow[];
+  loadingUnits: boolean;
+  selectedUnit: UnitRow | null;
+  projectParking: ProjectParkingMeta | null;
+}) {
+  return (
+    <div className="mt-6">
+      <div className="text-xs font-semibold text-foreground">
+        Suggested units
+        {loadingUnits ? (
+          <span className="ml-2 font-normal text-muted-foreground">
+            Loading inventory…
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+        {suggestionUnits.length === 0 ? (
+          <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            No available units match the current interest type.
+          </div>
+        ) : (
+          suggestionUnits.map((u) => {
+            const active = sellerForm.selectedUnitId === u.id;
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() =>
+                  setSellerForm((s) => ({ ...s, selectedUnitId: u.id }))
+                }
+                className={cn(
+                  'rounded-lg border p-3 text-left transition-colors',
+                  active
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-border bg-background hover:bg-muted/50'
+                )}
+              >
+                <div className="text-xs font-bold text-foreground">
+                  {u.unit_code}
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {u.unit_type ?? '—'} · {u.wing_name}
+                </div>
+                <div className="mt-1.5 text-xs font-semibold text-foreground">
+                  {formatUnitAgreementValueCompact(u)}
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {selectedUnit ? (
+        <CostSheet
+          unit={selectedUnit}
+          parkingRequired={sellerForm.parkingRequired}
+          parkingCount={sellerForm.parkingCount}
+          projectParking={projectParking}
+        />
+      ) : sellerForm.selectedUnitId ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Selected unit details are not in the current list. Refresh inventory
+          or pick another unit.
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-[11px] text-muted-foreground">
+          Pick a unit to see its cost sheet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CostSheet({
+  unit,
+  parkingRequired,
+  parkingCount,
+  projectParking
+}: {
+  unit: UnitRow;
+  parkingRequired: 'Yes' | 'No';
+  parkingCount: string;
+  projectParking: ProjectParkingMeta | null;
+}) {
+  const slotRate =
+    projectParking?.parking_rate != null && projectParking.parking_rate > 0
+      ? projectParking.parking_rate
+      : 0;
+  const { rows } = computeBookingCostBreakdown(
+    unit,
+    parkingRequired,
+    parkingCount,
+    slotRate,
+    projectParking
+  );
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        Cost sheet
+      </div>
+      <div className="mt-1 text-sm font-semibold text-foreground">
+        {unit.unit_code}{' '}
+        <span className="font-normal text-muted-foreground">
+          · {unit.wing_name}
+        </span>
+      </div>
+      <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-baseline justify-between gap-3 rounded-md border border-border/80 bg-background px-3 py-2"
+          >
+            <dt className="text-[11px] font-semibold text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="text-right text-xs font-semibold text-foreground">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+        Dwelling line uses billable carpet/BUA when set, plus floor-rise and PLC
+        lump sums. Extra parking beyond what is bundled with the unit is
+        estimated from the project rate. Stamp duty, registration, GST, and
+        other charges depend on project terms and local law.
+      </p>
+    </div>
+  );
+}
+
+function StepReview({
+  sellerForm,
+  selectedUnit,
+  brokers,
+  projectParking
+}: {
+  sellerForm: SellerForm;
+  selectedUnit: UnitRow | null;
+  brokers: { id: string; full_name: string }[];
+  projectParking: ProjectParkingMeta | null;
+}) {
+  const brokerLabel =
+    sellerForm.leadSource === 'Broker' && sellerForm.brokerId
+      ? (brokers.find((b) => b.id === sellerForm.brokerId)?.full_name ?? '—')
+      : '—';
+
+  const customer: [string, string][] = [
+    ['Name', sellerForm.customerName.trim() || '—'],
+    [
+      'Phone',
+      normalizePhone(sellerForm.phone).length === 10
+        ? sellerForm.phone
+        : '—'
+    ],
+    ['Email', sellerForm.email.trim() || '—']
+  ];
+  const inquiry: [string, string][] = [
+    ['Lead source', sellerForm.leadSource],
+    ...(sellerForm.leadSource === 'Broker'
+      ? ([['Broker', brokerLabel]] as [string, string][])
+      : []),
+    ['Interested in', sellerForm.interestedIn || 'Any'],
+    [
+      'Parking',
+      sellerForm.parkingRequired === 'Yes'
+        ? `Yes · count ${sellerForm.parkingCount}`
+        : 'No'
+    ],
+    [
+      'Parking availability (project)',
+      formatProjectParkingSummary(projectParking)
+    ],
+    ['Notes', sellerForm.notes.trim() || '—']
+  ];
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <ReviewBlock title="Customer" rows={customer} />
+      <ReviewBlock title="Inquiry" rows={inquiry} />
+      <div className="lg:col-span-2">
+        {selectedUnit ? (
+          <CostSheet
+            unit={selectedUnit}
+            parkingRequired={sellerForm.parkingRequired}
+            parkingCount={sellerForm.parkingCount}
+            projectParking={projectParking}
+          />
+        ) : (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            No unit selected. Go back to step 3 to pick a unit.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReviewBlock({
+  title,
+  rows
+}: {
+  title: string;
+  rows: [string, string][];
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </div>
+      <dl className="mt-3 grid grid-cols-1 gap-2">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-baseline justify-between gap-3 border-b border-border/60 pb-1.5 last:border-0 last:pb-0"
+          >
+            <dt className="text-[11px] font-semibold text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="text-right text-xs font-semibold text-foreground">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
