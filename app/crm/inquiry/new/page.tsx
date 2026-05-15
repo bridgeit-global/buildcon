@@ -14,13 +14,14 @@ import {
   InquiryPipelinePanel,
   type OpportunityRow
 } from '../inquiry-pipeline-dialog';
+import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 type InquiryFetchRow = {
   id: string;
   customers: { full_name: string } | null;
-  units: { unit_code: string } | null;
+  units: { unit_code: string; status?: string | null } | null;
   sales_opportunities: OpportunityRow | OpportunityRow[] | null;
 };
 
@@ -149,6 +150,7 @@ function NewInquiryPageInner() {
   const [loadingPipeline, setLoadingPipeline] = useState(false);
   const [opportunity, setOpportunity] = useState<OpportunityRow | null>(null);
   const [funnelStage, setFunnelStage] = useState('Enquiry');
+  const [unitStatus, setUnitStatus] = useState<string | null>(null);
   const [inquiryId, setInquiryId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [unitCode, setUnitCode] = useState('');
@@ -165,7 +167,7 @@ function NewInquiryPageInner() {
           `
           id,
           customers ( full_name ),
-          units ( unit_code ),
+          units ( unit_code, status ),
           sales_opportunities (
             id,
             funnel_stage,
@@ -186,6 +188,8 @@ function NewInquiryPageInner() {
       if (opp?.funnel_stage) setFunnelStage(opp.funnel_stage);
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
+      const st = row.units?.status;
+      setUnitStatus(st != null && String(st).trim() !== '' ? String(st) : null);
       return true;
     },
     [supabase, activeProjectId]
@@ -203,6 +207,7 @@ function NewInquiryPageInner() {
         setFunnelStage('Enquiry');
         setCustomerName('');
         setUnitCode('');
+        setUnitStatus(null);
       }
       prevResumeInquiryRef.current = '';
       return;
@@ -230,6 +235,7 @@ function NewInquiryPageInner() {
         setFunnelStage('Enquiry');
         setCustomerName('');
         setUnitCode('');
+        setUnitStatus(null);
       }
       setResumeReady(true);
     })();
@@ -248,6 +254,11 @@ function NewInquiryPageInner() {
       setPhase('pipeline');
     },
     [loadOpportunity]
+  );
+
+  const pipelineUnitStageNote = useMemo(
+    () => funnelUnitAlignmentMessage(funnelStage, unitStatus),
+    [funnelStage, unitStatus]
   );
 
   if (!activeProjectId) {
@@ -344,17 +355,27 @@ function NewInquiryPageInner() {
               </p>
             </div>
           ) : (
-            <InquiryPipelinePanel
-              opportunity={opportunity}
-              inquiryContext={{
-                customerName: customerName || undefined,
-                unitCode: unitCode || undefined
-              }}
-              onSaved={() => {
-                if (inquiryId) void loadOpportunity(inquiryId);
-              }}
-              onClose={() => router.push('/crm/inquiry')}
-            />
+            <>
+              {pipelineUnitStageNote ? (
+                <div
+                  role="status"
+                  className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950"
+                >
+                  {pipelineUnitStageNote}
+                </div>
+              ) : null}
+              <InquiryPipelinePanel
+                opportunity={opportunity}
+                inquiryContext={{
+                  customerName: customerName || undefined,
+                  unitCode: unitCode || undefined
+                }}
+                onSaved={() => {
+                  if (inquiryId) void loadOpportunity(inquiryId);
+                }}
+                onClose={() => router.push('/crm/inquiry')}
+              />
+            </>
           )}
         </div>
       </Card>

@@ -32,6 +32,10 @@ import {
   isUnitSelectableForInquiry,
   statusLabelForUnit
 } from '../inventory/inventory-utils';
+import {
+  suggestedFunnelStageForUnitStatus,
+  unitStatusInquiryStageHint
+} from './inquiry-stage-unit-map';
 import type { UnitRow } from './inquiry-types';
 
 const LEAD_SOURCES = [
@@ -1109,6 +1113,12 @@ function StepUnit({
             </span>
           </div>
 
+          {selectedUnit ? (
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {unitStatusInquiryStageHint(selectedUnit.status)}
+            </p>
+          ) : null}
+
           <ParkingInfoBar
             projectParking={projectParking}
             parkingRequired={sellerForm.parkingRequired}
@@ -1231,12 +1241,20 @@ function StepReview({
             <SummaryRow label="Floor" value={formatFloorLabel(u.floor, u.unit_type)} />
             <SummaryRow label="Type" value={u.unit_type?.trim() || '—'} />
             <SummaryRow label="Status" value={statusLabelForUnit(u.status)} />
+            <SummaryRow
+              label="Typical pipeline"
+              value={suggestedFunnelStageForUnitStatus(u.status)}
+            />
             {u.carpet_area != null ? (
               <SummaryRow label="Carpet" value={`${u.carpet_area} sq.ft`} />
             ) : null}
           </dl>
         </div>
       </div>
+
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        {unitStatusInquiryStageHint(u.status)}
+      </p>
 
       {/* Parking summary */}
       <div className="rounded-lg border border-border bg-background p-3">
