@@ -299,9 +299,6 @@ function NewInquiryPageInner() {
         {/* ── Macro progress (Customer → Unit → Enquiry); pipeline detail is in the panel ─ */}
         {phase === 'create' ? (
           <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
-            <p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Creating enquiry
-            </p>
             <FlowProgress wizardStep={wizardStep} />
           </div>
         ) : null}

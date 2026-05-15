@@ -429,7 +429,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
       const brokerId =
         sellerForm.leadSource === 'Broker' &&
-        String(sellerForm.brokerId || '').trim()
+          String(sellerForm.brokerId || '').trim()
           ? sellerForm.brokerId.trim()
           : null;
 
@@ -554,6 +554,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             <Button
               type="button"
               size="sm"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
               onClick={() => void goNext()}
               disabled={!stepValid[step] || saving}
             >
@@ -652,10 +653,10 @@ function Stepper({
                   'flex size-6 items-center justify-center rounded-full border text-[10px] font-bold transition-colors',
                   isDone && 'border-green-500 bg-green-500 text-white',
                   isActive &&
-                    'border-primary bg-primary text-primary-foreground shadow-sm',
+                  'border-primary bg-primary text-primary-foreground shadow-sm',
                   !isDone &&
-                    !isActive &&
-                    'border-border bg-background text-muted-foreground group-hover:border-primary/40'
+                  !isActive &&
+                  'border-border bg-background text-muted-foreground group-hover:border-primary/40'
                 )}
               >
                 {isDone ? '✓' : s.id}
