@@ -857,7 +857,7 @@ export function InquiryPipelinePanel(props: {
           refresh after migration.
         </p>
         <div className="flex justify-end pt-2">
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Close
           </Button>
         </div>
@@ -974,13 +974,12 @@ export function InquiryPipelinePanel(props: {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
+        <Button variant="outline" onClick={onClose} disabled={saving}>
           Close
         </Button>
         <div className="flex flex-wrap gap-2">
           {macroStep !== 'enquiry' ? (
             <Button
-              size="sm"
               className="bg-teal-600 hover:bg-teal-700"
               onClick={() => {
                 if (macroStep === 'customer') setMacroStep('unit');
@@ -993,7 +992,6 @@ export function InquiryPipelinePanel(props: {
             <>
               <Button
                 variant="outline"
-                size="sm"
                 disabled={saving}
                 onClick={() => void save()}
               >
@@ -1001,7 +999,6 @@ export function InquiryPipelinePanel(props: {
               </Button>
               {!isLastPipelineStage && (
                 <Button
-                  size="sm"
                   disabled={saving}
                   className="bg-teal-600 hover:bg-teal-700"
                   onClick={() => advanceStage()}

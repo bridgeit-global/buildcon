@@ -347,7 +347,6 @@ export function InquiryListTable({
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 className="h-8"
                 onClick={() =>
                   router.push(
@@ -360,7 +359,6 @@ export function InquiryListTable({
               {inq.unit_id?.trim() ? (
                 <Button
                   type="button"
-                  size="sm"
                   className="h-8 gap-1"
                   onClick={() => navigateToBookingFromInquiry(inq)}
                 >
@@ -424,7 +422,6 @@ export function InquiryListTable({
         </div>
         <Button
           variant="outline"
-          size="sm"
           type="button"
           onClick={() => void loadInquiries()}
           disabled={loadingInquiries}
@@ -455,7 +452,7 @@ export function InquiryListTable({
                 stageCol?.setFilterValue(v === '__all__' ? undefined : v)
               }
             >
-              <SelectTrigger className="mt-1 w-full min-w-[10rem]" size="sm">
+              <SelectTrigger className="mt-1 w-full min-w-[10rem]">
                 <SelectValue placeholder="All stages" />
               </SelectTrigger>
               <SelectContent>
@@ -482,7 +479,7 @@ export function InquiryListTable({
                 sourceCol?.setFilterValue(v === '__all__' ? undefined : v)
               }
             >
-              <SelectTrigger className="mt-1 w-full min-w-[10rem]" size="sm">
+              <SelectTrigger className="mt-1 w-full min-w-[10rem]">
                 <SelectValue placeholder="All sources" />
               </SelectTrigger>
               <SelectContent>
@@ -501,7 +498,7 @@ export function InquiryListTable({
               value={String(table.getState().pagination.pageSize)}
               onValueChange={(v) => table.setPageSize(Number(v))}
             >
-              <SelectTrigger className="mt-1 w-full" size="sm">
+              <SelectTrigger className="mt-1 w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -591,7 +588,6 @@ export function InquiryListTable({
             <Button
               type="button"
               variant="outline"
-              size="sm"
               className="size-8 p-0"
               disabled={!table.getCanPreviousPage()}
               onClick={() => table.previousPage()}
@@ -602,7 +598,6 @@ export function InquiryListTable({
             <Button
               type="button"
               variant="outline"
-              size="sm"
               className="size-8 p-0"
               disabled={!table.getCanNextPage()}
               onClick={() => table.nextPage()}

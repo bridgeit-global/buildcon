@@ -529,7 +529,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           <Button
             type="button"
             variant="outline"
-            size="sm"
+
             onClick={goBack}
             disabled={step === 1 || saving}
           >
@@ -538,7 +538,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             onClick={resetForm}
             disabled={saving}
           >
@@ -557,7 +556,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           {step < 3 ? (
             <Button
               type="button"
-              size="sm"
               className="gap-1.5"
               onClick={() => void goNext()}
               disabled={!stepValid[step] || saving}
@@ -573,7 +571,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 disabled={!canSave || saving || !userLabel.id}
                 onClick={() => void saveInquiry()}
               >
@@ -581,7 +578,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
               </Button>
               <Button
                 type="button"
-                size="sm"
                 disabled={!canSave || saving || !userLabel.id}
                 onClick={() => void continueToBookingFromReview()}
                 className="gap-1.5"

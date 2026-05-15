@@ -30,7 +30,7 @@ export default function InquiryListPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" className="gap-1 px-2" asChild>
+        <Button variant="ghost" className="gap-1 px-2" asChild>
           <Link href="/crm/inquiry">
             <ArrowLeft className="size-4" />
             Leads overview

@@ -289,7 +289,7 @@ function NewInquiryPageInner() {
     <div className="flex flex-col gap-4">
       {/* Back navigation */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" className="gap-1 px-2" asChild>
+        <Button variant="ghost" className="gap-1 px-2" asChild>
           <Link href="/crm/inquiry">
             <ArrowLeft className="size-4" />
             Leads overview
@@ -334,12 +334,11 @@ function NewInquiryPageInner() {
                 longer have access.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                <Button variant="outline" size="sm" asChild>
+                <Button variant="outline" asChild>
                   <Link href="/crm/inquiry">Leads overview</Link>
                 </Button>
                 <Button
                   variant="default"
-                  size="sm"
                   onClick={() => router.replace('/crm/inquiry/new')}
                 >
                   New enquiry
