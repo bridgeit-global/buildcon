@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { targetUnitStatusForSavedFunnelStage } from './inquiry-stage-unit-map';
 
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
@@ -746,10 +747,12 @@ export function InquiryPipelinePanel(props: {
   opportunity: OpportunityRow | null;
   /** Read-only enquiry record labels (customer + unit live on `sales_inquiries`). */
   inquiryContext?: InquiryPipelineInquiryContext;
+  /** `sales_inquiries.unit_id` — when set, inventory `units.status` is updated from the saved funnel stage. */
+  unitId?: string | null;
   onSaved: () => void;
   onClose: () => void;
 }) {
-  const { opportunity, inquiryContext, onSaved, onClose } = props;
+  const { opportunity, inquiryContext, unitId, onSaved, onClose } = props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
@@ -781,6 +784,27 @@ export function InquiryPipelinePanel(props: {
     setSaved(false);
     try {
       const targetStage = nextStage ?? activeStage;
+      const uid = String(unitId || '').trim();
+      if (uid) {
+        const { data: unitRow, error: readErr } = await supabase
+          .from('units')
+          .select('status')
+          .eq('id', uid)
+          .maybeSingle();
+        if (readErr) throw readErr;
+        const nextStatus = targetUnitStatusForSavedFunnelStage(
+          targetStage,
+          unitRow?.status as string | undefined
+        );
+        if (nextStatus) {
+          const { error: unitErr } = await supabase
+            .from('units')
+            .update({ status: nextStatus })
+            .eq('id', uid);
+          if (unitErr) throw unitErr;
+        }
+      }
+
       const { error: uErr } = await supabase
         .from('sales_opportunities')
         .update({

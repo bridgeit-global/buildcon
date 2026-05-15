@@ -1,4 +1,8 @@
-import { normalizeUnitStatusCode } from '../inventory/unit-status';
+import {
+  isUnitAvailableForBooking,
+  isUnitBlockedStatus,
+  normalizeUnitStatusCode
+} from '../inventory/unit-status';
 
 /** Order matches `sales_opportunities.funnel_stage` DB check constraint. */
 export const INQUIRY_FUNNEL_STAGE_ORDER = [
@@ -114,5 +118,49 @@ export function funnelUnitAlignmentMessage(
   if (rel === 'pipeline_ahead') {
     return `Pipeline is ahead of what this unit status typically reflects — confirm inventory is updated.`;
   }
+  return null;
+}
+
+/**
+ * Inventory status to apply when saving `sales_opportunities.funnel_stage`.
+ * Runs before the funnel row is updated so we do not advance the pipeline if the unit row cannot move.
+ *
+ * - Token → TOKEN when unit is still available or blocked for this journey.
+ * - Booking / Won → BOOKED when unit is not yet at a post-booking inventory state.
+ * - Lost → AVAILABLE only when releasing a token (does not unwind BOOKED+).
+ */
+export function targetUnitStatusForSavedFunnelStage(
+  funnelStage: string,
+  currentUnitStatus: string | null | undefined
+): string | null {
+  const fs = String(funnelStage || '').trim();
+  const s = normalizeUnitStatusCode(currentUnitStatus);
+
+  if (fs === 'Token') {
+    if (
+      isUnitAvailableForBooking(currentUnitStatus) ||
+      isUnitBlockedStatus(currentUnitStatus)
+    ) {
+      return 'TOKEN';
+    }
+    return null;
+  }
+
+  if (fs === 'Booking' || fs === 'Won') {
+    if (
+      isUnitAvailableForBooking(currentUnitStatus) ||
+      isUnitBlockedStatus(currentUnitStatus) ||
+      s === 'TOKEN'
+    ) {
+      return 'BOOKED';
+    }
+    return null;
+  }
+
+  if (fs === 'Lost') {
+    if (s === 'TOKEN') return 'AVAILABLE';
+    return null;
+  }
+
   return null;
 }

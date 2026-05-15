@@ -20,6 +20,7 @@ import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
 
 type InquiryFetchRow = {
   id: string;
+  unit_id: string;
   customers: { full_name: string } | null;
   units: { unit_code: string; status?: string | null } | null;
   sales_opportunities: OpportunityRow | OpportunityRow[] | null;
@@ -154,6 +155,7 @@ function NewInquiryPageInner() {
   const [inquiryId, setInquiryId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [unitCode, setUnitCode] = useState('');
+  const [inquiryUnitId, setInquiryUnitId] = useState('');
   const [resumeReady, setResumeReady] = useState(() => !resumeInquiryId);
   const [resumeError, setResumeError] = useState(false);
   const prevResumeInquiryRef = useRef('');
@@ -166,6 +168,7 @@ function NewInquiryPageInner() {
         .select(
           `
           id,
+          unit_id,
           customers ( full_name ),
           units ( unit_code, status ),
           sales_opportunities (
@@ -190,6 +193,7 @@ function NewInquiryPageInner() {
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
       setUnitStatus(st != null && String(st).trim() !== '' ? String(st) : null);
+      setInquiryUnitId(String(row.unit_id || '').trim());
       return true;
     },
     [supabase, activeProjectId]
@@ -208,6 +212,7 @@ function NewInquiryPageInner() {
         setCustomerName('');
         setUnitCode('');
         setUnitStatus(null);
+        setInquiryUnitId('');
       }
       prevResumeInquiryRef.current = '';
       return;
@@ -236,6 +241,7 @@ function NewInquiryPageInner() {
         setCustomerName('');
         setUnitCode('');
         setUnitStatus(null);
+        setInquiryUnitId('');
       }
       setResumeReady(true);
     })();
@@ -366,6 +372,7 @@ function NewInquiryPageInner() {
               ) : null}
               <InquiryPipelinePanel
                 opportunity={opportunity}
+                unitId={inquiryUnitId || null}
                 inquiryContext={{
                   customerName: customerName || undefined,
                   unitCode: unitCode || undefined
