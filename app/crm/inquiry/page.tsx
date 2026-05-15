@@ -11,23 +11,24 @@ import { cn } from '@/lib/utils';
 import { embedOne } from './inquiry-helpers';
 import type { InquiryRowDb } from './inquiry-types';
 
+/** Light teal shades for donut + legend (Tailwind teal 100–400). */
 const LEAD_SOURCE_COLOR: Record<string, string> = {
-  Website: '#2563eb',
-  'Social Media': '#ea580c',
-  'Walk-in': '#38bdf8',
-  Direct: '#64748b',
-  Broker: '#9333ea',
-  Referral: '#a855f7'
+  Website: '#99f6e4',
+  'Social Media': '#5eead4',
+  'Walk-in': '#2dd4bf',
+  Direct: '#ccfbf1',
+  Broker: '#14b8a6',
+  Referral: '#b2f5ea'
 };
 
 function leadSourceColor(label: string, index: number) {
   const trimmed = String(label || '').trim();
   if (LEAD_SOURCE_COLOR[trimmed]) return LEAD_SOURCE_COLOR[trimmed];
   const l = trimmed.toLowerCase();
-  if (l.includes('whatsapp')) return '#16a34a';
-  if (l.includes('facebook') || l.includes('instagram')) return '#ea580c';
-  if (l.includes('website')) return '#2563eb';
-  const palette = ['#7c3aed', '#0d9488', '#db2777', '#ca8a04', '#4f46e5'];
+  if (l.includes('whatsapp')) return '#5eead4';
+  if (l.includes('facebook') || l.includes('instagram')) return '#2dd4bf';
+  if (l.includes('website')) return '#99f6e4';
+  const palette = ['#ccfbf1', '#99f6e4', '#5eead4', '#2dd4bf', '#14b8a6'];
   return palette[index % palette.length];
 }
 
