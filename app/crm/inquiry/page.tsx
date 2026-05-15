@@ -16,8 +16,8 @@ const LEAD_SOURCE_COLOR: Record<string, string> = {
   Website: '#99f6e4',
   'Social Media': '#5eead4',
   'Walk-in': '#2dd4bf',
-  Direct: '#ccfbf1',
-  Broker: '#14b8a6',
+  Direct: '#14b8a6  ',
+  Broker: '#ccfbf1',
   Referral: '#b2f5ea'
 };
 
@@ -172,7 +172,7 @@ function InquiryPageContent() {
   }, [inquiries]);
 
   const recentInquiriesPreview = useMemo(
-    () => inquiries.slice(0, 6),
+    () => inquiries.slice(0, 4),
     [inquiries]
   );
 
@@ -410,6 +410,8 @@ function InquiryPageContent() {
   );
 }
 
+const DONUT_SIZE_CLASS = 'size-52 sm:size-56';
+
 function LeadSourceDonut({
   slices
 }: {
@@ -419,7 +421,10 @@ function LeadSourceDonut({
   if (total <= 0) {
     return (
       <div
-        className="flex size-44 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-center text-[11px] leading-snug text-muted-foreground"
+        className={cn(
+          DONUT_SIZE_CLASS,
+          'flex shrink-0 items-center justify-center rounded-full border border-dashed border-border text-center text-xs leading-snug text-muted-foreground'
+        )}
         aria-hidden
       >
         No source data
@@ -435,16 +440,21 @@ function LeadSourceDonut({
     gradientParts.push(`${sl.color} ${start}% ${accPct}%`);
   }
   return (
-    <div className="relative mx-auto size-44 shrink-0 sm:mx-0">
+    <div
+      className={cn('relative mx-auto shrink-0 sm:mx-0', DONUT_SIZE_CLASS)}
+    >
       <div
-        className="size-44 rounded-full shadow-inner ring-1 ring-black/5 dark:ring-white/10"
+        className={cn(
+          DONUT_SIZE_CLASS,
+          'rounded-full shadow-inner ring-1 ring-black/5 dark:ring-white/10'
+        )}
         style={{ background: `conic-gradient(${gradientParts.join(', ')})` }}
       />
       <div className="absolute inset-[26%] flex flex-col items-center justify-center rounded-full bg-card text-center shadow-sm ring-1 ring-border">
-        <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Sources
         </span>
-        <span className="text-lg font-bold tabular-nums leading-none text-foreground">
+        <span className="text-xl font-bold tabular-nums leading-none text-foreground">
           {total}
         </span>
       </div>
