@@ -9,12 +9,15 @@ export const dynamic = 'force-dynamic';
 export default async function CrmLayout({ children }: { children: ReactNode }) {
   if (!getSupabasePublicEnv()) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="max-w-lg rounded-xl border bg-white p-6 text-sm">
-          <div className="text-base font-semibold text-gray-900">
+      <div
+        className="flex min-h-screen items-center justify-center p-6"
+        style={{ background: 'var(--crm-canvas, #f8f9fa)' }}
+      >
+        <div className="max-w-lg rounded-2xl border border-slate-200/90 bg-white p-6 text-sm shadow-sm">
+          <div className="text-base font-semibold text-slate-900">
             Supabase is not configured
           </div>
-          <div className="mt-2 text-gray-600">
+          <div className="mt-2 text-slate-600">
             Set `NEXT_PUBLIC_SUPABASE_URL` and
             `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local`, then restart
             the dev server.

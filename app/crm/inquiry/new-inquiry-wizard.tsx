@@ -558,7 +558,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             <Button
               type="button"
               size="sm"
-              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+              className="gap-1.5"
               onClick={() => void goNext()}
               disabled={!stepValid[step] || saving}
             >
@@ -584,7 +584,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
                 size="sm"
                 disabled={!canSave || saving || !userLabel.id}
                 onClick={() => void continueToBookingFromReview()}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                className="gap-1.5"
               >
                 Confirm booking
                 <ArrowRight className="size-4" aria-hidden />
@@ -912,7 +912,7 @@ function ParkingInfoBar({
         'flex flex-wrap items-center gap-3 rounded-md border px-3 py-2 text-xs',
         overAsk
           ? 'border-amber-300 bg-amber-50 text-amber-900'
-          : 'border-blue-200 bg-blue-50/60 text-blue-900'
+          : 'border-teal-200 bg-teal-50/60 text-teal-900'
       )}
     >
       <span>

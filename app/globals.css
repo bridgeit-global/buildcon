@@ -92,10 +92,14 @@
 }
 
 :root {
-  /* Design system: Primary 600 #7F56D9, Dark #0B1327, Gray 25 / 900 */
-  --crm-sidebar-bg: #0b1327;
-  --crm-accent: #7f56d9;
-  --crm-canvas: #fcfcfc;
+  /*
+   * CRM shell chrome (light dashboard reference):
+   * sidebar slightly cooler than canvas; accent teal ~ #0d9488 / #0f766e.
+   */
+  --crm-sidebar-bg: #eef1f4;
+  --crm-accent: #0d9488;
+  --crm-accent-foreground: #ffffff;
+  --crm-canvas: #f8f9fa;
 
   /* Gray neutral (25–900) */
   --ds-gray-25: #fcfcfc;
@@ -110,18 +114,18 @@
   --ds-gray-800: #1d2939;
   --ds-gray-900: #101828;
 
-  /* Primary (purple) */
-  --ds-primary-25: #fcfaff;
-  --ds-primary-50: #f4ebff;
-  --ds-primary-100: #ebe9fe;
-  --ds-primary-200: #e9d7fe;
-  --ds-primary-300: #d6bbfb;
-  --ds-primary-400: #b692f6;
-  --ds-primary-500: #9e77ed;
-  --ds-primary-600: #7f56d9;
-  --ds-primary-700: #6941c6;
-  --ds-primary-800: #53389e;
-  --ds-primary-900: #42307d;
+  /* Primary (teal, aligned with CRM accent) */
+  --ds-primary-25: #f0fdfa;
+  --ds-primary-50: #ccfbf1;
+  --ds-primary-100: #99f6e4;
+  --ds-primary-200: #5eead4;
+  --ds-primary-300: #2dd4bf;
+  --ds-primary-400: #14b8a6;
+  --ds-primary-500: #0d9488;
+  --ds-primary-600: #0f766e;
+  --ds-primary-700: #115e59;
+  --ds-primary-800: #134e4a;
+  --ds-primary-900: #042f2e;
 
   /* Error */
   --ds-error-25: #fffbfb;
@@ -154,14 +158,14 @@
   --ds-warning-800: #93370d;
   --ds-warning-900: #7a2e0e;
 
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: #7f56d9;
+  --primary: #0d9488;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -172,20 +176,20 @@
   --destructive: #d92d20;
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: color-mix(in oklab, #7f56d9 55%, transparent);
+  --ring: color-mix(in oklab, #0d9488 55%, transparent);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: #7f56d9;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar: #eef1f4;
+  --sidebar-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-primary: #0d9488;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: oklch(0.94 0.01 196);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --sidebar-border: oklch(0.9 0.005 260);
+  --sidebar-ring: color-mix(in oklab, #0d9488 45%, transparent);
 }
 
 .dark {
@@ -195,8 +199,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #7f56d9;
-  --primary-foreground: #ffffff;
+  --primary: #2dd4bf;
+  --primary-foreground: #042f2e;
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
@@ -206,7 +210,7 @@
   --destructive: #f97066;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: color-mix(in oklab, #7f56d9 65%, transparent);
+  --ring: color-mix(in oklab, #2dd4bf 55%, transparent);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -214,7 +218,7 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #7f56d9;
+  --sidebar-primary: #2dd4bf;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -245,7 +249,7 @@
 /* BuildCon CRM prototype-aligned scrollbars + focus (see build-con-pos HTML shell) */
 .crm-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #d0d5dd #fcfcfc;
+  scrollbar-color: #d0d5dd var(--crm-canvas, #f8f9fa);
 }
 
 .crm-scrollbar::-webkit-scrollbar {
@@ -265,10 +269,10 @@
   background: #98a2b3;
 }
 
-/* Sidebar nav: default .crm-scrollbar uses the light canvas for the track, which reads as a bright stripe on dark chrome. */
+/* Sidebar nav scrollbars (light sidebar chrome) */
 .crm-sidebar-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.35) rgb(0 0 0 / 0.22);
+  scrollbar-color: #c5cdd6 var(--crm-sidebar-bg, #eef1f4);
 }
 
 .crm-sidebar-scrollbar::-webkit-scrollbar {
@@ -277,15 +281,15 @@
 }
 
 .crm-sidebar-scrollbar::-webkit-scrollbar-track {
-  background: rgb(0 0 0 / 0.22);
+  background: var(--crm-sidebar-bg, #eef1f4);
 }
 
 .crm-sidebar-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 0.35);
+  background: #c5cdd6;
 }
 
 .crm-sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(255 255 255 / 0.5);
+  background: #98a2b3;
 }
 
 .emoji-picker-container .epr-body::-webkit-scrollbar {

@@ -241,14 +241,14 @@ export function InquiryListTable({
                 label === 'Enquiry' || !label || label === '—'
                   ? 'border-red-200 bg-red-50 text-red-800'
                   : label === 'Qualified'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                    ? 'border-teal-200 bg-teal-50 text-teal-900'
                     : label === 'Site Visit'
                       ? 'border-green-200 bg-green-50 text-green-900'
                       : label === 'Lost'
                         ? 'border-slate-200 bg-slate-100 text-slate-700'
                         : label === 'Won' || label === 'Booking'
-                          ? 'border-violet-200 bg-violet-50 text-violet-900'
-                          : 'border-blue-200 bg-blue-50 text-blue-900'
+                          ? 'border-teal-300 bg-teal-100 text-teal-950'
+                          : 'border-slate-200 bg-slate-50 text-slate-800'
               )}
             >
               {label}
@@ -360,9 +360,8 @@ export function InquiryListTable({
               {inq.unit_id?.trim() ? (
                 <Button
                   type="button"
-                  variant="secondary"
                   size="sm"
-                  className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                  className="h-8 gap-1"
                   onClick={() => navigateToBookingFromInquiry(inq)}
                 >
                   Booking
@@ -410,7 +409,7 @@ export function InquiryListTable({
       : String(sourceFilterVal);
 
   return (
-    <Card className="p-4" id="inquiry-list">
+    <Card className="border-slate-200/90 p-4 shadow-sm" id="inquiry-list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-foreground">

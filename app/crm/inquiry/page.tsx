@@ -37,16 +37,16 @@ function funnelStageBadgeClass(stage: string) {
     return 'border-red-200 bg-red-50 text-red-800';
   }
   if (s === 'Qualified') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-900';
+    return 'border-teal-200 bg-teal-50 text-teal-900';
   }
   if (s === 'Site Visit') {
     return 'border-green-200 bg-green-50 text-green-900';
   }
   if (s === 'Lost') return 'border-slate-200 bg-slate-100 text-slate-700';
   if (s === 'Won' || s === 'Booking') {
-    return 'border-violet-200 bg-violet-50 text-violet-900';
+    return 'border-teal-300 bg-teal-100 text-teal-950';
   }
-  return 'border-blue-200 bg-blue-50 text-blue-900';
+  return 'border-slate-200 bg-slate-50 text-slate-800';
 }
 
 function funnelStageLabel(stage: string) {
@@ -199,13 +199,12 @@ function InquiryPageContent() {
             Capture leads, run pipeline, and convert to booking.
           </p>
         </div>
-        <Button className="gap-1 bg-blue-600 hover:bg-blue-700" asChild>
+        <Button className="gap-1" asChild>
           <Link href="/crm/inquiry/new">+ Add enquiry</Link>
         </Button>
       </div>
 
-      <Card className="p-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {(
           [
             {
@@ -237,38 +236,56 @@ function InquiryPageContent() {
               ariaLabel: 'Open list filtered to won and booking'
             }
           ] as const
-        ).map((tile) => {
+        ).map((tile, tileIndex) => {
+          const featured = tileIndex === 0;
           const body = (
             <>
-              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              <div
+                className={cn(
+                  'text-[10px] font-bold uppercase tracking-wide',
+                  featured ? 'text-white/80' : 'text-muted-foreground'
+                )}
+              >
                 {tile.title}
               </div>
-              <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+              <div
+                className={cn(
+                  'mt-1 text-2xl font-bold tabular-nums',
+                  featured ? 'text-white' : 'text-teal-700'
+                )}
+              >
                 {loadingInquiries ? '…' : tile.value}
               </div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">
+              <div
+                className={cn(
+                  'mt-0.5 text-[10px]',
+                  featured ? 'text-white/75' : 'text-muted-foreground'
+                )}
+              >
                 {tile.hint}
               </div>
             </>
           );
-          const shellClass =
-            'rounded-lg border border-border bg-muted/30 px-3 py-3';
           return (
             <Link
               key={tile.title}
               href={tile.href}
               aria-label={tile.ariaLabel}
-              className={`${shellClass} block transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+              className={cn(
+                'block rounded-xl px-3 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                featured
+                  ? 'bg-teal-600 text-white shadow-md hover:bg-teal-700'
+                  : 'border border-slate-200/90 bg-white shadow-sm hover:border-slate-300 hover:bg-slate-50/80'
+              )}
             >
               {body}
             </Link>
           );
         })}
-        </div>
-      </Card>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="p-4">
+        <Card className="gap-4 border-slate-200/90 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <div className="text-sm font-semibold text-foreground">
@@ -326,7 +343,7 @@ function InquiryPageContent() {
           </div>
         </Card>
 
-        <Card className="p-4">
+        <Card className="gap-4 border-slate-200/90 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <div className="text-sm font-semibold text-foreground">

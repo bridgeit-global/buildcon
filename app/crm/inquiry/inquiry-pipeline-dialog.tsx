@@ -285,9 +285,9 @@ function MacroPipelineStepper({
                 className={cn(
                   'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors',
                   isActive
-                    ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                    ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
                     : isDone
-                      ? 'border-emerald-500 bg-white text-emerald-600'
+                      ? 'border-teal-500 bg-white text-teal-600'
                       : 'border-border bg-white text-muted-foreground'
                 )}
               >
@@ -297,9 +297,9 @@ function MacroPipelineStepper({
                 className={cn(
                   'max-w-22 text-center text-[10px] font-semibold leading-tight sm:max-w-none',
                   isActive
-                    ? 'text-emerald-700'
+                    ? 'text-teal-700'
                     : isDone
-                      ? 'text-emerald-600'
+                      ? 'text-teal-600'
                       : 'text-muted-foreground'
                 )}
               >
@@ -345,9 +345,9 @@ function VerticalEnquiryStageStepper({
                       className={cn(
                         'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors',
                         isActive
-                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                          ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
                           : isDone
-                            ? 'border-emerald-500 bg-background text-emerald-600'
+                            ? 'border-teal-500 bg-background text-teal-600'
                             : 'border-border bg-background text-muted-foreground'
                       )}
                     >
@@ -366,9 +366,9 @@ function VerticalEnquiryStageStepper({
                   className={cn(
                     'flex flex-1 items-center text-xs font-semibold leading-snug',
                     isActive
-                      ? 'text-emerald-700'
+                      ? 'text-teal-700'
                       : isDone
-                        ? 'text-emerald-600'
+                        ? 'text-teal-600'
                         : 'text-muted-foreground'
                   )}
                 >
@@ -930,7 +930,7 @@ export function InquiryPipelinePanel(props: {
                   {error}
                 </div>
               ) : saved ? (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">
+                <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs text-teal-700">
                   Saved.
                 </div>
               ) : null}
@@ -981,7 +981,7 @@ export function InquiryPipelinePanel(props: {
           {macroStep !== 'enquiry' ? (
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-teal-600 hover:bg-teal-700"
               onClick={() => {
                 if (macroStep === 'customer') setMacroStep('unit');
                 else if (macroStep === 'unit') setMacroStep('enquiry');
@@ -1003,7 +1003,7 @@ export function InquiryPipelinePanel(props: {
                 <Button
                   size="sm"
                   disabled={saving}
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-teal-600 hover:bg-teal-700"
                   onClick={() => advanceStage()}
                 >
                   {saving ? 'Saving…' : 'Save & advance →'}
