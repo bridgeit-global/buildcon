@@ -27,6 +27,7 @@ export const FINANCIALS_EXPORT_RECEIPTS_MAX_ROWS = 8000;
 /** Ledger CSV column order (human + Tally mapping reference). */
 export const LEDGER_EXPORT_HEADERS = [
   'project_id',
+  'project_name',
   'booking_id',
   'schedule_id',
   'customer_name',
@@ -42,6 +43,8 @@ export const LEDGER_EXPORT_HEADERS = [
 
 /** Receipts CSV column order. */
 export const RECEIPTS_EXPORT_HEADERS = [
+  'project_id',
+  'project_name',
   'collection_id',
   'booking_id',
   'customer_name',

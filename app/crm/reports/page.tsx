@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInrCompactLacCr } from '../inr-format';
@@ -14,7 +13,6 @@ type ScheduleSumRow = { amount: number };
 
 export default function ReportsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +22,6 @@ export default function ReportsPage() {
   const [totalCollections, setTotalCollections] = useState(0);
 
   async function load() {
-    if (!activeProjectId) return;
     setLoading(true);
     setError('');
 
@@ -32,7 +29,6 @@ export default function ReportsPage() {
     const { data: unitStatusRows, error: unitErr } = await supabase
       .from('units')
       .select('status')
-      .eq('project_id', activeProjectId)
       .limit(10000);
     if (unitErr) setError(unitErr.message);
     const counts: Record<string, number> = {};
@@ -46,7 +42,6 @@ export default function ReportsPage() {
     const { data: bookingIds, error: bErr } = await supabase
       .from('bookings')
       .select('id')
-      .eq('project_id', activeProjectId)
       .order('created_at', { ascending: false })
       .limit(1000);
     if (bErr) setError(bErr.message);
@@ -95,7 +90,7 @@ export default function ReportsPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, []);
 
   const totalInventory = Object.values(unitCounts).reduce((s, v) => s + v, 0);
   const balance = totalSchedules - totalCollections;
@@ -108,7 +103,7 @@ export default function ReportsPage() {
             Reports & Analytics (MVP)
           </div>
           <div className="text-xs text-gray-500">
-            Computed aggregates for the active project.
+            Computed aggregates across all accessible projects.
           </div>
         </div>
         <Button variant="outline" onClick={load} disabled={loading}>

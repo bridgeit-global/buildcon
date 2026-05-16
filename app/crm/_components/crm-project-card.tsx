@@ -31,7 +31,7 @@ function badgeForStatus(status: string) {
 
 export type CrmProjectCardProps = {
   project: CrmProjectListItem;
-  activeProjectId: string | null;
+  focusProjectId: string | null;
   onOpen: () => void;
   onEdit: () => void;
   onInventory: () => void;
@@ -40,7 +40,7 @@ export type CrmProjectCardProps = {
 
 export function CrmProjectCard({
   project: p,
-  activeProjectId,
+  focusProjectId,
   onOpen,
   onEdit,
   onInventory,
@@ -66,7 +66,7 @@ export function CrmProjectCard({
       className={cn(
         'cursor-pointer border-2 bg-white p-5 text-left shadow-sm transition-colors',
         'hover:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30',
-        activeProjectId === p.id ? 'border-blue-300 ring-1 ring-blue-100' : 'border-transparent'
+        focusProjectId === p.id ? 'border-blue-300 ring-1 ring-blue-100' : 'border-transparent'
       )}
     >
       <div className="flex justify-between gap-2">

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,21 +24,31 @@ import {
 
 type TemplateRow = {
   id: string;
+  project_id: string;
   name: string;
   category: string;
   created_at: string;
+  projects: { name: string } | { name: string }[] | null;
 };
 
 type GeneratedRow = {
   id: string;
+  project_id: string;
   template_id: string | null;
   storage_path: string;
   generated_at: string;
+  projects: { name: string } | { name: string }[] | null;
 };
+
+function projectLabel(p: { name: string } | { name: string }[] | null | undefined) {
+  if (!p) return '—';
+  const row = Array.isArray(p) ? p[0] : p;
+  return row?.name ?? '—';
+}
 
 export default function DocumentsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const { projects } = useCrmProjectsContext();
 
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [generated, setGenerated] = useState<GeneratedRow[]>([]);
@@ -51,26 +61,30 @@ export default function DocumentsPage() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
+    project_id: '',
     name: '',
     category: 'Sales'
   });
 
+  useEffect(() => {
+    if (!draft.project_id && projects[0]) {
+      setDraft((d) => ({ ...d, project_id: projects[0]!.id }));
+    }
+  }, [projects, draft.project_id]);
+
   async function load() {
-    if (!activeProjectId) return;
     setLoading(true);
     setError('');
     const [{ data: tData, error: tErr }, { data: gData, error: gErr }] =
       await Promise.all([
         supabase
           .from('document_templates')
-          .select('id,name,category,created_at')
-          .eq('project_id', activeProjectId)
+          .select('id,project_id,name,category,created_at,projects(name)')
           .order('created_at', { ascending: false })
           .limit(200),
         supabase
           .from('generated_documents')
-          .select('id,template_id,storage_path,generated_at')
-          .eq('project_id', activeProjectId)
+          .select('id,project_id,template_id,storage_path,generated_at,projects(name)')
           .order('generated_at', { ascending: false })
           .limit(50)
       ]);
@@ -84,7 +98,7 @@ export default function DocumentsPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, []);
 
   const filtered = templates.filter((t) => {
     if (category !== 'All' && t.category !== category) return false;
@@ -94,14 +108,14 @@ export default function DocumentsPage() {
   });
 
   async function createTemplate() {
-    if (!activeProjectId || !draft.name) return;
+    if (!draft.project_id || !draft.name) return;
     setSaving(true);
     setError('');
     try {
       const { data, error } = await supabase
         .from('document_templates')
         .insert({
-          project_id: activeProjectId,
+          project_id: draft.project_id,
           name: draft.name,
           category: draft.category
         })
@@ -109,7 +123,7 @@ export default function DocumentsPage() {
         .single();
       if (error) throw error;
       setTemplates((ts) => [data as TemplateRow, ...ts]);
-      setDraft({ name: '', category: 'Sales' });
+      setDraft({ project_id: draft.project_id, name: '', category: 'Sales' });
       setOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create template');
@@ -119,12 +133,11 @@ export default function DocumentsPage() {
   }
 
   async function generateFromTemplate(template: TemplateRow) {
-    if (!activeProjectId) return;
     setError('');
     // MVP: create a generated_documents record only. PDF rendering + storage upload is phase 2.
-    const storagePath = `documents/project/${activeProjectId}/${template.category}/${crypto.randomUUID()}.pdf`;
+    const storagePath = `documents/project/${template.project_id}/${template.category}/${crypto.randomUUID()}.pdf`;
     const { error } = await supabase.from('generated_documents').insert({
-      project_id: activeProjectId,
+      project_id: template.project_id,
       template_id: template.id,
       storage_path: storagePath
     });
@@ -181,6 +194,26 @@ export default function DocumentsPage() {
               ) : null}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
+                  <Label>Project</Label>
+                  <Select
+                    value={draft.project_id || undefined}
+                    onValueChange={(v) =>
+                      setDraft((d) => ({ ...d, project_id: v }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
                   <Label>Name</Label>
                   <Input
                     value={draft.name}
@@ -219,7 +252,10 @@ export default function DocumentsPage() {
                 >
                   Cancel
                 </Button>
-                <Button onClick={createTemplate} disabled={saving || !draft.name}>
+                <Button
+                  onClick={createTemplate}
+                  disabled={saving || !draft.name || !draft.project_id}
+                >
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
               </div>
@@ -245,7 +281,7 @@ export default function DocumentsPage() {
           <table className="min-w-[920px] w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
-                {['Name', 'Category', 'Created', 'Action'].map((h) => (
+                {['Project', 'Name', 'Category', 'Created', 'Action'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left font-semibold border-b">
                     {h}
                   </th>
@@ -255,6 +291,9 @@ export default function DocumentsPage() {
             <tbody>
               {filtered.map((t) => (
                 <tr key={t.id} className="border-b">
+                  <td className="max-w-[140px] truncate px-4 py-3 text-gray-600">
+                    {projectLabel(t.projects)}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-gray-900">{t.name}</td>
                   <td className="px-4 py-3 text-gray-600">{t.category}</td>
                   <td className="px-4 py-3 text-gray-600">
@@ -269,7 +308,7 @@ export default function DocumentsPage() {
               ))}
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
                     No templates yet.
                   </td>
                 </tr>
@@ -290,7 +329,7 @@ export default function DocumentsPage() {
           <table className="min-w-[920px] w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
-                {['Generated at', 'Storage path'].map((h) => (
+                {['Project', 'Generated at', 'Storage path'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left font-semibold border-b">
                     {h}
                   </th>
@@ -300,6 +339,9 @@ export default function DocumentsPage() {
             <tbody>
               {generated.map((g) => (
                 <tr key={g.id} className="border-b">
+                  <td className="max-w-[140px] truncate px-4 py-3 text-gray-600">
+                    {projectLabel(g.projects)}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">
                     {new Date(g.generated_at).toLocaleString()}
                   </td>
@@ -310,7 +352,7 @@ export default function DocumentsPage() {
               ))}
               {generated.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={3} className="px-4 py-10 text-center text-gray-500">
                     No generated records yet.
                   </td>
                 </tr>

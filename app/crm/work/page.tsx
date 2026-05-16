@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInr } from '../inr-format';
@@ -18,6 +18,7 @@ type FollowRow = {
   inquiryId: string;
   customerName: string;
   funnelStage: string;
+  projectName: string;
 };
 
 type VisitRow = {
@@ -27,6 +28,7 @@ type VisitRow = {
   outcome: string | null;
   inquiryId: string;
   customerName: string;
+  projectName: string;
 };
 
 type OverdueRow = {
@@ -38,6 +40,8 @@ type OverdueRow = {
   demand_amount: number;
   outstanding_amount: number;
   customer_id: string;
+  project_id: string;
+  projectName: string;
 };
 
 function embedOne<T>(x: T | T[] | null | undefined): T | null {
@@ -52,7 +56,11 @@ function embedList<T>(x: T | T[] | null | undefined): T[] {
 
 export default function WorkQueuePage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const { projects } = useCrmProjectsContext();
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
   const [tab, setTab] = useState<WorkTab>('followups');
   const [followRows, setFollowRows] = useState<FollowRow[]>([]);
   const [visitRows, setVisitRows] = useState<VisitRow[]>([]);
@@ -61,12 +69,6 @@ export default function WorkQueuePage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    if (!activeProjectId) {
-      setFollowRows([]);
-      setVisitRows([]);
-      setOverdueRows([]);
-      return;
-    }
     setLoading(true);
     setError('');
     try {
@@ -77,6 +79,7 @@ export default function WorkQueuePage() {
           id,
           funnel_stage,
           sales_inquiry_id,
+          projects ( name ),
           sales_inquiries (
             id,
             customers ( full_name )
@@ -84,8 +87,7 @@ export default function WorkQueuePage() {
           sales_follow_ups ( id, due_at, note, completed_at ),
           sales_site_visits ( id, scheduled_at, status, outcome )
         `
-        )
-        .eq('project_id', activeProjectId);
+        );
       if (oErr) throw oErr;
 
       const follows: FollowRow[] = [];
@@ -97,10 +99,15 @@ export default function WorkQueuePage() {
         const r = row as {
           funnel_stage: string;
           sales_inquiry_id: string;
+          projects: unknown;
           sales_inquiries: unknown;
           sales_follow_ups: unknown;
           sales_site_visits: unknown;
         };
+        const proj = embedOne(
+          r.projects as { name: string | null } | { name: string | null }[] | null
+        );
+        const projectName = proj?.name?.trim() || '—';
         const inq = embedOne(
           r.sales_inquiries as
             | {
@@ -134,7 +141,8 @@ export default function WorkQueuePage() {
             note: fr.note,
             inquiryId,
             customerName,
-            funnelStage
+            funnelStage,
+            projectName
           });
         }
 
@@ -154,7 +162,8 @@ export default function WorkQueuePage() {
             status: v.status,
             outcome: v.outcome,
             inquiryId,
-            customerName
+            customerName,
+            projectName
           });
         }
       }
@@ -172,14 +181,21 @@ export default function WorkQueuePage() {
       const { data: ovd, error: ovErr } = await supabase
         .from('v_payment_schedule_outstanding')
         .select(
-          'booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id'
+          'booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id,project_id'
         )
-        .eq('project_id', activeProjectId)
         .eq('is_overdue', true)
         .order('due_date', { ascending: true })
         .limit(200);
       if (ovErr) throw ovErr;
-      setOverdueRows((ovd ?? []) as OverdueRow[]);
+      setOverdueRows(
+        (ovd ?? []).map((r) => {
+          const row = r as OverdueRow & { project_id: string };
+          return {
+            ...row,
+            projectName: projectNameById.get(row.project_id) ?? '—'
+          };
+        })
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load work queue');
       setFollowRows([]);
@@ -188,7 +204,7 @@ export default function WorkQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [activeProjectId, supabase]);
+  }, [supabase, projectNameById]);
 
   useEffect(() => {
     void load();
@@ -199,14 +215,6 @@ export default function WorkQueuePage() {
     { id: 'visits', label: 'Upcoming site visits', count: visitRows.length },
     { id: 'overdue', label: 'Overdue demands', count: overdueRows.length }
   ];
-
-  if (!activeProjectId) {
-    return (
-      <Card className="p-4 text-sm text-muted-foreground">
-        Select a project to open the work queue.
-      </Card>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -260,7 +268,7 @@ export default function WorkQueuePage() {
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  {['Due', 'Customer', 'Stage', 'Note', ''].map((h) => (
+                  {['Due', 'Project', 'Customer', 'Stage', 'Note', ''].map((h) => (
                     <th key={h} className="border-b px-3 py-2">
                       {h}
                     </th>
@@ -271,7 +279,7 @@ export default function WorkQueuePage() {
                 {followRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-3 py-8 text-center text-slate-500"
                     >
                       {loading ? 'Loading…' : 'No open follow-ups.'}
@@ -287,6 +295,9 @@ export default function WorkQueuePage() {
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
+                      </td>
+                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
+                        {r.projectName}
                       </td>
                       <td className="px-3 py-2 text-xs font-medium">
                         {r.customerName}
@@ -323,7 +334,7 @@ export default function WorkQueuePage() {
             <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  {['When', 'Customer', 'Status', ''].map((h) => (
+                  {['When', 'Project', 'Customer', 'Status', ''].map((h) => (
                     <th key={h} className="border-b px-3 py-2">
                       {h}
                     </th>
@@ -334,7 +345,7 @@ export default function WorkQueuePage() {
                 {visitRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-3 py-8 text-center text-slate-500"
                     >
                       {loading ? 'Loading…' : 'No upcoming site visits.'}
@@ -351,6 +362,9 @@ export default function WorkQueuePage() {
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
+                      </td>
+                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
+                        {r.projectName}
                       </td>
                       <td className="px-3 py-2 text-xs font-medium">
                         {r.customerName}
@@ -392,7 +406,7 @@ export default function WorkQueuePage() {
             <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  {['Booking', '#', 'Milestone', 'Due', 'Outstanding', ''].map(
+                  {['Project', 'Booking', '#', 'Milestone', 'Due', 'Outstanding', ''].map(
                     (h) => (
                       <th key={h} className="border-b px-3 py-2">
                         {h}
@@ -405,15 +419,18 @@ export default function WorkQueuePage() {
                 {overdueRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-3 py-8 text-center text-slate-500"
                     >
-                      {loading ? 'Loading…' : 'No overdue lines for this project.'}
+                      {loading ? 'Loading…' : 'No overdue lines.'}
                     </td>
                   </tr>
                 ) : (
                   overdueRows.map((r) => (
                     <tr key={r.schedule_id} className="border-b border-slate-100">
+                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
+                        {r.projectName}
+                      </td>
                       <td className="px-3 py-2 font-mono text-[10px] text-slate-600">
                         {r.booking_id}
                       </td>

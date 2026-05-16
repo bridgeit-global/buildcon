@@ -22,14 +22,9 @@ export function writeBookingPrefill(
   sessionStorage.setItem(KEY, JSON.stringify(payload));
 }
 
-/**
- * Reads prefill when it matches the active CRM project, then removes it from storage.
- * If the active project does not match yet, leaves storage intact (user may switch project).
- */
-export function readConsumeBookingPrefillForProject(
-  activeProjectId: string | null | undefined
-): BookingPrefillV1 | null {
-  if (!activeProjectId || typeof window === 'undefined') return null;
+/** Reads and removes booking prefill from session storage. */
+export function readConsumeBookingPrefill(): BookingPrefillV1 | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(KEY);
     if (!raw) return null;
@@ -38,10 +33,16 @@ export function readConsumeBookingPrefillForProject(
       sessionStorage.removeItem(KEY);
       return null;
     }
-    if (o.projectId !== activeProjectId) return null;
     sessionStorage.removeItem(KEY);
     return o as BookingPrefillV1;
   } catch {
     return null;
   }
+}
+
+/** @deprecated Use readConsumeBookingPrefill */
+export function readConsumeBookingPrefillForProject(
+  _activeProjectId?: string | null
+): BookingPrefillV1 | null {
+  return readConsumeBookingPrefill();
 }

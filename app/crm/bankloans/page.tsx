@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,7 @@ import { formatInr } from '../inr-format';
 
 type LoanRow = {
   id: string;
+  project_id: string;
   customer_id: string;
   bank: string | null;
   amount: number | null;
@@ -39,7 +40,11 @@ const STATUSES = ['Application', 'Document Pending', 'Sanctioned', 'Disbursed'];
 
 export default function BankLoansPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const { projects } = useCrmProjectsContext();
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
 
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -53,6 +58,7 @@ export default function BankLoansPage() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
+    project_id: '',
     customer_id: '',
     bank: 'HDFC Bank',
     amount: '3500000',
@@ -60,8 +66,13 @@ export default function BankLoansPage() {
     applied_at: ''
   });
 
+  useEffect(() => {
+    if (!draft.project_id && projects[0]) {
+      setDraft((d) => ({ ...d, project_id: projects[0]!.id }));
+    }
+  }, [projects, draft.project_id]);
+
   async function load() {
-    if (!activeProjectId) return;
     setLoading(true);
     setError('');
 
@@ -69,8 +80,7 @@ export default function BankLoansPage() {
       await Promise.all([
         supabase
           .from('loan_cases')
-          .select('id,customer_id,bank,amount,status,applied_at,updated_at')
-          .eq('project_id', activeProjectId)
+          .select('id,project_id,customer_id,bank,amount,status,applied_at,updated_at')
           .order('updated_at', { ascending: false })
           .limit(200),
         supabase
@@ -96,17 +106,17 @@ export default function BankLoansPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, []);
 
   async function createLoan() {
-    if (!activeProjectId || !draft.customer_id) return;
+    if (!draft.project_id || !draft.customer_id) return;
     setSaving(true);
     setError('');
     try {
       const { data, error } = await supabase
         .from('loan_cases')
         .insert({
-          project_id: activeProjectId,
+          project_id: draft.project_id,
           customer_id: draft.customer_id,
           bank: draft.bank || null,
           amount: draft.amount ? Number(draft.amount) : null,
@@ -119,6 +129,7 @@ export default function BankLoansPage() {
       setLoans((l) => [data as LoanRow, ...l]);
       setOpen(false);
       setDraft({
+        project_id: draft.project_id,
         customer_id: '',
         bank: 'HDFC Bank',
         amount: '3500000',
@@ -157,7 +168,7 @@ export default function BankLoansPage() {
           <div>
             <div className="text-sm font-semibold text-gray-900">Loan cases</div>
             <div className="text-xs text-gray-500">
-              Track customer home-loan progress per project.
+              Track customer home-loan progress across projects.
             </div>
           </div>
           <div className="flex gap-2">
@@ -178,6 +189,26 @@ export default function BankLoansPage() {
                   </div>
                 ) : null}
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Label>Project</Label>
+                    <Select
+                      value={draft.project_id || undefined}
+                      onValueChange={(v) =>
+                        setDraft((d) => ({ ...d, project_id: v }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="col-span-2">
                     <Label>Customer</Label>
                     <Select
@@ -274,7 +305,7 @@ export default function BankLoansPage() {
                   </Button>
                   <Button
                     onClick={createLoan}
-                    disabled={saving || !draft.customer_id}
+                    disabled={saving || !draft.customer_id || !draft.project_id}
                   >
                     {saving ? 'Saving…' : 'Save'}
                   </Button>
@@ -311,6 +342,7 @@ export default function BankLoansPage() {
             <thead className="bg-gray-50 text-xs text-gray-500">
               <tr>
                 {[
+                  'Project',
                   'Customer',
                   'Bank',
                   'Amount',
@@ -327,6 +359,9 @@ export default function BankLoansPage() {
             <tbody>
               {loans.map((l) => (
                 <tr key={l.id} className="border-b">
+                  <td className="max-w-[140px] truncate px-4 py-3 text-gray-600">
+                    {projectNameById.get(l.project_id) ?? '—'}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-gray-900">
                     {customersById[l.customer_id]?.full_name ?? l.customer_id}
                   </td>
@@ -363,7 +398,7 @@ export default function BankLoansPage() {
               ))}
               {!loading && loans.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
                     No loan cases yet.
                   </td>
                 </tr>

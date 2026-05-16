@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../../_components/active-project-context';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -48,7 +47,6 @@ type ProfileRow = { id: string; name: string | null; role: string };
 export default function CreateProjectPage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { setActiveProjectId } = useActiveProjectContext();
 
   const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -194,7 +192,6 @@ export default function CreateProjectPage() {
       const json = (await res.json()) as { projectId?: string; error?: string };
       if (!res.ok) throw new Error(json.error || 'Failed to create project');
 
-      if (json.projectId) setActiveProjectId(json.projectId);
       router.push('/crm/project');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create project');

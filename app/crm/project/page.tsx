@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
 import { CrmProjectCard } from '../_components/crm-project-card';
 import type { CrmProjectListItem } from '../_components/types';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,7 @@ type ProjectMemberRow = {
 export default function ProjectPage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId, setActiveProjectId } = useActiveProjectContext();
+  const [focusProjectId, setFocusProjectId] = useState<string | null>(null);
 
   const [listItems, setListItems] = useState<CrmProjectListItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -136,10 +135,10 @@ export default function ProjectPage() {
   useEffect(() => {
     void loadProfilesIfCanManageMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myProfile?.role, myProjectRole, activeProjectId]);
+  }, [myProfile?.role, myProjectRole, focusProjectId]);
 
   async function loadMembers() {
-    if (!activeProjectId) {
+    if (!focusProjectId) {
       setMembers([]);
       setMyProjectRole(null);
       return;
@@ -147,7 +146,7 @@ export default function ProjectPage() {
     const { data, error } = await supabase
       .from('project_members')
       .select('project_id,user_id,role,status,created_at')
-      .eq('project_id', activeProjectId)
+      .eq('project_id', focusProjectId)
       .order('created_at', { ascending: true });
     if (error) setError(error.message);
     setMembers((data ?? []) as ProjectMemberRow[]);
@@ -166,10 +165,10 @@ export default function ProjectPage() {
   useEffect(() => {
     void loadMembers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, [focusProjectId]);
 
   useEffect(() => {
-    if (!activeProjectId || !canCreateProject) {
+    if (!focusProjectId || !canCreateProject) {
       return;
     }
     let cancelled = false;
@@ -180,7 +179,7 @@ export default function ProjectPage() {
         .select(
           'pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
         )
-        .eq('id', activeProjectId)
+        .eq('id', focusProjectId)
         .maybeSingle();
       if (cancelled) return;
       if (error) setError(error.message);
@@ -196,10 +195,10 @@ export default function ProjectPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, canCreateProject, supabase]);
+  }, [focusProjectId, canCreateProject, supabase]);
 
   async function saveProjectPricing() {
-    if (!activeProjectId || !canCreateProject) return;
+    if (!focusProjectId || !canCreateProject) return;
     setPricingSaving(true);
     setError('');
     try {
@@ -211,8 +210,8 @@ export default function ProjectPage() {
           pricing_stamp_duty_percent: Number(pricingStampPct) || 0,
           pricing_registration_fee: Number(pricingRegFee) || 0
         })
-        .eq('id', activeProjectId);
-      if (error) throw error;
+        .eq('id', focusProjectId);
+    if (error) throw error;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save pricing');
     } finally {
@@ -221,12 +220,12 @@ export default function ProjectPage() {
   }
 
   async function upsertMember(userId: string, role: string, status: string) {
-    if (!activeProjectId) return;
+    if (!focusProjectId) return;
     setError('');
     const res = await fetch('/api/crm/admin/project-members', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectId: activeProjectId, userId, role, status })
+      body: JSON.stringify({ projectId: focusProjectId, userId, role, status })
     });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) setError(json.error || 'Failed to update member');
@@ -234,12 +233,12 @@ export default function ProjectPage() {
   }
 
   async function removeMember(userId: string) {
-    if (!activeProjectId) return;
+    if (!focusProjectId) return;
     setError('');
     const res = await fetch('/api/crm/admin/project-members', {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectId: activeProjectId, userId })
+      body: JSON.stringify({ projectId: focusProjectId, userId })
     });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) setError(json.error || 'Failed to remove member');
@@ -312,24 +311,22 @@ export default function ProjectPage() {
             <CrmProjectCard
               key={p.id}
               project={p}
-              activeProjectId={activeProjectId}
+              focusProjectId={focusProjectId}
               onOpen={() => {
-                setActiveProjectId(p.id);
                 router.push('/crm/dashboard');
               }}
               onEdit={() => {
-                setActiveProjectId(p.id);
+                setFocusProjectId(p.id);
                 document.getElementById('project-members')?.scrollIntoView({
                   behavior: 'smooth',
                   block: 'start'
                 });
               }}
               onInventory={() => {
-                setActiveProjectId(p.id);
-                router.push('/crm/inventory');
+                router.push(`/crm/inventory?projectId=${p.id}`);
               }}
               onSettings={() => {
-                setActiveProjectId(p.id);
+                setFocusProjectId(p.id);
                 document.getElementById('project-members')?.scrollIntoView({
                   behavior: 'smooth',
                   block: 'start'
@@ -357,7 +354,7 @@ export default function ProjectPage() {
               Project members
             </div>
             <div className="text-xs text-gray-500">
-              {activeProjectId ? `${members.length} member(s)` : 'Select a project'}
+              {focusProjectId ? `${members.length} member(s)` : 'Select a project (Edit or Settings on a card)'}
             </div>
           </div>
         </div>
@@ -368,7 +365,7 @@ export default function ProjectPage() {
           </div>
         ) : null}
 
-        {activeProjectId ? (
+        {focusProjectId ? (
           <div className="mt-3 overflow-auto">
             <table className="min-w-[820px] w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500">
@@ -472,7 +469,7 @@ export default function ProjectPage() {
           </div>
         ) : null}
 
-        {canManageMembers && activeProjectId ? (
+        {canManageMembers && focusProjectId ? (
           <div className="mt-4">
             <div className="text-sm font-semibold text-gray-900">Add member</div>
             <div className="mt-2 flex flex-wrap items-end gap-3">
@@ -504,7 +501,7 @@ export default function ProjectPage() {
         ) : null}
       </Card>
 
-      {canCreateProject && activeProjectId ? (
+      {canCreateProject && focusProjectId ? (
         <Card className="p-4">
           <div className="text-sm font-semibold text-gray-900">
             Pricing and tax defaults

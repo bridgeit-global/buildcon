@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -27,10 +27,12 @@ type QRow = {
   unit_id: string | null;
   grand_total: number;
   customers: { full_name: string } | { full_name: string }[] | null;
+  projects: { name: string } | { name: string }[] | null;
 };
 
 type UnitPick = {
   id: string;
+  project_id: string;
   unit_code: string;
   wing_name: string;
   floor: number;
@@ -52,7 +54,7 @@ function embedOne<T>(x: T | T[] | null | undefined): T | null {
 
 export default function QuotationsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const { projects } = useCrmProjectsContext();
   const [rows, setRows] = useState<QRow[]>([]);
   const [customers, setCustomers] = useState<{ id: string; full_name: string }[]>(
     []
@@ -66,25 +68,54 @@ export default function QuotationsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const loadProjectPricing = useCallback(
+    async (projectId: string) => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select(
+          'parking_slots,parking_rate,pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
+        )
+        .eq('id', projectId)
+        .maybeSingle();
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      const pd = data as Record<string, unknown> | null;
+      if (pd) {
+        setParking({
+          parking_slots: (pd.parking_slots as number | null) ?? null,
+          parking_rate: (pd.parking_rate as number | null) ?? null
+        });
+        setPricing({
+          gst_registered: Boolean(pd.pricing_gst_registered),
+          gst_percent: Number(pd.pricing_gst_percent) || 0,
+          stamp_duty_percent: Number(pd.pricing_stamp_duty_percent) || 0,
+          registration_fee: Number(pd.pricing_registration_fee) || 0
+        });
+      } else {
+        setParking(null);
+        setPricing(null);
+      }
+    },
+    [supabase]
+  );
+
   const load = useCallback(async () => {
-    if (!activeProjectId) {
-      setRows([]);
-      return;
-    }
     setLoading(true);
     setError('');
-    const [qRes, cRes, uRes, pRes] = await Promise.all([
+    const [qRes, cRes, uRes] = await Promise.all([
       supabase
         .from('quotations')
         .select(
           `
           id,created_at,status,customer_id,unit_id,grand_total,
-          customers ( full_name )
+          customers ( full_name ),
+          projects ( name )
         `
         )
-        .eq('project_id', activeProjectId)
         .order('created_at', { ascending: false })
-        .limit(100),
+        .limit(200),
       supabase
         .from('customers')
         .select('id,full_name')
@@ -93,58 +124,43 @@ export default function QuotationsPage() {
       supabase
         .from('units')
         .select(
-          'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status'
+          'id,project_id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,projects(name)'
         )
-        .eq('project_id', activeProjectId)
         .order('unit_code', { ascending: true })
-        .limit(500),
-      supabase
-        .from('projects')
-        .select(
-          'parking_slots,parking_rate,pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
-        )
-        .eq('id', activeProjectId)
-        .maybeSingle()
+        .limit(2000)
     ]);
     if (qRes.error) setError(qRes.error.message);
     if (cRes.error) setError(cRes.error.message);
     if (uRes.error) setError(uRes.error.message);
-    if (pRes.error) setError(pRes.error.message);
     setRows((qRes.data ?? []) as QRow[]);
     setCustomers((cRes.data ?? []) as { id: string; full_name: string }[]);
     setUnits((uRes.data ?? []) as UnitPick[]);
-    const pd = pRes.data as Record<string, unknown> | null;
-    if (pd) {
-      setParking({
-        parking_slots: (pd.parking_slots as number | null) ?? null,
-        parking_rate: (pd.parking_rate as number | null) ?? null
-      });
-      setPricing({
-        gst_registered: Boolean(pd.pricing_gst_registered),
-        gst_percent: Number(pd.pricing_gst_percent) || 0,
-        stamp_duty_percent: Number(pd.pricing_stamp_duty_percent) || 0,
-        registration_fee: Number(pd.pricing_registration_fee) || 0
-      });
-    } else {
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    const u = units.find((x) => x.id === unitId);
+    if (!u?.project_id) {
       setParking(null);
       setPricing(null);
+      return;
     }
-    setLoading(false);
-  }, [activeProjectId, supabase]);
+    void loadProjectPricing(u.project_id);
+  }, [unitId, units, loadProjectPricing]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   async function createDraft() {
-    if (!activeProjectId || !customerId || !unitId) return;
+    const u = units.find((x) => x.id === unitId);
+    if (!u?.project_id || !customerId || !unitId) return;
     setSaving(true);
     setError('');
     try {
       const {
         data: { user }
       } = await supabase.auth.getUser();
-      const u = units.find((x) => x.id === unitId);
       if (!u) throw new Error('Unit not found');
       const br = computeBookingCostBreakdown(
         {
@@ -164,7 +180,7 @@ export default function QuotationsPage() {
       );
       const extras = Math.max(0, br.grandTotalInr - br.basicInr - br.parkingExtraInr);
       const { error: insErr } = await supabase.from('quotations').insert({
-        project_id: activeProjectId,
+        project_id: u.project_id,
         customer_id: customerId,
         unit_id: unitId,
         status: 'draft',
@@ -189,12 +205,15 @@ export default function QuotationsPage() {
     }
   }
 
-  if (!activeProjectId) {
-    return (
-      <Card className="p-4 text-sm text-muted-foreground">
-        Select a project to manage quotations.
-      </Card>
-    );
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
+
+  function projectLabel(p: QRow['projects']) {
+    if (!p) return '—';
+    const row = embedOne(p);
+    return row?.name ?? '—';
   }
 
   return (
@@ -236,7 +255,7 @@ export default function QuotationsPage() {
               <SelectContent>
                 {units.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
-                    {u.unit_code}
+                    {projectNameById.get(u.project_id) ?? '—'} · {u.unit_code}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -265,6 +284,7 @@ export default function QuotationsPage() {
             <thead>
               <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                 <th className="py-2 pr-2">Created</th>
+                <th className="py-2 pr-2">Project</th>
                 <th className="py-2 pr-2">Customer</th>
                 <th className="py-2 pr-2">Status</th>
                 <th className="py-2">Total</th>
@@ -275,6 +295,9 @@ export default function QuotationsPage() {
                 <tr key={r.id} className="border-b">
                   <td className="py-2 pr-2 text-xs text-muted-foreground">
                     {new Date(r.created_at).toLocaleString()}
+                  </td>
+                  <td className="max-w-[120px] truncate py-2 pr-2 text-xs text-muted-foreground">
+                    {projectLabel(r.projects)}
                   </td>
                   <td className="py-2 pr-2">
                     {embedOne(r.customers)?.full_name ?? r.customer_id}
@@ -287,7 +310,7 @@ export default function QuotationsPage() {
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-6 text-muted-foreground">
+                  <td colSpan={5} className="py-6 text-muted-foreground">
                     {loading ? 'Loading…' : 'No quotations yet.'}
                   </td>
                 </tr>

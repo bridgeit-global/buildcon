@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { Check, ChevronDown, Search, Sparkles, UserPlus, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import {
   PaymentCostOverview,
   type PaymentCostOverviewMode
@@ -52,12 +52,13 @@ import {
 import { formatInr, formatInrCompactLacCr, unitAgreementTotalInr, unitBillableAreaSqft } from '../inr-format';
 import { formatFloorLabel } from '../inventory/inventory-utils';
 import {
-  readConsumeBookingPrefillForProject,
+  readConsumeBookingPrefill,
   type BookingPrefillV1
 } from '../booking-prefill-storage';
 
 type UnitOption = {
   id: string;
+  project_id: string;
   unit_code: string;
   wing_name: string;
   floor: number;
@@ -94,6 +95,7 @@ type PaymentDetailStored = {
 
 type BookingListRow = {
   id: string;
+  project_id: string;
   created_at: string;
   stage: string;
   payment_mode: string | null;
@@ -360,7 +362,11 @@ function SearchablePicker<T extends { id: string }>({
 
 export default function BookingsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const { projects } = useCrmProjectsContext();
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
 
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -404,14 +410,37 @@ export default function BookingsPage() {
   });
   const [savingCustomer, setSavingCustomer] = useState(false);
 
+  async function loadProjectPricing(projectId: string) {
+    const { data: projData, error: projErr } = await supabase
+      .from('projects')
+      .select(
+        'parking_slots,parking_rate,pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
+      )
+      .eq('id', projectId)
+      .maybeSingle();
+    if (projErr) setError(projErr.message);
+    setProjectParking(
+      projData
+        ? {
+            parking_slots: projData.parking_slots ?? null,
+            parking_rate: projData.parking_rate ?? null
+          }
+        : null
+    );
+    const pd = projData as Record<string, unknown> | null;
+    setProjectPricing(
+      pd
+        ? {
+            gst_registered: Boolean(pd.pricing_gst_registered),
+            gst_percent: Number(pd.pricing_gst_percent) || 0,
+            stamp_duty_percent: Number(pd.pricing_stamp_duty_percent) || 0,
+            registration_fee: Number(pd.pricing_registration_fee) || 0
+          }
+        : null
+    );
+  }
+
   async function load() {
-    if (!activeProjectId) {
-      setBookings([]);
-      setProjectParking(null);
-      setProjectPricing(null);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError('');
     setPrefillCustomerMissing(false);
@@ -419,20 +448,18 @@ export default function BookingsPage() {
     const [
       { data: uData, error: uErr },
       { data: cData, error: cErr },
-      { data: bkData, error: bkErr },
-      { data: projData, error: projErr }
+      { data: bkData, error: bkErr }
     ] = await Promise.all([
       supabase
         .from('units')
         .select(
           'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
         )
-        .eq('project_id', activeProjectId)
         .in('status', ['AVAILABLE', 'A'])
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true })
-        .limit(500),
+        .limit(2000),
       supabase
         .from('customers')
         .select('id,full_name,phone,email')
@@ -443,6 +470,7 @@ export default function BookingsPage() {
         .select(
           `
           id,
+          project_id,
           created_at,
           stage,
           payment_mode,
@@ -454,47 +482,18 @@ export default function BookingsPage() {
           customers ( full_name, phone )
         `
         )
-        .eq('project_id', activeProjectId)
         .order('created_at', { ascending: false })
-        .limit(100),
-      supabase
-        .from('projects')
-        .select(
-          'parking_slots,parking_rate,pricing_gst_registered,pricing_gst_percent,pricing_stamp_duty_percent,pricing_registration_fee'
-        )
-        .eq('id', activeProjectId)
-        .maybeSingle()
+        .limit(200)
     ]);
 
     if (uErr) setError(uErr.message);
     if (cErr) setError(cErr.message);
     if (bkErr) setError(bkErr.message);
-    if (projErr) setError(projErr.message);
-
-    setProjectParking(
-      projData
-        ? {
-          parking_slots: projData.parking_slots ?? null,
-          parking_rate: projData.parking_rate ?? null
-        }
-        : null
-    );
-    const pd = projData as Record<string, unknown> | null;
-    setProjectPricing(
-      pd
-        ? {
-          gst_registered: Boolean(pd.pricing_gst_registered),
-          gst_percent: Number(pd.pricing_gst_percent) || 0,
-          stamp_duty_percent: Number(pd.pricing_stamp_duty_percent) || 0,
-          registration_fee: Number(pd.pricing_registration_fee) || 0
-        }
-        : null
-    );
 
     const unitsList = (uData ?? []) as UnitOption[];
     let customerList = (cData ?? []) as CustomerOption[];
 
-    const p = readConsumeBookingPrefillForProject(activeProjectId);
+    const p = readConsumeBookingPrefill();
     if (p) {
       setPrefillMeta(p);
       if (p.customerId) {
@@ -534,9 +533,9 @@ export default function BookingsPage() {
             'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
           )
           .eq('id', p.unitId)
-          .eq('project_id', activeProjectId)
           .maybeSingle();
         setBreakdownUnit(urow ? (urow as UnitOption) : null);
+        if (urow?.project_id) void loadProjectPricing(urow.project_id as string);
       }
     }
 
@@ -580,7 +579,18 @@ export default function BookingsPage() {
     setNeftRef('');
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, []);
+
+  useEffect(() => {
+    const u = units.find((x) => x.id === unitId);
+    if (!u?.project_id) {
+      setProjectParking(null);
+      setProjectPricing(null);
+      return;
+    }
+    void loadProjectPricing(u.project_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitId, units]);
 
   useEffect(() => {
     setCoBuyerSlots((prev) =>
@@ -597,7 +607,8 @@ export default function BookingsPage() {
   }, [paymentMode]);
 
   async function createBooking() {
-    if (!activeProjectId || !unitId || !customerId) return;
+    const selectedUnit = units.find((u) => u.id === unitId);
+    if (!selectedUnit?.project_id || !unitId || !customerId) return;
 
     const coIdsOrdered = coBuyerSlots
       .map((s) => s.customerId)
@@ -665,7 +676,7 @@ export default function BookingsPage() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          projectId: activeProjectId,
+          projectId: selectedUnit.project_id,
           unitId,
           customerId,
           coBuyerCustomerIds: coIdsOrdered,
@@ -1505,7 +1516,7 @@ export default function BookingsPage() {
         <div className="mt-4 flex justify-end">
           <Button
             onClick={createBooking}
-            disabled={creating || !activeProjectId || !unitId || !customerId}
+            disabled={creating || !unitId || !customerId}
           >
             {creating ? 'Creating…' : 'Confirm booking'}
           </Button>
@@ -1519,16 +1530,12 @@ export default function BookingsPage() {
               Booking list
             </div>
             <div className="text-xs text-gray-500">
-              Recent bookings for this project ({bookings.length}).
+              Recent bookings across projects ({bookings.length}).
             </div>
           </div>
         </div>
 
-        {!activeProjectId ? (
-          <div className="mt-4 text-sm text-muted-foreground">
-            Select a project to view bookings.
-          </div>
-        ) : bookings.length === 0 ? (
+        {bookings.length === 0 ? (
           <div className="mt-4 rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
             {loading ? 'Loading bookings…' : 'No bookings yet.'}
           </div>
@@ -1537,6 +1544,7 @@ export default function BookingsPage() {
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="border-b text-left text-xs font-semibold text-muted-foreground">
+                  <th className="pb-2 pr-3 font-medium">Project</th>
                   <th className="pb-2 pr-3 font-medium">Unit</th>
                   <th className="pb-2 pr-3 font-medium">Customer</th>
                   <th className="pb-2 pr-3 font-medium">Stage</th>
@@ -1561,6 +1569,9 @@ export default function BookingsPage() {
                   );
                   return (
                     <tr key={b.id} className="border-b border-gray-100 last:border-0">
+                      <td className="max-w-[120px] truncate py-2.5 pr-3 align-top text-xs text-muted-foreground">
+                        {projectNameById.get(b.project_id) ?? '—'}
+                      </td>
                       <td className="py-2.5 pr-3 align-top">
                         <span className="font-medium text-gray-900">
                           {u?.unit_code ?? '—'}

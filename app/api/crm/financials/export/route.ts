@@ -31,35 +31,45 @@ function fmtDateTime(d: string | null | undefined): string {
   return String(d).replace('T', ' ').slice(0, 19);
 }
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ projectId: string }> }
-) {
-  const { projectId } = await context.params;
-  const gate = await requireProjectAccess(projectId);
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+function csvResponse(filename: string, body: string): NextResponse {
+  return new NextResponse(CSV_UTF8_BOM + body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`
+    }
+  });
+}
 
+export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get('kind') || 'ledger';
+  const projectId = request.nextUrl.searchParams.get('projectId');
   const supabase = await createSupabaseServerClient();
-
-  const { data: projectRow, error: projErr } = await supabase
-    .from('projects')
-    .select('name')
-    .eq('id', projectId)
-    .maybeSingle();
-  if (projErr) {
-    return NextResponse.json({ error: projErr.message }, { status: 500 });
-  }
-  const projectSlug = sanitizeFilenamePart((projectRow?.name as string) || projectId);
   const datePart = new Date().toISOString().slice(0, 10);
 
+  let projectName = 'all-projects';
+  if (projectId) {
+    const gate = await requireProjectAccess(projectId);
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: gate.status });
+    }
+    const { data: projectRow } = await supabase
+      .from('projects')
+      .select('name')
+      .eq('id', projectId)
+      .maybeSingle();
+    projectName = sanitizeFilenamePart((projectRow?.name as string) || projectId);
+  }
+
+  const { data: allProjects } = await supabase.from('projects').select('id,name');
+  const projectNameById = new Map(
+    (allProjects ?? []).map((p) => [p.id as string, String(p.name ?? '')])
+  );
+
   if (kind === 'receipts') {
-    const { data: bookings, error: bErr } = await supabase
-      .from('bookings')
-      .select('id,unit_id,customer_id')
-      .eq('project_id', projectId);
+    let bookingsQuery = supabase.from('bookings').select('id,unit_id,customer_id,project_id');
+    if (projectId) bookingsQuery = bookingsQuery.eq('project_id', projectId);
+    const { data: bookings, error: bErr } = await bookingsQuery;
     if (bErr) {
       return NextResponse.json({ error: bErr.message }, { status: 500 });
     }
@@ -67,13 +77,13 @@ export async function GET(
       id: string;
       unit_id: string;
       customer_id: string;
+      project_id: string;
     }>;
     const bookingIds = bookingList.map((b) => b.id);
     if (bookingIds.length === 0) {
-      const empty = buildReceiptsCsv([]);
       return csvResponse(
-        `buildcon-receipts-${projectSlug}-${datePart}.csv`,
-        empty
+        `buildcon-receipts-${projectName}-${datePart}.csv`,
+        buildReceiptsCsv([])
       );
     }
 
@@ -110,7 +120,6 @@ export async function GET(
       (customers ?? []).map((c) => [c.id as string, String(c.full_name ?? '')])
     );
     const bookingById = new Map(bookingList.map((b) => [b.id, b]));
-
     const schedById = new Map(
       (schedules ?? []).map((s) => [
         s.id as string,
@@ -124,9 +133,10 @@ export async function GET(
         const b = bookingById.get(bid);
         const sid = (c.schedule_id as string | null) || '';
         const sch = sid ? schedById.get(sid) : undefined;
+        const pid = b?.project_id ?? '';
         return {
-          project_id: projectId,
-          project_name: (projectRow?.name as string) || '',
+          project_id: pid,
+          project_name: projectNameById.get(pid) ?? '',
           collection_id: String(c.id),
           booking_id: bid,
           customer_name: b ? custById.get(b.customer_id) ?? '' : '',
@@ -144,7 +154,7 @@ export async function GET(
     );
 
     return csvResponse(
-      `buildcon-receipts-${projectSlug}-${datePart}.csv`,
+      `buildcon-receipts-${projectName}-${datePart}.csv`,
       buildReceiptsCsv(rows)
     );
   }
@@ -153,21 +163,22 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
   }
 
-  const { data: vRows, error: vErr } = await supabase
+  let ledgerQuery = supabase
     .from('v_payment_schedule_outstanding')
     .select(
-      'booking_id,customer_id,schedule_id,instalment_no,milestone,due_date,demand_amount,received_amount,outstanding_amount,is_overdue'
+      'project_id,booking_id,customer_id,schedule_id,instalment_no,milestone,due_date,demand_amount,received_amount,outstanding_amount,is_overdue'
     )
-    .eq('project_id', projectId)
     .order('booking_id', { ascending: true })
     .order('instalment_no', { ascending: true })
     .limit(FINANCIALS_EXPORT_LEDGER_MAX_ROWS);
-
+  if (projectId) ledgerQuery = ledgerQuery.eq('project_id', projectId);
+  const { data: vRows, error: vErr } = await ledgerQuery;
   if (vErr) {
     return NextResponse.json({ error: vErr.message }, { status: 500 });
   }
 
   const rowsRaw = (vRows ?? []) as Array<{
+    project_id: string;
     booking_id: string;
     customer_id: string;
     schedule_id: string;
@@ -203,7 +214,7 @@ export async function GET(
     customers = (data ?? []) as { id: string; full_name: string }[];
   }
 
-  const unitIds = [...new Set((bookings ?? []).map((b) => b.unit_id as string))];
+  const unitIds = [...new Set(bookings.map((b) => b.unit_id))];
   const { data: units } =
     unitIds.length > 0
       ? await supabase.from('units').select('id,unit_code').in('id', unitIds)
@@ -216,8 +227,8 @@ export async function GET(
   const ledgerRows: LedgerExportRow[] = rowsRaw.map((r) => {
     const uid = bookingUnitById.get(r.booking_id);
     return {
-      project_id: projectId,
-      project_name: (projectRow?.name as string) || '',
+      project_id: r.project_id,
+      project_name: projectNameById.get(r.project_id) ?? '',
       booking_id: r.booking_id,
       schedule_id: r.schedule_id ?? '',
       customer_name: custById.get(r.customer_id) ?? '',
@@ -233,17 +244,7 @@ export async function GET(
   });
 
   return csvResponse(
-    `buildcon-ledger-${projectSlug}-${datePart}.csv`,
+    `buildcon-ledger-${projectName}-${datePart}.csv`,
     buildLedgerCsv(ledgerRows)
   );
-}
-
-function csvResponse(filename: string, body: string): NextResponse {
-  return new NextResponse(CSV_UTF8_BOM + body, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`
-    }
-  });
 }

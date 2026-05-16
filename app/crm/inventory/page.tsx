@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,8 +46,15 @@ import {
 } from './inventory-utils';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 
+type UnitProjectMeta = {
+  name: string;
+  parking_slots: number | null;
+  parking_rate: number | null;
+};
+
 type UnitRow = {
   id: string;
+  project_id: string;
   unit_code: string;
   wing_name: string;
   floor: number;
@@ -67,7 +74,19 @@ type UnitRow = {
   status: string;
   blocked_reason: string | null;
   blocked_on: string | null;
+  projects?: UnitProjectMeta | UnitProjectMeta[] | null;
 };
+
+const INVENTORY_ALL_PROJECTS = 'all';
+
+const UNIT_SELECT =
+  'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
+
+function unitProjectMeta(unit: UnitRow): UnitProjectMeta | null {
+  const p = unit.projects;
+  if (!p) return null;
+  return Array.isArray(p) ? p[0] ?? null : p;
+}
 
 type ProjectRow = {
   name: string;
@@ -965,10 +984,20 @@ function UnitCell({
   );
 }
 
-export default function InventoryPage() {
+function InventoryPageContent() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const router = useRouter();
-  const { activeProjectId } = useActiveProjectContext();
+  const searchParams = useSearchParams();
+  const { projects } = useCrmProjectsContext();
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
+  const [inventoryProjectId, setInventoryProjectId] = useState<
+    string | typeof INVENTORY_ALL_PROJECTS
+  >(INVENTORY_ALL_PROJECTS);
+  const isAllProjects = inventoryProjectId === INVENTORY_ALL_PROJECTS;
+  const singleProjectId = isAllProjects ? null : inventoryProjectId;
 
   const [tab, setTab] = useState<InventoryTab>('Grid View');
   const [units, setUnits] = useState<UnitRow[]>([]);
@@ -1002,17 +1031,39 @@ export default function InventoryPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState('');
 
+  useEffect(() => {
+    const id = searchParams.get('projectId');
+    if (id && projects.some((p) => p.id === id)) {
+      setInventoryProjectId(id);
+    }
+  }, [searchParams, projects]);
+
   const load = useCallback(async () => {
-    if (!activeProjectId) return;
     setLoading(true);
     setError('');
+
+    if (isAllProjects) {
+      const { data, error: unitsErr } = await supabase
+        .from('units')
+        .select(`${UNIT_SELECT}, projects ( name, parking_slots, parking_rate )`)
+        .order('wing_name', { ascending: true })
+        .order('floor', { ascending: false })
+        .order('unit_no', { ascending: true });
+
+      if (unitsErr) setError(unitsErr.message);
+      setUnits((data ?? []) as UnitRow[]);
+      setProject(null);
+      setWingNames([]);
+      setUnitTypeNames([]);
+      setLoading(false);
+      return;
+    }
+
     const [unitsRes, projRes, wingsRes, typesRes] = await Promise.all([
       supabase
         .from('units')
-        .select(
-          'id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on'
-        )
-        .eq('project_id', activeProjectId)
+        .select(UNIT_SELECT)
+        .eq('project_id', singleProjectId!)
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true }),
@@ -1021,17 +1072,17 @@ export default function InventoryPage() {
         .select(
           'name, location, rera_no, floors_per_wing, units_per_floor, parking_slots, parking_rate'
         )
-        .eq('id', activeProjectId)
+        .eq('id', singleProjectId!)
         .maybeSingle(),
       supabase
         .from('project_wings')
         .select('name')
-        .eq('project_id', activeProjectId)
+        .eq('project_id', singleProjectId!)
         .order('sort_order', { ascending: true }),
       supabase
         .from('project_unit_types')
         .select('name')
-        .eq('project_id', activeProjectId)
+        .eq('project_id', singleProjectId!)
         .order('sort_order', { ascending: true })
     ]);
 
@@ -1039,6 +1090,7 @@ export default function InventoryPage() {
     setUnits((unitsRes.data ?? []) as UnitRow[]);
 
     if (projRes.data) setProject(projRes.data as ProjectRow);
+    else setProject(null);
 
     const wingList =
       wingsRes.data?.map((w: { name: string }) => w.name) ?? [];
@@ -1049,10 +1101,10 @@ export default function InventoryPage() {
     setUnitTypeNames(typeList);
 
     setLoading(false);
-  }, [activeProjectId, supabase]);
+  }, [isAllProjects, singleProjectId, supabase]);
 
   const runBulkImport = useCallback(async () => {
-    if (!activeProjectId || !bulkCsv.trim()) return;
+    if (isAllProjects || !singleProjectId || !bulkCsv.trim()) return;
     setBulkBusy(true);
     setBulkMsg('');
     const rows = parseCsvRows(bulkCsv);
@@ -1064,7 +1116,7 @@ export default function InventoryPage() {
     const payloads: Record<string, unknown>[] = [];
     let skipped = 0;
     for (const r of rows) {
-      const p = csvRowToUnitUpsert(activeProjectId, r);
+      const p = csvRowToUnitUpsert(singleProjectId, r);
       if (p) payloads.push(p);
       else skipped++;
     }
@@ -1094,7 +1146,7 @@ export default function InventoryPage() {
     } finally {
       setBulkBusy(false);
     }
-  }, [activeProjectId, bulkCsv, load, supabase]);
+  }, [isAllProjects, singleProjectId, bulkCsv, load, supabase]);
 
   useEffect(() => {
     void load();
@@ -1115,16 +1167,16 @@ export default function InventoryPage() {
   }, [units]);
 
   useEffect(() => {
-    if (!activeProjectId) return;
+    if (isAllProjects || !singleProjectId) return;
     const channel = supabase
-      .channel(`units-inv-${activeProjectId}`)
+      .channel(`units-inv-${singleProjectId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'units',
-          filter: `project_id=eq.${activeProjectId}`
+          filter: `project_id=eq.${singleProjectId}`
         },
         () => {
           void load();
@@ -1134,7 +1186,7 @@ export default function InventoryPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [activeProjectId, supabase, load]);
+  }, [isAllProjects, singleProjectId, supabase, load]);
 
   useEffect(() => {
     try {
@@ -1150,28 +1202,40 @@ export default function InventoryPage() {
 
   const projectName = project?.name ?? '';
 
+  const labelForUnitProject = useCallback(
+    (unit: UnitRow) => {
+      if (!isAllProjects) return projectName;
+      return (
+        unitProjectMeta(unit)?.name ??
+        projectNameById.get(unit.project_id) ??
+        unit.project_id
+      );
+    },
+    [isAllProjects, projectName, projectNameById]
+  );
+
   const navigateToBookingForUnit = useCallback(
     (unit: UnitRow) => {
-      if (!activeProjectId || !isUnitAvailableForBooking(unit.status)) return;
+      if (!isUnitAvailableForBooking(unit.status)) return;
+      const meta = unitProjectMeta(unit);
       writeBookingPrefill({
-        projectId: activeProjectId,
+        projectId: unit.project_id,
         inquiryId: null,
         inquiryRef: null,
         customerId: null,
         unitId: unit.id,
         parkingRequired: 'No',
         parkingCount: '1',
-        parkingSlotsAvailable: project?.parking_slots ?? null,
-        parkingRateSnapshot: project?.parking_rate ?? null
+        parkingSlotsAvailable: isAllProjects
+          ? meta?.parking_slots ?? null
+          : project?.parking_slots ?? null,
+        parkingRateSnapshot: isAllProjects
+          ? meta?.parking_rate ?? null
+          : project?.parking_rate ?? null
       });
       router.push('/crm/bookings');
     },
-    [
-      activeProjectId,
-      project?.parking_rate,
-      project?.parking_slots,
-      router
-    ]
+    [isAllProjects, project?.parking_rate, project?.parking_slots, router]
   );
 
   const structureOptions = useMemo(() => {
@@ -1343,16 +1407,43 @@ export default function InventoryPage() {
     setDetailOpen(true);
   }
 
-  if (!activeProjectId) {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        Select a project to view inventory.
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-3">
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-3 px-4 py-3',
+          tabCardClass()
+        )}
+      >
+        <div>
+          <h1 className="text-base font-semibold text-slate-800">Inventory</h1>
+          <p className="text-[11px] text-slate-500">
+            {isAllProjects
+              ? 'All projects — unit list and filters; pick one project for grid, floor plan, and bulk import.'
+              : projectName || 'Single project view'}
+          </p>
+        </div>
+        <Select
+          value={inventoryProjectId}
+          onValueChange={(v) => setInventoryProjectId(v)}
+        >
+          <SelectTrigger
+            size="sm"
+            className="min-w-[200px] max-w-[min(100%,320px)] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
+          >
+            <SelectValue placeholder="Filter by project" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={INVENTORY_ALL_PROJECTS}>All projects</SelectItem>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div
         className={cn(
           'flex flex-wrap gap-0 rounded-lg px-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]',
@@ -1389,6 +1480,13 @@ export default function InventoryPage() {
 
       {tab === 'Inventory Info' && (
         <div className="flex flex-col gap-3.5">
+          {isAllProjects ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-600">
+              Select a single project from the filter above to view project
+              configuration, live summary for one site, and bulk CSV import.
+            </div>
+          ) : (
+            <>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-[11px] text-blue-600">
             <span>
               Inventory configuration is set during{' '}
@@ -1530,16 +1628,20 @@ export default function InventoryPage() {
               <p className="mt-2 text-[11px] text-slate-700">{bulkMsg}</p>
             ) : null}
           </div>
+            </>
+          )}
         </div>
       )}
 
       {tab === 'Grid View' && (
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              Live
-            </span>
+            {!isAllProjects ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                Live
+              </span>
+            ) : null}
             <span className="font-semibold text-slate-800">Sales matrix: </span>
             filter by wing and floor; cells align to unit slots on each floor.
             Colours follow the legend; carpet/BUA and floor-rise + PLC roll into
@@ -1903,6 +2005,7 @@ export default function InventoryPage() {
                 <tr>
                   {[
                     'Unit No.',
+                    ...(isAllProjects ? (['Project'] as const) : []),
                     'Wing',
                     'Floor',
                     'Type',
@@ -1932,6 +2035,11 @@ export default function InventoryPage() {
                     <td className="px-3 py-2 text-[11px] font-semibold text-slate-800">
                       {u.unit_code}
                     </td>
+                    {isAllProjects ? (
+                      <td className="max-w-[140px] px-3 py-2 text-[11px] text-slate-500">
+                        {labelForUnitProject(u)}
+                      </td>
+                    ) : null}
                     <td className="max-w-[140px] px-3 py-2 text-[11px] text-slate-500">
                       {u.wing_name}
                     </td>
@@ -2384,8 +2492,8 @@ export default function InventoryPage() {
 
       <UnitDetailDialog
         unit={selected}
-        projectId={activeProjectId}
-        projectName={projectName}
+        projectId={selected?.project_id ?? singleProjectId}
+        projectName={selected ? labelForUnitProject(selected) : projectName}
         open={detailOpen}
         onOpenChange={(o) => {
           setDetailOpen(o);
@@ -2403,5 +2511,19 @@ export default function InventoryPage() {
         onSaved={() => void load()}
       />
     </div>
+  );
+}
+
+export default function InventoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-muted-foreground">
+          Loading inventory…
+        </div>
+      }
+    >
+      <InventoryPageContent />
+    </Suspense>
   );
 }

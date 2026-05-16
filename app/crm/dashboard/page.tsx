@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { formatInrCompactLacCr } from '../inr-format';
 import { formatFloorLabel } from '../inventory/inventory-utils';
@@ -67,7 +66,6 @@ function ChartLoading() {
 
 export default function DashboardPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -86,18 +84,6 @@ export default function DashboardPage() {
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
 
   const load = useCallback(async () => {
-    if (!activeProjectId) {
-      setBuckets({ available: 0, booked: 0, sold: 0, blocked: 0 });
-      setTotalInventory(0);
-      setTotalSalesInr(0);
-      setTotalCollectionsInr(0);
-      setOverdueInr(0);
-      setMonthlyCollections([]);
-      setSalesVsCollections([]);
-      setRecentBookings([]);
-      return;
-    }
-
     setLoading(true);
     setError('');
 
@@ -105,8 +91,8 @@ export default function DashboardPage() {
       const monthKeys = recentMonthKeys(12);
 
       const [unitsRes, bookingsRes, recentRes, overdueRes] = await Promise.all([
-        supabase.from('units').select('status').eq('project_id', activeProjectId),
-        supabase.from('bookings').select('id').eq('project_id', activeProjectId),
+        supabase.from('units').select('status'),
+        supabase.from('bookings').select('id'),
         supabase
           .from('bookings')
           .select(
@@ -117,13 +103,11 @@ export default function DashboardPage() {
             customers ( full_name )
           `
           )
-          .eq('project_id', activeProjectId)
           .order('created_at', { ascending: false })
           .limit(5),
         supabase
           .from('v_payment_schedule_outstanding')
           .select('outstanding_amount')
-          .eq('project_id', activeProjectId)
           .eq('is_overdue', true)
       ]);
 
@@ -196,7 +180,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeProjectId, supabase]);
+  }, [supabase]);
 
   useEffect(() => {
     void load();
@@ -207,14 +191,6 @@ export default function DashboardPage() {
     totalSalesInr > 0
       ? ((totalCollectionsInr / totalSalesInr) * 100).toFixed(2)
       : '0';
-
-  if (!activeProjectId) {
-    return (
-      <Card className="rounded-xl border border-ds-gray-200 p-4 text-sm text-ds-gray-500">
-        Select a project to see the dashboard.
-      </Card>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -229,7 +205,7 @@ export default function DashboardPage() {
           label="Total Inventory"
           value={loading ? '…' : totalInventory}
           unit="Units"
-          sub="All units in project"
+          sub="All accessible units"
           accent="primary"
           variant="filled"
           icon={STAT_CARD_ICONS.inventory}

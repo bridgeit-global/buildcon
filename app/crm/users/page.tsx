@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,7 +40,7 @@ type MemberRow = {
 
 export default function UsersPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const [addMemberProjectId, setAddMemberProjectId] = useState('');
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
@@ -113,41 +112,38 @@ export default function UsersPage() {
       setPortalDirectory([]);
     }
 
-    if (activeProjectId) {
-      const { data: memberData, error } = await supabase
-        .from('project_members')
-        .select('project_id,user_id,role,status,created_at')
-        .eq('project_id', activeProjectId)
-        .order('created_at', { ascending: true });
-      if (error) setError(error.message);
-      setMembers((memberData ?? []) as MemberRow[]);
+    const { data: memberData, error } = await supabase
+      .from('project_members')
+      .select('project_id,user_id,role,status,created_at')
+      .order('created_at', { ascending: true });
+    if (error) setError(error.message);
+    setMembers((memberData ?? []) as MemberRow[]);
 
-      let myProjRoleLocal: string | null = null;
-      if (user) {
-        const me = (memberData ?? []).find((m) => m.user_id === user.id);
-        myProjRoleLocal = (me?.role ?? null) as string | null;
-        setMyProjectRole(myProjRoleLocal);
-      } else {
-        setMyProjectRole(null);
-      }
-
-      const canManageMembers =
-        myProfileRole === 'Super Admin' || myProjRoleLocal === 'Manager';
-      if (canManageMembers) {
-        const { data: staffData, error: staffErr } = await supabase
-          .from('profiles')
-          .select('id,name,role,linked_customer_id,linked_broker_id')
-          .order('created_at', { ascending: false })
-          .limit(500);
-        if (staffErr) setError(staffErr.message);
-        setProfiles((staffData ?? []) as ProfileRow[]);
-      } else {
-        setProfiles([]);
-      }
+    const isManagerOnAnyProject = user
+      ? (memberData ?? []).some(
+          (m) => m.user_id === user.id && m.role === 'Manager'
+        )
+      : false;
+    if (user) {
+      setMyProjectRole(isManagerOnAnyProject ? 'Manager' : null);
     } else {
-      setMembers([]);
       setMyProjectRole(null);
+    }
+
+    if (myProfileRole === 'Super Admin' || isManagerOnAnyProject) {
+      const { data: staffData, error: staffErr } = await supabase
+        .from('profiles')
+        .select('id,name,role,linked_customer_id,linked_broker_id')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (staffErr) setError(staffErr.message);
+      setProfiles((staffData ?? []) as ProfileRow[]);
+    } else {
       setProfiles([]);
+    }
+
+    if (!addMemberProjectId && (projData ?? [])[0]) {
+      setAddMemberProjectId((projData ?? [])[0]!.id);
     }
 
     setLoading(false);
@@ -156,7 +152,7 @@ export default function UsersPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, []);
 
   const filteredProjects = projects.filter((p) =>
     p.name.toLowerCase().includes(projectSearch.trim().toLowerCase())
@@ -214,16 +210,39 @@ export default function UsersPage() {
     }
   }
 
-  const canManageMembers =
-    profile?.role === 'Super Admin' || myProjectRole === 'Manager';
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
 
-  async function upsertMember(userId: string, role: string, status: string) {
-    if (!activeProjectId) return;
+  const managerProjectIds = useMemo(() => {
+    if (!profile) return new Set<string>();
+    return new Set(
+      members
+        .filter((m) => m.user_id === profile.id && m.role === 'Manager')
+        .map((m) => m.project_id)
+    );
+  }, [members, profile]);
+
+  function canManageProject(projectId: string) {
+    return profile?.role === 'Super Admin' || managerProjectIds.has(projectId);
+  }
+
+  const canManageAnyMembers =
+    profile?.role === 'Super Admin' || managerProjectIds.size > 0;
+
+  async function upsertMember(
+    projectId: string,
+    userId: string,
+    role: string,
+    status: string
+  ) {
+    if (!canManageProject(projectId)) return;
     setError('');
     const res = await fetch('/api/crm/admin/project-members', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectId: activeProjectId, userId, role, status })
+      body: JSON.stringify({ projectId, userId, role, status })
     });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) setError(json.error || 'Failed to update member');
@@ -253,13 +272,13 @@ export default function UsersPage() {
     }
   }
 
-  async function removeMember(userId: string) {
-    if (!activeProjectId) return;
+  async function removeMember(projectId: string, userId: string) {
+    if (!canManageProject(projectId)) return;
     setError('');
     const res = await fetch('/api/crm/admin/project-members', {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectId: activeProjectId, userId })
+      body: JSON.stringify({ projectId, userId })
     });
     const json = (await res.json()) as { error?: string };
     if (!res.ok) setError(json.error || 'Failed to remove member');
@@ -274,7 +293,7 @@ export default function UsersPage() {
             Users & Access (MVP)
           </div>
           <div className="text-xs text-gray-500">
-            View your role and the active project’s membership list.
+            View your role and project membership across all accessible projects.
           </div>
         </div>
         <Button variant="outline" onClick={load} disabled={loading}>
@@ -530,22 +549,16 @@ export default function UsersPage() {
 
         <Card className="p-4">
           <div className="text-sm font-semibold text-gray-900">
-            Active project members
+            Project members
           </div>
           <div className="mt-1 text-xs text-gray-500">
-            {activeProjectId ? members.length : 0} member(s)
+            {members.length} member(s) across projects
           </div>
-          {activeProjectId ? (
-            <div className="mt-2 text-xs text-gray-500">
-              Your role in this project:{' '}
-              <strong>{myProjectRole ?? '—'}</strong>
-            </div>
-          ) : null}
           <div className="mt-3 overflow-auto">
             <table className="min-w-[520px] w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
-                  {['User id', 'Role', 'Status', ...(canManageMembers ? ['Actions'] : [])].map(
+                  {['Project', 'User id', 'Role', 'Status', 'Actions'].map(
                     (h) => (
                     <th key={h} className="px-3 py-2 text-left font-semibold border-b">
                       {h}
@@ -556,16 +569,19 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.user_id} className="border-b">
+                  <tr key={`${m.project_id}-${m.user_id}`} className="border-b">
+                    <td className="max-w-[140px] truncate px-3 py-2 text-xs text-gray-600">
+                      {projectNameById.get(m.project_id) ?? m.project_id}
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs text-gray-700">
                       {m.user_id}
                     </td>
                     <td className="px-3 py-2 text-gray-700">
-                      {canManageMembers ? (
+                      {canManageProject(m.project_id) ? (
                         <Select
                           value={m.role}
                           onValueChange={(v) =>
-                            upsertMember(m.user_id, v, m.status)
+                            upsertMember(m.project_id, m.user_id, v, m.status)
                           }
                         >
                           <SelectTrigger size="sm" className="h-8 w-auto min-w-[120px]">
@@ -584,11 +600,11 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td className="px-3 py-2 text-gray-700">
-                      {canManageMembers ? (
+                      {canManageProject(m.project_id) ? (
                         <Select
                           value={m.status}
                           onValueChange={(v) =>
-                            upsertMember(m.user_id, m.role, v)
+                            upsertMember(m.project_id, m.user_id, m.role, v)
                           }
                         >
                           <SelectTrigger size="sm" className="h-8 w-auto min-w-[120px]">
@@ -606,36 +622,25 @@ export default function UsersPage() {
                         m.status
                       )}
                     </td>
-                    {canManageMembers ? (
-                      <td className="px-3 py-2">
+                    <td className="px-3 py-2">
+                      {canManageProject(m.project_id) ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => removeMember(m.user_id)}
+                          onClick={() => removeMember(m.project_id, m.user_id)}
                         >
                           Remove
                         </Button>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-                {activeProjectId && members.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={canManageMembers ? 4 : 3}
-                      className="px-3 py-8 text-center text-gray-500"
-                    >
-                      No members found (or you don’t have access).
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                   </tr>
-                ) : null}
-                {!activeProjectId ? (
+                ))}
+                {members.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={canManageMembers ? 4 : 3}
-                      className="px-3 py-8 text-center text-gray-500"
-                    >
-                      Select a project first.
+                    <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                      No members found (or you don’t have access).
                     </td>
                   </tr>
                 ) : null}
@@ -643,14 +648,35 @@ export default function UsersPage() {
             </table>
           </div>
 
-          {canManageMembers && activeProjectId ? (
+          {canManageAnyMembers ? (
             <div className="mt-4">
               <div className="text-sm font-semibold text-gray-900">Add member</div>
               <div className="mt-2 flex flex-wrap items-end gap-3">
+                <div className="min-w-[200px]">
+                  <Label className="text-xs">Project</Label>
+                  <Select
+                    value={addMemberProjectId || undefined}
+                    onValueChange={setAddMemberProjectId}
+                  >
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects
+                        .filter((p) => canManageProject(p.id))
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Select
                   key={addMemberPickerKey}
                   onValueChange={(uid) => {
-                    void upsertMember(uid, 'Member', 'Active');
+                    if (!addMemberProjectId) return;
+                    void upsertMember(addMemberProjectId, uid, 'Member', 'Active');
                     setAddMemberPickerKey((k) => k + 1);
                   }}
                 >

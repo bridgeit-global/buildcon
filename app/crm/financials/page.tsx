@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
+import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ const FIN_BOOKING_NONE = '__fin_booking_none__';
 
 type BookingRow = {
   id: string;
+  project_id: string;
   unit_id: string;
   customer_id: string;
   created_at: string;
@@ -47,6 +48,7 @@ type CollectionRow = {
 };
 
 type OverdueRow = {
+  project_id: string;
   booking_id: string;
   schedule_id: string;
   instalment_no?: number;
@@ -59,7 +61,12 @@ type OverdueRow = {
 
 export default function FinancialsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
+  const { projects } = useCrmProjectsContext();
+  const projectNameById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
+  const [exportProjectId, setExportProjectId] = useState<string>('all');
 
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [unitsById, setUnitsById] = useState<Record<string, UnitRow>>({});
@@ -85,17 +92,12 @@ export default function FinancialsPage() {
   const [exporting, setExporting] = useState<null | 'ledger' | 'receipts'>(null);
 
   async function loadOverdue() {
-    if (!activeProjectId) {
-      setOverdueRows([]);
-      return;
-    }
     setLoadingOverdue(true);
     const { data, error: oErr } = await supabase
       .from('v_payment_schedule_outstanding')
       .select(
-        'booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id'
+        'project_id,booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id'
       )
-      .eq('project_id', activeProjectId)
       .eq('is_overdue', true)
       .order('due_date', { ascending: true })
       .limit(200);
@@ -104,16 +106,14 @@ export default function FinancialsPage() {
   }
 
   async function loadBookings() {
-    if (!activeProjectId) return;
     setLoading(true);
     setError('');
 
     const { data: bData, error: bErr } = await supabase
       .from('bookings')
-      .select('id,unit_id,customer_id,created_at')
-      .eq('project_id', activeProjectId)
+      .select('id,project_id,unit_id,customer_id,created_at')
       .order('created_at', { ascending: false })
-      .limit(100);
+      .limit(300);
     if (bErr) setError(bErr.message);
     const bRows = (bData ?? []) as BookingRow[];
     setBookings(bRows);
@@ -152,12 +152,15 @@ export default function FinancialsPage() {
   }
 
   async function downloadFinancialsExport(kind: 'ledger' | 'receipts') {
-    if (!activeProjectId) return;
     setExporting(kind);
     setError('');
     try {
+      const projectQ =
+        exportProjectId !== 'all'
+          ? `&projectId=${encodeURIComponent(exportProjectId)}`
+          : '';
       const res = await fetch(
-        `/api/crm/projects/${activeProjectId}/financials/export?kind=${kind}`,
+        `/api/crm/financials/export?kind=${kind}${projectQ}`,
         { credentials: 'same-origin' }
       );
       if (!res.ok) {
@@ -216,7 +219,7 @@ export default function FinancialsPage() {
     void loadBookings();
     void loadOverdue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProjectId]);
+  }, []);
 
   useEffect(() => {
     void loadFinancials();
@@ -235,7 +238,7 @@ export default function FinancialsPage() {
     scrollToOverdue();
     window.addEventListener('hashchange', scrollToOverdue);
     return () => window.removeEventListener('hashchange', scrollToOverdue);
-  }, [overdueRows.length, activeProjectId]);
+  }, [overdueRows.length]);
 
   const receivedBySchedule = collections.reduce<Record<string, number>>(
     (acc, c) => {
@@ -300,6 +303,7 @@ export default function FinancialsPage() {
                 <SelectItem value={FIN_BOOKING_NONE}>Select booking…</SelectItem>
                 {bookings.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
+                    {projectNameById.get(b.project_id) ?? '—'} ·{' '}
                     {unitsById[b.unit_id]?.unit_code ?? '—'} ·{' '}
                     {customersById[b.customer_id]?.full_name ?? '—'} ·{' '}
                     {new Date(b.created_at).toLocaleDateString()}
@@ -309,11 +313,27 @@ export default function FinancialsPage() {
             </Select>
           </div>
 
+          <div className="min-w-[200px]">
+            <Label>Export scope</Label>
+            <Select value={exportProjectId} onValueChange={setExportProjectId}>
+              <SelectTrigger className="mt-1 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex-1" />
           <Button
             type="button"
             variant="outline"
-            disabled={!activeProjectId || exporting !== null}
+            disabled={exporting !== null}
             onClick={() => void downloadFinancialsExport('ledger')}
           >
             {exporting === 'ledger' ? 'Exporting…' : 'Export ledger CSV'}
@@ -321,7 +341,7 @@ export default function FinancialsPage() {
           <Button
             type="button"
             variant="outline"
-            disabled={!activeProjectId || exporting !== null}
+            disabled={exporting !== null}
             onClick={() => void downloadFinancialsExport('receipts')}
           >
             {exporting === 'receipts' ? 'Exporting…' : 'Export receipts CSV'}
@@ -580,7 +600,7 @@ export default function FinancialsPage() {
             <table className="min-w-[800px] w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
-                  {['Booking', '#', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
+                  {['Project', 'Booking', '#', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
                     (h) => (
                       <th key={h} className="px-3 py-2 text-left font-semibold border-b">
                         {h}
@@ -592,6 +612,9 @@ export default function FinancialsPage() {
               <tbody>
                 {overdueRows.map((r) => (
                   <tr key={r.schedule_id} className="border-b">
+                    <td className="max-w-[120px] truncate px-3 py-2 text-xs text-gray-600">
+                      {projectNameById.get(r.project_id) ?? '—'}
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs">{r.booking_id}</td>
                     <td className="px-3 py-2 text-gray-600">
                       {r.instalment_no != null ? r.instalment_no : '—'}
@@ -614,12 +637,10 @@ export default function FinancialsPage() {
                 ))}
                 {overdueRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
                       {loadingOverdue
                         ? 'Loading…'
-                        : activeProjectId
-                          ? 'No overdue schedule lines for this project.'
-                          : 'Select a project.'}
+                        : 'No overdue schedule lines.'}
                     </td>
                   </tr>
                 ) : null}

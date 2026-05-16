@@ -22,6 +22,7 @@ export function toCsv(headers: readonly string[], rows: Array<Record<string, unk
 
 export type LedgerExportRow = {
   project_id: string;
+  project_name: string;
   booking_id: string;
   schedule_id: string;
   customer_name: string;
@@ -41,6 +42,8 @@ export function buildLedgerCsv(rows: LedgerExportRow[]): string {
 }
 
 export type ReceiptExportRow = {
+  project_id: string;
+  project_name: string;
   collection_id: string;
   booking_id: string;
   customer_name: string;

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -20,17 +20,9 @@ import {
   readNavSectionOpenFromStorage
 } from './nav';
 import type { CrmProject } from './types';
-import { useActiveProject } from './use-active-project';
-import { ActiveProjectProvider } from './active-project-context';
+import { CrmProjectsProvider } from './active-project-context';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 
 function initialsFromEmail(email: string | null) {
   if (!email) return '?';
@@ -54,10 +46,7 @@ export function CrmShell({
   projects: CrmProject[];
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
-  const { activeProject, activeProjectId, setActiveProjectId, hydrated } =
-    useActiveProject(projects);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionOpen, setSectionOpen] = useState(getDefaultNavSectionOpen);
@@ -112,26 +101,9 @@ export function CrmShell({
     [pathname, flatNav]
   );
 
-  const pageHeading = pathname.startsWith('/crm/select-project')
-    ? 'Select project'
-    : (matchedNav?.pageTitle ?? matchedNav?.label ?? 'BuildCon CRM');
-
+  const pageHeading = matchedNav?.pageTitle ?? matchedNav?.label ?? 'BuildCon CRM';
   const isDashboardRoot = pathname === '/crm/dashboard';
-  const onSelectProject = pathname.startsWith('/crm/select-project');
-  const breadcrumbModule = onSelectProject
-    ? 'Select project'
-    : (matchedNav?.label ?? pageHeading);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (activeProjectId) return;
-    if (pathname.startsWith('/crm/select-project')) return;
-    if (projects.length === 0) {
-      router.replace('/crm/select-project');
-      return;
-    }
-    router.replace('/crm/select-project');
-  }, [hydrated, projects.length, activeProjectId, pathname, router]);
+  const breadcrumbModule = matchedNav?.label ?? pageHeading;
 
   return (
     <div
@@ -192,69 +164,6 @@ export function CrmShell({
                   <ChevronLeft className="size-4" aria-hidden />
                 </Button>
               </div>
-            )}
-          </div>
-
-          <div
-            className={cn(
-              'border-b border-slate-200/80 pb-2 pt-2',
-              sidebarCollapsed ? 'px-1.5' : 'px-2.5'
-            )}
-          >
-            {sidebarCollapsed ? (
-              <Link
-                href="/crm/select-project"
-                className="flex flex-col items-center gap-1 rounded-xl border border-slate-200/90 bg-white px-1 py-2 text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
-                title={`${activeProject?.name ?? 'Project'} · FY ${activeProject?.fy ?? '—'}`}
-              >
-                <Building2 className="size-[18px] shrink-0 text-(--crm-accent,#0d9488)" aria-hidden />
-                <span className="sr-only">Switch active project</span>
-                <span className="max-w-full truncate text-[9px] font-semibold tabular-nums leading-none text-slate-500">
-                  FY {activeProject?.fy ?? '—'}
-                </span>
-              </Link>
-            ) : (
-              <>
-                <div className="px-1.5 pb-1 text-[9px] font-semibold uppercase tracking-widest text-slate-500">
-                  Active project
-                </div>
-                <div className="rounded-xl border border-slate-200/90 bg-white px-2.5 py-2 shadow-sm">
-                  <div className="mt-0.5 text-[9px] text-slate-500">
-                    FY {activeProject?.fy ?? '—'}
-                  </div>
-                  <Select
-                    value={activeProjectId ?? undefined}
-                    onValueChange={setActiveProjectId}
-                    disabled={projects.length === 0}
-                  >
-                    <SelectTrigger
-                      className="mt-1.5 h-auto min-h-9 w-full cursor-pointer border border-slate-200 bg-white px-2.5 py-2 text-[11px] text-slate-800 shadow-none outline-none hover:bg-slate-50 focus-visible:border-(--crm-accent,#0d9488) focus-visible:ring-2 focus-visible:ring-teal-600/25 disabled:opacity-50 data-placeholder:text-slate-400 [&_svg]:text-slate-500"
-                      aria-label="Switch project"
-                    >
-                      <SelectValue
-                        placeholder={
-                          projects.length === 0
-                            ? 'No accessible projects'
-                            : 'Select project'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[min(60vh,320px)]">
-                      {projects.length === 0 ? (
-                        <SelectItem value="__none__" disabled>
-                          No accessible projects
-                        </SelectItem>
-                      ) : (
-                        projects.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
             )}
           </div>
 
@@ -379,9 +288,7 @@ export function CrmShell({
           </div>
         </aside>
 
-        <ActiveProjectProvider
-          value={{ projects, activeProjectId, activeProject, setActiveProjectId }}
-        >
+        <CrmProjectsProvider value={{ projects }}>
           <main className="crm-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="p-4">
               <nav
@@ -394,13 +301,7 @@ export function CrmShell({
                 >
                   Dashboard
                 </Link>
-                <span className="text-[#98A2B3]" aria-hidden>
-                  /
-                </span>
-                <span className="max-w-[200px] truncate">
-                  {onSelectProject ? 'Select project' : (activeProject?.name ?? '—')}
-                </span>
-                {!isDashboardRoot && !onSelectProject ? (
+                {!isDashboardRoot ? (
                   <>
                     <span className="text-[#98A2B3]" aria-hidden>
                       /
@@ -416,9 +317,6 @@ export function CrmShell({
                   <h1 className="text-base font-bold leading-snug text-[#101828] sm:text-lg">
                     {pageHeading}
                   </h1>
-                  <p className="mt-0.5 text-[11px] text-[#667085]">
-                    {activeProject?.name ?? '—'} · FY {activeProject?.fy ?? '—'}
-                  </p>
                 </div>
                 {headerClock ? (
                   <p
@@ -432,7 +330,7 @@ export function CrmShell({
               {children}
             </div>
           </main>
-        </ActiveProjectProvider>
+        </CrmProjectsProvider>
       </div>
     </div>
   );

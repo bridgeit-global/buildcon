@@ -3,36 +3,30 @@
 import { createContext, useContext } from 'react';
 import type { CrmProject } from './types';
 
-type ActiveProjectContextValue = {
+type CrmProjectsContextValue = {
   projects: CrmProject[];
-  activeProjectId: string | null;
-  activeProject: CrmProject | null;
-  setActiveProjectId: (id: string) => void;
 };
 
-const ActiveProjectContext = createContext<ActiveProjectContextValue | null>(
-  null
-);
+const CrmProjectsContext = createContext<CrmProjectsContextValue | null>(null);
 
-export function ActiveProjectProvider({
+export function CrmProjectsProvider({
   value,
   children
 }: {
-  value: ActiveProjectContextValue;
+  value: CrmProjectsContextValue;
   children: React.ReactNode;
 }) {
   return (
-    <ActiveProjectContext.Provider value={value}>
+    <CrmProjectsContext.Provider value={value}>
       {children}
-    </ActiveProjectContext.Provider>
+    </CrmProjectsContext.Provider>
   );
 }
 
-export function useActiveProjectContext() {
-  const ctx = useContext(ActiveProjectContext);
+export function useCrmProjectsContext() {
+  const ctx = useContext(CrmProjectsContext);
   if (!ctx) {
-    throw new Error('useActiveProjectContext must be used within provider');
+    throw new Error('useCrmProjectsContext must be used within CrmProjectsProvider');
   }
   return ctx;
 }
-
