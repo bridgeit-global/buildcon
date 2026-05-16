@@ -4,6 +4,7 @@ import {
   isUnitBlockedStatus,
   normalizeUnitStatusCode
 } from '../inventory/unit-status';
+import type { InquiryStageData } from './inquiry-types';
 import type { InquiryFunnelStage } from './inquiry-stage-unit-map';
 
 export const SITE_VISIT_OUTCOMES = [
@@ -79,6 +80,23 @@ export function funnelStageAfterSiteVisitOutcome(
   return null;
 }
 
+function mergeStageData(
+  existing: InquiryStageData | Record<string, unknown> | null | undefined,
+  patch: Partial<InquiryStageData>
+): InquiryStageData {
+  const base =
+    existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? (existing as InquiryStageData)
+      : {};
+  return {
+    enquiry: { ...(base.enquiry ?? {}), ...(patch.enquiry ?? {}) },
+    qualified: { ...(base.qualified ?? {}), ...(patch.qualified ?? {}) },
+    site_visit: { ...(base.site_visit ?? {}), ...(patch.site_visit ?? {}) },
+    negotiation: { ...(base.negotiation ?? {}), ...(patch.negotiation ?? {}) },
+    token: { ...(base.token ?? {}), ...(patch.token ?? {}) }
+  };
+}
+
 export async function applyUnitStatusForFunnelStage(
   supabase: SupabaseClient,
   unitId: string,
@@ -112,12 +130,13 @@ export async function applyUnitStatusForFunnelStage(
 export async function qualifyInquiryWithUnit(
   supabase: SupabaseClient,
   params: {
-    opportunityId: string;
+    inquiryId: string;
     unitId: string;
     qualifiedPayload?: QualifiedStagePayload;
+    enquiryPayload?: Record<string, unknown>;
   }
 ): Promise<{ ok: boolean; error?: string }> {
-  const { opportunityId, unitId, qualifiedPayload } = params;
+  const { inquiryId, unitId, qualifiedPayload, enquiryPayload } = params;
 
   const unitResult = await applyUnitStatusForFunnelStage(
     supabase,
@@ -126,34 +145,38 @@ export async function qualifyInquiryWithUnit(
   );
   if (unitResult.error) return { ok: false, error: unitResult.error };
 
-  const { error: oppErr } = await supabase
-    .from('sales_opportunities')
-    .update({ funnel_stage: 'Qualified' })
-    .eq('id', opportunityId);
-  if (oppErr) return { ok: false, error: oppErr.message };
+  const { data: row, error: readErr } = await supabase
+    .from('sales_inquiries')
+    .select('stage_data')
+    .eq('id', inquiryId)
+    .maybeSingle();
+  if (readErr) return { ok: false, error: readErr.message };
 
+  const stagePatch: Partial<InquiryStageData> = {};
   if (qualifiedPayload && Object.keys(qualifiedPayload).length > 0) {
-    const { error: stageErr } = await supabase
-      .from('sales_pipeline_stages')
-      .upsert(
-        {
-          opportunity_id: opportunityId,
-          stage: 'Qualified',
-          payload: qualifiedPayload
-        },
-        { onConflict: 'opportunity_id,stage' }
-      );
-    if (stageErr) return { ok: false, error: stageErr.message };
+    stagePatch.qualified = qualifiedPayload;
   }
+  if (enquiryPayload && Object.keys(enquiryPayload).length > 0) {
+    stagePatch.enquiry = enquiryPayload;
+  }
+
+  const { error: inqErr } = await supabase
+    .from('sales_inquiries')
+    .update({
+      funnel_stage: 'Qualified',
+      stage_data: mergeStageData(row?.stage_data, stagePatch)
+    })
+    .eq('id', inquiryId);
+  if (inqErr) return { ok: false, error: inqErr.message };
 
   return { ok: true };
 }
 
 export async function closeInquiryAsLost(
   supabase: SupabaseClient,
-  params: { opportunityId: string; unitId?: string | null }
+  params: { inquiryId: string; unitId?: string | null }
 ): Promise<{ ok: boolean; error?: string }> {
-  const { opportunityId, unitId } = params;
+  const { inquiryId, unitId } = params;
 
   if (unitId) {
     const unitResult = await applyUnitStatusForFunnelStage(
@@ -164,11 +187,11 @@ export async function closeInquiryAsLost(
     if (unitResult.error) return { ok: false, error: unitResult.error };
   }
 
-  const { error: oppErr } = await supabase
-    .from('sales_opportunities')
+  const { error: inqErr } = await supabase
+    .from('sales_inquiries')
     .update({ funnel_stage: 'Lost' })
-    .eq('id', opportunityId);
-  if (oppErr) return { ok: false, error: oppErr.message };
+    .eq('id', inquiryId);
+  if (inqErr) return { ok: false, error: inqErr.message };
 
   return { ok: true };
 }

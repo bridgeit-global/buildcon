@@ -7,7 +7,7 @@ import {
 } from './inr-format';
 import { formatFloorLabel, statusLabelForUnit } from './inventory/inventory-utils';
 
-/** Maps inquiry parking_count option to a number for cost (4+ → 4). */
+/** Maps parking count option to a number for cost (4+ → 4). */
 export function parkingSlotsAskedFromCount(count: string): number {
   const t = String(count || '').trim();
   if (t === '4+') return 4;

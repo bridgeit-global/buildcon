@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInr } from '../inr-format';
 import { cn } from '@/lib/utils';
+import type { InquiryStageData } from '../inquiry/inquiry-types';
 
 type WorkTab = 'followups' | 'visits' | 'overdue';
 
@@ -49,9 +50,11 @@ function embedOne<T>(x: T | T[] | null | undefined): T | null {
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
 
-function embedList<T>(x: T | T[] | null | undefined): T[] {
-  if (x == null) return [];
-  return Array.isArray(x) ? x : [x];
+function stageDataOf(
+  raw: InquiryStageData | Record<string, unknown> | null | undefined
+): InquiryStageData {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return raw as InquiryStageData;
 }
 
 export default function WorkQueuePage() {
@@ -72,73 +75,72 @@ export default function WorkQueuePage() {
     setLoading(true);
     setError('');
     try {
-      const { data: oppRows, error: oErr } = await supabase
-        .from('sales_opportunities')
+      const { data: inquiryRows, error: iErr } = await supabase
+        .from('sales_inquiries')
         .select(
           `
           id,
           funnel_stage,
-          sales_inquiry_id,
+          stage_data,
           projects ( name ),
-          sales_inquiries (
-            id,
-            customers ( full_name )
-          ),
-          sales_follow_ups ( id, due_at, note, completed_at ),
-          sales_site_visits ( id, scheduled_at, status, outcome )
+          customers ( full_name )
         `
-        );
-      if (oErr) throw oErr;
+        )
+        .not('funnel_stage', 'in', '("Lost","Won")');
+      if (iErr) throw iErr;
 
       const follows: FollowRow[] = [];
       const visits: VisitRow[] = [];
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      for (const row of oppRows ?? []) {
+      for (const row of inquiryRows ?? []) {
         const r = row as {
+          id: string;
           funnel_stage: string;
-          sales_inquiry_id: string;
+          stage_data: InquiryStageData | null;
           projects: unknown;
-          sales_inquiries: unknown;
-          sales_follow_ups: unknown;
-          sales_site_visits: unknown;
+          customers: unknown;
         };
         const proj = embedOne(
           r.projects as { name: string | null } | { name: string | null }[] | null
         );
         const projectName = proj?.name?.trim() || '—';
-        const inq = embedOne(
-          r.sales_inquiries as
-            | {
-                id: string;
-                customers:
-                  | { full_name: string | null }
-                  | { full_name: string | null }[]
-                  | null;
-              }
+        const cust = embedOne(
+          r.customers as
+            | { full_name: string | null }
+            | { full_name: string | null }[]
             | null
         );
-        const custNode = inq?.customers;
-        const cust = embedOne(
-          Array.isArray(custNode) ? custNode[0] : custNode
-        ) as { full_name: string | null } | null;
         const customerName = cust?.full_name?.trim() || '—';
-        const inquiryId = (inq?.id ?? r.sales_inquiry_id) as string;
+        const inquiryId = r.id;
         const funnelStage = String(r.funnel_stage ?? '');
+        const sd = stageDataOf(r.stage_data);
 
-        for (const fu of embedList(r.sales_follow_ups)) {
-          const fr = fu as {
-            id: string;
-            due_at: string;
-            note: string | null;
-            completed_at: string | null;
-          };
-          if (fr.completed_at) continue;
+        const followCandidates: { key: string; due: string; note: string | null }[] =
+          [];
+        const enquiryDue = String(sd.enquiry?.follow_up_date ?? '').trim();
+        if (enquiryDue) {
+          followCandidates.push({
+            key: 'enquiry',
+            due: enquiryDue,
+            note: String(sd.enquiry?.notes ?? '').trim() || null
+          });
+        }
+        const qualifiedDue = String(sd.qualified?.follow_up_date ?? '').trim();
+        if (qualifiedDue) {
+          followCandidates.push({
+            key: 'qualified',
+            due: qualifiedDue,
+            note: String(sd.qualified?.notes ?? '').trim() || null
+          });
+        }
+
+        for (const fc of followCandidates) {
           follows.push({
-            followId: fr.id,
-            dueAt: fr.due_at,
-            note: fr.note,
+            followId: `${inquiryId}:${fc.key}`,
+            dueAt: fc.due,
+            note: fc.note,
             inquiryId,
             customerName,
             funnelStage,
@@ -146,25 +148,22 @@ export default function WorkQueuePage() {
           });
         }
 
-        for (const sv of embedList(r.sales_site_visits)) {
-          const v = sv as {
-            id: string;
-            scheduled_at: string;
-            status: string;
-            outcome: string | null;
-          };
-          if (v.status !== 'Scheduled') continue;
-          const at = new Date(v.scheduled_at);
-          if (at.getTime() < todayStart.getTime()) continue;
-          visits.push({
-            visitId: v.id,
-            scheduledAt: v.scheduled_at,
-            status: v.status,
-            outcome: v.outcome,
-            inquiryId,
-            customerName,
-            projectName
-          });
+        const sv = sd.site_visit ?? {};
+        const scheduledAt = String(sv.scheduled_at ?? '').trim();
+        const status = String(sv.status ?? 'Scheduled').trim();
+        if (scheduledAt && status === 'Scheduled') {
+          const at = new Date(scheduledAt);
+          if (at.getTime() >= todayStart.getTime()) {
+            visits.push({
+              visitId: `${inquiryId}:site_visit`,
+              scheduledAt,
+              status,
+              outcome: String(sv.outcome ?? '').trim() || null,
+              inquiryId,
+              customerName,
+              projectName
+            });
+          }
         }
       }
 
@@ -237,7 +236,7 @@ export default function WorkQueuePage() {
             className={cn(
               'cursor-pointer whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-[11px]',
               tab === t.id
-                ? 'border-blue-500 font-semibold text-blue-600'
+                ? 'border-ds-primary-500 font-semibold text-ds-primary-600'
                 : 'text-slate-500 hover:text-slate-700'
             )}
           >
@@ -262,7 +261,7 @@ export default function WorkQueuePage() {
       {tab === 'followups' ? (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-700">
-            Incomplete follow-ups (newest due first)
+            Follow-up dates from enquiry pipeline (enquiry &amp; qualified stages)
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
@@ -311,7 +310,7 @@ export default function WorkQueuePage() {
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Link
                           href={`/crm/inquiry/new?inquiry=${encodeURIComponent(r.inquiryId)}`}
-                          className="text-xs font-semibold text-blue-700 underline"
+                          className="text-xs font-semibold text-ds-primary-600 underline"
                         >
                           Open pipeline
                         </Link>
@@ -375,7 +374,7 @@ export default function WorkQueuePage() {
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Link
                           href={`/crm/inquiry/new?inquiry=${encodeURIComponent(r.inquiryId)}`}
-                          className="text-xs font-semibold text-blue-700 underline"
+                          className="text-xs font-semibold text-ds-primary-600 underline"
                         >
                           Open pipeline
                         </Link>
@@ -397,7 +396,7 @@ export default function WorkQueuePage() {
             </div>
             <Link
               href="/crm/financials#crm-financials-overdue"
-              className="text-[11px] font-semibold text-blue-700 underline"
+              className="text-[11px] font-semibold text-ds-primary-600 underline"
             >
               Open in Financials
             </Link>
@@ -450,7 +449,7 @@ export default function WorkQueuePage() {
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Link
                           href="/crm/financials#crm-financials-overdue"
-                          className="text-xs font-semibold text-blue-700 underline"
+                          className="text-xs font-semibold text-ds-primary-600 underline"
                         >
                           Record receipt
                         </Link>

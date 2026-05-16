@@ -505,15 +505,25 @@ create table if not exists public.sales_inquiries (
   lead_source text not null default 'Direct',
   broker_id uuid references public.brokers (id) on delete set null,
   interested_in text,
-  parking_required text not null default 'No',
-  parking_count text not null default '1',
-  parking_slots_available int,
-  parking_rate_snapshot int,
   notes text,
+  funnel_stage text not null default 'Enquiry',
+  assigned_to uuid references auth.users (id) on delete set null,
+  stage_data jsonb not null default '{}'::jsonb,
   created_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),
-  constraint sales_inquiries_parking_required_chk
-    check (parking_required in ('Yes', 'No'))
+  updated_at timestamptz not null default now(),
+  constraint sales_inquiries_funnel_stage_chk check (
+    funnel_stage in (
+      'Enquiry',
+      'Qualified',
+      'Site Visit',
+      'Negotiation',
+      'Token',
+      'Booking',
+      'Won',
+      'Lost'
+    )
+  )
 );
 
 create index if not exists sales_inquiries_project_created_idx
@@ -525,6 +535,13 @@ create index if not exists sales_inquiries_customer_idx
 create index if not exists sales_inquiries_broker_idx
   on public.sales_inquiries (broker_id)
   where broker_id is not null;
+
+create index if not exists sales_inquiries_project_stage_idx
+  on public.sales_inquiries (project_id, funnel_stage);
+
+create index if not exists sales_inquiries_assigned_idx
+  on public.sales_inquiries (assigned_to)
+  where assigned_to is not null;
 
 alter table public.sales_inquiries enable row level security;
 

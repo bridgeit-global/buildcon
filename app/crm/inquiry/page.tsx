@@ -77,24 +77,15 @@ function InquiryPageContent() {
         broker_id,
         brokers ( full_name ),
         interested_in,
-        parking_required,
-        parking_count,
-        parking_slots_available,
-        parking_rate_snapshot,
         notes,
+        funnel_stage,
+        assigned_to,
+        stage_data,
         customer_id,
         unit_id,
         customers ( full_name, phone, email ),
         units ( unit_code, wing_name, project_id, projects ( name ) ),
-        profiles ( name ),
-        sales_opportunities (
-          id,
-          funnel_stage,
-          assigned_to,
-          sales_pipeline_stages ( id, stage, payload, updated_at ),
-          sales_follow_ups ( id, due_at, note, completed_at ),
-          sales_site_visits ( id, scheduled_at, status, outcome )
-        )
+        profiles ( name )
       `
       )
       .order('created_at', { ascending: false })
@@ -142,9 +133,8 @@ function InquiryPageContent() {
     let qualified = 0;
     let converted = 0;
     for (const inq of inquiries) {
-      const opp = embedOne(inq.sales_opportunities);
-      const s = String(opp?.funnel_stage || '').trim();
-      if (!opp || s === 'Enquiry') newLeads++;
+      const s = String(inq.funnel_stage || '').trim();
+      if (!s || s === 'Enquiry') newLeads++;
       else if (s === 'Qualified') qualified++;
       else if (s === 'Won' || s === 'Booking') converted++;
     }
@@ -206,7 +196,7 @@ function InquiryPageContent() {
             {
               title: 'New',
               value: kpiStats.newLeads,
-              hint: 'Enquiry or no opportunity',
+              hint: 'Enquiry stage',
               href: '/crm/inquiry/list?stage=new',
               ariaLabel: 'Open list filtered to new enquiries'
             },
@@ -359,8 +349,7 @@ function InquiryPageContent() {
             ) : (
               recentInquiriesPreview.map((inq) => {
                 const c = embedOne(inq.customers);
-                const stage =
-                  embedOne(inq.sales_opportunities)?.funnel_stage ?? '';
+                const stage = inq.funnel_stage ?? '';
                 const label = funnelStageLabel(stage);
                 const projectName = inquiryProjectLabel(inq);
                 return (

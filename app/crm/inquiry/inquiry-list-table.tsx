@@ -51,7 +51,7 @@ const globalInquiryFilter: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const source = String(inq.lead_source || '').toLowerCase();
   const ref = inquiryReference(inq.id).toLowerCase();
   const stage = String(
-    embedOne(inq.sales_opportunities)?.funnel_stage || ''
+    inq.funnel_stage || ''
   ).toLowerCase();
   const project = inquiryProjectLabel(inq).toLowerCase();
   const unitLabel = inquiryUnitLabelFromRow(inq).toLowerCase();
@@ -75,7 +75,7 @@ const equalsOrAll: FilterFn<InquiryRowDb> = (row, columnId, raw) => {
   return String(row.getValue(columnId) ?? '').trim() === v;
 };
 
-/** Matches dashboard KPI tiles: Enquiry or missing opportunity. */
+/** Matches dashboard KPI tiles: Enquiry stage. */
 const STAGE_FILTER_NEW_LEADS = '__new_leads__';
 /** Matches dashboard “Converted” KPI: Won or Booking. */
 const STAGE_FILTER_CONVERTED = '__converted__';
@@ -84,13 +84,12 @@ const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const v = String(raw ?? '').trim();
   if (!v || v === '__all__') return true;
   const inq = row.original;
-  const opp = embedOne(inq.sales_opportunities);
-  const stage = String(opp?.funnel_stage || '').trim();
+  const stage = String(inq.funnel_stage || '').trim();
   if (v === STAGE_FILTER_CONVERTED) {
     return stage === 'Won' || stage === 'Booking';
   }
   if (v === STAGE_FILTER_NEW_LEADS) {
-    return !opp || stage === 'Enquiry';
+    return !stage || stage === 'Enquiry';
   }
   const display = stage || '—';
   return display === v;
@@ -165,7 +164,7 @@ export function InquiryListTable({
     const fromData = new Set<string>();
     for (const inq of inquiries) {
       const s = String(
-        embedOne(inq.sales_opportunities)?.funnel_stage || ''
+        inq.funnel_stage || ''
       ).trim();
       if (s) fromData.add(s);
     }
@@ -246,7 +245,7 @@ export function InquiryListTable({
         id: 'funnelStage',
         header: 'Stage',
         accessorFn: (row) =>
-          String(embedOne(row.sales_opportunities)?.funnel_stage || '').trim() ||
+          String(row.funnel_stage || '').trim() ||
           '—',
         filterFn: funnelStageFilterFn,
         cell: ({ getValue }) => {
@@ -306,36 +305,6 @@ export function InquiryListTable({
             {String(getValue())}
           </span>
         )
-      },
-      {
-        id: 'parking',
-        header: 'Parking',
-        accessorFn: (row) =>
-          row.parking_required === 'Yes'
-            ? `Yes × ${row.parking_count}`
-            : 'No',
-        cell: ({ row }) => {
-          const inq = row.original;
-          return (
-            <div className="text-xs">
-              <span className="font-medium">
-                {inq.parking_required === 'Yes'
-                  ? `Ask × ${inq.parking_count}`
-                  : 'No'}
-              </span>
-              {inq.parking_slots_available != null &&
-              inq.parking_slots_available > 0 ? (
-                <div className="mt-0.5 text-[10px] text-muted-foreground">
-                  At save: {inq.parking_slots_available}
-                  {inq.parking_rate_snapshot != null &&
-                  inq.parking_rate_snapshot > 0
-                    ? ` @ ₹${inq.parking_rate_snapshot.toLocaleString('en-IN')}`
-                    : ''}
-                </div>
-              ) : null}
-            </div>
-          );
-        }
       },
       {
         id: 'seller',
@@ -471,7 +440,7 @@ export function InquiryListTable({
               <SelectContent>
                 <SelectItem value="__all__">All stages</SelectItem>
                 <SelectItem value={STAGE_FILTER_NEW_LEADS}>
-                  New (Enquiry / no opportunity)
+                  New (Enquiry)
                 </SelectItem>
                 <SelectItem value={STAGE_FILTER_CONVERTED}>
                   Converted (Won and Booking)

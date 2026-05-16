@@ -3,7 +3,7 @@ import {
 } from '../inventory/unit-status';
 import { targetUnitStatusForFunnelStage } from './inquiry-stage-transitions';
 
-/** Order matches `sales_opportunities.funnel_stage` DB check constraint. */
+/** Order matches `sales_inquiries.funnel_stage` DB check constraint. */
 export const INQUIRY_FUNNEL_STAGE_ORDER = [
   'Enquiry',
   'Qualified',

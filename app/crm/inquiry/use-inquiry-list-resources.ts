@@ -16,24 +16,15 @@ const INQUIRY_SELECT = `
   broker_id,
   brokers ( full_name ),
   interested_in,
-  parking_required,
-  parking_count,
-  parking_slots_available,
-  parking_rate_snapshot,
   notes,
+  funnel_stage,
+  assigned_to,
+  stage_data,
   customer_id,
   unit_id,
   customers ( full_name, phone, email ),
   units ( unit_code, wing_name, project_id, projects ( name ) ),
-  profiles ( name ),
-  sales_opportunities (
-    id,
-    funnel_stage,
-    assigned_to,
-    sales_pipeline_stages ( id, stage, payload, updated_at ),
-    sales_follow_ups ( id, due_at, note, completed_at ),
-    sales_site_visits ( id, scheduled_at, status, outcome )
-  )
+  profiles ( name )
 `;
 
 function mapUnitLabelFromDb(row: Record<string, unknown>): UnitLabelRow {
@@ -116,10 +107,10 @@ export function useInquiryListResources() {
         inquiryRef: inquiryReference(inq.id),
         customerId: inq.customer_id,
         unitId: inq.unit_id,
-        parkingRequired: inq.parking_required === 'Yes' ? 'Yes' : 'No',
-        parkingCount: inq.parking_count,
-        parkingSlotsAvailable: inq.parking_slots_available,
-        parkingRateSnapshot: inq.parking_rate_snapshot
+        parkingRequired: 'No',
+        parkingCount: '1',
+        parkingSlotsAvailable: null,
+        parkingRateSnapshot: null
       });
       router.push('/crm/bookings');
     },

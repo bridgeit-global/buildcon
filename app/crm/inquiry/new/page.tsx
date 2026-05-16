@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
 import {
   InquiryPipelinePanel,
-  type OpportunityRow
+  type InquiryPipelineRow
 } from '../inquiry-pipeline-dialog';
 import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
 
@@ -20,15 +20,12 @@ import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
 type InquiryFetchRow = {
   id: string;
   unit_id: string;
+  funnel_stage: string;
+  assigned_to: string | null;
+  stage_data: InquiryPipelineRow['stage_data'];
   customers: { full_name: string } | null;
   units: { unit_code: string; status?: string | null } | null;
-  sales_opportunities: OpportunityRow | OpportunityRow[] | null;
 };
-
-function embedOne<T>(x: T | T[] | null | undefined): T | null {
-  if (x == null) return null;
-  return Array.isArray(x) ? (x[0] ?? null) : x;
-}
 
 // ─── New enquiry: 3 macro steps (pipeline sub-stages live in InquiryPipelinePanel) ─
 
@@ -147,7 +144,7 @@ function NewInquiryPageInner() {
   const [wizardStep, setWizardStep] = useState(1);
   const [phase, setPhase] = useState<'create' | 'pipeline'>('create');
   const [loadingPipeline, setLoadingPipeline] = useState(false);
-  const [opportunity, setOpportunity] = useState<OpportunityRow | null>(null);
+  const [inquiry, setInquiry] = useState<InquiryPipelineRow | null>(null);
   const [funnelStage, setFunnelStage] = useState('Enquiry');
   const [unitStatus, setUnitStatus] = useState<string | null>(null);
   const [inquiryId, setInquiryId] = useState('');
@@ -158,7 +155,7 @@ function NewInquiryPageInner() {
   const [resumeError, setResumeError] = useState(false);
   const prevResumeInquiryRef = useRef('');
 
-  const loadOpportunity = useCallback(
+  const loadInquiry = useCallback(
     async (id: string): Promise<boolean> => {
       const { data } = await supabase
         .from('sales_inquiries')
@@ -166,15 +163,11 @@ function NewInquiryPageInner() {
           `
           id,
           unit_id,
+          funnel_stage,
+          assigned_to,
+          stage_data,
           customers ( full_name ),
-          units ( unit_code, status ),
-          sales_opportunities (
-            id,
-            funnel_stage,
-            assigned_to,
-            sales_pipeline_stages ( id, stage, payload, updated_at ),
-            sales_follow_ups ( id, due_at, note, completed_at )
-          )
+          units ( unit_code, status )
         `
         )
         .eq('id', id)
@@ -182,9 +175,13 @@ function NewInquiryPageInner() {
 
       if (!data) return false;
       const row = data as unknown as InquiryFetchRow;
-      const opp = embedOne(row.sales_opportunities);
-      setOpportunity(opp);
-      if (opp?.funnel_stage) setFunnelStage(opp.funnel_stage);
+      setInquiry({
+        id: row.id,
+        funnel_stage: row.funnel_stage,
+        assigned_to: row.assigned_to,
+        stage_data: row.stage_data
+      });
+      if (row.funnel_stage) setFunnelStage(row.funnel_stage);
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
@@ -202,7 +199,7 @@ function NewInquiryPageInner() {
       if (prevResumeInquiryRef.current) {
         setPhase('create');
         setInquiryId('');
-        setOpportunity(null);
+        setInquiry(null);
         setWizardStep(1);
         setFunnelStage('Enquiry');
         setCustomerName('');
@@ -219,7 +216,7 @@ function NewInquiryPageInner() {
     setResumeError(false);
 
     void (async () => {
-      const ok = await loadOpportunity(resumeInquiryId);
+      const ok = await loadInquiry(resumeInquiryId);
       if (cancelled) return;
       if (ok) {
         setInquiryId(resumeInquiryId);
@@ -227,7 +224,7 @@ function NewInquiryPageInner() {
         setWizardStep(2);
       } else {
         setResumeError(true);
-        setOpportunity(null);
+        setInquiry(null);
         setInquiryId('');
         setPhase('create');
         setWizardStep(1);
@@ -243,17 +240,17 @@ function NewInquiryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [resumeInquiryId, loadOpportunity]);
+  }, [resumeInquiryId, loadInquiry]);
 
   const handleInquiryCreated = useCallback(
     async (id: string) => {
       setInquiryId(id);
       setLoadingPipeline(true);
-      await loadOpportunity(id);
+      await loadInquiry(id);
       setLoadingPipeline(false);
       setPhase('pipeline');
     },
-    [loadOpportunity]
+    [loadInquiry]
   );
 
   const pipelineUnitStageNote = useMemo(
@@ -273,7 +270,6 @@ function NewInquiryPageInner() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Back navigation */}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" className="gap-1 px-2" asChild>
           <Link href="/crm/inquiry">
@@ -284,7 +280,6 @@ function NewInquiryPageInner() {
       </div>
 
       <Card className="overflow-hidden border-slate-200/90 p-0 shadow-sm">
-        {/* ── Card header ─────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border bg-muted/20 px-4 py-3 sm:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -299,14 +294,12 @@ function NewInquiryPageInner() {
           <PhaseBadge phase={phase} />
         </div>
 
-        {/* ── Macro progress (Customer → Unit → Enquiry); pipeline detail is in the panel ─ */}
         {phase === 'create' ? (
           <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
             <FlowProgress wizardStep={wizardStep} />
           </div>
         ) : null}
 
-        {/* ── Content area ─────────────────────────────────────────────────── */}
         <div className="px-4 py-4 sm:px-6">
           {resuming ? (
             <div className="flex flex-col items-center gap-3 py-10 text-center">
@@ -354,7 +347,7 @@ function NewInquiryPageInner() {
                 </div>
               ) : null}
               <InquiryPipelinePanel
-                opportunity={opportunity}
+                inquiry={inquiry}
                 unitId={inquiryUnitId || null}
                 unitStatus={unitStatus}
                 inquiryContext={{
@@ -362,7 +355,7 @@ function NewInquiryPageInner() {
                   unitCode: unitCode || undefined
                 }}
                 onSaved={() => {
-                  if (inquiryId) void loadOpportunity(inquiryId);
+                  if (inquiryId) void loadInquiry(inquiryId);
                 }}
                 onClose={() => router.push('/crm/inquiry')}
               />

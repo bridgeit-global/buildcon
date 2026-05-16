@@ -20,6 +20,7 @@ import {
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
 import { statusLabelForUnit } from '../inventory/inventory-utils';
+import type { InquiryStageData } from './inquiry-types';
 
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ export const FUNNEL_STAGES = [
 ] as const;
 type FunnelStage = (typeof FUNNEL_STAGES)[number];
 
-/** First five funnel columns: one DB row per stage in `sales_pipeline_stages`. */
+/** First five funnel columns; payloads stored in `sales_inquiries.stage_data`. */
 const PIPELINE_ANCHOR_STAGES = [
   'Enquiry',
   'Qualified',
@@ -104,7 +105,7 @@ function macroStepIndex(m: PipelineMacroStep) {
   return MACRO_STEPS.findIndex((s) => s.id === m);
 }
 
-// ─── In-memory stage form shape (persisted as `sales_pipeline_stages.payload`) ─
+// ─── In-memory stage form shape (persisted in `sales_inquiries.stage_data`) ───
 
 type EnquiryStageData = {
   follow_up_date?: string;
@@ -148,32 +149,17 @@ type StageData = {
   token?: TokenStageData;
 };
 
-// ─── Row type ─────────────────────────────────────────────────────────────────
+// ─── Inquiry pipeline row ─────────────────────────────────────────────────────
 
-type FollowRow = {
-  id: string;
-  due_at: string;
-  note: string | null;
-  completed_at: string | null;
-};
-
-type PipelineStageRowDb = {
-  id: string;
-  stage: string;
-  payload: Record<string, unknown> | null;
-  updated_at?: string;
-};
-
-export type OpportunityRow = {
+export type InquiryPipelineRow = {
   id: string;
   funnel_stage: string;
   assigned_to: string | null;
-  sales_pipeline_stages?:
-    | PipelineStageRowDb[]
-    | PipelineStageRowDb
-    | null;
-  sales_follow_ups?: FollowRow[] | FollowRow | null;
+  stage_data: InquiryStageData | Record<string, unknown> | null;
 };
+
+/** @deprecated Use InquiryPipelineRow */
+export type OpportunityRow = InquiryPipelineRow;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -187,43 +173,32 @@ function emptyStageData(): StageData {
   };
 }
 
-function embedList<T>(x: T | T[] | null | undefined): T[] {
-  if (x == null) return [];
-  return Array.isArray(x) ? x : [x];
-}
-
-function mergeStageDataFromPipelineRows(
-  rows: PipelineStageRowDb[] | null | undefined
+function mergeStageDataFromJson(
+  raw: InquiryStageData | Record<string, unknown> | null | undefined
 ): StageData {
   const base = emptyStageData();
-  if (!rows?.length) return base;
-  for (const r of rows) {
-    const raw = r.payload;
-    const patch =
-      raw && typeof raw === 'object' && !Array.isArray(raw)
-        ? (raw as Record<string, unknown>)
-        : {};
-    switch (r.stage) {
-      case 'Enquiry':
-        base.enquiry = { ...base.enquiry, ...patch };
-        break;
-      case 'Qualified':
-        base.qualified = { ...base.qualified, ...patch };
-        break;
-      case 'Site Visit':
-        base.site_visit = { ...base.site_visit, ...patch };
-        break;
-      case 'Negotiation':
-        base.negotiation = { ...base.negotiation, ...patch };
-        break;
-      case 'Token':
-        base.token = { ...base.token, ...patch };
-        break;
-      default:
-        break;
-    }
-  }
-  return base;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
+  const r = raw as InquiryStageData;
+  return {
+    enquiry: { ...base.enquiry, ...(r.enquiry as EnquiryStageData) },
+    qualified: { ...base.qualified, ...(r.qualified as QualifiedStageData) },
+    site_visit: { ...base.site_visit, ...(r.site_visit as SiteVisitStageData) },
+    negotiation: {
+      ...base.negotiation,
+      ...(r.negotiation as NegotiationStageData)
+    },
+    token: { ...base.token, ...(r.token as TokenStageData) }
+  };
+}
+
+function stageDataToJson(data: StageData): InquiryStageData {
+  return {
+    enquiry: data.enquiry ?? {},
+    qualified: data.qualified ?? {},
+    site_visit: data.site_visit ?? {},
+    negotiation: data.negotiation ?? {},
+    token: data.token ?? {}
+  };
 }
 
 // ─── Shared toggle helper ─────────────────────────────────────────────────────
@@ -795,7 +770,9 @@ type InquiryPipelineInquiryContext = {
 };
 
 export function InquiryPipelinePanel(props: {
-  opportunity: OpportunityRow | null;
+  inquiry: InquiryPipelineRow | null;
+  /** @deprecated Use `inquiry` */
+  opportunity?: InquiryPipelineRow | null;
   /** Read-only enquiry record labels (customer + unit live on `sales_inquiries`). */
   inquiryContext?: InquiryPipelineInquiryContext;
   /** `sales_inquiries.unit_id` — when set, inventory `units.status` is updated from the saved funnel stage. */
@@ -804,8 +781,8 @@ export function InquiryPipelinePanel(props: {
   onSaved: () => void;
   onClose: () => void;
 }) {
-  const { opportunity, inquiryContext, unitId, unitStatus, onSaved, onClose } =
-    props;
+  const inquiry = props.inquiry ?? props.opportunity ?? null;
+  const { inquiryContext, unitId, unitStatus, onSaved, onClose } = props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
@@ -815,19 +792,15 @@ export function InquiryPipelinePanel(props: {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
-  const pipelineClosed = opportunity?.funnel_stage === 'Lost';
+  const pipelineClosed = inquiry?.funnel_stage === 'Lost';
 
   useEffect(() => {
-    if (!opportunity) return;
-    const fs = opportunity.funnel_stage ?? 'Enquiry';
+    if (!inquiry) return;
+    const fs = inquiry.funnel_stage ?? 'Enquiry';
     if (fs === 'Lost') {
       setActiveStage('Site Visit');
       setMacroStep('enquiry');
-      setStageData(
-        mergeStageDataFromPipelineRows(
-          embedList(opportunity.sales_pipeline_stages)
-        )
-      );
+      setStageData(mergeStageDataFromJson(inquiry.stage_data));
       setError('');
       setSaved(false);
       return;
@@ -836,17 +809,13 @@ export function InquiryPipelinePanel(props: {
     const inPipeline = PIPELINE_STEPS.some((p) => p.id === currentStage);
     setActiveStage(inPipeline ? currentStage : 'Qualified');
     setMacroStep('enquiry');
-    setStageData(
-      mergeStageDataFromPipelineRows(
-        embedList(opportunity.sales_pipeline_stages)
-      )
-    );
+    setStageData(mergeStageDataFromJson(inquiry.stage_data));
     setError('');
     setSaved(false);
-  }, [opportunity]);
+  }, [inquiry]);
 
   async function save(nextStage?: FunnelStage) {
-    if (!opportunity) return;
+    if (!inquiry) return;
     setSaving(true);
     setError('');
     setSaved(false);
@@ -863,29 +832,13 @@ export function InquiryPipelinePanel(props: {
       }
 
       const { error: uErr } = await supabase
-        .from('sales_opportunities')
+        .from('sales_inquiries')
         .update({
-          funnel_stage: targetStage
+          funnel_stage: targetStage,
+          stage_data: stageDataToJson(stageData)
         })
-        .eq('id', opportunity.id);
+        .eq('id', inquiry.id);
       if (uErr) throw uErr;
-
-      const payloadByStage: Record<PipelineAnchorStage, object> = {
-        Enquiry: stageData.enquiry ?? {},
-        Qualified: stageData.qualified ?? {},
-        'Site Visit': stageData.site_visit ?? {},
-        Negotiation: stageData.negotiation ?? {},
-        Token: stageData.token ?? {}
-      };
-      const stageRows = PIPELINE_STEPS.map(({ id }) => ({
-        opportunity_id: opportunity.id,
-        stage: id,
-        payload: payloadByStage[id]
-      }));
-      const { error: pErr } = await supabase
-        .from('sales_pipeline_stages')
-        .upsert(stageRows, { onConflict: 'opportunity_id,stage' });
-      if (pErr) throw pErr;
       if (nextStage) setActiveStage(nextStage);
       setSaved(true);
       onSaved();
@@ -904,29 +857,18 @@ export function InquiryPipelinePanel(props: {
   }
 
   async function handleCloseLost() {
-    if (!opportunity) return;
+    if (!inquiry) return;
     setSaving(true);
     setError('');
     try {
-      const payloadByStage: Record<PipelineAnchorStage, object> = {
-        Enquiry: stageData.enquiry ?? {},
-        Qualified: stageData.qualified ?? {},
-        'Site Visit': stageData.site_visit ?? {},
-        Negotiation: stageData.negotiation ?? {},
-        Token: stageData.token ?? {}
-      };
-      const stageRows = PIPELINE_STEPS.map(({ id }) => ({
-        opportunity_id: opportunity.id,
-        stage: id,
-        payload: payloadByStage[id]
-      }));
       const { error: pErr } = await supabase
-        .from('sales_pipeline_stages')
-        .upsert(stageRows, { onConflict: 'opportunity_id,stage' });
+        .from('sales_inquiries')
+        .update({ stage_data: stageDataToJson(stageData) })
+        .eq('id', inquiry.id);
       if (pErr) throw pErr;
 
       const result = await closeInquiryAsLost(supabase, {
-        opportunityId: opportunity.id,
+        inquiryId: inquiry.id,
         unitId: unitId ?? null
       });
       if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
@@ -942,12 +884,11 @@ export function InquiryPipelinePanel(props: {
   const isLastPipelineStage =
     stageIndex(activeStage) === PIPELINE_STEPS.length - 1;
 
-  if (!opportunity) {
+  if (!inquiry) {
     return (
       <>
         <p className="text-sm text-muted-foreground">
-          No opportunity row linked to this inquiry. Save the inquiry again or
-          refresh after migration.
+          Enquiry not found. Refresh the page or open it from the enquiry list.
         </p>
         <div className="flex justify-end pt-2">
           <Button variant="outline" onClick={onClose}>

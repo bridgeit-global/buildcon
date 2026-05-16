@@ -454,10 +454,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           lead_source: sellerForm.leadSource,
           broker_id: brokerId,
           interested_in: sellerForm.interestedIn.trim() || null,
-          parking_required: sellerForm.parkingRequired,
-          parking_count: sellerForm.parkingCount,
-          parking_slots_available: projectParking?.parking_slots ?? null,
-          parking_rate_snapshot: projectParking?.parking_rate ?? null,
           notes: sellerForm.notes.trim() || null,
           created_by: userLabel.id
         })
@@ -469,12 +465,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
       const inquiryId = (inserted as { id: string }).id;
 
-      const { data: oppRow } = await supabase
-        .from('sales_opportunities')
-        .select('id')
-        .eq('sales_inquiry_id', inquiryId)
-        .maybeSingle();
-
       const qualifiedNotes = [
         sellerForm.interestedIn.trim()
           ? `Interested in: ${sellerForm.interestedIn.trim()}`
@@ -484,34 +474,25 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         .filter(Boolean)
         .join('\n');
 
-      if (oppRow?.id) {
-        const qualResult = await qualifyInquiryWithUnit(supabase, {
-          opportunityId: oppRow.id,
-          unitId: sellerForm.selectedUnitId,
-          qualifiedPayload: {
-            budget_min: sellerForm.budgetMin.trim() || undefined,
-            budget_max: sellerForm.budgetMax.trim() || undefined,
-            notes: qualifiedNotes || undefined
-          }
-        });
-        if (!qualResult.ok) {
-          throw new Error(qualResult.error ?? 'Failed to qualify enquiry');
-        }
+      const enquiryPayload = {
+        cost_sheet_notes: sellerForm.notes.trim() || undefined,
+        notes: sellerForm.interestedIn.trim() || undefined
+      };
 
-        const enquiryPayload = {
-          cost_sheet_notes: sellerForm.notes.trim() || undefined,
-          notes: sellerForm.interestedIn.trim() || undefined
-        };
-        if (Object.values(enquiryPayload).some(Boolean)) {
-          await supabase.from('sales_pipeline_stages').upsert(
-            {
-              opportunity_id: oppRow.id,
-              stage: 'Enquiry',
-              payload: enquiryPayload
-            },
-            { onConflict: 'opportunity_id,stage' }
-          );
-        }
+      const qualResult = await qualifyInquiryWithUnit(supabase, {
+        inquiryId,
+        unitId: sellerForm.selectedUnitId,
+        qualifiedPayload: {
+          budget_min: sellerForm.budgetMin.trim() || undefined,
+          budget_max: sellerForm.budgetMax.trim() || undefined,
+          notes: qualifiedNotes || undefined
+        },
+        enquiryPayload: Object.values(enquiryPayload).some(Boolean)
+          ? enquiryPayload
+          : undefined
+      });
+      if (!qualResult.ok) {
+        throw new Error(qualResult.error ?? 'Failed to qualify enquiry');
       }
 
       if (onCreated) {
