@@ -5,92 +5,192 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
-import { FUNNEL_STAGES } from '../inquiry/inquiry-pipeline-dialog';
-import { UNIT_STATUS_CODES, STATUS_LABEL } from '../inventory/inventory-utils';
+import { formatInrCompactLacCr } from '../inr-format';
+import { formatFloorLabel } from '../inventory/inventory-utils';
+import {
+  ChartPanel,
+  DashboardWorkflowCta,
+  FinCard,
+  STAT_CARD_ICONS,
+  StatCard
+} from './dashboard-widgets';
+import {
+  InventoryDonutChart,
+  MonthlyCollectionsBarChart,
+  SalesVsCollectionsLineChart
+} from './dashboard-charts';
+import {
+  countInventoryBuckets,
+  inrToCrLabel,
+  monthKeyFromIsoDate,
+  recentMonthKeys,
+  salesVsCollectionsSeries,
+  seriesFromMonthMap,
+  type InventoryBuckets,
+  type MonthPoint,
+  type SalesVsCollPoint
+} from './dashboard-utils';
 
-type FunnelCounts = Record<string, number>;
+type RecentBooking = {
+  id: string;
+  booking_amount: number | null;
+  units:
+    | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }
+    | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }[]
+    | null;
+  customers:
+    | { full_name: string }
+    | { full_name: string }[]
+    | null;
+};
+
+function unwrapJoin<T>(v: T | T[] | null | undefined): T | null {
+  if (v == null) return null;
+  return Array.isArray(v) ? v[0] ?? null : v;
+}
+
+function unitDisplayLine(
+  u: { unit_code: string; wing_name: string; floor: number; unit_type: string | null } | null
+) {
+  if (!u) return '—';
+  const floor = formatFloorLabel(u.floor, u.unit_type);
+  return `${u.unit_code} · ${u.wing_name} · ${floor}`;
+}
+
+function ChartLoading() {
+  return (
+    <div className="flex h-[220px] items-center justify-center text-xs text-ds-gray-400">
+      Loading…
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { activeProjectId } = useActiveProjectContext();
 
-  const [funnel, setFunnel] = useState<FunnelCounts>({});
-  const [inventoryMix, setInventoryMix] = useState<Record<string, number>>({});
-  const [collections30d, setCollections30d] = useState<number>(0);
-  const [overdueLines, setOverdueLines] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [buckets, setBuckets] = useState<InventoryBuckets>({
+    available: 0,
+    booked: 0,
+    sold: 0,
+    blocked: 0
+  });
+  const [totalInventory, setTotalInventory] = useState(0);
+  const [totalSalesInr, setTotalSalesInr] = useState(0);
+  const [totalCollectionsInr, setTotalCollectionsInr] = useState(0);
+  const [overdueInr, setOverdueInr] = useState(0);
+  const [monthlyCollections, setMonthlyCollections] = useState<MonthPoint[]>([]);
+  const [salesVsCollections, setSalesVsCollections] = useState<SalesVsCollPoint[]>([]);
+  const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
 
   const load = useCallback(async () => {
     if (!activeProjectId) {
-      setFunnel({});
-      setInventoryMix({});
-      setCollections30d(0);
-      setOverdueLines(0);
+      setBuckets({ available: 0, booked: 0, sold: 0, blocked: 0 });
+      setTotalInventory(0);
+      setTotalSalesInr(0);
+      setTotalCollectionsInr(0);
+      setOverdueInr(0);
+      setMonthlyCollections([]);
+      setSalesVsCollections([]);
+      setRecentBookings([]);
       return;
     }
+
     setLoading(true);
     setError('');
+
     try {
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-      const sinceIso = since.toISOString().slice(0, 10);
+      const monthKeys = recentMonthKeys(12);
 
-      const { data: bookingRows, error: bErr } = await supabase
-        .from('bookings')
-        .select('id')
-        .eq('project_id', activeProjectId);
-      if (bErr) throw bErr;
-      const bookingIds = (bookingRows ?? []).map((r: { id: string }) => r.id);
-
-      let collSum = 0;
-      if (bookingIds.length) {
-        const { data: collRows, error: cErr } = await supabase
-          .from('collections')
-          .select('received_amount, received_at')
-          .in('booking_id', bookingIds)
-          .gte('received_at', sinceIso);
-        if (cErr) throw cErr;
-        (collRows ?? []).forEach((r: { received_amount: number | null }) => {
-          collSum += Number(r.received_amount) || 0;
-        });
-      }
-
-      const [oppRes, unitsRes, ovdRes] = await Promise.all([
-        supabase
-          .from('sales_opportunities')
-          .select('funnel_stage')
-          .eq('project_id', activeProjectId),
+      const [unitsRes, bookingsRes, recentRes, overdueRes] = await Promise.all([
         supabase.from('units').select('status').eq('project_id', activeProjectId),
+        supabase.from('bookings').select('id').eq('project_id', activeProjectId),
+        supabase
+          .from('bookings')
+          .select(
+            `
+            id,
+            booking_amount,
+            units ( unit_code, wing_name, floor, unit_type ),
+            customers ( full_name )
+          `
+          )
+          .eq('project_id', activeProjectId)
+          .order('created_at', { ascending: false })
+          .limit(5),
         supabase
           .from('v_payment_schedule_outstanding')
-          .select('schedule_id', { count: 'exact', head: true })
+          .select('outstanding_amount')
           .eq('project_id', activeProjectId)
           .eq('is_overdue', true)
       ]);
 
-      if (oppRes.error) throw oppRes.error;
       if (unitsRes.error) throw unitsRes.error;
-      if (ovdRes.error) throw ovdRes.error;
+      if (bookingsRes.error) throw bookingsRes.error;
+      if (recentRes.error) throw recentRes.error;
+      if (overdueRes.error) throw overdueRes.error;
 
-      const fc: FunnelCounts = {};
-      for (const s of FUNNEL_STAGES) fc[s] = 0;
-      (oppRes.data ?? []).forEach((r: { funnel_stage: string }) => {
-        const k = r.funnel_stage;
-        if (fc[k] !== undefined) fc[k]++;
-        else fc[k] = 1;
-      });
-      setFunnel(fc);
+      const statuses = (unitsRes.data ?? []).map((r: { status: string }) => r.status);
+      const inv = countInventoryBuckets(statuses);
+      setBuckets(inv);
+      setTotalInventory(statuses.length);
 
-      const mix: Record<string, number> = {};
-      for (const k of UNIT_STATUS_CODES) mix[k] = 0;
-      (unitsRes.data ?? []).forEach((r: { status: string }) => {
-        if (mix[r.status] !== undefined) mix[r.status]++;
-      });
-      setInventoryMix(mix);
+      const overdueSum = (overdueRes.data ?? []).reduce(
+        (s, r: { outstanding_amount: number }) => s + (Number(r.outstanding_amount) || 0),
+        0
+      );
+      setOverdueInr(overdueSum);
 
-      setCollections30d(collSum);
-      setOverdueLines(ovdRes.count ?? 0);
+      setRecentBookings((recentRes.data ?? []) as RecentBooking[]);
+
+      const bookingIds = (bookingsRes.data ?? []).map((r: { id: string }) => r.id);
+
+      if (!bookingIds.length) {
+        setTotalSalesInr(0);
+        setTotalCollectionsInr(0);
+        setMonthlyCollections(seriesFromMonthMap(monthKeys, {}));
+        setSalesVsCollections(salesVsCollectionsSeries(monthKeys, {}, {}));
+        return;
+      }
+
+      const [schedRes, collRes] = await Promise.all([
+        supabase
+          .from('payment_schedules')
+          .select('amount,due_date')
+          .in('booking_id', bookingIds),
+        supabase
+          .from('collections')
+          .select('received_amount,received_at')
+          .in('booking_id', bookingIds)
+      ]);
+
+      if (schedRes.error) throw schedRes.error;
+      if (collRes.error) throw collRes.error;
+
+      let salesTotal = 0;
+      const salesByMonth: Record<string, number> = {};
+      for (const row of schedRes.data ?? []) {
+        const amt = Number((row as { amount: number }).amount) || 0;
+        salesTotal += amt;
+        const key = monthKeyFromIsoDate((row as { due_date: string | null }).due_date);
+        if (key) salesByMonth[key] = (salesByMonth[key] ?? 0) + amt;
+      }
+
+      let collTotal = 0;
+      const collByMonth: Record<string, number> = {};
+      for (const row of collRes.data ?? []) {
+        const amt = Number((row as { received_amount: number }).received_amount) || 0;
+        collTotal += amt;
+        const key = monthKeyFromIsoDate((row as { received_at: string | null }).received_at);
+        if (key) collByMonth[key] = (collByMonth[key] ?? 0) + amt;
+      }
+
+      setTotalSalesInr(salesTotal);
+      setTotalCollectionsInr(collTotal);
+      setMonthlyCollections(seriesFromMonthMap(monthKeys, collByMonth));
+      setSalesVsCollections(salesVsCollectionsSeries(monthKeys, salesByMonth, collByMonth));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dashboard');
     } finally {
@@ -102,14 +202,15 @@ export default function DashboardPage() {
     void load();
   }, [load]);
 
-  const funnelTotal = useMemo(
-    () => Object.values(funnel).reduce((a, b) => a + b, 0),
-    [funnel]
-  );
+  const totalReceivablesInr = Math.max(0, totalSalesInr - totalCollectionsInr);
+  const collectionsPct =
+    totalSalesInr > 0
+      ? ((totalCollectionsInr / totalSalesInr) * 100).toFixed(2)
+      : '0';
 
   if (!activeProjectId) {
     return (
-      <Card className="p-4 text-sm text-muted-foreground">
+      <Card className="rounded-xl border border-ds-gray-200 p-4 text-sm text-ds-gray-500">
         Select a project to see the dashboard.
       </Card>
     );
@@ -118,98 +219,153 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-4">
       {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-xl border border-ds-error-200 bg-ds-error-50 p-3 text-sm text-ds-error-700">
           {error}
         </div>
       ) : null}
 
-      <Card className="border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-blue-900/80">
-          Next actions
-        </div>
-        <p className="mt-1 text-[11px] text-blue-900/60">
-          Jump to daily follow-up, inventory matrix, finance, or leads.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link
-            href="/crm/work"
-            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
-          >
-            Work queue
-          </Link>
-          <Link
-            href="/crm/inquiry"
-            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
-          >
-            Leads & pipeline
-          </Link>
-          <Link
-            href="/crm/inventory"
-            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
-          >
-            Inventory grid
-          </Link>
-          <Link
-            href="/crm/financials#crm-financials-overdue"
-            className="inline-flex rounded-md border border-blue-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-blue-800 shadow-sm hover:bg-blue-50"
-          >
-            Overdue demands
-          </Link>
-        </div>
-      </Card>
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Total Inventory"
+          value={loading ? '…' : totalInventory}
+          unit="Units"
+          sub="All units in project"
+          accent="primary"
+          variant="filled"
+          icon={STAT_CARD_ICONS.inventory}
+          href="/crm/inventory"
+        />
+        <StatCard
+          label="Booked Units"
+          value={loading ? '…' : buckets.booked}
+          unit="Units"
+          sub="Pipeline"
+          accent="warning"
+          icon={STAT_CARD_ICONS.booked}
+          href="/crm/bookings"
+        />
+        <StatCard
+          label="Sold Units"
+          value={loading ? '…' : buckets.sold}
+          unit="Units"
+          sub="Registered & beyond"
+          accent="success"
+          icon={STAT_CARD_ICONS.sold}
+          href="/crm/inventory"
+        />
+        <StatCard
+          label="Available Units"
+          value={loading ? '…' : buckets.available}
+          unit="Units"
+          sub="Open inventory"
+          accent="accent"
+          icon={STAT_CARD_ICONS.available}
+          href="/crm/inventory"
+        />
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Pipeline (opportunities)
-          </div>
-          <div className="mt-2 text-2xl font-bold tabular-nums">
-            {loading ? '…' : funnelTotal}
-          </div>
-          <div className="mt-3 max-h-40 space-y-1 overflow-y-auto text-[11px] text-muted-foreground">
-            {FUNNEL_STAGES.map((s) => (
-              <div key={s} className="flex justify-between gap-2">
-                <span>{s}</span>
-                <span className="font-semibold text-foreground">
-                  {funnel[s] ?? 0}
-                </span>
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <FinCard
+          label="Total Sales Value"
+          valueCr={loading ? '—' : inrToCrLabel(totalSalesInr)}
+          sub="Scheduled demand"
+          tone="primary"
+          href="/crm/reports"
+        />
+        <FinCard
+          label="Total Collections"
+          valueCr={loading ? '—' : inrToCrLabel(totalCollectionsInr)}
+          sub={`${collectionsPct}% of sales`}
+          tone="success"
+        />
+        <FinCard
+          label="Total Receivables"
+          valueCr={loading ? '—' : inrToCrLabel(totalReceivablesInr)}
+          sub="Open finance"
+          tone="warning"
+          href="/crm/financials"
+        />
+        <FinCard
+          label="Overdue Amount"
+          valueCr={loading ? '—' : inrToCrLabel(overdueInr)}
+          sub="Past due"
+          tone="destructive"
+          href="/crm/financials#crm-financials-overdue"
+        />
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <ChartPanel title="Sales vs Collections">
+            {loading ? (
+              <ChartLoading />
+            ) : (
+              <SalesVsCollectionsLineChart points={salesVsCollections} />
+            )}
+          </ChartPanel>
+
+          <ChartPanel title="Monthly Collections (₹)">
+            {loading ? (
+              <ChartLoading />
+            ) : (
+              <MonthlyCollectionsBarChart points={monthlyCollections} />
+            )}
+          </ChartPanel>
+
+          {recentBookings.length > 0 ? (
+            <Card className="overflow-hidden rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-ds-gray-800">Recent bookings</h2>
+                <Link
+                  href="/crm/bookings"
+                  className="min-h-9 shrink-0 text-[11px] font-semibold text-ds-primary-600 hover:text-ds-primary-700 hover:underline"
+                >
+                  View all →
+                </Link>
               </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Inventory mix
-          </div>
-          <div className="mt-3 max-h-44 space-y-1 overflow-y-auto text-[11px]">
-            {UNIT_STATUS_CODES.map((k) => {
-              const n = inventoryMix[k] ?? 0;
-              if (n === 0) return null;
-              return (
-                <div key={k} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">
-                    {STATUS_LABEL[k] ?? k}
-                  </span>
-                  <span className="font-semibold tabular-nums">{n}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Collections (30d)
-          </div>
-          <div className="mt-2 text-2xl font-bold tabular-nums">
-            {loading
-              ? '…'
-              : `₹ ${collections30d.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-          </div>
-          <div className="mt-3 text-xs text-muted-foreground">
-            Overdue schedule lines:{' '}
-            <span className="font-semibold text-foreground">{overdueLines}</span>
-          </div>
-        </Card>
+              <div className="-mx-1 overflow-x-auto">
+                <table className="w-full min-w-[480px] border-collapse text-[11px]">
+                  <thead>
+                    <tr className="text-left text-ds-gray-400">
+                      <th className="px-2 py-1.5 font-semibold">ID</th>
+                      <th className="px-2 py-1.5 font-semibold">Unit</th>
+                      <th className="px-2 py-1.5 font-semibold">Customer</th>
+                      <th className="px-2 py-1.5 text-right font-semibold">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentBookings.map((b) => {
+                      const u = unwrapJoin(b.units);
+                      const c = unwrapJoin(b.customers);
+                      const amt = Number(b.booking_amount) || 0;
+                      return (
+                        <tr key={b.id} className="border-t border-ds-gray-100">
+                          <td className="px-2 py-2 font-semibold text-ds-primary-700">
+                            {b.id}
+                          </td>
+                          <td className="px-2 py-2 text-ds-gray-500">{unitDisplayLine(u)}</td>
+                          <td className="px-2 py-2 text-ds-gray-800">
+                            {c?.full_name ?? '—'}
+                          </td>
+                          <td className="px-2 py-2 text-right font-semibold text-ds-success-600">
+                            {formatInrCompactLacCr(amt)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+
+        <aside className="flex min-w-0 flex-col gap-4">
+          <ChartPanel title="Inventory Status">
+            {loading ? <ChartLoading /> : <InventoryDonutChart buckets={buckets} />}
+          </ChartPanel>
+          <DashboardWorkflowCta />
+        </aside>
       </div>
     </div>
   );
