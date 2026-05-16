@@ -67,8 +67,6 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]['id'];
 
 type NewInquiryWizardProps = {
-  /** @deprecated Enquiry is tied to the selected unit’s project; prop is ignored. */
-  projectId?: string;
   onInquirySaved?: () => void | Promise<void>;
   /** Called with the new inquiry id after successful save (skips form reset). */
   onCreated?: (inquiryId: string) => void;

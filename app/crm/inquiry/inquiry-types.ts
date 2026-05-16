@@ -5,12 +5,20 @@ export type CustomerEmbed = {
   phone: string | null;
   email: string | null;
 };
-export type UnitEmbed = { unit_code: string; wing_name: string };
+export type ProjectEmbed = { name: string };
+export type UnitEmbed = {
+  unit_code: string;
+  wing_name: string;
+  project_id?: string;
+  projects?: ProjectEmbed | ProjectEmbed[] | null;
+};
 export type ProfileEmbed = { name: string | null };
 export type BrokerEmbed = { full_name: string };
 
 export type InquiryRowDb = {
   id: string;
+  project_id: string;
+  projects?: ProjectEmbed | ProjectEmbed[] | null;
   created_at: string;
   lead_source: string;
   broker_id: string | null;
@@ -48,4 +56,9 @@ export type UnitRow = {
   status: string;
 };
 
-export type UnitLabelRow = Pick<UnitRow, 'id' | 'unit_code' | 'wing_name'>;
+export type UnitLabelRow = Pick<
+  UnitRow,
+  'id' | 'unit_code' | 'wing_name' | 'project_id'
+> & {
+  project_name?: string | null;
+};

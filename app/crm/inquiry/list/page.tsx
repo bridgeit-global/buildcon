@@ -10,7 +10,6 @@ import { useInquiryListResources } from '../use-inquiry-list-resources';
 
 export default function InquiryListPage() {
   const {
-    activeProjectId,
     inquiries,
     loadingInquiries,
     loadInquiries,
@@ -18,14 +17,6 @@ export default function InquiryListPage() {
     error,
     navigateToBookingFromInquiry
   } = useInquiryListResources();
-
-  if (!activeProjectId) {
-    return (
-      <Card className="p-4 text-sm text-muted-foreground">
-        Select a project to view the inquiry list.
-      </Card>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">

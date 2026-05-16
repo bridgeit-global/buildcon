@@ -29,6 +29,8 @@ import { FUNNEL_STAGES } from './inquiry-pipeline-dialog';
 import {
   embedOne,
   inquiryReference,
+  inquiryProjectLabel,
+  inquiryUnitLabelFromRow,
   unitDisplayName
 } from './inquiry-helpers';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
@@ -51,15 +53,19 @@ const globalInquiryFilter: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const stage = String(
     embedOne(inq.sales_opportunities)?.funnel_stage || ''
   ).toLowerCase();
+  const project = inquiryProjectLabel(inq).toLowerCase();
+  const unitLabel = inquiryUnitLabelFromRow(inq).toLowerCase();
   return (
     name.includes(q) ||
     phone.includes(q) ||
     email.includes(q) ||
     unitId.includes(q) ||
     unitCode.includes(q) ||
+    unitLabel.includes(q) ||
     source.includes(q) ||
     ref.includes(q) ||
-    stage.includes(q)
+    stage.includes(q) ||
+    project.includes(q)
   );
 };
 
@@ -226,6 +232,17 @@ export function InquiryListTable({
         enableGlobalFilter: true
       },
       {
+        id: 'project',
+        header: 'Project',
+        accessorFn: (row) => inquiryProjectLabel(row) || '—',
+        cell: ({ getValue }) => (
+          <span className="block max-w-[10rem] truncate text-sm text-muted-foreground">
+            {String(getValue())}
+          </span>
+        ),
+        enableGlobalFilter: true
+      },
+      {
         id: 'funnelStage',
         header: 'Stage',
         accessorFn: (row) =>
@@ -283,13 +300,9 @@ export function InquiryListTable({
       {
         id: 'unit',
         header: 'Unit',
-        accessorFn: (row) => {
-          const u = embedOne(row.units);
-          if (u) return unitDisplayName(u);
-          return unitNameById.get(row.unit_id) || row.unit_id || '—';
-        },
+        accessorFn: (row) => inquiryUnitLabelFromRow(row),
         cell: ({ getValue }) => (
-          <span className="block max-w-[10rem] truncate text-sm font-medium">
+          <span className="block max-w-[14rem] truncate text-sm font-medium">
             {String(getValue())}
           </span>
         )
@@ -440,7 +453,7 @@ export function InquiryListTable({
             className="mt-1"
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Customer, phone, email, ref, unit, stage, source…"
+            placeholder="Customer, phone, email, ref, unit, project, stage, source…"
           />
         </div>
         <div className="flex flex-wrap gap-3">

@@ -4,11 +4,10 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { embedOne } from './inquiry-helpers';
+import { embedOne, inquiryProjectLabel } from './inquiry-helpers';
 import type { InquiryRowDb } from './inquiry-types';
 
 /** Light teal shades for donut + legend (Tailwind teal 100–400). */
@@ -59,14 +58,11 @@ function InquiryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
-
   const [error, setError] = useState('');
   const [inquiries, setInquiries] = useState<InquiryRowDb[]>([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
 
   const loadInquiries = useCallback(async () => {
-    if (!activeProjectId) return;
     setLoadingInquiries(true);
     setError('');
     const { data, error: qErr } = await supabase
@@ -74,6 +70,8 @@ function InquiryPageContent() {
       .select(
         `
         id,
+        project_id,
+        projects ( name ),
         created_at,
         lead_source,
         broker_id,
@@ -87,7 +85,7 @@ function InquiryPageContent() {
         customer_id,
         unit_id,
         customers ( full_name, phone, email ),
-        units ( unit_code, wing_name ),
+        units ( unit_code, wing_name, project_id, projects ( name ) ),
         profiles ( name ),
         sales_opportunities (
           id,
@@ -99,7 +97,6 @@ function InquiryPageContent() {
         )
       `
       )
-      .eq('project_id', activeProjectId)
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -110,7 +107,7 @@ function InquiryPageContent() {
       setInquiries((data ?? []) as unknown as InquiryRowDb[]);
     }
     setLoadingInquiries(false);
-  }, [activeProjectId, supabase]);
+  }, [supabase]);
 
   useEffect(() => {
     void loadInquiries();
@@ -118,7 +115,7 @@ function InquiryPageContent() {
 
   useEffect(() => {
     const q = searchParams.get('pipelineInquiry')?.trim();
-    if (!q || !activeProjectId || loadingInquiries) return;
+    if (!q || loadingInquiries) return;
     const exists = inquiries.some((i) => i.id === q);
     if (exists) {
       router.replace(
@@ -130,7 +127,6 @@ function InquiryPageContent() {
     }
   }, [
     searchParams,
-    activeProjectId,
     inquiries,
     loadingInquiries,
     router
@@ -175,14 +171,6 @@ function InquiryPageContent() {
     () => inquiries.slice(0, 4),
     [inquiries]
   );
-
-  if (!activeProjectId) {
-    return (
-      <Card className="p-4 text-sm text-muted-foreground">
-        Select a project to manage inquiries.
-      </Card>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -293,7 +281,7 @@ function InquiryPageContent() {
                 Enquiry source
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Lead source for loaded enquiries (up to 500).
+                Lead source for loaded enquiries across projects (up to 500).
               </p>
             </div>
             <Link
@@ -310,7 +298,7 @@ function InquiryPageContent() {
                 <li className="text-xs text-muted-foreground">
                   {loadingInquiries
                     ? 'Loading…'
-                    : 'No enquiries yet for this project.'}
+                    : 'No enquiries yet.'}
                 </li>
               ) : (
                 leadSourceSlices.map((s) => (
@@ -366,7 +354,7 @@ function InquiryPageContent() {
               <li className="px-3 py-6 text-center text-xs text-muted-foreground">
                 {loadingInquiries
                   ? 'Loading…'
-                  : 'No enquiries yet for this project.'}
+                  : 'No enquiries yet.'}
               </li>
             ) : (
               recentInquiriesPreview.map((inq) => {
@@ -374,6 +362,7 @@ function InquiryPageContent() {
                 const stage =
                   embedOne(inq.sales_opportunities)?.funnel_stage ?? '';
                 const label = funnelStageLabel(stage);
+                const projectName = inquiryProjectLabel(inq);
                 return (
                   <li key={inq.id} className="p-0">
                     <Link
@@ -388,6 +377,11 @@ function InquiryPageContent() {
                         <div className="truncate text-xs text-muted-foreground">
                           {c?.phone ?? '—'}
                         </div>
+                        {projectName ? (
+                          <div className="truncate text-[10px] text-muted-foreground">
+                            {projectName}
+                          </div>
+                        ) : null}
                       </div>
                       <span
                         className={cn(

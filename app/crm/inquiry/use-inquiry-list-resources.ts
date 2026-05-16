@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useActiveProjectContext } from '../_components/active-project-context';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import { inquiryReference } from './inquiry-helpers';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
 
 const INQUIRY_SELECT = `
   id,
+  project_id,
+  projects ( name ),
   created_at,
   lead_source,
   broker_id,
@@ -23,7 +24,7 @@ const INQUIRY_SELECT = `
   customer_id,
   unit_id,
   customers ( full_name, phone, email ),
-  units ( unit_code, wing_name ),
+  units ( unit_code, wing_name, project_id, projects ( name ) ),
   profiles ( name ),
   sales_opportunities (
     id,
@@ -35,10 +36,25 @@ const INQUIRY_SELECT = `
   )
 `;
 
+function mapUnitLabelFromDb(row: Record<string, unknown>): UnitLabelRow {
+  const pr = row.projects as { name?: unknown } | null | undefined;
+  const project_name =
+    pr && typeof pr === 'object' && pr !== null && 'name' in pr
+      ? String((pr as { name: unknown }).name ?? '').trim() || null
+      : null;
+  const { projects: _drop, ...rest } = row;
+  return {
+    ...(rest as Pick<
+      UnitLabelRow,
+      'id' | 'unit_code' | 'wing_name' | 'project_id'
+    >),
+    project_name
+  };
+}
+
 export function useInquiryListResources() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { activeProjectId } = useActiveProjectContext();
 
   const [inquiries, setInquiries] = useState<InquiryRowDb[]>([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
@@ -46,13 +62,11 @@ export function useInquiryListResources() {
   const [error, setError] = useState('');
 
   const loadInquiries = useCallback(async () => {
-    if (!activeProjectId) return;
     setLoadingInquiries(true);
     setError('');
     const { data, error: qErr } = await supabase
       .from('sales_inquiries')
       .select(INQUIRY_SELECT)
-      .eq('project_id', activeProjectId)
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -63,41 +77,41 @@ export function useInquiryListResources() {
       setInquiries((data ?? []) as unknown as InquiryRowDb[]);
     }
     setLoadingInquiries(false);
-  }, [activeProjectId, supabase]);
+  }, [supabase]);
 
   useEffect(() => {
     void loadInquiries();
   }, [loadInquiries]);
 
   useEffect(() => {
-    if (!activeProjectId) {
-      setUnits([]);
-      return;
-    }
     let cancelled = false;
     void (async () => {
       const { data, error: uErr } = await supabase
         .from('units')
-        .select('id, unit_code, wing_name')
-        .eq('project_id', activeProjectId)
+        .select('id, unit_code, wing_name, project_id, projects(name)')
+        .order('project_id', { ascending: true })
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true })
-        .limit(500);
+        .limit(2000);
       if (!cancelled && !uErr) {
-        setUnits((data ?? []) as UnitLabelRow[]);
+        const raw = (data ?? []) as Record<string, unknown>[];
+        setUnits(raw.map(mapUnitLabelFromDb));
+      } else if (!cancelled) {
+        setUnits([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, supabase]);
+  }, [supabase]);
 
   const navigateToBookingFromInquiry = useCallback(
     (inq: InquiryRowDb) => {
-      if (!activeProjectId || !String(inq.unit_id || '').trim()) return;
+      const pid = String(inq.project_id || '').trim();
+      if (!pid || !String(inq.unit_id || '').trim()) return;
       writeBookingPrefill({
-        projectId: activeProjectId,
+        projectId: pid,
         inquiryId: inq.id,
         inquiryRef: inquiryReference(inq.id),
         customerId: inq.customer_id,
@@ -109,11 +123,10 @@ export function useInquiryListResources() {
       });
       router.push('/crm/bookings');
     },
-    [activeProjectId, router]
+    [router]
   );
 
   return {
-    activeProjectId,
     inquiries,
     loadingInquiries,
     loadInquiries,
