@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/crm/projects",
+        destination: "/crm/project",
+        permanent: true
+      },
+      {
         source: "/crm/inquiry/pipeline/:inquiryId",
         destination: "/crm/inquiry/new?inquiry=:inquiryId",
         permanent: false
