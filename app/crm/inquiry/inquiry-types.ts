@@ -31,6 +31,9 @@ export type InquiryRowDb = {
 
 export type UnitRow = {
   id: string;
+  project_id: string;
+  /** Joined from `projects.name` when listing units for enquiry. */
+  project_name?: string | null;
   unit_code: string;
   wing_name: string;
   floor: number;

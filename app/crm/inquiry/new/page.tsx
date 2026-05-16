@@ -8,7 +8,6 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { useActiveProjectContext } from '../../_components/active-project-context';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
 import {
   InquiryPipelinePanel,
@@ -136,7 +135,6 @@ function PhaseBadge({ phase }: { phase: 'create' | 'pipeline' }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function NewInquiryPageInner() {
-  const { activeProjectId } = useActiveProjectContext();
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -162,7 +160,6 @@ function NewInquiryPageInner() {
 
   const loadOpportunity = useCallback(
     async (id: string): Promise<boolean> => {
-      if (!activeProjectId) return false;
       const { data } = await supabase
         .from('sales_inquiries')
         .select(
@@ -181,7 +178,6 @@ function NewInquiryPageInner() {
         `
         )
         .eq('id', id)
-        .eq('project_id', activeProjectId)
         .maybeSingle();
 
       if (!data) return false;
@@ -196,7 +192,7 @@ function NewInquiryPageInner() {
       setInquiryUnitId(String(row.unit_id || '').trim());
       return true;
     },
-    [supabase, activeProjectId]
+    [supabase]
   );
 
   useEffect(() => {
@@ -217,8 +213,6 @@ function NewInquiryPageInner() {
       prevResumeInquiryRef.current = '';
       return;
     }
-    if (!activeProjectId) return;
-
     prevResumeInquiryRef.current = resumeInquiryId;
     let cancelled = false;
     setResumeReady(false);
@@ -249,7 +243,7 @@ function NewInquiryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [resumeInquiryId, activeProjectId, loadOpportunity]);
+  }, [resumeInquiryId, loadOpportunity]);
 
   const handleInquiryCreated = useCallback(
     async (id: string) => {
@@ -266,14 +260,6 @@ function NewInquiryPageInner() {
     () => funnelUnitAlignmentMessage(funnelStage, unitStatus),
     [funnelStage, unitStatus]
   );
-
-  if (!activeProjectId) {
-    return (
-      <Card className="p-4 text-sm text-muted-foreground">
-        Select a project to add an enquiry.
-      </Card>
-    );
-  }
 
   const headerTitle =
     phase === 'pipeline' && customerName ? customerName : 'New enquiry';
@@ -330,8 +316,7 @@ function NewInquiryPageInner() {
           ) : resumeError && resumeInquiryId ? (
             <div className="space-y-4 py-6 text-center">
               <p className="text-sm text-muted-foreground">
-                This enquiry was not found for the current project, or you no
-                longer have access.
+                This enquiry was not found, or you no longer have access.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 <Button variant="outline" asChild>
@@ -347,7 +332,6 @@ function NewInquiryPageInner() {
             </div>
           ) : phase === 'create' ? (
             <NewInquiryWizard
-              projectId={activeProjectId}
               hideStepper
               onStepChange={setWizardStep}
               onCreated={(id) => void handleInquiryCreated(id)}

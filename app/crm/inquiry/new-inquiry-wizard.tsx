@@ -18,6 +18,14 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
   type ProjectParkingMeta,
@@ -59,7 +67,8 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]['id'];
 
 type NewInquiryWizardProps = {
-  projectId: string;
+  /** @deprecated Enquiry is tied to the selected unit’s project; prop is ignored. */
+  projectId?: string;
   onInquirySaved?: () => void | Promise<void>;
   /** Called with the new inquiry id after successful save (skips form reset). */
   onCreated?: (inquiryId: string) => void;
@@ -69,9 +78,18 @@ type NewInquiryWizardProps = {
   hideStepper?: boolean;
 };
 
+function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
+  const pr = row.projects as { name?: unknown } | null | undefined;
+  const project_name =
+    pr && typeof pr === 'object' && pr !== null && 'name' in pr
+      ? String((pr as { name: unknown }).name ?? '').trim() || null
+      : null;
+  const { projects: _drop, ...rest } = row;
+  return { ...(rest as Omit<UnitRow, 'project_name'>), project_name };
+}
+
 export function NewInquiryWizard(props: NewInquiryWizardProps) {
-  const { projectId, onInquirySaved, onCreated, onStepChange, hideStepper } =
-    props;
+  const { onInquirySaved, onCreated, onStepChange, hideStepper } = props;
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -104,6 +122,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   const [step, setStep] = useState<StepId>(1);
   const [unitPickFilters, setUnitPickFilters] = useState({
+    projectId: '',
     unitType: '',
     floor: '',
     structure: ''
@@ -144,51 +163,31 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }, [supabase]);
 
   useEffect(() => {
-    if (!projectId) {
-      setProjectParking(null);
-      return;
-    }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       setLoadingUnits(true);
-      const [unitsRes, projRes] = await Promise.all([
-        supabase
-          .from('units')
-          .select(
-            'id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,status,project_id'
-          )
-          .eq('project_id', projectId)
-          .order('wing_name', { ascending: true })
-          .order('floor', { ascending: false })
-          .order('unit_no', { ascending: true })
-          .limit(500),
-        supabase
-          .from('projects')
-          .select('parking_slots, parking_rate')
-          .eq('id', projectId)
-          .maybeSingle()
-      ]);
+      const unitsRes = await supabase
+        .from('units')
+        .select(
+          'id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,status,project_id,projects(name)'
+        )
+        .order('project_id', { ascending: true })
+        .order('wing_name', { ascending: true })
+        .order('floor', { ascending: false })
+        .order('unit_no', { ascending: true })
+        .limit(2000);
       if (!cancelled && !unitsRes.error) {
-        setUnits((unitsRes.data ?? []) as UnitRow[]);
-      }
-      if (!cancelled && projRes.data) {
-        const row = projRes.data as {
-          parking_slots: number | null;
-          parking_rate: number | null;
-        };
-        setProjectParking({
-          parking_slots: row.parking_slots ?? null,
-          parking_rate: row.parking_rate ?? null
-        });
-      } else if (!cancelled) {
-        setProjectParking(null);
+        const raw = (unitsRes.data ?? []) as Record<string, unknown>[];
+        setUnits(raw.map(mapUnitRowFromDb));
+      } else if (!cancelled && unitsRes.error) {
+        setUnits([]);
       }
       if (!cancelled) setLoadingUnits(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [projectId, supabase]);
+  }, [supabase]);
 
   const canSave = useMemo(() => {
     const brokerOk =
@@ -207,11 +206,33 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     [units]
   );
 
+  const unitsAfterProjectFilter = useMemo(() => {
+    const pid = String(unitPickFilters.projectId || '').trim();
+    if (!pid) return selectableUnits;
+    return selectableUnits.filter((u) => u.project_id === pid);
+  }, [selectableUnits, unitPickFilters.projectId]);
+
+  const projectFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of selectableUnits) {
+      if (!u.project_id) continue;
+      if (!map.has(u.project_id)) {
+        map.set(
+          u.project_id,
+          String(u.project_name || '').trim() || 'Untitled project'
+        );
+      }
+    }
+    return [...map.entries()].sort((a, b) =>
+      a[1].localeCompare(b[1], undefined, { sensitivity: 'base' })
+    );
+  }, [selectableUnits]);
+
   const unitPickFilterOptions = useMemo(() => {
     const typeSet = new Set<string>();
     const floors = new Set<number>();
     const structures = new Set<string>();
-    for (const u of selectableUnits) {
+    for (const u of unitsAfterProjectFilter) {
       const t = String(u.unit_type || '').trim();
       if (t) typeSet.add(t);
       if (Number.isFinite(u.floor)) floors.add(u.floor);
@@ -223,13 +244,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       floors: [...floors].sort((a, b) => b - a),
       structures: [...structures].sort((a, b) => a.localeCompare(b))
     };
-  }, [selectableUnits]);
+  }, [unitsAfterProjectFilter]);
 
   const filteredSelectableUnits = useMemo(() => {
     const wantType = String(unitPickFilters.unitType || '').trim();
     const wantFloor = String(unitPickFilters.floor || '').trim();
     const wantStructure = String(unitPickFilters.structure || '').trim();
-    return selectableUnits.filter((u) => {
+    return unitsAfterProjectFilter.filter((u) => {
       if (wantType && String(u.unit_type || '').trim() !== wantType)
         return false;
       if (wantFloor && String(u.floor) !== wantFloor) return false;
@@ -237,13 +258,45 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         return false;
       return true;
     });
-  }, [selectableUnits, unitPickFilters]);
+  }, [unitsAfterProjectFilter, unitPickFilters]);
 
   const selectedUnit = useMemo(() => {
     const id = String(sellerForm.selectedUnitId || '').trim();
     if (!id) return null;
     return units.find((u) => u.id === id) ?? null;
   }, [units, sellerForm.selectedUnitId]);
+
+  useEffect(() => {
+    const pid = String(selectedUnit?.project_id || '').trim();
+    if (!pid) {
+      setProjectParking(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const projRes = await supabase
+        .from('projects')
+        .select('parking_slots, parking_rate')
+        .eq('id', pid)
+        .maybeSingle();
+      if (cancelled) return;
+      if (projRes.data) {
+        const row = projRes.data as {
+          parking_slots: number | null;
+          parking_rate: number | null;
+        };
+        setProjectParking({
+          parking_slots: row.parking_slots ?? null,
+          parking_rate: row.parking_rate ?? null
+        });
+      } else {
+        setProjectParking(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUnit?.project_id, supabase]);
 
   const stepValid = useMemo(() => {
     const customerOk =
@@ -314,14 +367,15 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   ]);
 
   const continueToBookingFromReview = useCallback(async () => {
-    if (!canSave || !projectId || !userLabel.id || !selectedUnit) return;
+    const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
+    if (!canSave || !inquiryProjectId || !userLabel.id || !selectedUnit) return;
     setSaving(true);
     setError('');
     try {
       const customerId = await persistCustomerToDb();
       if (!customerId) return;
       writeBookingPrefill({
-        projectId,
+        projectId: inquiryProjectId,
         inquiryId: null,
         inquiryRef: null,
         customerId,
@@ -341,7 +395,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
   }, [
     canSave,
-    projectId,
     userLabel.id,
     selectedUnit,
     persistCustomerToDb,
@@ -420,11 +473,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       notes: ''
     });
     setStep(1);
-    setUnitPickFilters({ unitType: '', floor: '', structure: '' });
+    setUnitPickFilters({ projectId: '', unitType: '', floor: '', structure: '' });
   }
 
   async function saveInquiry() {
-    if (!canSave || !projectId || !userLabel.id) return;
+    const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
+    if (!canSave || !inquiryProjectId || !userLabel.id) return;
     setSaving(true);
     setError('');
     try {
@@ -440,7 +494,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       const { data: inserted, error: inqErr } = await supabase
         .from('sales_inquiries')
         .insert({
-          project_id: projectId,
+          project_id: inquiryProjectId,
           customer_id: customerId,
           unit_id: sellerForm.selectedUnitId,
           lead_source: sellerForm.leadSource,
@@ -508,6 +562,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           selectedUnit={selectedUnit}
           loadingUnits={loadingUnits}
           filteredUnits={filteredSelectableUnits}
+          projectFilterOptions={projectFilterOptions}
           filterOptions={unitPickFilterOptions}
           filters={unitPickFilters}
           setFilters={setUnitPickFilters}
@@ -610,12 +665,22 @@ type SellerForm = {
 type SetSellerForm = Dispatch<SetStateAction<SellerForm>>;
 
 type UnitPickFilters = {
+  projectId: string;
   unitType: string;
   floor: string;
   structure: string;
 };
 
 const UNIT_FILTER_ALL = '__unit_filter_all__';
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <dt className="text-[11px] text-ds-gray-500">{label}</dt>
+      <dd className="text-right text-xs font-medium text-ds-gray-900">{value}</dd>
+    </div>
+  );
+}
 
 // ─── Stepper ─────────────────────────────────────────────────────────────────
 
@@ -941,6 +1006,7 @@ function StepUnit({
   selectedUnit,
   loadingUnits,
   filteredUnits,
+  projectFilterOptions,
   filterOptions,
   filters,
   setFilters,
@@ -951,6 +1017,7 @@ function StepUnit({
   selectedUnit: UnitRow | null;
   loadingUnits: boolean;
   filteredUnits: UnitRow[];
+  projectFilterOptions: [string, string][];
   filterOptions: {
     unitTypes: string[];
     floors: number[];
@@ -960,12 +1027,138 @@ function StepUnit({
   setFilters: Dispatch<SetStateAction<UnitPickFilters>>;
   projectParking: ProjectParkingMeta | null;
 }) {
+  const [previewUnit, setPreviewUnit] = useState<UnitRow | null>(null);
+
+  function confirmPreviewSelection() {
+    if (!previewUnit) return;
+    setSellerForm((s) => ({
+      ...s,
+      selectedUnitId: previewUnit.id,
+      interestedIn: s.interestedIn || previewUnit.unit_type || ''
+    }));
+    setPreviewUnit(null);
+  }
+
   return (
     <div className="space-y-4">
+      <Dialog
+        open={previewUnit !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewUnit(null);
+        }}
+      >
+        <DialogContent
+          className="max-h-[min(90dvh,640px)] w-[calc(100vw-1.5rem)] max-w-lg gap-0 overflow-hidden border-ds-gray-200 p-0 sm:max-w-lg"
+        >
+          {previewUnit ? (
+            <>
+              <DialogHeader className="border-b border-ds-gray-100 bg-ds-gray-50/80 px-4 py-3 sm:px-5">
+                <DialogTitle className="text-base font-semibold text-ds-gray-900">
+                  {previewUnit.unit_code}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-ds-gray-600">
+                  {String(previewUnit.project_name || '').trim() || 'Project'}{' '}
+                  · {previewUnit.wing_name || '—'} ·{' '}
+                  {formatFloorLabel(previewUnit.floor, previewUnit.unit_type)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[min(52vh,360px)] overflow-y-auto px-4 py-3 sm:px-5">
+                <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <SummaryRow
+                    label="Type"
+                    value={previewUnit.unit_type?.trim() || '—'}
+                  />
+                  <SummaryRow
+                    label="Status"
+                    value={statusLabelForUnit(previewUnit.status)}
+                  />
+                  <SummaryRow
+                    label="Typical pipeline"
+                    value={suggestedFunnelStageForUnitStatus(previewUnit.status)}
+                  />
+                  <SummaryRow
+                    label="Est. agreement"
+                    value={formatUnitAgreementValueCompact(previewUnit)}
+                  />
+                  {previewUnit.carpet_area != null ? (
+                    <SummaryRow
+                      label="Carpet"
+                      value={`${previewUnit.carpet_area} sq.ft`}
+                    />
+                  ) : null}
+                  {previewUnit.area != null ? (
+                    <SummaryRow
+                      label="Saleable"
+                      value={`${previewUnit.area} sq.ft`}
+                    />
+                  ) : null}
+                  {previewUnit.rate != null && previewUnit.rate > 0 ? (
+                    <SummaryRow
+                      label="Rate"
+                      value={`₹${previewUnit.rate.toLocaleString('en-IN')}/sq.ft`}
+                    />
+                  ) : null}
+                </dl>
+                <p className="mt-3 text-[11px] leading-snug text-ds-gray-600">
+                  {unitStatusInquiryStageHint(previewUnit.status)}
+                </p>
+              </div>
+              <DialogFooter className="flex-col-reverse gap-2 border-t border-ds-gray-100 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 w-full sm:w-auto"
+                  onClick={() => setPreviewUnit(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="min-h-11 w-full gap-1.5 sm:w-auto"
+                  onClick={confirmPreviewSelection}
+                >
+                  Select this unit
+                  <ArrowRight className="size-4" aria-hidden />
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <div className="min-w-[120px] flex-1">
-          <Label className="text-xs">Type</Label>
+        <div className="min-w-[min(100%,180px)] flex-1 basis-[140px]">
+          <Label className="text-xs text-ds-gray-600">Project</Label>
+          <Select
+            value={
+              filters.projectId === '' ? UNIT_FILTER_ALL : filters.projectId
+            }
+            onValueChange={(v) =>
+              setFilters((f) => ({
+                ...f,
+                projectId: v === UNIT_FILTER_ALL ? '' : v,
+                unitType: '',
+                floor: '',
+                structure: ''
+              }))
+            }
+          >
+            <SelectTrigger className="mt-1 h-10 w-full min-h-11 text-xs">
+              <SelectValue placeholder="All projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIT_FILTER_ALL}>All projects</SelectItem>
+              {projectFilterOptions.map(([id, name]) => (
+                <SelectItem key={id} value={id}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[120px] flex-1 basis-[100px]">
+          <Label className="text-xs text-ds-gray-600">Type</Label>
           <Select
             value={filters.unitType === '' ? UNIT_FILTER_ALL : filters.unitType}
             onValueChange={(v) =>
@@ -975,7 +1168,7 @@ function StepUnit({
               }))
             }
           >
-            <SelectTrigger className="mt-1 h-8 w-full text-xs">
+            <SelectTrigger className="mt-1 h-10 w-full min-h-11 text-xs">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
             <SelectContent>
@@ -988,8 +1181,8 @@ function StepUnit({
             </SelectContent>
           </Select>
         </div>
-        <div className="min-w-[100px] flex-1">
-          <Label className="text-xs">Floor</Label>
+        <div className="min-w-[100px] flex-1 basis-[88px]">
+          <Label className="text-xs text-ds-gray-600">Floor</Label>
           <Select
             value={filters.floor === '' ? UNIT_FILTER_ALL : filters.floor}
             onValueChange={(v) =>
@@ -999,7 +1192,7 @@ function StepUnit({
               }))
             }
           >
-            <SelectTrigger className="mt-1 h-8 w-full text-xs">
+            <SelectTrigger className="mt-1 h-10 w-full min-h-11 text-xs">
               <SelectValue placeholder="All floors" />
             </SelectTrigger>
             <SelectContent>
@@ -1012,8 +1205,8 @@ function StepUnit({
             </SelectContent>
           </Select>
         </div>
-        <div className="min-w-[120px] flex-1">
-          <Label className="text-xs">Wing</Label>
+        <div className="min-w-[120px] flex-1 basis-[100px]">
+          <Label className="text-xs text-ds-gray-600">Wing</Label>
           <Select
             value={
               filters.structure === '' ? UNIT_FILTER_ALL : filters.structure
@@ -1025,7 +1218,7 @@ function StepUnit({
               }))
             }
           >
-            <SelectTrigger className="mt-1 h-8 w-full text-xs">
+            <SelectTrigger className="mt-1 h-10 w-full min-h-11 text-xs">
               <SelectValue placeholder="All wings" />
             </SelectTrigger>
             <SelectContent>
@@ -1042,54 +1235,54 @@ function StepUnit({
 
       {/* Unit grid */}
       <div>
-        <div className="mb-2 flex items-center gap-2">
-          <span className="text-xs font-semibold text-foreground">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-ds-gray-800">
             Available units
           </span>
           {loadingUnits ? (
-            <span className="text-[11px] text-muted-foreground">
-              Loading…
-            </span>
+            <span className="text-[11px] text-ds-gray-500">Loading…</span>
           ) : (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="rounded-full bg-ds-gray-100 px-2 py-0.5 text-[10px] font-medium text-ds-gray-600">
               {filteredUnits.length}
             </span>
           )}
         </div>
-        <div className="max-h-[min(380px,50vh)] overflow-y-auto rounded-lg border border-border bg-muted/20 p-1.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+        <p className="mb-2 text-[11px] text-ds-gray-500">
+          Tap a unit to view details, then confirm your choice.
+        </p>
+        <div className="max-h-[min(380px,50vh)] overflow-y-auto rounded-xl border border-ds-gray-200 bg-ds-gray-50/40 p-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {filteredUnits.length === 0 ? (
-              <div className="col-span-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="col-span-full rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-2.5 text-xs text-ds-warning-900">
                 No units match — clear a filter or check inventory status.
               </div>
             ) : (
               filteredUnits.map((u) => {
                 const active = sellerForm.selectedUnitId === u.id;
+                const projectLabel =
+                  String(u.project_name || '').trim() || 'Project';
                 return (
                   <button
                     key={u.id}
                     type="button"
-                    onClick={() =>
-                      setSellerForm((s) => ({
-                        ...s,
-                        selectedUnitId: u.id,
-                        interestedIn: s.interestedIn || u.unit_type || ''
-                      }))
-                    }
+                    onClick={() => setPreviewUnit(u)}
                     className={cn(
-                      'min-h-[56px] rounded-md border p-2.5 text-left transition-colors',
+                      'min-h-[56px] rounded-lg border p-2.5 text-left transition-colors',
                       active
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border bg-background hover:bg-muted/50'
+                        ? 'border-ds-primary-500 bg-ds-primary-50 shadow-sm'
+                        : 'border-ds-gray-200 bg-white hover:bg-ds-gray-50'
                     )}
                   >
-                    <div className="text-xs font-bold text-foreground">
+                    <div className="text-[10px] font-medium leading-tight text-ds-gray-500">
+                      {projectLabel}
+                    </div>
+                    <div className="text-xs font-bold text-ds-gray-900">
                       {u.unit_code}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    <div className="mt-0.5 text-[10px] text-ds-gray-600">
                       {u.unit_type ?? '—'} · {formatFloorLabel(u.floor, u.unit_type)}
                     </div>
-                    <div className="mt-1 text-[11px] font-semibold text-foreground">
+                    <div className="mt-1 text-[11px] font-semibold text-ds-primary-600">
                       {formatUnitAgreementValueCompact(u)}
                     </div>
                   </button>
@@ -1102,15 +1295,15 @@ function StepUnit({
 
       {/* Parking + notes (revealed after unit selection) */}
       {sellerForm.selectedUnitId ? (
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <div className="space-y-3 rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-foreground">
+            <span className="text-xs font-semibold text-ds-gray-800">
               {selectedUnit?.unit_code ?? 'Selected unit'} — parking & notes
             </span>
           </div>
 
           {selectedUnit ? (
-            <p className="text-[11px] leading-snug text-muted-foreground">
+            <p className="text-[11px] leading-snug text-ds-gray-600">
               {unitStatusInquiryStageHint(selectedUnit.status)}
             </p>
           ) : null}
@@ -1123,7 +1316,7 @@ function StepUnit({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label className="text-xs">Extra parking?</Label>
+              <Label className="text-xs text-ds-gray-600">Extra parking?</Label>
               <div className="mt-1">
                 <ParkingYesNoToggle
                   value={sellerForm.parkingRequired}
@@ -1134,7 +1327,7 @@ function StepUnit({
               </div>
             </div>
             <div>
-              <Label className="text-xs">How many slots?</Label>
+              <Label className="text-xs text-ds-gray-600">How many slots?</Label>
               <div className="mt-1">
                 <ParkingCountToggle
                   value={sellerForm.parkingCount}
@@ -1148,7 +1341,7 @@ function StepUnit({
           </div>
 
           <div>
-            <Label className="text-xs">Requirements / notes</Label>
+            <Label className="text-xs text-ds-gray-600">Requirements / notes</Label>
             <Textarea
               value={sellerForm.notes}
               onChange={(e) =>
@@ -1161,8 +1354,9 @@ function StepUnit({
           </div>
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground">
-          Select a unit above to set parking and requirements.
+        <p className="text-[11px] text-ds-gray-500">
+          Choose a unit from the grid and confirm in the dialog to set parking
+          and requirements.
         </p>
       )}
     </div>
@@ -1232,6 +1426,10 @@ function StepReview({
             Unit
           </p>
           <dl className="space-y-1">
+            <SummaryRow
+              label="Project"
+              value={u.project_name?.trim() || '—'}
+            />
             <SummaryRow label="Code" value={u.unit_code} />
             <SummaryRow label="Wing" value={u.wing_name || '—'} />
             <SummaryRow label="Floor" value={formatFloorLabel(u.floor, u.unit_type)} />
@@ -1285,15 +1483,6 @@ function StepReview({
         parkingCount={sellerForm.parkingCount}
         projectParking={projectParking}
       />
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
-      <dd className="text-right text-xs font-medium text-foreground">{value}</dd>
     </div>
   );
 }
