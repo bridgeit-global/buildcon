@@ -53,6 +53,7 @@ export type UnitRow = {
   rate: number | null;
   floor_rise_charge: number | null;
   plc_charge: number | null;
+  parking_slots_included?: number | null;
   status: string;
 };
 

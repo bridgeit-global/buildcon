@@ -14,7 +14,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { targetUnitStatusForSavedFunnelStage } from './inquiry-stage-unit-map';
+import {
+  applyUnitStatusForFunnelStage,
+  closeInquiryAsLost,
+  SITE_VISIT_OUTCOMES
+} from './inquiry-stage-transitions';
+import { statusLabelForUnit } from '../inventory/inventory-utils';
 
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
@@ -51,20 +56,21 @@ const PIPELINE_STEPS: {
     label: 'Enquiry',
     step: 1,
     summary:
-      'Confirm customer details and unit choice on the enquiry, and capture cost sheet or quotation notes here.'
+      'Initial enquiry: customer details, unit interest, budget, and cost sheet notes captured at creation.'
   },
   {
     id: 'Qualified',
     label: 'Qualified',
     step: 2,
-    summary: 'Confirm fit: budget range, financing appetite, and how hot the lead is.'
+    summary:
+      'Lead is qualified — unit is blocked in inventory. Confirm budget, financing, and follow-up.'
   },
   {
     id: 'Site Visit',
     label: 'Site Visit',
     step: 3,
     summary:
-      'Schedule the visit, record status, and capture on-site feedback and impressions.'
+      'Schedule site visit and follow-ups. After the visit, record Liked or Disliked to advance or close.'
   },
   {
     id: 'Negotiation',
@@ -528,11 +534,26 @@ function QualifiedForm({
 
 function SiteVisitForm({
   data,
-  onChange
+  onChange,
+  onAdvance,
+  onCloseLost,
+  saving,
+  pipelineClosed
 }: {
   data: SiteVisitStageData;
   onChange: (d: SiteVisitStageData) => void;
+  onAdvance: (stage: PipelineAnchorStage) => void;
+  onCloseLost: () => void;
+  saving: boolean;
+  pipelineClosed: boolean;
 }) {
+  const outcome = String(data.outcome || '').trim();
+  const visitDone = data.status === 'Done';
+  const showLikedActions =
+    visitDone && outcome === 'Liked' && !pipelineClosed;
+  const showDislikedAction =
+    visitDone && outcome === 'Disliked' && !pipelineClosed;
+
   return (
     <div className="grid gap-3">
       <div className="grid gap-1.5">
@@ -569,12 +590,17 @@ function SiteVisitForm({
       <div className="grid gap-1.5">
         <Label className="text-xs">Outcome</Label>
         <ToggleGroup
-          options={[
-            { value: 'Interested', label: 'Interested' },
-            { value: 'Need Another Visit', label: 'Another visit' },
-            { value: 'Undecided', label: 'Undecided' },
-            { value: 'Not Interested', label: 'Not interested' }
-          ]}
+          options={SITE_VISIT_OUTCOMES.map((value) => ({
+            value,
+            label:
+              value === 'Liked'
+                ? 'Liked'
+                : value === 'Disliked'
+                  ? 'Disliked'
+                  : value === 'Need Another Visit'
+                    ? 'Another visit'
+                    : 'Undecided'
+          }))}
           value={data.outcome ?? ''}
           onChange={(v) => onChange({ ...data, outcome: v })}
         />
@@ -584,11 +610,36 @@ function SiteVisitForm({
         <Label className="text-xs">Notes / feedback</Label>
         <Textarea
           className="min-h-[64px] resize-y text-xs"
-          placeholder="Buyer's feedback, highlights shown…"
+          placeholder="Site visit feedback, highlights shown…"
           value={data.notes ?? ''}
           onChange={(e) => onChange({ ...data, notes: e.target.value })}
+          disabled={pipelineClosed}
         />
       </div>
+
+      {showLikedActions ? (
+        <div
+          className="rounded-lg border border-ds-primary-200 bg-ds-primary-50/50 p-3"
+          role="region"
+          aria-label="Next step after site visit"
+        >
+          <p className="text-xs font-semibold text-ds-gray-800">Buyer liked the unit — choose next step</p>
+          <p className="mt-1 text-[11px] text-ds-gray-600">Start negotiation if price discussion is needed, or go straight to token if they are ready to commit.</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Button type="button" variant="outline" className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700" disabled={saving} onClick={() => onAdvance('Negotiation')}>Negotiation</Button>
+            <Button type="button" className="min-h-11 flex-1 bg-teal-600 hover:bg-teal-700" disabled={saving} onClick={() => onAdvance('Token')}>Skip to token</Button>
+          </div>
+        </div>
+      ) : null}
+
+      {showDislikedAction ? (
+        <div className="rounded-lg border border-red-200 bg-red-50/60 p-3" role="region" aria-label="Close enquiry">
+          <p className="text-xs font-semibold text-ds-gray-800">Buyer did not like the unit</p>
+          <p className="mt-1 text-[11px] text-ds-gray-600">Close this enquiry and release the unit back to available inventory.</p>
+          <Button type="button" variant="outline" className="mt-3 min-h-11 w-full border-red-300 text-red-700 hover:bg-red-50 sm:w-auto" disabled={saving} onClick={onCloseLost}>Close enquiry</Button>
+        </div>
+      ) : null}
+
     </div>
   );
 }
@@ -749,10 +800,12 @@ export function InquiryPipelinePanel(props: {
   inquiryContext?: InquiryPipelineInquiryContext;
   /** `sales_inquiries.unit_id` — when set, inventory `units.status` is updated from the saved funnel stage. */
   unitId?: string | null;
+  unitStatus?: string | null;
   onSaved: () => void;
   onClose: () => void;
 }) {
-  const { opportunity, inquiryContext, unitId, onSaved, onClose } = props;
+  const { opportunity, inquiryContext, unitId, unitStatus, onSaved, onClose } =
+    props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
@@ -762,11 +815,26 @@ export function InquiryPipelinePanel(props: {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
+  const pipelineClosed = opportunity?.funnel_stage === 'Lost';
+
   useEffect(() => {
     if (!opportunity) return;
-    const currentStage = (opportunity.funnel_stage ?? 'Enquiry') as FunnelStage;
+    const fs = opportunity.funnel_stage ?? 'Enquiry';
+    if (fs === 'Lost') {
+      setActiveStage('Site Visit');
+      setMacroStep('enquiry');
+      setStageData(
+        mergeStageDataFromPipelineRows(
+          embedList(opportunity.sales_pipeline_stages)
+        )
+      );
+      setError('');
+      setSaved(false);
+      return;
+    }
+    const currentStage = fs as FunnelStage;
     const inPipeline = PIPELINE_STEPS.some((p) => p.id === currentStage);
-    setActiveStage(inPipeline ? currentStage : 'Enquiry');
+    setActiveStage(inPipeline ? currentStage : 'Qualified');
     setMacroStep('enquiry');
     setStageData(
       mergeStageDataFromPipelineRows(
@@ -786,23 +854,12 @@ export function InquiryPipelinePanel(props: {
       const targetStage = nextStage ?? activeStage;
       const uid = String(unitId || '').trim();
       if (uid) {
-        const { data: unitRow, error: readErr } = await supabase
-          .from('units')
-          .select('status')
-          .eq('id', uid)
-          .maybeSingle();
-        if (readErr) throw readErr;
-        const nextStatus = targetUnitStatusForSavedFunnelStage(
-          targetStage,
-          unitRow?.status as string | undefined
+        const unitResult = await applyUnitStatusForFunnelStage(
+          supabase,
+          uid,
+          targetStage
         );
-        if (nextStatus) {
-          const { error: unitErr } = await supabase
-            .from('units')
-            .update({ status: nextStatus })
-            .eq('id', uid);
-          if (unitErr) throw unitErr;
-        }
+        if (unitResult.error) throw new Error(unitResult.error);
       }
 
       const { error: uErr } = await supabase
@@ -844,6 +901,42 @@ export function InquiryPipelinePanel(props: {
     if (currentIdx < 0) return;
     const next = PIPELINE_STEPS[currentIdx + 1];
     if (next) void save(next.id);
+  }
+
+  async function handleCloseLost() {
+    if (!opportunity) return;
+    setSaving(true);
+    setError('');
+    try {
+      const payloadByStage: Record<PipelineAnchorStage, object> = {
+        Enquiry: stageData.enquiry ?? {},
+        Qualified: stageData.qualified ?? {},
+        'Site Visit': stageData.site_visit ?? {},
+        Negotiation: stageData.negotiation ?? {},
+        Token: stageData.token ?? {}
+      };
+      const stageRows = PIPELINE_STEPS.map(({ id }) => ({
+        opportunity_id: opportunity.id,
+        stage: id,
+        payload: payloadByStage[id]
+      }));
+      const { error: pErr } = await supabase
+        .from('sales_pipeline_stages')
+        .upsert(stageRows, { onConflict: 'opportunity_id,stage' });
+      if (pErr) throw pErr;
+
+      const result = await closeInquiryAsLost(supabase, {
+        opportunityId: opportunity.id,
+        unitId: unitId ?? null
+      });
+      if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
+      setSaved(true);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Close failed');
+    } finally {
+      setSaving(false);
+    }
   }
 
   const isLastPipelineStage =
@@ -905,9 +998,16 @@ export function InquiryPipelinePanel(props: {
               Unit
             </p>
             {inquiryContext?.unitCode?.trim() ? (
-              <p className="mt-2 text-sm font-medium text-foreground">
-                {inquiryContext.unitCode.trim()}
-              </p>
+              <>
+                <p className="mt-2 text-sm font-medium text-foreground">
+                  {inquiryContext.unitCode.trim()}
+                </p>
+                {unitStatus ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Inventory: {statusLabelForUnit(unitStatus)}
+                  </p>
+                ) : null}
+              </>
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">
                 No unit selected on this enquiry yet. Link a unit on the inquiry
@@ -924,6 +1024,11 @@ export function InquiryPipelinePanel(props: {
               onSelect={(stage) => setActiveStage(stage)}
             />
             <div className="min-w-0 flex-1 space-y-3">
+              {pipelineClosed ? (
+                <div role="status" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                  This enquiry is closed (Lost). The unit has been released to available inventory when applicable.
+                </div>
+              ) : null}
               <ActiveStageGuide stage={activeStage} />
               {error ? (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -952,6 +1057,10 @@ export function InquiryPipelinePanel(props: {
                   onChange={(d) =>
                     setStageData((s) => ({ ...s, site_visit: d }))
                   }
+                  onAdvance={(stage) => void save(stage)}
+                  onCloseLost={() => void handleCloseLost()}
+                  saving={saving}
+                  pipelineClosed={pipelineClosed}
                 />
               )}
               {activeStage === 'Negotiation' && (
@@ -988,7 +1097,7 @@ export function InquiryPipelinePanel(props: {
             >
               {macroStep === 'customer' ? 'Continue to unit' : 'Continue to pipeline'}
             </Button>
-          ) : (
+          ) : pipelineClosed ? null : (
             <>
               <Button
                 variant="outline"
@@ -997,7 +1106,7 @@ export function InquiryPipelinePanel(props: {
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
-              {!isLastPipelineStage && (
+              {!isLastPipelineStage && activeStage !== 'Site Visit' && (
                 <Button
                   disabled={saving}
                   className="bg-teal-600 hover:bg-teal-700"

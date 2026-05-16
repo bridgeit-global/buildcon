@@ -1,4 +1,5 @@
 import {
+  formatInr,
   formatInrCompactLacCr,
   unitAgreementTotalInr,
   unitBaseAgreementInr,
@@ -40,6 +41,8 @@ export type UnitCostInput = {
   unit_code: string;
   wing_name: string;
   floor: number;
+  unit_no?: number | null;
+  project_name?: string | null;
   unit_type: string | null;
   area: number | null;
   carpet_area?: number | null;
@@ -51,6 +54,55 @@ export type UnitCostInput = {
   status: string;
 };
 
+function areaSqftLabel(n: number | null | undefined): string {
+  const v = Number(n);
+  return Number.isFinite(v) && v > 0 ? `${v.toLocaleString('en-IN')} sq.ft` : '—';
+}
+
+/** Physical / inventory attributes for cost sheet and quotations. */
+export function buildUnitSpecificationRows(unit: UnitCostInput): [string, string][] {
+  const billable = unitBillableAreaSqft(unit);
+  const legacyArea = Number(unit.area) || 0;
+  const billableNote =
+    billable > 0
+      ? `${billable.toLocaleString('en-IN')} sq.ft` +
+        (legacyArea > 0 && legacyArea !== billable
+          ? ` (legacy saleable ${legacyArea.toLocaleString('en-IN')})`
+          : '')
+      : legacyArea > 0
+        ? `${legacyArea.toLocaleString('en-IN')} sq.ft (legacy saleable)`
+        : '—';
+
+  const rows: [string, string][] = [];
+  const project = String(unit.project_name || '').trim();
+  if (project) rows.push(['Project', project]);
+  rows.push(
+    ['Unit code', unit.unit_code || '—'],
+    ['Wing / tower', unit.wing_name?.trim() || '—'],
+    ['Floor', formatFloorLabel(unit.floor, unit.unit_type)],
+    [
+      'Unit slot on floor',
+      unit.unit_no != null && Number.isFinite(unit.unit_no)
+        ? String(unit.unit_no)
+        : '—'
+    ],
+    ['Configuration', unit.unit_type?.trim() || '—'],
+    ['Status', statusLabelForUnit(unit.status) || '—'],
+    ['Carpet area', areaSqftLabel(unit.carpet_area)],
+    ['BUA area', areaSqftLabel(unit.bua_area)],
+    ['Saleable area', areaSqftLabel(unit.area)],
+    ['Billable (pricing)', billableNote]
+  );
+
+  const pk = Math.max(0, Math.floor(Number(unit.parking_slots_included) || 0));
+  rows.push([
+    'Parking bundled with unit',
+    pk > 0 ? `${pk} slot${pk !== 1 ? 's' : ''}` : '—'
+  ]);
+
+  return rows;
+}
+
 export function computeBookingCostBreakdown(
   unit: UnitCostInput,
   parkingRequired: 'Yes' | 'No',
@@ -58,17 +110,16 @@ export function computeBookingCostBreakdown(
   /** Prefer inquiry snapshot; fallback to live project parking rate */
   parkingRatePerSlot: number | null,
   projectParking?: ProjectParkingMeta | null,
-  pricing?: ProjectPricingMeta | null
+  pricing?: ProjectPricingMeta | null,
+  options?: { applyDefaultGst?: boolean }
 ) {
   const billable = unitBillableAreaSqft(unit);
-  const legacyArea = Number(unit.area) || 0;
   const rate = Number(unit.rate) || 0;
   const basicInr = unitBaseAgreementInr(unit);
   const fr = Math.max(0, Number(unit.floor_rise_charge) || 0);
   const plc = Math.max(0, Number(unit.plc_charge) || 0);
   const agreementDwellingInr = unitAgreementTotalInr(unit);
   const lac = agreementDwellingInr / 100000;
-  const statusLabel = statusLabelForUnit(unit.status);
 
   const slotRate =
     parkingRatePerSlot != null && parkingRatePerSlot > 0
@@ -80,43 +131,26 @@ export function computeBookingCostBreakdown(
     parkingRequired === 'Yes' && slotRate > 0 ? slotsAsked * slotRate : 0;
   let grandTotalInr = agreementDwellingInr + parkingExtraInr;
 
-  const areaLabel =
-    billable > 0
-      ? `${billable.toLocaleString('en-IN')} sq.ft billable` +
-        (legacyArea > 0 && legacyArea !== billable
-          ? ` (legacy ${legacyArea.toLocaleString('en-IN')})`
-          : '')
-      : legacyArea > 0
-        ? `${legacyArea.toLocaleString('en-IN')} sq.ft`
-        : '—';
+  const specRows = buildUnitSpecificationRows(unit);
 
-  const rows: [string, string][] = [
-    ['Floor', formatFloorLabel(unit.floor, unit.unit_type)],
-    ['Configuration', unit.unit_type?.trim() || '—'],
-    ['Status', statusLabel || '—'],
-    ['Sale area', areaLabel],
+  const pricingRows: [string, string][] = [
     [
       'Basic rate',
-      rate > 0 ? `₹ ${rate.toLocaleString('en-IN')} / sq.ft` : '—'
-    ]
-  ];
-
-  if (fr > 0) {
-    rows.push([
+      rate > 0 ? `₹ ${formatInr(rate)} / sq.ft` : '—'
+    ],
+    [
+      'Base (billable × rate)',
+      basicInr > 0 && billable > 0 && rate > 0
+        ? `₹ ${formatInr(basicInr)} (${billable.toLocaleString('en-IN')} × ₹ ${formatInr(rate)})`
+        : basicInr > 0
+          ? `₹ ${formatInr(basicInr)}`
+          : '—'
+    ],
+    [
       'Floor-rise (lump)',
-      `₹ ${fr.toLocaleString('en-IN')}`
-    ]);
-  }
-  if (plc > 0) {
-    rows.push(['PLC (lump)', `₹ ${plc.toLocaleString('en-IN')}`]);
-  }
-
-  const pk = Math.max(0, Math.floor(Number(unit.parking_slots_included) || 0));
-  if (pk > 0) {
-    rows.push(['Parking (with unit)', `${pk} slot${pk !== 1 ? 's' : ''}`]);
-  }
-
-  rows.push(
+      fr > 0 ? `₹ ${formatInr(fr)}` : '—'
+    ],
+    ['PLC (lump)', plc > 0 ? `₹ ${formatInr(plc)}` : '—'],
     [
       'Agreement value (dwelling)',
       agreementDwellingInr > 0
@@ -127,22 +161,22 @@ export function computeBookingCostBreakdown(
       'Parking availability (project)',
       formatProjectParkingSummary(projectParking ?? null)
     ]
-  );
+  ];
 
   if (parkingRequired === 'Yes') {
-    rows.push([
+    pricingRows.push([
       'Parking (customer ask)',
       `Yes · ${parkingCount} slot${slotsAsked !== 1 ? 's' : ''}`
     ]);
     if (slotRate > 0) {
-      rows.push([
+      pricingRows.push([
         'Parking extra (est.)',
         parkingExtraInr > 0
           ? `₹ ${parkingExtraInr.toLocaleString('en-IN')} (${slotsAsked} × ₹ ${slotRate.toLocaleString('en-IN')})`
           : '—'
       ]);
     } else {
-      rows.push([
+      pricingRows.push([
         'Parking extra (est.)',
         'Set project parking rate to estimate'
       ]);
@@ -152,11 +186,16 @@ export function computeBookingCostBreakdown(
   if (pricing?.gst_registered && (pricing.gst_percent ?? 0) > 0) {
     const pct = Number(pricing.gst_percent) || 0;
     const gstAmt = Math.round(grandTotalInr * (pct / 100));
-    rows.push([
+    pricingRows.push([
       `GST (est. ${pct}%)`,
-      gstAmt > 0
-        ? `₹ ${gstAmt.toLocaleString('en-IN')}`
-        : '—'
+      gstAmt > 0 ? `₹ ${formatInr(gstAmt)}` : '—'
+    ]);
+    grandTotalInr += gstAmt;
+  } else if (options?.applyDefaultGst && agreementDwellingInr > 0) {
+    const gstAmt = Math.round(agreementDwellingInr * 0.05);
+    pricingRows.push([
+      'GST (est. 5%)',
+      `₹ ${formatInr(gstAmt)} (₹ ${gstAmt.toLocaleString('en-IN')})`
     ]);
     grandTotalInr += gstAmt;
   }
@@ -164,25 +203,27 @@ export function computeBookingCostBreakdown(
   if (pricing && (pricing.stamp_duty_percent ?? 0) > 0) {
     const pct = Number(pricing.stamp_duty_percent) || 0;
     const stamp = Math.round(agreementDwellingInr * (pct / 100));
-    rows.push([
+    pricingRows.push([
       `Stamp duty (est. ${pct}% of dwelling)`,
-      stamp > 0 ? `₹ ${stamp.toLocaleString('en-IN')}` : '—'
+      stamp > 0 ? `₹ ${formatInr(stamp)}` : '—'
     ]);
     grandTotalInr += stamp;
   }
 
   if (pricing && (pricing.registration_fee ?? 0) > 0) {
     const reg = Math.round(Number(pricing.registration_fee));
-    rows.push(['Registration (est.)', `₹ ${reg.toLocaleString('en-IN')}`]);
+    pricingRows.push(['Registration (est.)', `₹ ${formatInr(reg)}`]);
     grandTotalInr += reg;
   }
 
-  if (grandTotalInr > 0 && parkingRequired === 'Yes' && parkingExtraInr > 0) {
-    rows.push([
-      'Estimated total (dwelling + parking)',
+  if (grandTotalInr > 0) {
+    pricingRows.push([
+      'Estimated total',
       `${formatInrCompactLacCr(grandTotalInr)} (₹ ${grandTotalInr.toLocaleString('en-IN')})`
     ]);
   }
+
+  const rows = [...specRows, ...pricingRows];
 
   return {
     basicInr,
@@ -192,6 +233,8 @@ export function computeBookingCostBreakdown(
     slotsAsked,
     slotRate,
     rows,
+    specRows,
+    pricingRows,
     unitHeadline: `${unit.unit_code} · ${unit.wing_name}`
   };
 }

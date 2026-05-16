@@ -356,6 +356,7 @@ function NewInquiryPageInner() {
               <InquiryPipelinePanel
                 opportunity={opportunity}
                 unitId={inquiryUnitId || null}
+                unitStatus={unitStatus}
                 inquiryContext={{
                   customerName: customerName || undefined,
                   unitCode: unitCode || undefined
