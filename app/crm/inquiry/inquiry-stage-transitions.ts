@@ -5,7 +5,6 @@ import {
   normalizeUnitStatusCode
 } from '../inventory/unit-status';
 import type { InquiryStageData } from './inquiry-types';
-import type { InquiryFunnelStage } from './inquiry-stage-unit-map';
 
 export const SITE_VISIT_OUTCOMES = [
   'Liked',
@@ -25,13 +24,21 @@ export type QualifiedStagePayload = {
   notes?: string;
 };
 
+export function isInquiryClosed(
+  stageData: InquiryStageData | Record<string, unknown> | null | undefined
+): boolean {
+  if (!stageData || typeof stageData !== 'object' || Array.isArray(stageData)) {
+    return false;
+  }
+  return (stageData as Record<string, unknown>).closed === true;
+}
+
 /** Inventory status to apply when `funnel_stage` changes (app + DB mirror). */
 export function targetUnitStatusForFunnelStage(
   funnelStage: string,
   currentUnitStatus: string | null | undefined
 ): string | null {
   const fs = String(funnelStage || '').trim();
-  const s = normalizeUnitStatusCode(currentUnitStatus);
 
   if (fs === 'Qualified') {
     if (isUnitAvailableForBooking(currentUnitStatus)) return 'BLOCKED';
@@ -48,36 +55,37 @@ export function targetUnitStatusForFunnelStage(
     return null;
   }
 
-  if (fs === 'Booking' || fs === 'Won') {
-    if (
-      isUnitAvailableForBooking(currentUnitStatus) ||
-      isUnitBlockedStatus(currentUnitStatus) ||
-      s === 'TOKEN'
-    ) {
-      return 'BOOKED';
-    }
-    return null;
-  }
-
-  if (fs === 'Lost') {
-    if (s === 'TOKEN' || s === 'BLOCKED') return 'AVAILABLE';
-    return null;
-  }
-
   return null;
+}
+
+/** Release a unit held for an enquiry (token or blocked back to available). */
+export async function releaseInquiryUnit(
+  supabase: SupabaseClient,
+  unitId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const uid = String(unitId || '').trim();
+  if (!uid) return { ok: true };
+
+  const { data: unitRow, error: readErr } = await supabase
+    .from('units')
+    .select('status')
+    .eq('id', uid)
+    .maybeSingle();
+  if (readErr) return { ok: false, error: readErr.message };
+
+  const s = normalizeUnitStatusCode(unitRow?.status as string | undefined);
+  if (s !== 'TOKEN' && s !== 'BLOCKED') return { ok: true };
+
+  const { error: unitErr } = await supabase
+    .from('units')
+    .update({ status: 'AVAILABLE' })
+    .eq('id', uid);
+  if (unitErr) return { ok: false, error: unitErr.message };
+  return { ok: true };
 }
 
 export function isSiteVisitOutcome(value: string): value is SiteVisitOutcome {
   return (SITE_VISIT_OUTCOMES as readonly string[]).includes(value);
-}
-
-/** After a completed site visit with a decisive outcome. */
-export function funnelStageAfterSiteVisitOutcome(
-  outcome: string
-): InquiryFunnelStage | null {
-  const o = String(outcome || '').trim();
-  if (o === 'Disliked') return 'Lost';
-  return null;
 }
 
 function mergeStageData(
@@ -86,14 +94,30 @@ function mergeStageData(
 ): InquiryStageData {
   const base =
     existing && typeof existing === 'object' && !Array.isArray(existing)
-      ? (existing as InquiryStageData)
+      ? { ...(existing as Record<string, unknown>) }
       : {};
+  const { closed: _c, ...stageOnly } = base;
   return {
-    enquiry: { ...(base.enquiry ?? {}), ...(patch.enquiry ?? {}) },
-    qualified: { ...(base.qualified ?? {}), ...(patch.qualified ?? {}) },
-    site_visit: { ...(base.site_visit ?? {}), ...(patch.site_visit ?? {}) },
-    negotiation: { ...(base.negotiation ?? {}), ...(patch.negotiation ?? {}) },
-    token: { ...(base.token ?? {}), ...(patch.token ?? {}) }
+    enquiry: {
+      ...((stageOnly.enquiry as Record<string, unknown>) ?? {}),
+      ...(patch.enquiry ?? {})
+    },
+    qualified: {
+      ...((stageOnly.qualified as Record<string, unknown>) ?? {}),
+      ...(patch.qualified ?? {})
+    },
+    site_visit: {
+      ...((stageOnly.site_visit as Record<string, unknown>) ?? {}),
+      ...(patch.site_visit ?? {})
+    },
+    negotiation: {
+      ...((stageOnly.negotiation as Record<string, unknown>) ?? {}),
+      ...(patch.negotiation ?? {})
+    },
+    token: {
+      ...((stageOnly.token as Record<string, unknown>) ?? {}),
+      ...(patch.token ?? {})
+    }
   };
 }
 
@@ -172,26 +196,38 @@ export async function qualifyInquiryWithUnit(
   return { ok: true };
 }
 
-export async function closeInquiryAsLost(
+/** Close enquiry: release unit, reset stage to Enquiry, mark `stage_data.closed`. */
+export async function closeInquiry(
   supabase: SupabaseClient,
-  params: { inquiryId: string; unitId?: string | null }
+  params: {
+    inquiryId: string;
+    unitId?: string | null;
+    stageData?: InquiryStageData | Record<string, unknown>;
+  }
 ): Promise<{ ok: boolean; error?: string }> {
-  const { inquiryId, unitId } = params;
+  const { inquiryId, unitId, stageData } = params;
 
   if (unitId) {
-    const unitResult = await applyUnitStatusForFunnelStage(
-      supabase,
-      unitId,
-      'Lost'
-    );
-    if (unitResult.error) return { ok: false, error: unitResult.error };
+    const unitResult = await releaseInquiryUnit(supabase, unitId);
+    if (!unitResult.ok) return { ok: false, error: unitResult.error };
   }
+
+  const payload =
+    stageData && typeof stageData === 'object' && !Array.isArray(stageData)
+      ? { ...stageData, closed: true }
+      : { closed: true };
 
   const { error: inqErr } = await supabase
     .from('sales_inquiries')
-    .update({ funnel_stage: 'Lost' })
+    .update({
+      funnel_stage: 'Enquiry',
+      stage_data: payload
+    })
     .eq('id', inquiryId);
   if (inqErr) return { ok: false, error: inqErr.message };
 
   return { ok: true };
 }
+
+/** @deprecated Use `closeInquiry` */
+export const closeInquiryAsLost = closeInquiry;

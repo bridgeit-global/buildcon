@@ -518,10 +518,7 @@ create table if not exists public.sales_inquiries (
       'Qualified',
       'Site Visit',
       'Negotiation',
-      'Token',
-      'Booking',
-      'Won',
-      'Lost'
+      'Token'
     )
   )
 );

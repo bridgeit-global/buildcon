@@ -77,16 +77,16 @@ const equalsOrAll: FilterFn<InquiryRowDb> = (row, columnId, raw) => {
 
 /** Matches dashboard KPI tiles: Enquiry stage. */
 const STAGE_FILTER_NEW_LEADS = '__new_leads__';
-/** Matches dashboard “Converted” KPI: Won or Booking. */
-const STAGE_FILTER_CONVERTED = '__converted__';
+/** Matches dashboard Token KPI. */
+const STAGE_FILTER_TOKEN = '__token__';
 
 const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const v = String(raw ?? '').trim();
   if (!v || v === '__all__') return true;
   const inq = row.original;
   const stage = String(inq.funnel_stage || '').trim();
-  if (v === STAGE_FILTER_CONVERTED) {
-    return stage === 'Won' || stage === 'Booking';
+  if (v === STAGE_FILTER_TOKEN) {
+    return stage === 'Token';
   }
   if (v === STAGE_FILTER_NEW_LEADS) {
     return !stage || stage === 'Enquiry';
@@ -102,8 +102,8 @@ function parseListUrlColumnFilters(sp: {
   const stageRaw = sp.get('stage')?.trim();
   if (stageRaw) {
     const lower = stageRaw.toLowerCase();
-    if (lower === 'converted') {
-      filters.push({ id: 'funnelStage', value: STAGE_FILTER_CONVERTED });
+    if (lower === 'token' || lower === 'converted') {
+      filters.push({ id: 'funnelStage', value: STAGE_FILTER_TOKEN });
     } else if (lower === 'new') {
       filters.push({ id: 'funnelStage', value: STAGE_FILTER_NEW_LEADS });
     } else {
@@ -260,11 +260,9 @@ export function InquiryListTable({
                     ? 'border-teal-200 bg-teal-50 text-teal-900'
                     : label === 'Site Visit'
                       ? 'border-green-200 bg-green-50 text-green-900'
-                      : label === 'Lost'
-                        ? 'border-slate-200 bg-slate-100 text-slate-700'
-                        : label === 'Won' || label === 'Booking'
-                          ? 'border-teal-300 bg-teal-100 text-teal-950'
-                          : 'border-slate-200 bg-slate-50 text-slate-800'
+                      : label === 'Token'
+                        ? 'border-teal-300 bg-teal-100 text-teal-950'
+                        : 'border-slate-200 bg-slate-50 text-slate-800'
               )}
             >
               {label}
@@ -442,8 +440,8 @@ export function InquiryListTable({
                 <SelectItem value={STAGE_FILTER_NEW_LEADS}>
                   New (Enquiry)
                 </SelectItem>
-                <SelectItem value={STAGE_FILTER_CONVERTED}>
-                  Converted (Won and Booking)
+                <SelectItem value={STAGE_FILTER_TOKEN}>
+                  Token
                 </SelectItem>
                 {stageOptions.map((s) => (
                   <SelectItem key={s} value={s}>

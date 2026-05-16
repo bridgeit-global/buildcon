@@ -16,7 +16,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
   applyUnitStatusForFunnelStage,
-  closeInquiryAsLost,
+  closeInquiry,
+  isInquiryClosed,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
 import { statusLabelForUnit } from '../inventory/inventory-utils';
@@ -29,10 +30,7 @@ export const FUNNEL_STAGES = [
   'Qualified',
   'Site Visit',
   'Negotiation',
-  'Token',
-  'Booking',
-  'Won',
-  'Lost'
+  'Token'
 ] as const;
 type FunnelStage = (typeof FUNNEL_STAGES)[number];
 
@@ -511,14 +509,14 @@ function SiteVisitForm({
   data,
   onChange,
   onAdvance,
-  onCloseLost,
+  onCloseEnquiry,
   saving,
   pipelineClosed
 }: {
   data: SiteVisitStageData;
   onChange: (d: SiteVisitStageData) => void;
   onAdvance: (stage: PipelineAnchorStage) => void;
-  onCloseLost: () => void;
+  onCloseEnquiry: () => void;
   saving: boolean;
   pipelineClosed: boolean;
 }) {
@@ -611,7 +609,7 @@ function SiteVisitForm({
         <div className="rounded-lg border border-red-200 bg-red-50/60 p-3" role="region" aria-label="Close enquiry">
           <p className="text-xs font-semibold text-ds-gray-800">Buyer did not like the unit</p>
           <p className="mt-1 text-[11px] text-ds-gray-600">Close this enquiry and release the unit back to available inventory.</p>
-          <Button type="button" variant="outline" className="mt-3 min-h-11 w-full border-red-300 text-red-700 hover:bg-red-50 sm:w-auto" disabled={saving} onClick={onCloseLost}>Close enquiry</Button>
+          <Button type="button" variant="outline" className="mt-3 min-h-11 w-full border-red-300 text-red-700 hover:bg-red-50 sm:w-auto" disabled={saving} onClick={onCloseEnquiry}>Close enquiry</Button>
         </div>
       ) : null}
 
@@ -792,22 +790,17 @@ export function InquiryPipelinePanel(props: {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
-  const pipelineClosed = inquiry?.funnel_stage === 'Lost';
+  const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
 
   useEffect(() => {
     if (!inquiry) return;
     const fs = inquiry.funnel_stage ?? 'Enquiry';
-    if (fs === 'Lost') {
-      setActiveStage('Site Visit');
-      setMacroStep('enquiry');
-      setStageData(mergeStageDataFromJson(inquiry.stage_data));
-      setError('');
-      setSaved(false);
-      return;
-    }
-    const currentStage = fs as FunnelStage;
-    const inPipeline = PIPELINE_STEPS.some((p) => p.id === currentStage);
-    setActiveStage(inPipeline ? currentStage : 'Qualified');
+    const currentStage = FUNNEL_STAGES.includes(fs as FunnelStage)
+      ? (fs as FunnelStage)
+      : 'Qualified';
+    setActiveStage(
+      PIPELINE_STEPS.some((p) => p.id === currentStage) ? currentStage : 'Qualified'
+    );
     setMacroStep('enquiry');
     setStageData(mergeStageDataFromJson(inquiry.stage_data));
     setError('');
@@ -856,20 +849,15 @@ export function InquiryPipelinePanel(props: {
     if (next) void save(next.id);
   }
 
-  async function handleCloseLost() {
+  async function handleCloseEnquiry() {
     if (!inquiry) return;
     setSaving(true);
     setError('');
     try {
-      const { error: pErr } = await supabase
-        .from('sales_inquiries')
-        .update({ stage_data: stageDataToJson(stageData) })
-        .eq('id', inquiry.id);
-      if (pErr) throw pErr;
-
-      const result = await closeInquiryAsLost(supabase, {
+      const result = await closeInquiry(supabase, {
         inquiryId: inquiry.id,
-        unitId: unitId ?? null
+        unitId: unitId ?? null,
+        stageData: stageDataToJson(stageData)
       });
       if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
       setSaved(true);
@@ -967,7 +955,7 @@ export function InquiryPipelinePanel(props: {
             <div className="min-w-0 flex-1 space-y-3">
               {pipelineClosed ? (
                 <div role="status" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
-                  This enquiry is closed (Lost). The unit has been released to available inventory when applicable.
+                  This enquiry is closed. The unit has been released to available inventory when applicable.
                 </div>
               ) : null}
               <ActiveStageGuide stage={activeStage} />
@@ -999,7 +987,7 @@ export function InquiryPipelinePanel(props: {
                     setStageData((s) => ({ ...s, site_visit: d }))
                   }
                   onAdvance={(stage) => void save(stage)}
-                  onCloseLost={() => void handleCloseLost()}
+                  onCloseEnquiry={() => void handleCloseEnquiry()}
                   saving={saving}
                   pipelineClosed={pipelineClosed}
                 />

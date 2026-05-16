@@ -16,10 +16,7 @@ alter table public.sales_inquiries
       'Qualified',
       'Site Visit',
       'Negotiation',
-      'Token',
-      'Booking',
-      'Won',
-      'Lost'
+      'Token'
     )
   );
 

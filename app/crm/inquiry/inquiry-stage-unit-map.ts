@@ -1,7 +1,8 @@
 import {
   normalizeUnitStatusCode
 } from '../inventory/unit-status';
-import { targetUnitStatusForFunnelStage } from './inquiry-stage-transitions';
+import type { InquiryStageData } from './inquiry-types';
+import { isInquiryClosed, targetUnitStatusForFunnelStage } from './inquiry-stage-transitions';
 
 /** Order matches `sales_inquiries.funnel_stage` DB check constraint. */
 export const INQUIRY_FUNNEL_STAGE_ORDER = [
@@ -9,10 +10,7 @@ export const INQUIRY_FUNNEL_STAGE_ORDER = [
   'Qualified',
   'Site Visit',
   'Negotiation',
-  'Token',
-  'Booking',
-  'Won',
-  'Lost'
+  'Token'
 ] as const;
 
 export type InquiryFunnelStage = (typeof INQUIRY_FUNNEL_STAGE_ORDER)[number];
@@ -28,10 +26,6 @@ function funnelStageRank(stage: string): number {
 
 /**
  * Typical funnel stage for this unit inventory state (guidance only — not enforced in DB).
- *
- * - Available / blocked units → early funnel (Enquiry).
- * - Token received on unit → Token.
- * - Booked → Booking step; agreement onward → Won.
  */
 export function suggestedFunnelStageForUnitStatus(
   status: string | null | undefined
@@ -40,14 +34,14 @@ export function suggestedFunnelStageForUnitStatus(
   const raw = String(status || '').trim();
 
   if (s === 'TOKEN') return 'Token';
-  if (s === 'BOOKED' || raw === 'B') return 'Booking';
+  if (s === 'BOOKED' || raw === 'B') return 'Token';
   if (
     ['AGREEMENT', 'REGISTERED', 'PRE_POSSESSION', 'POSSESSED'].includes(s) ||
     raw === 'S'
   ) {
-    return 'Won';
+    return 'Token';
   }
-  if (s === 'CANCELLED') return 'Lost';
+  if (s === 'CANCELLED') return 'Enquiry';
 
   if (s === 'BLOCKED' || raw === 'BL') {
     return 'Qualified';
@@ -67,16 +61,16 @@ export function unitStatusInquiryStageHint(
   const typical = suggestedFunnelStageForUnitStatus(status);
   const s = normalizeUnitStatusCode(status);
   if (s === 'TOKEN') {
-    return `Inventory shows token received — pipeline is usually at ${typical} or later.`;
+    return `Inventory shows token received — pipeline is usually at ${typical}.`;
   }
   if (s === 'BOOKED') {
-    return `Unit is booked — align pipeline with ${typical} or Won once formalities complete.`;
+    return `Unit is booked — align pipeline with ${typical}; create a booking from inventory when ready.`;
   }
   if (['AGREEMENT', 'REGISTERED', 'PRE_POSSESSION', 'POSSESSED'].includes(s)) {
-    return `Unit is post-booking — pipeline is typically ${typical}.`;
+    return `Unit is post-booking — pipeline is typically at ${typical}.`;
   }
   if (s === 'CANCELLED') {
-    return `Unit is cancelled — enquiry may belong in ${typical} if the deal fell through.`;
+    return `Unit is cancelled — start a new enquiry if the buyer returns.`;
   }
   if (s === 'BLOCKED') {
     return `Unit is blocked for this lead — pipeline is usually at ${typical} or later (site visit, negotiation).`;
@@ -90,14 +84,15 @@ export function unitStatusInquiryStageHint(
  */
 export function funnelUnitAlignment(
   funnelStage: string | null | undefined,
-  unitStatus: string | null | undefined
+  unitStatus: string | null | undefined,
+  stageData?: InquiryStageData | Record<string, unknown> | null
 ): 'aligned' | 'pipeline_behind' | 'pipeline_ahead' | null {
+  if (isInquiryClosed(stageData)) return 'aligned';
   const f = String(funnelStage || '').trim();
   const suggested = suggestedFunnelStageForUnitStatus(unitStatus);
   const fi = funnelStageRank(f);
   const si = funnelStageRank(suggested);
   if (fi < 0 || si < 0) return null;
-  if (f === 'Lost') return 'aligned';
   if (fi === si) return 'aligned';
   if (fi < si) return 'pipeline_behind';
   return 'pipeline_ahead';
@@ -105,9 +100,11 @@ export function funnelUnitAlignment(
 
 export function funnelUnitAlignmentMessage(
   funnelStage: string | null | undefined,
-  unitStatus: string | null | undefined
+  unitStatus: string | null | undefined,
+  stageData?: InquiryStageData | Record<string, unknown> | null
 ): string | null {
-  const rel = funnelUnitAlignment(funnelStage, unitStatus);
+  if (isInquiryClosed(stageData)) return null;
+  const rel = funnelUnitAlignment(funnelStage, unitStatus, stageData);
   const suggested = suggestedFunnelStageForUnitStatus(unitStatus);
   if (rel === 'pipeline_behind') {
     return `Pipeline is ${String(funnelStage || '').trim()} but this unit usually matches ${suggested} or later — consider updating the stage.`;

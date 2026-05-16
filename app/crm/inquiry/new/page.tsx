@@ -254,8 +254,13 @@ function NewInquiryPageInner() {
   );
 
   const pipelineUnitStageNote = useMemo(
-    () => funnelUnitAlignmentMessage(funnelStage, unitStatus),
-    [funnelStage, unitStatus]
+    () =>
+      funnelUnitAlignmentMessage(
+        funnelStage,
+        unitStatus,
+        inquiry?.stage_data
+      ),
+    [funnelStage, unitStatus, inquiry?.stage_data]
   );
 
   const headerTitle =

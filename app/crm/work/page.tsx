@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { formatInr } from '../inr-format';
 import { cn } from '@/lib/utils';
 import type { InquiryStageData } from '../inquiry/inquiry-types';
+import { isInquiryClosed } from '../inquiry/inquiry-stage-transitions';
 
 type WorkTab = 'followups' | 'visits' | 'overdue';
 
@@ -85,8 +86,7 @@ export default function WorkQueuePage() {
           projects ( name ),
           customers ( full_name )
         `
-        )
-        .not('funnel_stage', 'in', '("Lost","Won")');
+        );
       if (iErr) throw iErr;
 
       const follows: FollowRow[] = [];
@@ -114,8 +114,9 @@ export default function WorkQueuePage() {
         );
         const customerName = cust?.full_name?.trim() || '—';
         const inquiryId = r.id;
-        const funnelStage = String(r.funnel_stage ?? '');
         const sd = stageDataOf(r.stage_data);
+        if (isInquiryClosed(sd)) continue;
+        const funnelStage = String(r.funnel_stage ?? '');
 
         const followCandidates: { key: string; due: string; note: string | null }[] =
           [];

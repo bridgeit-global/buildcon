@@ -42,8 +42,7 @@ function funnelStageBadgeClass(stage: string) {
   if (s === 'Site Visit') {
     return 'border-green-200 bg-green-50 text-green-900';
   }
-  if (s === 'Lost') return 'border-slate-200 bg-slate-100 text-slate-700';
-  if (s === 'Won' || s === 'Booking') {
+  if (s === 'Token') {
     return 'border-teal-300 bg-teal-100 text-teal-950';
   }
   return 'border-slate-200 bg-slate-50 text-slate-800';
@@ -136,7 +135,7 @@ function InquiryPageContent() {
       const s = String(inq.funnel_stage || '').trim();
       if (!s || s === 'Enquiry') newLeads++;
       else if (s === 'Qualified') qualified++;
-      else if (s === 'Won' || s === 'Booking') converted++;
+      else if (s === 'Token') converted++;
     }
     return { total, createdToday, newLeads, qualified, converted };
   }, [inquiries]);
@@ -208,11 +207,11 @@ function InquiryPageContent() {
               ariaLabel: 'Open list filtered to qualified stage'
             },
             {
-              title: 'Converted',
+              title: 'Token',
               value: kpiStats.converted,
-              hint: 'Booking or Won',
-              href: '/crm/inquiry/list?stage=converted',
-              ariaLabel: 'Open list filtered to won and booking'
+              hint: 'Token received',
+              href: '/crm/inquiry/list?stage=token',
+              ariaLabel: 'Open list filtered to token stage'
             }
           ] as const
         ).map((tile, tileIndex) => {
