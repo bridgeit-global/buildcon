@@ -1,0 +1,104 @@
+---
+description: Use TanStack Table for all data tables; follow project list-table patterns.
+alwaysApply: true
+---
+
+# Data tables — TanStack Table
+
+Whenever you add or change a **data table** (rows of entities with columns, search, filters, or pagination), use **`@tanstack/react-table`**. Do not hand-roll `<table>` markup with `.map()` over rows unless the UI is a tiny static layout (e.g. 2–3 fixed rows inside a dialog).
+
+## Required stack
+
+- `useReactTable` + `flexRender` for headers and cells
+- `getCoreRowModel()` always
+- `getFilteredRowModel()` when search or column filters exist
+- `getPaginationRowModel()` when the list can grow beyond one screen
+- Column defs: `useMemo<ColumnDef<RowType, unknown>[]>(...)`
+
+## File layout
+
+- Prefer a dedicated `*-list-table.tsx` (or `*-table.tsx`) component; keep the page thin (data fetch + dialog/actions).
+- Mark client components with `'use client'`.
+
+## Reference implementations
+
+Copy structure from:
+
+- `app/crm/inquiry/inquiry-list-table.tsx` — global filter, column filters, pagination, toolbar
+- `app/crm/project/project-list-table.tsx` — global search, pagination, row actions
+
+## Column patterns
+
+```tsx
+const columns = useMemo<ColumnDef<MyRow, unknown>[]>(
+  () => [
+    {
+      id: 'name',
+      header: 'Name',
+      accessorKey: 'name', // or accessorFn
+      cell: ({ row }) => <span>{row.original.name}</span>
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableGlobalFilter: false,
+      enableSorting: false,
+      cell: ({ row }) => (/* buttons */)
+    }
+  ],
+  [deps]
+);
+```
+
+## Rendering
+
+```tsx
+<table className="w-full min-w-[56rem] caption-bottom text-sm">
+  <thead>
+    {table.getHeaderGroups().map((hg) => (
+      <tr key={hg.id}>
+        {hg.headers.map((h) => (
+          <th key={h.id}>
+            {flexRender(h.column.columnDef.header, h.getContext())}
+          </th>
+        ))}
+      </tr>
+    ))}
+  </thead>
+  <tbody>
+    {table.getRowModel().rows.map((row) => (
+      <tr key={row.id}>
+        {row.getVisibleCells().map((cell) => (
+          <td key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        ))}
+      </tr>
+    ))}
+  </tbody>
+</table>
+```
+
+## Search and filters
+
+- **Global search**: `globalFilter` state + custom `FilterFn` on the row type (see `globalProjectFilter` / `globalInquiryFilter`).
+- **Column filters**: `columnFilters` state + `FilterFn` per column when needed.
+- Wire search `Input` to `onGlobalFilterChange` / `setGlobalFilter`.
+
+## Pagination and empty states
+
+- Default `pageSize: 15`; offer 10 / 15 / 25 / 50 via `Select` + `table.setPageSize`.
+- Prev/next with `table.previousPage()` / `table.nextPage()` and `getCanPreviousPage()` / `getCanNextPage()`.
+- Loading: single row, `colSpan={columns.length}`.
+- Empty filtered: message + primary CTA when relevant.
+
+## Styling and UX
+
+- Wrap table in `overflow-x-auto` (bounded horizontal scroll on small screens; see `responsive-ui-ux` rule).
+- Use design tokens (`ds-gray-*`, `ds-primary-*`, `Card`, `Button`) — match existing CRM tables.
+- Row actions in an `actions` column; avoid hover-only controls.
+
+## Exceptions
+
+- **Member/settings sub-tables** inside a dialog with &lt;10 rows and no search/pagination may stay a simple `<table>`.
+- **Pivot/grid layouts** (e.g. inventory floor grid) are not list tables — do not force TanStack.
