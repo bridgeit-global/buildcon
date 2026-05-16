@@ -15,6 +15,7 @@ import {
   ListTodo,
   MessageCircle,
   Shield,
+  ShieldCheck,
   Users
 } from 'lucide-react';
 
@@ -34,6 +35,7 @@ export type CrmNavItemId =
   | 'possession'
   | 'reports'
   | 'bankloans'
+  | 'approvals'
   | 'users';
 
 export type CrmNavItem = {
@@ -203,6 +205,13 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
     id: 'admin',
     label: 'Admin',
     items: [
+      {
+        id: 'approvals',
+        pageTitle: 'Approvals (Admin)',
+        label: 'Approvals',
+        href: '/crm/approvals',
+        icon: ShieldCheck
+      },
       {
         id: 'users',
         pageTitle: 'Users (Admin)',

@@ -92,6 +92,9 @@ export type UnitPickFilters = {
   maxCarpetSqft: string;
   minRate: string;
   maxRate: string;
+  /** Buyer budget band — filters by total agreement value (₹). */
+  minBudget: string;
+  maxBudget: string;
   sortBy: UnitPickSort;
 };
 
@@ -113,6 +116,8 @@ export const DEFAULT_UNIT_PICK_FILTERS: UnitPickFilters = {
   maxCarpetSqft: '',
   minRate: '',
   maxRate: '',
+  minBudget: '',
+  maxBudget: '',
   sortBy: 'code_asc'
 };
 
@@ -188,6 +193,8 @@ export function filterAndSortUnits(
   const maxCarpet = parseOptionalNumber(filters.maxCarpetSqft);
   const minRate = parseOptionalNumber(filters.minRate);
   const maxRate = parseOptionalNumber(filters.maxRate);
+  const minBudget = parseOptionalNumber(filters.minBudget);
+  const maxBudget = parseOptionalNumber(filters.maxBudget);
 
   let list = units.filter((u) => {
     if (pid && u.project_id !== pid) return false;
@@ -209,6 +216,13 @@ export function filterAndSortUnits(
       return false;
     if (maxRate != null && (!Number.isFinite(rate) || rate > maxRate))
       return false;
+
+    if (minBudget != null || maxBudget != null) {
+      const agreement = unitAgreementTotalInr(u);
+      if (agreement <= 0) return false;
+      if (minBudget != null && agreement < minBudget) return false;
+      if (maxBudget != null && agreement > maxBudget) return false;
+    }
 
     return true;
   });
@@ -254,6 +268,8 @@ export function countActiveUnitFilters(filters: UnitPickFilters): number {
   if (filters.maxCarpetSqft.trim()) n++;
   if (filters.minRate.trim()) n++;
   if (filters.maxRate.trim()) n++;
+  if (filters.minBudget.trim()) n++;
+  if (filters.maxBudget.trim()) n++;
   if (filters.sortBy !== 'code_asc') n++;
   return n;
 }
@@ -278,7 +294,8 @@ function SelectedUnitCompactBanner({
           {formatFloorLabel(unit.floor, unit.unit_type)}
         </p>
         <p className="mt-1 text-[11px] text-ds-primary-700">
-          Continue to set parking, notes, and review the full cost sheet.
+          Review the cost sheet below, then continue to save and record the site
+          visit.
         </p>
       </div>
       <Button
@@ -649,7 +666,17 @@ export function InquiryUnitPicker({
                 ]}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <NumberFilter
+                label="Min budget (₹)"
+                value={filters.minBudget}
+                onChange={(v) => setFilters((f) => ({ ...f, minBudget: v }))}
+              />
+              <NumberFilter
+                label="Max budget (₹)"
+                value={filters.maxBudget}
+                onChange={(v) => setFilters((f) => ({ ...f, maxBudget: v }))}
+              />
               <NumberFilter
                 label="Min carpet (sq.ft)"
                 value={filters.minCarpetSqft}
@@ -675,6 +702,9 @@ export function InquiryUnitPicker({
                 onChange={(v) => setFilters((f) => ({ ...f, maxRate: v }))}
               />
             </div>
+            <p className="text-[10px] leading-snug text-ds-gray-500">
+              Budget uses estimated agreement total (base + floor rise + PLC).
+            </p>
           </div>
         ) : null}
 
@@ -807,8 +837,8 @@ export function InquiryUnitPicker({
       ) : (
         <p className="text-[11px] text-ds-gray-500">
           {selectionOnly
-            ? 'Select a unit, then use Next to set parking and review the cost sheet.'
-            : 'Select a unit from the list to see the cost sheet, parking, and requirements.'}
+            ? 'Select a unit, then continue to the next step.'
+            : 'Select a unit from the list to see the full cost sheet.'}
         </p>
       )}
     </div>

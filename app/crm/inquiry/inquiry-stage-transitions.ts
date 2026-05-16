@@ -5,6 +5,7 @@ import {
   normalizeUnitStatusCode
 } from '../inventory/unit-status';
 import type { InquiryStageData } from './inquiry-types';
+import { saveInquiryStageData } from './inquiry-stage-store';
 
 export const SITE_VISIT_OUTCOMES = [
   'Liked',
@@ -169,29 +170,21 @@ export async function qualifyInquiryWithUnit(
   );
   if (unitResult.error) return { ok: false, error: unitResult.error };
 
-  const { data: row, error: readErr } = await supabase
-    .from('sales_inquiries')
-    .select('stage_data')
-    .eq('id', inquiryId)
-    .maybeSingle();
-  if (readErr) return { ok: false, error: readErr.message };
-
   const stagePatch: Partial<InquiryStageData> = {};
   if (qualifiedPayload && Object.keys(qualifiedPayload).length > 0) {
-    stagePatch.qualified = qualifiedPayload;
+    stagePatch.qualified = qualifiedPayload as InquiryStageData['qualified'];
   }
   if (enquiryPayload && Object.keys(enquiryPayload).length > 0) {
     stagePatch.enquiry = enquiryPayload;
   }
 
-  const { error: inqErr } = await supabase
-    .from('sales_inquiries')
-    .update({
-      funnel_stage: 'Qualified',
-      stage_data: mergeStageData(row?.stage_data, stagePatch)
-    })
-    .eq('id', inquiryId);
-  if (inqErr) return { ok: false, error: inqErr.message };
+  const saveResult = await saveInquiryStageData(supabase, {
+    inquiryId,
+    patch: stagePatch,
+    funnelStage: 'Qualified',
+    markStagesCompleted: ['Enquiry', 'Qualified']
+  });
+  if (!saveResult.ok) return { ok: false, error: saveResult.error };
 
   return { ok: true };
 }

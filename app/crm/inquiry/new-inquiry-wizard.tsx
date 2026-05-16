@@ -21,18 +21,24 @@ import {
 import { cn } from '@/lib/utils';
 import {
   type ProjectParkingMeta,
-  type ProjectPricingMeta,
-  parkingSlotsAskedFromCount
+  type ProjectPricingMeta
 } from '../booking-cost-utils';
-import { UnitCostSheet } from '../_components/unit-cost-sheet';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import {
   formatFloorLabel,
   isUnitAvailableForBooking,
   statusLabelForUnit
 } from '../inventory/inventory-utils';
+import { unitAgreementTotalInr } from '../inr-format';
 import { unitStatusInquiryStageHint } from './inquiry-stage-unit-map';
-import { qualifyInquiryWithUnit } from './inquiry-stage-transitions';
+import {
+  applyUnitStatusForFunnelStage,
+  closeInquiry,
+  qualifyInquiryWithUnit
+} from './inquiry-stage-transitions';
+import type { InquiryStageData } from './inquiry-types';
+import { saveInquiryStageData } from './inquiry-stage-store';
+import type { InquiryFunnelStage } from './inquiry-funnel-stages';
 import type { UnitRow } from './inquiry-types';
 import {
   DEFAULT_UNIT_PICK_FILTERS,
@@ -54,20 +60,30 @@ function normalizePhone(p: string) {
 }
 
 const STEPS = [
-  { id: 1, label: 'Customer' },
-  { id: 2, label: 'Unit' },
-  { id: 3, label: 'Details' }
+  { id: 1, label: 'Enquiry' },
+  { id: 2, label: 'Qualified' },
+  { id: 3, label: 'Visit site' }
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
 
+type SiteVisitInterest = 'Interested' | 'Not Interested' | '';
+type NegotiatingChoice = 'yes' | 'no' | '';
+
 type NewInquiryWizardProps = {
   onInquirySaved?: () => void | Promise<void>;
-  /** Called with the new inquiry id after successful save (skips form reset). */
+  /** Called with the new inquiry id after step 2 (unit qualified). */
   onCreated?: (inquiryId: string) => void;
-  /** Notifies parent when the internal step changes (1 = Customer, 2 = Unit, 3 = Review). */
+  /** Resume visit-site step for an existing enquiry. */
+  inquiryId?: string;
+  /** Notifies parent when the internal step changes (1–3). */
   onStepChange?: (step: number) => void;
+  /** Parent-controlled wizard step (1–3). */
+  forcedStep?: 1 | 2 | 3;
   /** When true the internal 3-step stepper is hidden (parent supplies its own progress indicator). */
   hideStepper?: boolean;
+  onFunnelStageChange?: (stage: string) => void;
+  onStageDataSaved?: () => void;
+  onSkipToStage?: (stage: InquiryFunnelStage) => void;
 };
 
 function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
@@ -81,7 +97,17 @@ function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
 }
 
 export function NewInquiryWizard(props: NewInquiryWizardProps) {
-  const { onInquirySaved, onCreated, onStepChange, hideStepper } = props;
+  const {
+    onInquirySaved,
+    onCreated,
+    onStepChange,
+    hideStepper,
+    inquiryId: inquiryIdProp,
+    forcedStep,
+    onFunnelStageChange,
+    onStageDataSaved,
+    onSkipToStage
+  } = props;
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -108,21 +134,100 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     leadSource: 'Direct' as (typeof LEAD_SOURCES)[number],
     brokerId: '',
     interestedIn: '',
+    preferredLocation: '',
+    preferredWing: '',
     budgetMin: '',
     budgetMax: '',
     parkingRequired: 'No' as 'Yes' | 'No',
     parkingCount: '1',
     selectedUnitId: '',
+    followUpDate: '',
     notes: ''
   });
 
-  const [step, setStep] = useState<StepId>(1);
+  const [createdInquiryId, setCreatedInquiryId] = useState('');
+  const [visitInterest, setVisitInterest] = useState<SiteVisitInterest>('');
+  const [negotiating, setNegotiating] = useState<NegotiatingChoice>('');
+  const [negotiationOffer, setNegotiationOffer] = useState('');
+  const [approvalStatus, setApprovalStatus] = useState<
+    'none' | 'pending' | 'approved' | 'rejected'
+  >('none');
+  const [approvalNote, setApprovalNote] = useState('');
+  const [latestApprovalId, setLatestApprovalId] = useState('');
+
+  useEffect(() => {
+    if (visitInterest !== 'Interested') {
+      setNegotiating('');
+    }
+  }, [visitInterest]);
+
+  const activeInquiryId = String(inquiryIdProp || createdInquiryId || '').trim();
+
+  const [internalStep, setInternalStep] = useState<StepId>(() =>
+    inquiryIdProp ? 3 : 1
+  );
+  const step: StepId = forcedStep ?? internalStep;
+
+  const changeStep = useCallback(
+    (next: StepId) => {
+      if (forcedStep == null) setInternalStep(next);
+      onStepChange?.(next);
+    },
+    [forcedStep, onStepChange]
+  );
+
   const [unitPickFilters, setUnitPickFilters] =
     useState<UnitPickFilters>(DEFAULT_UNIT_PICK_FILTERS);
 
   useEffect(() => {
-    onStepChange?.(step);
-  }, [step, onStepChange]);
+    setSellerForm((s) => ({
+      ...s,
+      budgetMin: unitPickFilters.minBudget,
+      budgetMax: unitPickFilters.maxBudget
+    }));
+  }, [unitPickFilters.minBudget, unitPickFilters.maxBudget]);
+
+  useEffect(() => {
+    const id = String(inquiryIdProp || '').trim();
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error: loadErr } = await supabase
+        .from('sales_inquiries')
+        .select('unit_id, stage_data')
+        .eq('id', id)
+        .maybeSingle();
+      if (cancelled || loadErr || !data) return;
+      const unitId = String((data as { unit_id?: string }).unit_id || '').trim();
+      if (unitId) {
+        setSellerForm((s) => ({ ...s, selectedUnitId: unitId }));
+        setCreatedInquiryId(id);
+      }
+      const sd = (data as { stage_data?: InquiryStageData }).stage_data;
+      const neg = sd?.negotiation as
+        | {
+            approval_status?: string;
+            offered_price?: string;
+            decision_note?: string;
+            approval_id?: string;
+          }
+        | undefined;
+      if (neg?.offered_price) {
+        setNegotiationOffer(String(neg.offered_price));
+        setNegotiating('yes');
+        setVisitInterest('Interested');
+      }
+      if (neg?.approval_status === 'pending') setApprovalStatus('pending');
+      if (neg?.approval_status === 'approved') setApprovalStatus('approved');
+      if (neg?.approval_status === 'rejected') setApprovalStatus('rejected');
+      if (neg?.approval_id) setLatestApprovalId(String(neg.approval_id));
+      if (neg?.decision_note) setApprovalNote(String(neg.decision_note));
+      if (forcedStep == null) changeStep(3);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inquiryIdProp, supabase, forcedStep, changeStep]);
 
   useEffect(() => {
     void (async () => {
@@ -181,7 +286,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     };
   }, [supabase]);
 
-  const canSave = useMemo(() => {
+  const canQualifyUnit = useMemo(() => {
     const brokerOk =
       sellerForm.leadSource !== 'Broker' ||
       Boolean(String(sellerForm.brokerId || '').trim());
@@ -189,9 +294,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       String(sellerForm.customerName || '').trim().length >= 2 &&
       normalizePhone(sellerForm.phone).length === 10 &&
       String(sellerForm.selectedUnitId || '').trim().length > 0 &&
-      brokerOk
+      brokerOk &&
+      Boolean(userLabel.id)
     );
-  }, [sellerForm]);
+  }, [sellerForm, userLabel.id]);
 
   const selectableUnits = useMemo(
     () => (units || []).filter((u) => isUnitAvailableForBooking(u.status)),
@@ -261,10 +367,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
     return {
       1: customerOk && leadOk,
-      2: unitOk,
-      3: true
+      2: unitOk && customerOk && leadOk,
+      3: Boolean(activeInquiryId)
     } as Record<StepId, boolean>;
-  }, [sellerForm, userLabel.id]);
+  }, [sellerForm, userLabel.id, activeInquiryId]);
 
   const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
     if (!userLabel.id) {
@@ -318,9 +424,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     sellerForm.email
   ]);
 
-  const continueToBookingFromReview = useCallback(async () => {
+  const continueToBooking = useCallback(async () => {
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
-    if (!canSave || !inquiryProjectId || !userLabel.id || !selectedUnit) return;
+    if (!canQualifyUnit || !inquiryProjectId || !selectedUnit) return;
     setSaving(true);
     setError('');
     try {
@@ -328,7 +434,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       if (!customerId) return;
       writeBookingPrefill({
         projectId: inquiryProjectId,
-        inquiryId: null,
+        inquiryId: activeInquiryId || null,
         inquiryRef: null,
         customerId,
         unitId: sellerForm.selectedUnitId,
@@ -346,14 +452,14 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       setSaving(false);
     }
   }, [
-    canSave,
-    userLabel.id,
+    canQualifyUnit,
     selectedUnit,
     persistCustomerToDb,
     sellerForm.selectedUnitId,
     sellerForm.parkingRequired,
     sellerForm.parkingCount,
     projectParking,
+    activeInquiryId,
     router
   ]);
 
@@ -365,7 +471,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
-        setStep(2);
+        changeStep(2);
         setSaveMsg('Customer saved.');
         window.setTimeout(() => setSaveMsg(''), 2000);
       } finally {
@@ -373,22 +479,25 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       }
       return;
     }
-    setStep((s) => Math.min(3, (s as number) + 1) as StepId);
+    if (step === 2) {
+      await saveInquiryAndQualify();
+      return;
+    }
   }
 
   function goBack() {
-    setStep((s) => Math.max(1, (s as number) - 1) as StepId);
+    changeStep(Math.max(1, step - 1) as StepId);
   }
 
   async function gotoStep(target: StepId) {
     if (target === step || saving) return;
     if (target < step) {
-      setStep(target);
+      changeStep(target);
       return;
     }
     if (step === 1 && target > 1) {
       if (!stepValid[1]) {
-        setStep(1);
+        changeStep(1);
         return;
       }
       setSaving(true);
@@ -404,11 +513,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
     for (let i = step; i < target; i++) {
       if (!stepValid[i as StepId]) {
-        setStep(i as StepId);
+        changeStep(i as StepId);
         return;
       }
     }
-    setStep(target);
+    changeStep(target);
   }
 
   function resetForm() {
@@ -419,20 +528,49 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       leadSource: 'Direct',
       brokerId: '',
       interestedIn: '',
+      preferredLocation: '',
+      preferredWing: '',
       budgetMin: '',
       budgetMax: '',
       parkingRequired: 'No',
       parkingCount: '1',
       selectedUnitId: '',
+      followUpDate: '',
       notes: ''
     });
-    setStep(1);
+    setCreatedInquiryId('');
+    setVisitInterest('');
+    setNegotiationOffer('');
+    setApprovalStatus('none');
+    changeStep(1);
     setUnitPickFilters(DEFAULT_UNIT_PICK_FILTERS);
   }
 
-  async function saveInquiry() {
+  function buildEnquiryStagePayload() {
+    const parts = [
+      sellerForm.interestedIn.trim()
+        ? `Unit type: ${sellerForm.interestedIn.trim()}`
+        : '',
+      sellerForm.preferredLocation.trim()
+        ? `Location: ${sellerForm.preferredLocation.trim()}`
+        : '',
+      sellerForm.preferredWing.trim()
+        ? `Wing: ${sellerForm.preferredWing.trim()}`
+        : '',
+      sellerForm.parkingRequired === 'Yes'
+        ? `Parking: ${sellerForm.parkingCount} extra slot(s)`
+        : 'Parking: included only'
+    ].filter(Boolean);
+    return {
+      follow_up_date: sellerForm.followUpDate.trim() || undefined,
+      notes: parts.join(' · ') || undefined,
+      cost_sheet_notes: sellerForm.notes.trim() || undefined
+    };
+  }
+
+  async function saveInquiryAndQualify() {
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
-    if (!canSave || !inquiryProjectId || !userLabel.id) return;
+    if (!canQualifyUnit || !inquiryProjectId || !userLabel.id) return;
     setSaving(true);
     setError('');
     try {
@@ -469,15 +607,15 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         sellerForm.interestedIn.trim()
           ? `Interested in: ${sellerForm.interestedIn.trim()}`
           : '',
+        sellerForm.preferredLocation.trim()
+          ? `Preferred location: ${sellerForm.preferredLocation.trim()}`
+          : '',
         sellerForm.notes.trim()
       ]
         .filter(Boolean)
         .join('\n');
 
-      const enquiryPayload = {
-        cost_sheet_notes: sellerForm.notes.trim() || undefined,
-        notes: sellerForm.interestedIn.trim() || undefined
-      };
+      const enquiryPayload = buildEnquiryStagePayload();
 
       const qualResult = await qualifyInquiryWithUnit(supabase, {
         inquiryId,
@@ -485,30 +623,229 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         qualifiedPayload: {
           budget_min: sellerForm.budgetMin.trim() || undefined,
           budget_max: sellerForm.budgetMax.trim() || undefined,
+          follow_up_date: sellerForm.followUpDate.trim() || undefined,
           notes: qualifiedNotes || undefined
         },
-        enquiryPayload: Object.values(enquiryPayload).some(Boolean)
-          ? enquiryPayload
-          : undefined
+        enquiryPayload
       });
       if (!qualResult.ok) {
         throw new Error(qualResult.error ?? 'Failed to qualify enquiry');
       }
 
-      if (onCreated) {
-        onCreated(inquiryId);
-        await onInquirySaved?.();
-      } else {
-        await onInquirySaved?.();
-        resetForm();
-        setSaveMsg('Inquiry saved.');
-        window.setTimeout(() => setSaveMsg(''), 1800);
+      const siteResult = await saveInquiryStageData(supabase, {
+        inquiryId,
+        patch: {},
+        funnelStage: 'Site Visit'
+      });
+      if (!siteResult.ok) {
+        throw new Error(siteResult.error ?? 'Failed to advance to site visit');
       }
+
+      setCreatedInquiryId(inquiryId);
+      changeStep(3);
+      onFunnelStageChange?.('Site Visit');
+      setSaveMsg('Unit qualified — continue with site visit.');
+      window.setTimeout(() => setSaveMsg(''), 2500);
+      onCreated?.(inquiryId);
+      await onInquirySaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save inquiry');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function persistVisitSiteStage(
+    patch: Partial<InquiryStageData>,
+    funnelStage?: InquiryFunnelStage
+  ): Promise<boolean> {
+    if (!activeInquiryId) return false;
+    const result = await saveInquiryStageData(supabase, {
+      inquiryId: activeInquiryId,
+      patch,
+      funnelStage
+    });
+    if (!result.ok) {
+      setError(result.error ?? 'Save failed');
+      return false;
+    }
+    if (funnelStage) onFunnelStageChange?.(funnelStage);
+    onStageDataSaved?.();
+    return true;
+  }
+
+  async function handleCloseAsNotInterested() {
+    if (!activeInquiryId) return;
+    setSaving(true);
+    setError('');
+    try {
+      await persistVisitSiteStage({
+        site_visit: {
+          outcome: 'Not Interested',
+          scheduled_at: sellerForm.followUpDate.trim() || undefined,
+          notes: sellerForm.notes.trim() || undefined
+        }
+      });
+      const result = await closeInquiry(supabase, {
+        inquiryId: activeInquiryId,
+        unitId: sellerForm.selectedUnitId || null
+      });
+      if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
+      setSaveMsg('Enquiry closed. Unit released to available.');
+      window.setTimeout(() => setSaveMsg(''), 2500);
+      await onInquirySaved?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Close failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCustomerGaveToken() {
+    if (!activeInquiryId || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const ok = await persistVisitSiteStage(
+        {
+          site_visit: {
+            outcome: 'Interested',
+            scheduled_at: sellerForm.followUpDate.trim() || undefined
+          }
+        },
+        'Token'
+      );
+      if (!ok) return;
+      const uid = String(sellerForm.selectedUnitId || '').trim();
+      if (uid) {
+        const unitResult = await applyUnitStatusForFunnelStage(
+          supabase,
+          uid,
+          'Token'
+        );
+        if (unitResult.error) throw new Error(unitResult.error);
+      }
+      onSkipToStage?.('Token');
+      setSaveMsg('Token recorded. Unit marked TOKEN in inventory.');
+      window.setTimeout(() => setSaveMsg(''), 2500);
+      await onInquirySaved?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStartNegotiation() {
+    if (!activeInquiryId || saving) return;
+    const offeredRaw = negotiationOffer.trim();
+    if (!offeredRaw) {
+      setError('Enter an offered price before sending for approval.');
+      return;
+    }
+    const offered = Number(offeredRaw);
+    if (!Number.isFinite(offered) || offered <= 0) {
+      setError('Offered price must be a positive number.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const projectId = String(selectedUnit?.project_id || '').trim();
+      if (!projectId) throw new Error('Project not resolved on this enquiry.');
+
+      const { data: inqRow, error: inqErr } = await supabase
+        .from('sales_inquiries')
+        .select('customer_id, unit_id')
+        .eq('id', activeInquiryId)
+        .maybeSingle();
+      if (inqErr) throw inqErr;
+      const customerId = String(
+        (inqRow as { customer_id?: string } | null)?.customer_id || ''
+      ).trim();
+      const unitId = String(
+        (inqRow as { unit_id?: string } | null)?.unit_id || ''
+      ).trim();
+
+      const listPrice = selectedUnit
+        ? unitAgreementTotalInr(selectedUnit)
+        : null;
+      const discountPct =
+        listPrice && listPrice > 0 && offered <= listPrice
+          ? Number((((listPrice - offered) / listPrice) * 100).toFixed(2))
+          : null;
+
+      const { data: approvalRow, error: insErr } = await supabase
+        .from('negotiation_approvals')
+        .insert({
+          sales_inquiry_id: activeInquiryId,
+          project_id: projectId,
+          unit_id: unitId || null,
+          customer_id: customerId || null,
+          list_price: listPrice && listPrice > 0 ? listPrice : null,
+          offered_price: offered,
+          discount_pct: discountPct,
+          request_note: sellerForm.notes.trim() || null,
+          requested_by: userLabel.id || null
+        })
+        .select('id')
+        .single();
+      if (insErr) {
+        throw new Error(
+          insErr.message.includes('negotiation_approvals_one_pending')
+            ? 'A pending approval already exists for this enquiry.'
+            : insErr.message
+        );
+      }
+      const approvalId = String(
+        (approvalRow as { id?: string } | null)?.id || ''
+      );
+      setLatestApprovalId(approvalId);
+
+      const ok = await persistVisitSiteStage(
+        {
+          site_visit: { outcome: 'Interested' },
+          negotiation: {
+            offered_price: offeredRaw,
+            approval_status: 'pending',
+            approval_id: approvalId,
+            notes: sellerForm.notes.trim() || undefined
+          }
+        },
+        'Negotiation'
+      );
+      if (!ok) return;
+      setApprovalStatus('pending');
+      setApprovalNote('');
+      onSkipToStage?.('Negotiation');
+      setSaveMsg('Sent to admin for budget approval.');
+      window.setTimeout(() => setSaveMsg(''), 2500);
+      await onInquirySaved?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function refreshApprovalStatus() {
+    if (!latestApprovalId) return;
+    const { data, error: readErr } = await supabase
+      .from('negotiation_approvals')
+      .select('status, decision_note')
+      .eq('id', latestApprovalId)
+      .maybeSingle();
+    if (readErr || !data) return;
+    const row = data as { status: string; decision_note: string | null };
+    const next = row.status === 'Approved'
+      ? 'approved'
+      : row.status === 'Rejected'
+        ? 'rejected'
+        : row.status === 'Pending'
+          ? 'pending'
+          : 'none';
+    setApprovalStatus(next as typeof approvalStatus);
+    if (row.decision_note) setApprovalNote(row.decision_note);
   }
 
   return (
@@ -529,7 +866,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       )}
 
       {step === 1 ? (
-        <StepCustomer
+        <StepEnquiry
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
           brokers={brokers}
@@ -539,6 +876,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
       {step === 2 ? (
         <div className="space-y-4">
+          <p className="text-xs text-ds-gray-600">
+            Pick an available unit, review the cost sheet, then continue. The
+            unit is blocked in inventory when you save.
+          </p>
           <InquiryUnitPicker
             selectableUnits={selectableUnits}
             loadingUnits={loadingUnits}
@@ -556,84 +897,35 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             }
             filters={unitPickFilters}
             setFilters={setUnitPickFilters}
-            selectionOnly
             projectParking={projectParking}
             projectPricing={projectPricing}
+            parkingRequired={sellerForm.parkingRequired}
+            parkingCount={sellerForm.parkingCount}
           />
-          <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-ds-gray-800">
-              Buyer preferences
-            </p>
-            <p className="mt-0.5 text-[11px] text-ds-gray-500">
-              Selecting a unit qualifies this lead — the unit will be blocked in
-              inventory until the deal closes or the enquiry is lost.
-            </p>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <Label className="text-xs text-ds-gray-600">
-                  Interested in (type / layout)
-                </Label>
-                <Input
-                  className="mt-1 h-9 text-xs"
-                  placeholder="e.g. 2 BHK, corner, higher floor"
-                  value={sellerForm.interestedIn}
-                  onChange={(e) =>
-                    setSellerForm((s) => ({
-                      ...s,
-                      interestedIn: e.target.value
-                    }))
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs text-ds-gray-600">
-                    Budget min (₹)
-                  </Label>
-                  <Input
-                    type="number"
-                    className="mt-1 h-9 text-xs"
-                    placeholder="50,00,000"
-                    value={sellerForm.budgetMin}
-                    onChange={(e) =>
-                      setSellerForm((s) => ({
-                        ...s,
-                        budgetMin: e.target.value
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-ds-gray-600">
-                    Budget max (₹)
-                  </Label>
-                  <Input
-                    type="number"
-                    className="mt-1 h-9 text-xs"
-                    placeholder="80,00,000"
-                    value={sellerForm.budgetMax}
-                    onChange={(e) =>
-                      setSellerForm((s) => ({
-                        ...s,
-                        budgetMax: e.target.value
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       ) : null}
 
       {step === 3 ? (
-        <StepUnitDetails
+        <StepVisitSite
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
           selectedUnit={selectedUnit}
-          brokers={brokers}
-          projectParking={projectParking}
-          projectPricing={projectPricing}
+          visitInterest={visitInterest}
+          setVisitInterest={setVisitInterest}
+          negotiating={negotiating}
+          setNegotiating={setNegotiating}
+          negotiationOffer={negotiationOffer}
+          setNegotiationOffer={setNegotiationOffer}
+          approvalStatus={approvalStatus}
+          approvalNote={approvalNote}
+          saving={saving}
+          onCloseNotInterested={() => void handleCloseAsNotInterested()}
+          onCustomerGaveToken={() => void handleCustomerGaveToken()}
+          onStartNegotiation={() => void handleStartNegotiation()}
+          onRefreshApproval={() => void refreshApprovalStatus()}
+          onContinueBooking={() => void continueToBooking()}
+          onSkipToNegotiation={() => onSkipToStage?.('Negotiation')}
+          onSkipToToken={() => void handleCustomerGaveToken()}
         />
       ) : null}
 
@@ -678,30 +970,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
                 : step === 1
                   ? 'Save & next'
                   : step === 2
-                    ? 'Next: details'
+                    ? 'Save unit & continue'
                     : 'Next'}
             </Button>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!canSave || saving || !userLabel.id}
-                onClick={() => void saveInquiry()}
-              >
-                {saving ? 'Saving…' : 'Save enquiry'}
-              </Button>
-              <Button
-                type="button"
-                disabled={!canSave || saving || !userLabel.id}
-                onClick={() => void continueToBookingFromReview()}
-                className="gap-1.5"
-              >
-                Confirm booking
-                <ArrowRight className="size-4" aria-hidden />
-              </Button>
-            </>
-          )}
+          ) : null}
         </div>
       </div>
     </>
@@ -717,23 +989,17 @@ type SellerForm = {
   leadSource: (typeof LEAD_SOURCES)[number];
   brokerId: string;
   interestedIn: string;
+  preferredLocation: string;
+  preferredWing: string;
   budgetMin: string;
   budgetMax: string;
   parkingRequired: 'Yes' | 'No';
   parkingCount: string;
   selectedUnitId: string;
+  followUpDate: string;
   notes: string;
 };
 type SetSellerForm = Dispatch<SetStateAction<SellerForm>>;
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <dt className="text-[11px] text-ds-gray-500">{label}</dt>
-      <dd className="text-right text-xs font-medium text-ds-gray-900">{value}</dd>
-    </div>
-  );
-}
 
 // ─── Stepper ─────────────────────────────────────────────────────────────────
 
@@ -808,9 +1074,9 @@ function Stepper({
   );
 }
 
-// ─── Step 1: Customer ────────────────────────────────────────────────────────
+// ─── Step 1: Enquiry (customer + unit preferences) ───────────────────────────
 
-function StepCustomer({
+function StepEnquiry({
   sellerForm,
   setSellerForm,
   brokers,
@@ -921,6 +1187,120 @@ function StepCustomer({
           ) : null}
         </div>
       </div>
+
+      <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold text-ds-gray-800">
+          What are they looking for?
+        </p>
+        <p className="mt-0.5 text-[11px] text-ds-gray-500">
+          Unit type, budget, location, and parking — before you pick a unit.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <Label className="text-xs text-ds-gray-600">Unit type / layout</Label>
+            <Input
+              className="mt-1 h-9 text-xs"
+              placeholder="e.g. 2 BHK, corner, higher floor"
+              value={sellerForm.interestedIn}
+              onChange={(e) =>
+                setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">Preferred location / area</Label>
+            <Input
+              className="mt-1 h-9 text-xs"
+              value={sellerForm.preferredLocation}
+              onChange={(e) =>
+                setSellerForm((s) => ({
+                  ...s,
+                  preferredLocation: e.target.value
+                }))
+              }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">Budget min (₹)</Label>
+            <Input
+              type="number"
+              className="mt-1 h-9 text-xs"
+              value={sellerForm.budgetMin}
+              onChange={(e) =>
+                setSellerForm((s) => ({ ...s, budgetMin: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">Budget max (₹)</Label>
+            <Input
+              type="number"
+              className="mt-1 h-9 text-xs"
+              value={sellerForm.budgetMax}
+              onChange={(e) =>
+                setSellerForm((s) => ({ ...s, budgetMax: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">Preferred wing / tower</Label>
+            <Input
+              className="mt-1 h-9 text-xs"
+              value={sellerForm.preferredWing}
+              onChange={(e) =>
+                setSellerForm((s) => ({ ...s, preferredWing: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">First follow-up</Label>
+            <Input
+              type="datetime-local"
+              className="mt-1 h-9 text-xs"
+              value={sellerForm.followUpDate}
+              onChange={(e) =>
+                setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
+              }
+            />
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <Label className="text-xs text-ds-gray-600">Extra parking?</Label>
+            <div className="mt-1">
+              <ParkingYesNoToggle
+                value={sellerForm.parkingRequired}
+                onChange={(v) =>
+                  setSellerForm((s) => ({ ...s, parkingRequired: v }))
+                }
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">Parking slots</Label>
+            <div className="mt-1">
+              <ParkingCountToggle
+                value={sellerForm.parkingCount}
+                onChange={(v) =>
+                  setSellerForm((s) => ({ ...s, parkingCount: v }))
+                }
+                disabled={sellerForm.parkingRequired !== 'Yes'}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <Label className="text-xs text-ds-gray-600">Other requirements</Label>
+          <Textarea
+            value={sellerForm.notes}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, notes: e.target.value }))
+            }
+            rows={2}
+            className="mt-1 min-h-[60px] resize-y text-xs"
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -990,215 +1370,334 @@ function ParkingCountToggle({
   );
 }
 
-// ─── Compact parking info bar ─────────────────────────────────────────────────
-
-function ParkingInfoBar({
-  projectParking,
-  parkingRequired,
-  parkingCount
+function InterestToggle({
+  value,
+  onChange
 }: {
-  projectParking: ProjectParkingMeta | null;
-  parkingRequired: 'Yes' | 'No';
-  parkingCount: string;
+  value: SiteVisitInterest;
+  onChange: (v: SiteVisitInterest) => void;
 }) {
-  const slots = projectParking?.parking_slots;
-  const rate = projectParking?.parking_rate;
-  const asked =
-    parkingRequired === 'Yes' ? parkingSlotsAskedFromCount(parkingCount) : 0;
-  const overAsk =
-    parkingRequired === 'Yes' &&
-    asked > 0 &&
-    slots != null &&
-    slots > 0 &&
-    asked > slots;
-
-  if (slots == null || slots <= 0) {
-    return (
-      <p className="text-[11px] text-muted-foreground">
-        Parking slot count not configured on this project.
-      </p>
-    );
-  }
-
   return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-3 rounded-md border px-3 py-2 text-xs',
-        overAsk
-          ? 'border-amber-300 bg-amber-50 text-amber-900'
-          : 'border-teal-200 bg-teal-50/60 text-teal-900'
-      )}
-    >
-      <span>
-        <span className="font-semibold">{slots}</span> project slot
-        {slots !== 1 ? 's' : ''}
-        {rate != null && rate > 0 ? (
-          <span className="ml-1 text-muted-foreground">
-            · ₹{rate.toLocaleString('en-IN')}/slot
-          </span>
-        ) : null}
-      </span>
-      {overAsk ? (
-        <span className="font-semibold text-amber-800">
-          ⚠ Needs {asked} — exceeds {slots} recorded
-        </span>
-      ) : parkingRequired === 'Yes' ? (
-        <span className="text-muted-foreground">
-          Customer needs {asked} slot{asked !== 1 ? 's' : ''}
-        </span>
-      ) : null}
+    <div className="flex overflow-hidden rounded-md border border-border">
+      {(
+        [
+          { value: 'Interested' as const, label: 'Interested' },
+          { value: 'Not Interested' as const, label: 'Not interested' }
+        ]
+      ).map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            'min-h-11 flex-1 px-3 py-2 text-xs font-medium transition-colors',
+            value === opt.value
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-background text-muted-foreground hover:bg-muted'
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }
 
+function NegotiatingToggle({
+  value,
+  onChange
+}: {
+  value: NegotiatingChoice;
+  onChange: (v: NegotiatingChoice) => void;
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-md border border-border">
+      {(
+        [
+          { value: 'no' as const, label: 'No · take token' },
+          { value: 'yes' as const, label: 'Yes · negotiating' }
+        ]
+      ).map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            'min-h-11 flex-1 px-3 py-2 text-xs font-medium transition-colors',
+            value === opt.value
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-background text-muted-foreground hover:bg-muted'
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-// ─── Step 3: Unit details, parking, cost sheet ───────────────────────────────
+// ─── Step 3: Site visit & outcomes ───────────────────────────────────────────
 
-function StepUnitDetails({
+function StepVisitSite({
   sellerForm,
   setSellerForm,
   selectedUnit,
-  brokers,
-  projectParking,
-  projectPricing
+  visitInterest,
+  setVisitInterest,
+  negotiating,
+  setNegotiating,
+  negotiationOffer,
+  setNegotiationOffer,
+  approvalStatus,
+  approvalNote,
+  saving,
+  onCloseNotInterested,
+  onCustomerGaveToken,
+  onStartNegotiation,
+  onRefreshApproval,
+  onContinueBooking,
+  onSkipToNegotiation,
+  onSkipToToken
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   selectedUnit: UnitRow | null;
-  brokers: { id: string; full_name: string }[];
-  projectParking: ProjectParkingMeta | null;
-  projectPricing: ProjectPricingMeta | null;
+  visitInterest: SiteVisitInterest;
+  setVisitInterest: (v: SiteVisitInterest) => void;
+  negotiating: NegotiatingChoice;
+  setNegotiating: (v: NegotiatingChoice) => void;
+  negotiationOffer: string;
+  setNegotiationOffer: (v: string) => void;
+  approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
+  approvalNote: string;
+  saving: boolean;
+  onCloseNotInterested: () => void;
+  onCustomerGaveToken: () => void;
+  onStartNegotiation: () => void;
+  onRefreshApproval: () => void;
+  onContinueBooking: () => void;
+  onSkipToNegotiation?: () => void;
+  onSkipToToken?: () => void;
 }) {
-  const brokerLabel =
-    sellerForm.leadSource === 'Broker' && sellerForm.brokerId
-      ? (brokers.find((b) => b.id === sellerForm.brokerId)?.full_name ?? '—')
-      : null;
-
   if (!selectedUnit) {
     return (
       <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
-        No unit selected. Go back to step 2 to pick a unit.
+        No unit on this enquiry. Go back to Qualified to pick a unit.
       </div>
     );
   }
 
-  const u = selectedUnit;
-
   return (
     <div className="mt-5 space-y-4">
-      <div className="rounded-lg border border-border bg-background p-3">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-          Customer
+      <SelectedUnitSummaryCard unit={selectedUnit} />
+
+      <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold text-ds-gray-800">Site visit</p>
+        <p className="mt-0.5 text-[11px] text-ds-gray-500">
+          Record follow-up and whether the buyer is still interested after the
+          visit.
         </p>
-        <dl className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
-          <SummaryRow label="Name" value={sellerForm.customerName.trim() || '—'} />
-          <SummaryRow
-            label="Phone"
-            value={
-              normalizePhone(sellerForm.phone).length === 10
-                ? sellerForm.phone
-                : '—'
-            }
-          />
-          {sellerForm.email.trim() ? (
-            <SummaryRow label="Email" value={sellerForm.email.trim()} />
-          ) : null}
-          <SummaryRow label="Source" value={sellerForm.leadSource} />
-          {brokerLabel ? (
-            <SummaryRow label="Broker" value={brokerLabel} />
-          ) : null}
-        </dl>
+        <div className="mt-3 grid gap-3">
+          <div>
+            <Label className="text-xs text-ds-gray-600">Follow-up date</Label>
+            <Input
+              type="datetime-local"
+              className="mt-1 h-9 text-xs"
+              value={sellerForm.followUpDate}
+              onChange={(e) =>
+                setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-ds-gray-600">After visit</Label>
+            <div className="mt-1">
+              <InterestToggle
+                value={visitInterest}
+                onChange={setVisitInterest}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <SelectedUnitSummaryCard unit={u} />
-
-      {(sellerForm.interestedIn.trim() ||
-        sellerForm.budgetMin.trim() ||
-        sellerForm.budgetMax.trim()) && (
-        <div className="rounded-lg border border-border bg-background p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-            Preferences
+      {visitInterest === 'Not Interested' ? (
+        <div className="rounded-lg border border-red-200 bg-red-50/60 p-4">
+          <p className="text-xs font-semibold text-ds-gray-800">
+            Close this enquiry
           </p>
-          <dl className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
-            {sellerForm.interestedIn.trim() ? (
-              <SummaryRow
-                label="Interested in"
-                value={sellerForm.interestedIn.trim()}
-              />
-            ) : null}
-            {sellerForm.budgetMin.trim() || sellerForm.budgetMax.trim() ? (
-              <SummaryRow
-                label="Budget"
-                value={[
-                  sellerForm.budgetMin.trim(),
-                  sellerForm.budgetMax.trim()
-                ]
-                  .filter(Boolean)
-                  .map((n) => `₹${Number(n).toLocaleString('en-IN')}`)
-                  .join(' – ')}
-              />
-            ) : null}
-          </dl>
+          <p className="mt-1 text-[11px] text-ds-gray-600">
+            Releases the unit from BLOCKED back to available inventory.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 min-h-11 border-red-300 text-red-700 hover:bg-red-50"
+            disabled={saving}
+            onClick={onCloseNotInterested}
+          >
+            Close enquiry
+          </Button>
         </div>
-      )}
+      ) : null}
 
-      <div className="space-y-3 rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
-        <p className="text-xs font-semibold text-ds-gray-800">Parking</p>
-        <ParkingInfoBar
-          projectParking={projectParking}
-          parkingRequired={sellerForm.parkingRequired}
-          parkingCount={sellerForm.parkingCount}
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {visitInterest === 'Interested' ? (
+        <div className="space-y-3 rounded-lg border border-ds-primary-200 bg-ds-primary-50/50 p-4">
+          <p className="text-xs font-semibold text-ds-gray-800">Next step</p>
+          <p className="text-[11px] text-ds-gray-600">
+            Skip ahead to negotiate on price or collect token now. You can also
+            use the stepper above once this enquiry is saved.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700"
+              disabled={saving}
+              onClick={onSkipToNegotiation}
+            >
+              Go to negotiate
+            </Button>
+            <Button
+              type="button"
+              className="min-h-11 flex-1 bg-teal-600 hover:bg-teal-700"
+              disabled={saving}
+              onClick={onSkipToToken}
+            >
+              Skip to token
+            </Button>
+          </div>
+
+          <p className="pt-2 text-xs font-semibold text-ds-gray-800">Negotiation</p>
+          <p className="text-[11px] text-ds-gray-600">
+            Is the customer negotiating on price? If not, take the token straight
+            away.
+          </p>
+
           <div>
-            <Label className="text-xs text-ds-gray-600">Extra parking?</Label>
+            <Label className="text-xs text-ds-gray-600">
+              Customer wants to negotiate?
+            </Label>
             <div className="mt-1">
-              <ParkingYesNoToggle
-                value={sellerForm.parkingRequired}
-                onChange={(v) =>
-                  setSellerForm((s) => ({ ...s, parkingRequired: v }))
-                }
-              />
+              <NegotiatingToggle value={negotiating} onChange={setNegotiating} />
             </div>
           </div>
-          <div>
-            <Label className="text-xs text-ds-gray-600">How many slots?</Label>
-            <div className="mt-1">
-              <ParkingCountToggle
-                value={sellerForm.parkingCount}
-                onChange={(v) =>
-                  setSellerForm((s) => ({ ...s, parkingCount: v }))
-                }
-                disabled={sellerForm.parkingRequired !== 'Yes'}
-              />
+
+          {negotiating === 'no' ? (
+            <div className="rounded-md border border-teal-200 bg-white p-3">
+              <p className="text-xs font-semibold text-ds-gray-800">
+                No negotiation — accept price and collect token
+              </p>
+              <p className="mt-1 text-[11px] text-ds-gray-600">
+                Marks the unit as TOKEN in inventory and moves the enquiry to the
+                Token stage.
+              </p>
+              <Button
+                type="button"
+                className="mt-3 min-h-11 w-full gap-1.5 bg-teal-600 hover:bg-teal-700 sm:w-auto"
+                disabled={saving}
+                onClick={onCustomerGaveToken}
+              >
+                Customer gave token
+                <ArrowRight className="size-4" aria-hidden />
+              </Button>
             </div>
-          </div>
+          ) : null}
+
+          {negotiating === 'yes' ? (
+            <div className="space-y-3 rounded-md border border-ds-primary-100 bg-white p-3">
+              <div>
+                <Label className="text-xs text-ds-gray-600">
+                  Offered / negotiated price (₹)
+                </Label>
+                <Input
+                  type="number"
+                  className="mt-1 h-9 text-xs"
+                  value={negotiationOffer}
+                  onChange={(e) => setNegotiationOffer(e.target.value)}
+                  placeholder="Amount discussed"
+                  disabled={approvalStatus === 'pending' || approvalStatus === 'approved'}
+                />
+              </div>
+
+              {approvalStatus === 'pending' ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                  Awaiting admin approval on this budget. Admin can approve or
+                  reject from <span className="font-semibold">CRM → Approvals</span>.
+                </div>
+              ) : null}
+              {approvalStatus === 'approved' ? (
+                <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-[11px] text-teal-900">
+                  Budget approved by admin — record token when ready.
+                  {approvalNote ? (
+                    <p className="mt-1 italic">“{approvalNote}”</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {approvalStatus === 'rejected' ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-900">
+                  Admin rejected this budget. Update the offered price and send
+                  again, or close the enquiry.
+                  {approvalNote ? (
+                    <p className="mt-1 italic">“{approvalNote}”</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                {approvalStatus !== 'approved' && approvalStatus !== 'pending' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    disabled={saving || !negotiationOffer.trim()}
+                    onClick={onStartNegotiation}
+                  >
+                    Send for approval
+                  </Button>
+                ) : null}
+                {approvalStatus === 'pending' || approvalStatus === 'rejected' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11"
+                    disabled={saving}
+                    onClick={onRefreshApproval}
+                  >
+                    Check status
+                  </Button>
+                ) : null}
+                {approvalStatus === 'approved' ? (
+                  <Button
+                    type="button"
+                    className="min-h-11 gap-1.5 bg-teal-600 hover:bg-teal-700"
+                    disabled={saving}
+                    onClick={onCustomerGaveToken}
+                  >
+                    Record token
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 w-full gap-1.5"
+            disabled={saving}
+            onClick={onContinueBooking}
+          >
+            Continue to booking
+            <ArrowRight className="size-4" aria-hidden />
+          </Button>
         </div>
-      </div>
-
-      <div>
-        <Label className="text-xs text-ds-gray-600">Requirements / notes</Label>
-        <Textarea
-          value={sellerForm.notes}
-          onChange={(e) =>
-            setSellerForm((s) => ({ ...s, notes: e.target.value }))
-          }
-          rows={3}
-          placeholder="Higher floor, corner, sea view, budget, Vastu…"
-          className="mt-1 min-h-[72px] resize-y text-xs"
-        />
-      </div>
-
-      <UnitCostSheet
-        unit={u}
-        parkingRequired={sellerForm.parkingRequired}
-        parkingCount={sellerForm.parkingCount}
-        projectParking={projectParking}
-        projectPricing={projectPricing}
-      />
+      ) : null}
 
       <p className="text-[11px] leading-snug text-muted-foreground">
-        {unitStatusInquiryStageHint(u.status)}
+        {unitStatusInquiryStageHint(selectedUnit.status)}
       </p>
     </div>
   );

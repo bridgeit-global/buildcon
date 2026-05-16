@@ -4,16 +4,15 @@ import {
 import type { InquiryStageData } from './inquiry-types';
 import { isInquiryClosed, targetUnitStatusForFunnelStage } from './inquiry-stage-transitions';
 
-/** Order matches `sales_inquiries.funnel_stage` DB check constraint. */
-export const INQUIRY_FUNNEL_STAGE_ORDER = [
-  'Enquiry',
-  'Qualified',
-  'Site Visit',
-  'Negotiation',
-  'Token'
-] as const;
+export {
+  INQUIRY_FUNNEL_STAGE_ORDER,
+  type InquiryFunnelStage
+} from './inquiry-funnel-stages';
 
-export type InquiryFunnelStage = (typeof INQUIRY_FUNNEL_STAGE_ORDER)[number];
+import {
+  INQUIRY_FUNNEL_STAGE_ORDER,
+  type InquiryFunnelStage
+} from './inquiry-funnel-stages';
 
 const STAGE_RANK = new Map<string, number>(
   INQUIRY_FUNNEL_STAGE_ORDER.map((s, i) => [s, i])

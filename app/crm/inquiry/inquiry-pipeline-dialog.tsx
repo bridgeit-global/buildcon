@@ -22,7 +22,11 @@ import {
 } from './inquiry-stage-transitions';
 import { statusLabelForUnit } from '../inventory/inventory-utils';
 import type { InquiryStageData } from './inquiry-types';
-
+import {
+  loadInquiryStageData,
+  saveInquiryStageData
+} from './inquiry-stage-store';
+import type { InquiryFunnelStage } from './inquiry-funnel-stages';
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
 export const FUNNEL_STAGES = [
@@ -131,6 +135,9 @@ type NegotiationStageData = {
   counter_offer?: string;
   expected_close?: string;
   notes?: string;
+  approval_status?: string;
+  approval_id?: string;
+  decision_note?: string;
 };
 type TokenStageData = {
   amount?: string;
@@ -619,11 +626,100 @@ function SiteVisitForm({
 
 function NegotiationForm({
   data,
-  onChange
+  onChange,
+  inquiryId,
+  projectId,
+  unitId,
+  listPriceInr,
+  supabase,
+  onApprovalSubmitted
 }: {
   data: NegotiationStageData;
   onChange: (d: NegotiationStageData) => void;
+  inquiryId?: string;
+  projectId?: string | null;
+  unitId?: string | null;
+  listPriceInr?: number | null;
+  supabase?: ReturnType<typeof createSupabaseBrowserClient>;
+  onApprovalSubmitted?: () => void;
 }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [approvalError, setApprovalError] = useState('');
+  const approvalStatus = String(data.approval_status ?? '').trim().toLowerCase();
+
+  async function sendForApproval() {
+    if (!supabase || !inquiryId || !projectId) return;
+    const offeredRaw = String(data.offered_price ?? '').trim();
+    if (!offeredRaw) {
+      setApprovalError('Enter an offered price before sending for approval.');
+      return;
+    }
+    const offered = Number(offeredRaw);
+    if (!Number.isFinite(offered) || offered <= 0) {
+      setApprovalError('Offered price must be a positive number.');
+      return;
+    }
+    setSubmitting(true);
+    setApprovalError('');
+    try {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      const { data: inqRow } = await supabase
+        .from('sales_inquiries')
+        .select('customer_id')
+        .eq('id', inquiryId)
+        .maybeSingle();
+      const customerId = String(
+        (inqRow as { customer_id?: string } | null)?.customer_id || ''
+      ).trim();
+      const listPrice =
+        listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
+      const discountPct =
+        listPrice && offered <= listPrice
+          ? Number((((listPrice - offered) / listPrice) * 100).toFixed(2))
+          : null;
+
+      const { data: approvalRow, error: insErr } = await supabase
+        .from('negotiation_approvals')
+        .insert({
+          sales_inquiry_id: inquiryId,
+          project_id: projectId,
+          unit_id: unitId || null,
+          customer_id: customerId || null,
+          list_price: listPrice,
+          offered_price: offered,
+          discount_pct: discountPct,
+          request_note: data.notes?.trim() || null,
+          requested_by: user?.id ?? null
+        })
+        .select('id')
+        .single();
+      if (insErr) {
+        throw new Error(
+          insErr.message.includes('negotiation_approvals_one_pending')
+            ? 'A pending approval already exists for this enquiry.'
+            : insErr.message
+        );
+      }
+      const approvalId = String(
+        (approvalRow as { id?: string } | null)?.id || ''
+      );
+      onChange({
+        ...data,
+        approval_status: 'pending',
+        approval_id: approvalId
+      });
+      onApprovalSubmitted?.();
+    } catch (e) {
+      setApprovalError(
+        e instanceof Error ? e.message : 'Could not submit approval request'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="grid gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -689,6 +785,43 @@ function NegotiationForm({
           onChange={(e) => onChange({ ...data, notes: e.target.value })}
         />
       </div>
+
+      {inquiryId && projectId && supabase ? (
+        <div className="space-y-2 rounded-lg border border-ds-primary-200 bg-ds-primary-50/40 p-3">
+          <p className="text-xs font-semibold text-ds-gray-800">
+            Admin budget approval
+          </p>
+          {approvalStatus === 'pending' ? (
+            <p className="text-[11px] text-amber-900">
+              Awaiting admin decision — Super Admins review under CRM → Approvals.
+            </p>
+          ) : null}
+          {approvalStatus === 'approved' ? (
+            <p className="text-[11px] text-teal-900">
+              Budget approved. Save and move to Token when the buyer pays.
+            </p>
+          ) : null}
+          {approvalStatus === 'rejected' ? (
+            <p className="text-[11px] text-red-900">
+              Budget rejected — update the offer and send again.
+            </p>
+          ) : null}
+          {approvalError ? (
+            <p className="text-[11px] text-red-700">{approvalError}</p>
+          ) : null}
+          {approvalStatus !== 'pending' && approvalStatus !== 'approved' ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={submitting || !String(data.offered_price ?? '').trim()}
+              onClick={() => void sendForApproval()}
+            >
+              {submitting ? 'Sending…' : 'Send for admin approval'}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -776,14 +909,38 @@ export function InquiryPipelinePanel(props: {
   /** `sales_inquiries.unit_id` — when set, inventory `units.status` is updated from the saved funnel stage. */
   unitId?: string | null;
   unitStatus?: string | null;
+  projectId?: string | null;
+  /** Hide Customer → Unit → Enquiry macro strip (parent page supplies top stepper). */
+  hideMacroStepper?: boolean;
+  /** Hide left vertical funnel nav (parent supplies top stepper). */
+  hideVerticalStepper?: boolean;
+  /** Controlled active stage when parent owns navigation. */
+  activeStageOverride?: FunnelStage;
+  onActiveStageChange?: (stage: FunnelStage) => void;
   onSaved: () => void;
   onClose: () => void;
 }) {
   const inquiry = props.inquiry ?? props.opportunity ?? null;
-  const { inquiryContext, unitId, unitStatus, onSaved, onClose } = props;
+  const {
+    inquiryContext,
+    unitId,
+    unitStatus,
+    projectId,
+    hideMacroStepper,
+    hideVerticalStepper,
+    activeStageOverride,
+    onActiveStageChange,
+    onSaved,
+    onClose
+  } = props;
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [activeStage, setActiveStage] = useState<FunnelStage>('Enquiry');
+  const [activeStageInternal, setActiveStageInternal] = useState<FunnelStage>('Enquiry');
+  const activeStage = activeStageOverride ?? activeStageInternal;
+  const setActiveStage = (stage: FunnelStage) => {
+    if (activeStageOverride === undefined) setActiveStageInternal(stage);
+    onActiveStageChange?.(stage);
+  };
   const [macroStep, setMacroStep] = useState<PipelineMacroStep>('enquiry');
   const [stageData, setStageData] = useState<StageData>(emptyStageData());
   const [saving, setSaving] = useState(false);
@@ -794,18 +951,37 @@ export function InquiryPipelinePanel(props: {
 
   useEffect(() => {
     if (!inquiry) return;
-    const fs = inquiry.funnel_stage ?? 'Enquiry';
-    const currentStage = FUNNEL_STAGES.includes(fs as FunnelStage)
-      ? (fs as FunnelStage)
-      : 'Qualified';
-    setActiveStage(
-      PIPELINE_STEPS.some((p) => p.id === currentStage) ? currentStage : 'Qualified'
-    );
-    setMacroStep('enquiry');
-    setStageData(mergeStageDataFromJson(inquiry.stage_data));
-    setError('');
-    setSaved(false);
-  }, [inquiry]);
+    let cancelled = false;
+    void (async () => {
+      const fs = inquiry.funnel_stage ?? 'Enquiry';
+      const currentStage = FUNNEL_STAGES.includes(fs as FunnelStage)
+        ? (fs as FunnelStage)
+        : 'Qualified';
+      if (activeStageOverride === undefined) {
+        setActiveStageInternal(
+          PIPELINE_STEPS.some((p) => p.id === currentStage)
+            ? currentStage
+            : 'Qualified'
+        );
+      }
+      setMacroStep('enquiry');
+      const { data, error: loadErr } = await loadInquiryStageData(
+        supabase,
+        inquiry.id
+      );
+      if (cancelled) return;
+      if (loadErr) {
+        setStageData(mergeStageDataFromJson(inquiry.stage_data));
+      } else {
+        setStageData(mergeStageDataFromJson(data));
+      }
+      setError('');
+      setSaved(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inquiry, supabase, activeStageOverride]);
 
   async function save(nextStage?: FunnelStage) {
     if (!inquiry) return;
@@ -824,14 +1000,13 @@ export function InquiryPipelinePanel(props: {
         if (unitResult.error) throw new Error(unitResult.error);
       }
 
-      const { error: uErr } = await supabase
-        .from('sales_inquiries')
-        .update({
-          funnel_stage: targetStage,
-          stage_data: stageDataToJson(stageData)
-        })
-        .eq('id', inquiry.id);
-      if (uErr) throw uErr;
+      const saveResult = await saveInquiryStageData(supabase, {
+        inquiryId: inquiry.id,
+        patch: stageDataToJson(stageData),
+        funnelStage: targetStage as InquiryFunnelStage,
+        markStagesCompleted: [targetStage as InquiryFunnelStage]
+      });
+      if (!saveResult.ok) throw new Error(saveResult.error ?? 'Save failed');
       if (nextStage) setActiveStage(nextStage);
       setSaved(true);
       onSaved();
@@ -890,10 +1065,12 @@ export function InquiryPipelinePanel(props: {
   return (
     <>
       <div className="mt-1 space-y-3 pb-3">
-        <MacroPipelineStepper
-          current={macroStep}
-          onSelect={setMacroStep}
-        />
+        {!hideMacroStepper ? (
+          <MacroPipelineStepper
+            current={macroStep}
+            onSelect={setMacroStep}
+          />
+        ) : null}
 
         {macroStep === 'customer' && (
           <div
@@ -948,10 +1125,12 @@ export function InquiryPipelinePanel(props: {
 
         {macroStep === 'enquiry' && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-            <VerticalEnquiryStageStepper
-              current={activeStage}
-              onSelect={(stage) => setActiveStage(stage)}
-            />
+            {!hideVerticalStepper ? (
+              <VerticalEnquiryStageStepper
+                current={activeStage}
+                onSelect={(stage) => setActiveStage(stage)}
+              />
+            ) : null}
             <div className="min-w-0 flex-1 space-y-3">
               {pipelineClosed ? (
                 <div role="status" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
@@ -998,6 +1177,21 @@ export function InquiryPipelinePanel(props: {
                   onChange={(d) =>
                     setStageData((s) => ({ ...s, negotiation: d }))
                   }
+                  inquiryId={inquiry.id}
+                  projectId={projectId ?? null}
+                  unitId={unitId ?? null}
+                  listPriceInr={null}
+                  supabase={supabase}
+                  onApprovalSubmitted={() => {
+                    void (async () => {
+                      const { data } = await loadInquiryStageData(
+                        supabase,
+                        inquiry.id
+                      );
+                      setStageData(mergeStageDataFromJson(data));
+                      onSaved();
+                    })();
+                  }}
                 />
               )}
               {activeStage === 'Token' && (

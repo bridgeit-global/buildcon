@@ -2,23 +2,31 @@
 
 import { Suspense, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
 import {
   InquiryPipelinePanel,
   type InquiryPipelineRow
 } from '../inquiry-pipeline-dialog';
 import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import type { InquiryFunnelStage } from '../inquiry-stage-unit-map';
+import { INQUIRY_FUNNEL_STAGE_ORDER } from '../inquiry-stage-unit-map';
+import {
+  InquiryFunnelStepper,
+  funnelStageIndex
+} from '../inquiry-funnel-stepper';
+import {
+  loadInquiryStageData,
+  stageHasMeaningfulData
+} from '../inquiry-stage-store';
 
 type InquiryFetchRow = {
   id: string;
+  project_id: string;
   unit_id: string;
   funnel_stage: string;
   assigned_to: string | null;
@@ -27,109 +35,18 @@ type InquiryFetchRow = {
   units: { unit_code: string; status?: string | null } | null;
 };
 
-// ─── New enquiry: 3 macro steps (pipeline sub-stages live in InquiryPipelinePanel) ─
-
-const MACRO_FLOW_STAGES = [
-  { id: 'customer', label: 'Customer' },
-  { id: 'unit', label: 'Unit' },
-  { id: 'enquiry', label: 'Enquiry' }
-] as const;
-
-/** Wizard steps: 1 = Customer, 2 = Unit, 3 = Review — map to macro indices 0–2. */
-function createPhaseMacroIndex(wizardStep: number) {
-  if (wizardStep <= 1) return 0;
-  if (wizardStep === 2) return 1;
-  return 2;
+function wizardStepForFunnelStage(stage: InquiryFunnelStage): number {
+  switch (stage) {
+    case 'Enquiry':
+      return 1;
+    case 'Qualified':
+      return 2;
+    case 'Site Visit':
+      return 3;
+    default:
+      return 3;
+  }
 }
-
-// ─── FlowProgress (create phase only) ─────────────────────────────────────────
-
-function FlowProgress({ wizardStep }: { wizardStep: number }) {
-  const currentIdx = createPhaseMacroIndex(wizardStep);
-  const last = MACRO_FLOW_STAGES.length - 1;
-
-  return (
-    <div className="overflow-x-auto pb-1" aria-label="New enquiry progress">
-      <div className="relative flex min-w-max items-start justify-between px-1">
-        <div
-          className="absolute left-0 right-0 top-[15px] h-0.5 bg-border"
-          aria-hidden
-          style={{ zIndex: 0 }}
-        />
-        {currentIdx > 0 && (
-          <div
-            className="absolute left-0 top-[15px] h-0.5 bg-teal-400 transition-all"
-            aria-hidden
-            style={{
-              zIndex: 1,
-              width: `${(currentIdx / last) * 100}%`
-            }}
-          />
-        )}
-
-        {MACRO_FLOW_STAGES.map((stage, idx) => {
-          const isDone = idx < currentIdx;
-          const isActive = idx === currentIdx;
-
-          return (
-            <div
-              key={stage.id}
-              className="relative z-10 flex min-w-0 flex-1 flex-col items-center gap-1 px-2 sm:px-3"
-            >
-              <span
-                className={cn(
-                  'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-200',
-                  isActive
-                    ? 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-200'
-                    : isDone
-                      ? 'border-teal-500 bg-teal-50 text-teal-700'
-                      : 'border-border bg-background text-muted-foreground'
-                )}
-              >
-                {isDone ? (
-                  <Check className="size-3.5" strokeWidth={2.5} />
-                ) : (
-                  idx + 1
-                )}
-              </span>
-              <span
-                className={cn(
-                  'max-w-22 text-center text-[10px] font-semibold leading-tight sm:max-w-none sm:whitespace-nowrap',
-                  isActive
-                    ? 'text-teal-700'
-                    : isDone
-                      ? 'text-teal-600'
-                      : 'text-muted-foreground'
-                )}
-              >
-                {stage.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Phase badge ──────────────────────────────────────────────────────────────
-
-function PhaseBadge({ phase }: { phase: 'create' | 'pipeline' }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-        phase === 'create'
-          ? 'bg-slate-100 text-slate-700'
-          : 'bg-teal-100 text-teal-800'
-      )}
-    >
-      {phase === 'create' ? 'New enquiry' : 'Pipeline'}
-    </span>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 function NewInquiryPageInner() {
   const router = useRouter();
@@ -142,15 +59,18 @@ function NewInquiryPageInner() {
   );
 
   const [wizardStep, setWizardStep] = useState(1);
-  const [phase, setPhase] = useState<'create' | 'pipeline'>('create');
-  const [loadingPipeline, setLoadingPipeline] = useState(false);
+  const [viewStage, setViewStage] = useState<InquiryFunnelStage>('Enquiry');
   const [inquiry, setInquiry] = useState<InquiryPipelineRow | null>(null);
   const [funnelStage, setFunnelStage] = useState('Enquiry');
   const [unitStatus, setUnitStatus] = useState<string | null>(null);
   const [inquiryId, setInquiryId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [unitCode, setUnitCode] = useState('');
   const [inquiryUnitId, setInquiryUnitId] = useState('');
+  const [stagesWithData, setStagesWithData] = useState<Set<InquiryFunnelStage>>(
+    () => new Set()
+  );
   const [resumeReady, setResumeReady] = useState(() => !resumeInquiryId);
   const [resumeError, setResumeError] = useState(false);
   const prevResumeInquiryRef = useRef('');
@@ -162,6 +82,7 @@ function NewInquiryPageInner() {
         .select(
           `
           id,
+          project_id,
           unit_id,
           funnel_stage,
           assigned_to,
@@ -181,12 +102,26 @@ function NewInquiryPageInner() {
         assigned_to: row.assigned_to,
         stage_data: row.stage_data
       });
-      if (row.funnel_stage) setFunnelStage(row.funnel_stage);
+      const fs = String(row.funnel_stage || 'Enquiry').trim() as InquiryFunnelStage;
+      setFunnelStage(fs);
+      setViewStage(
+        INQUIRY_FUNNEL_STAGE_ORDER.includes(fs) ? fs : 'Site Visit'
+      );
+      setWizardStep(wizardStepForFunnelStage(fs));
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
       setUnitStatus(st != null && String(st).trim() !== '' ? String(st) : null);
       setInquiryUnitId(String(row.unit_id || '').trim());
+      setProjectId(String(row.project_id || '').trim());
+
+      const { data: stageData } = await loadInquiryStageData(supabase, id);
+      const filled = new Set<InquiryFunnelStage>();
+      for (const stage of INQUIRY_FUNNEL_STAGE_ORDER) {
+        if (stageHasMeaningfulData(stage, stageData)) filled.add(stage);
+      }
+      setStagesWithData(filled);
+
       return true;
     },
     [supabase]
@@ -197,15 +132,17 @@ function NewInquiryPageInner() {
       setResumeReady(true);
       setResumeError(false);
       if (prevResumeInquiryRef.current) {
-        setPhase('create');
         setInquiryId('');
         setInquiry(null);
         setWizardStep(1);
+        setViewStage('Enquiry');
         setFunnelStage('Enquiry');
         setCustomerName('');
         setUnitCode('');
         setUnitStatus(null);
         setInquiryUnitId('');
+        setProjectId('');
+        setStagesWithData(new Set());
       }
       prevResumeInquiryRef.current = '';
       return;
@@ -220,19 +157,20 @@ function NewInquiryPageInner() {
       if (cancelled) return;
       if (ok) {
         setInquiryId(resumeInquiryId);
-        setPhase('pipeline');
-        setWizardStep(2);
+        setWizardStep(3);
       } else {
         setResumeError(true);
         setInquiry(null);
         setInquiryId('');
-        setPhase('create');
         setWizardStep(1);
+        setViewStage('Enquiry');
         setFunnelStage('Enquiry');
         setCustomerName('');
         setUnitCode('');
         setUnitStatus(null);
         setInquiryUnitId('');
+        setProjectId('');
+        setStagesWithData(new Set());
       }
       setResumeReady(true);
     })();
@@ -245,13 +183,42 @@ function NewInquiryPageInner() {
   const handleInquiryCreated = useCallback(
     async (id: string) => {
       setInquiryId(id);
-      setLoadingPipeline(true);
       await loadInquiry(id);
-      setLoadingPipeline(false);
-      setPhase('pipeline');
+      setWizardStep(3);
+      setViewStage('Site Visit');
     },
     [loadInquiry]
   );
+
+  const handleStageSelect = useCallback(
+    (stage: InquiryFunnelStage) => {
+      if (!inquiryId && stage !== 'Enquiry' && stage !== 'Qualified') return;
+      setViewStage(stage);
+      if (stage === 'Negotiation' || stage === 'Token') return;
+      setWizardStep(wizardStepForFunnelStage(stage));
+    },
+    [inquiryId]
+  );
+
+  const handleFunnelStageChange = useCallback((stage: string) => {
+    setFunnelStage(stage);
+    setViewStage(stage as InquiryFunnelStage);
+  }, []);
+
+  const handleStageDataSaved = useCallback(() => {
+    if (inquiryId) void loadInquiry(inquiryId);
+  }, [inquiryId, loadInquiry]);
+
+  const handleSkipToStage = useCallback((stage: InquiryFunnelStage) => {
+    setViewStage(stage);
+    if (stage === 'Negotiation' || stage === 'Token') {
+      setFunnelStage(stage);
+    }
+  }, []);
+
+  const handlePipelineStageChange = useCallback((stage: InquiryFunnelStage) => {
+    setViewStage(stage);
+  }, []);
 
   const pipelineUnitStageNote = useMemo(
     () =>
@@ -264,14 +231,27 @@ function NewInquiryPageInner() {
   );
 
   const headerTitle =
-    phase === 'pipeline' && customerName ? customerName : 'New enquiry';
+    customerName && inquiryId ? customerName : 'New enquiry';
 
   const headerSub =
-    phase === 'create'
-      ? 'Fill in customer details and select a unit to create the enquiry.'
-      : [unitCode, funnelStage].filter(Boolean).join(' · ');
+    inquiryId && (unitCode || funnelStage)
+      ? [unitCode, funnelStage].filter(Boolean).join(' · ')
+      : 'Customer & unit preferences, then qualify a unit and record the site visit.';
 
   const resuming = Boolean(resumeInquiryId && !resumeReady);
+  const maxReachableIndex = inquiryId
+    ? funnelStageIndex(funnelStage)
+    : Math.min(wizardStep - 1, 2);
+
+  const showPipelinePanel =
+    Boolean(inquiryId) &&
+    (viewStage === 'Negotiation' || viewStage === 'Token');
+
+  const showWizard =
+    !showPipelinePanel &&
+    (viewStage === 'Enquiry' ||
+      viewStage === 'Qualified' ||
+      viewStage === 'Site Visit');
 
   return (
     <div className="flex flex-col gap-4">
@@ -290,20 +270,26 @@ function NewInquiryPageInner() {
             <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
               {headerTitle}
             </h1>
-            {headerSub && (
+            {headerSub ? (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {headerSub}
               </p>
-            )}
+            ) : null}
           </div>
-          <PhaseBadge phase={phase} />
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+            {inquiryId ? 'Pipeline' : 'New enquiry'}
+          </span>
         </div>
 
-        {phase === 'create' ? (
-          <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
-            <FlowProgress wizardStep={wizardStep} />
-          </div>
-        ) : null}
+        <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
+          <InquiryFunnelStepper
+            currentStage={viewStage}
+            maxReachableIndex={maxReachableIndex}
+            stagesWithData={stagesWithData}
+            disabled={resuming}
+            onSelect={inquiryId || wizardStep > 1 ? handleStageSelect : undefined}
+          />
+        </div>
 
         <div className="px-4 py-4 sm:px-6">
           {resuming ? (
@@ -328,19 +314,6 @@ function NewInquiryPageInner() {
                 </Button>
               </div>
             </div>
-          ) : phase === 'create' ? (
-            <NewInquiryWizard
-              hideStepper
-              onStepChange={setWizardStep}
-              onCreated={(id) => void handleInquiryCreated(id)}
-            />
-          ) : loadingPipeline ? (
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="size-8 animate-spin rounded-full border-2 border-border border-t-teal-600" />
-              <p className="text-sm text-muted-foreground">
-                Setting up pipeline…
-              </p>
-            </div>
           ) : (
             <>
               {pipelineUnitStageNote ? (
@@ -351,19 +324,40 @@ function NewInquiryPageInner() {
                   {pipelineUnitStageNote}
                 </div>
               ) : null}
-              <InquiryPipelinePanel
-                inquiry={inquiry}
-                unitId={inquiryUnitId || null}
-                unitStatus={unitStatus}
-                inquiryContext={{
-                  customerName: customerName || undefined,
-                  unitCode: unitCode || undefined
-                }}
-                onSaved={() => {
-                  if (inquiryId) void loadInquiry(inquiryId);
-                }}
-                onClose={() => router.push('/crm/inquiry')}
-              />
+
+              {showWizard ? (
+                <NewInquiryWizard
+                  hideStepper
+                  inquiryId={inquiryId || undefined}
+                  forcedStep={wizardStep as 1 | 2 | 3}
+                  onStepChange={setWizardStep}
+                  onCreated={(id) => void handleInquiryCreated(id)}
+                  onFunnelStageChange={handleFunnelStageChange}
+                  onStageDataSaved={handleStageDataSaved}
+                  onSkipToStage={handleSkipToStage}
+                />
+              ) : null}
+
+              {showPipelinePanel && inquiry ? (
+                <InquiryPipelinePanel
+                  inquiry={inquiry}
+                  unitId={inquiryUnitId || null}
+                  unitStatus={unitStatus}
+                  projectId={projectId || null}
+                  hideMacroStepper
+                  hideVerticalStepper
+                  activeStageOverride={viewStage}
+                  onActiveStageChange={handlePipelineStageChange}
+                  inquiryContext={{
+                    customerName: customerName || undefined,
+                    unitCode: unitCode || undefined
+                  }}
+                  onSaved={() => {
+                    if (inquiryId) void loadInquiry(inquiryId);
+                  }}
+                  onClose={() => router.push('/crm/inquiry')}
+                />
+              ) : null}
             </>
           )}
         </div>
