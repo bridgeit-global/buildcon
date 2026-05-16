@@ -1,4 +1,9 @@
-import { normalizeUnitStatusCode } from '../inventory/unit-status';
+import {
+  normalizeUnitStatusCode,
+  STATUS_LABEL,
+  UNIT_STATUS_CODES,
+  statusLabelForUnit
+} from '../inventory/unit-status';
 
 export type InventoryBuckets = {
   available: number;
@@ -22,6 +27,67 @@ export function inrToCr(amountInr: number): number {
 
 export function inrToCrLabel(amountInr: number): string {
   return inrToCr(amountInr).toFixed(2);
+}
+
+export type UnitStatusSlice = {
+  code: string;
+  label: string;
+  count: number;
+  /** Muted gray segment per design-system (cancelled / unknown). */
+  muted?: boolean;
+};
+
+/** Map legacy / alias codes to canonical `UNIT_STATUS_CODES` values. */
+export function canonicalUnitStatusCode(status: string | null | undefined): string {
+  const raw = String(status ?? '').trim();
+  const s = normalizeUnitStatusCode(status);
+  if (s === 'AVAILABLE' || raw === 'A') return 'AVAILABLE';
+  if (s === 'BLOCKED' || raw === 'BL') return 'BLOCKED';
+  if (s === 'TOKEN') return 'TOKEN';
+  if (s === 'BOOKED' || raw === 'B') return 'BOOKED';
+  if (s === 'CANCELLED') return 'CANCELLED';
+  if (['AGREEMENT', 'REGISTERED', 'PRE_POSSESSION', 'POSSESSED'].includes(s)) return s;
+  if (raw === 'S') return 'REGISTERED';
+  return s || 'UNKNOWN';
+}
+
+export function countUnitStatusBreakdown(
+  statuses: Array<string | null | undefined>
+): UnitStatusSlice[] {
+  const counts = new Map<string, number>();
+  for (const st of statuses) {
+    const code = canonicalUnitStatusCode(st);
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+  }
+
+  const slices: UnitStatusSlice[] = [];
+  const seen = new Set<string>();
+
+  const isMuted = (code: string) => code === 'CANCELLED' || code === 'UNKNOWN';
+
+  for (const code of UNIT_STATUS_CODES) {
+    const count = counts.get(code) ?? 0;
+    if (count <= 0) continue;
+    seen.add(code);
+    slices.push({
+      code,
+      label: STATUS_LABEL[code] ?? code,
+      count,
+      muted: isMuted(code)
+    });
+  }
+
+  for (const [code, count] of counts) {
+    if (count <= 0 || seen.has(code)) continue;
+    slices.push({
+      code,
+      label: statusLabelForUnit(code),
+      count,
+      muted: isMuted(code)
+    });
+  }
+
+  return slices;
 }
 
 export function bucketUnitStatus(status: string | null | undefined): keyof InventoryBuckets | 'other' {

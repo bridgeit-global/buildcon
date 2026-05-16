@@ -2,26 +2,31 @@
 
 import { useEffect, useRef } from 'react';
 import type { ChartOptions } from 'chart.js';
-import type { InventoryBuckets, MonthPoint, SalesVsCollPoint } from './dashboard-utils';
-import { CHART_DEFAULTS, DASHBOARD_CHART } from './dashboard-theme';
+import type { MonthPoint, SalesVsCollPoint, UnitStatusSlice } from './dashboard-utils';
+import {
+  CHART_DEFAULTS,
+  chartSegmentColor,
+  getDashboardChartColors,
+  type DashboardChartColors
+} from './dashboard-theme';
 
 const CHART_HEIGHT = 220;
 
-function scaleOptions() {
+function scaleOptions(colors: DashboardChartColors) {
   return {
     y: {
       ticks: {
         font: CHART_DEFAULTS.font,
-        color: CHART_DEFAULTS.tickColor,
+        color: colors.tick,
         maxTicksLimit: 6
       },
-      grid: { color: CHART_DEFAULTS.gridColor },
+      grid: { color: colors.grid },
       border: { display: false }
     },
     x: {
       ticks: {
         font: CHART_DEFAULTS.font,
-        color: CHART_DEFAULTS.tickColor,
+        color: colors.tick,
         maxRotation: 0,
         autoSkip: true,
         maxTicksLimit: 8
@@ -32,13 +37,16 @@ function scaleOptions() {
   } satisfies ChartOptions['scales'];
 }
 
-function legendOptions(position: 'bottom' | 'right' = 'bottom') {
+function legendOptions(
+  colors: DashboardChartColors,
+  position: 'bottom' | 'right' = 'bottom'
+) {
   return {
     position,
     align: 'start' as const,
     labels: {
       font: CHART_DEFAULTS.font,
-      color: DASHBOARD_CHART.legend,
+      color: colors.legend,
       boxWidth: 8,
       boxHeight: 8,
       usePointStyle: true,
@@ -48,10 +56,24 @@ function legendOptions(position: 'bottom' | 'right' = 'bottom') {
   };
 }
 
-export function InventoryDonutChart({ buckets }: { buckets: InventoryBuckets }) {
+function unitCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'unit' : 'units'}`;
+}
+
+function segmentColorsForBreakdown(
+  breakdown: UnitStatusSlice[],
+  palette: DashboardChartColors
+): string[] {
+  let tealIndex = 0;
+  return breakdown.map((slice) => {
+    if (slice.muted) return palette.segmentMuted;
+    return chartSegmentColor(tealIndex++, palette);
+  });
+}
+
+export function InventoryDonutChart({ breakdown }: { breakdown: UnitStatusSlice[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<import('chart.js').Chart | null>(null);
-  const bl = buckets.blocked;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -63,38 +85,38 @@ export function InventoryDonutChart({ buckets }: { buckets: InventoryBuckets }) 
       const { Chart } = await import('chart.js/auto');
       if (cancelled) return;
 
+      const chartColors = getDashboardChartColors();
       chartRef.current?.destroy();
 
-      const labels =
-        bl > 0
-          ? [
-              `Available (${buckets.available})`,
-              `Booked (${buckets.booked})`,
-              `Sold (${buckets.sold})`,
-              `Blocked (${bl})`
+      if (!breakdown.length) {
+        chartRef.current = new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: ['No units'],
+            datasets: [
+              {
+                data: [1],
+                backgroundColor: [chartColors.grid],
+                borderWidth: 0
+              }
             ]
-          : [
-              `Available (${buckets.available})`,
-              `Booked (${buckets.booked})`,
-              `Sold (${buckets.sold})`
-            ];
-      const data =
-        bl > 0
-          ? [buckets.available, buckets.booked, buckets.sold, bl]
-          : [buckets.available, buckets.booked, buckets.sold];
-      const colors =
-        bl > 0
-          ? [
-              DASHBOARD_CHART.available,
-              DASHBOARD_CHART.booked,
-              DASHBOARD_CHART.sold,
-              DASHBOARD_CHART.blocked
-            ]
-          : [
-              DASHBOARD_CHART.available,
-              DASHBOARD_CHART.booked,
-              DASHBOARD_CHART.sold
-            ];
+          },
+          options: {
+            cutout: '62%',
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            animation: { duration: 0 }
+          }
+        });
+        return;
+      }
+
+      const labels = breakdown.map(
+        (s) => `${s.label} (${unitCountLabel(s.count)})`
+      );
+      const data = breakdown.map((s) => s.count);
+      const colors = segmentColorsForBreakdown(breakdown, chartColors);
+      const legend = legendOptions(chartColors, 'bottom');
 
       chartRef.current = new Chart(canvas, {
         type: 'doughnut',
@@ -106,7 +128,22 @@ export function InventoryDonutChart({ buckets }: { buckets: InventoryBuckets }) 
           cutout: '62%',
           maintainAspectRatio: false,
           plugins: {
-            legend: legendOptions('bottom')
+            legend: {
+              ...legend,
+              labels: {
+                ...legend.labels,
+                padding: breakdown.length > 5 ? 10 : 14
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const slice = breakdown[ctx.dataIndex];
+                  if (!slice) return '';
+                  return `${slice.label}: ${unitCountLabel(slice.count)}`;
+                }
+              }
+            }
           },
           animation: { duration: 600 }
         }
@@ -118,10 +155,13 @@ export function InventoryDonutChart({ buckets }: { buckets: InventoryBuckets }) 
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [buckets.available, buckets.booked, buckets.sold, bl]);
+  }, [breakdown]);
 
   return (
-    <div className="h-[220px] w-full">
+    <div
+      className="w-full"
+      style={{ height: breakdown.length > 5 ? 280 : CHART_HEIGHT }}
+    >
       <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );
@@ -141,6 +181,7 @@ export function MonthlyCollectionsBarChart({ points }: { points: MonthPoint[] })
       const { Chart } = await import('chart.js/auto');
       if (cancelled) return;
 
+      const chartColors = getDashboardChartColors();
       chartRef.current?.destroy();
       chartRef.current = new Chart(canvas, {
         type: 'bar',
@@ -150,8 +191,8 @@ export function MonthlyCollectionsBarChart({ points }: { points: MonthPoint[] })
             {
               label: 'Collections (Cr)',
               data: points.map((m) => m.amount),
-              backgroundColor: DASHBOARD_CHART.bar,
-              hoverBackgroundColor: DASHBOARD_CHART.barLight,
+              backgroundColor: chartColors.bar,
+              hoverBackgroundColor: chartColors.barLight,
               borderRadius: 6,
               borderSkipped: false
             }
@@ -160,7 +201,7 @@ export function MonthlyCollectionsBarChart({ points }: { points: MonthPoint[] })
         options: {
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: scaleOptions(),
+          scales: scaleOptions(chartColors),
           animation: { duration: 600 }
         }
       });
@@ -198,6 +239,7 @@ export function SalesVsCollectionsLineChart({
       const { Chart } = await import('chart.js/auto');
       if (cancelled) return;
 
+      const chartColors = getDashboardChartColors();
       chartRef.current?.destroy();
       chartRef.current = new Chart(canvas, {
         type: 'line',
@@ -207,8 +249,8 @@ export function SalesVsCollectionsLineChart({
             {
               label: 'Sales',
               data: points.map((m) => m.sales),
-              borderColor: DASHBOARD_CHART.salesLine,
-              backgroundColor: DASHBOARD_CHART.salesFill,
+              borderColor: chartColors.salesLine,
+              backgroundColor: chartColors.salesFill,
               tension: 0.42,
               fill: true,
               pointRadius: 0,
@@ -218,8 +260,8 @@ export function SalesVsCollectionsLineChart({
             {
               label: 'Collections',
               data: points.map((m) => m.collections),
-              borderColor: DASHBOARD_CHART.collectionsLine,
-              backgroundColor: DASHBOARD_CHART.collectionsFill,
+              borderColor: chartColors.collectionsLine,
+              backgroundColor: chartColors.collectionsFill,
               tension: 0.42,
               fill: false,
               pointRadius: 0,
@@ -232,9 +274,9 @@ export function SalesVsCollectionsLineChart({
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: legendOptions('bottom')
+            legend: legendOptions(chartColors, 'bottom')
           },
-          scales: scaleOptions(),
+          scales: scaleOptions(chartColors),
           animation: { duration: 600 }
         }
       });

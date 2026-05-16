@@ -47,7 +47,7 @@ Applies to **every** user-facing surface in this repo (CRM, auth, admin, marketi
 | Axes, grid, legend text | `ds-gray-100`–`200` grid; `ds-gray-400`–`500` labels |
 
 - **Do not** use Recharts/Chart.js/theme rainbow palettes, `#8884d8`, `#82ca9d`, or semantic greens/oranges for generic charts (reserve `ds-success-*` / `ds-warning-*` only when the metric is explicitly success/warning).
-- Reuse or extend `DASHBOARD_CHART` in `app/crm/dashboard/dashboard-theme.ts` (`barLight`, `salesFill`, etc.) — add new chart constants there instead of inline hex in components.
+- Reuse or extend `getDashboardChartColors()` / `CHART_SEGMENT_VAR_NAMES` in `app/crm/dashboard/dashboard-theme.ts` — map to `--ds-*` vars from `globals.css`; resolve inside chart `useEffect`, not inline hex in components.
 - Area fills: low-opacity teal/mint only; no saturated multi-color stacks.
 
 ## Actions

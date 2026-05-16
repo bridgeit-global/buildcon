@@ -1,25 +1,108 @@
-/** CRM dashboard palette — aligned with `globals.css` ds-* / teal primary. */
+/** CRM dashboard chart tokens — resolved from `app/globals.css` (`--ds-*`). */
 
-export const DASHBOARD_CHART = {
-  available: '#039855',
-  booked: '#dc6803',
-  sold: '#0f766e',
-  blocked: '#667085',
-  bar: '#0d9488',
-  barLight: '#2dd4bf',
-  salesLine: '#0d9488',
-  salesFill: 'rgba(13, 148, 136, 0.12)',
-  collectionsLine: '#475467',
-  collectionsFill: 'rgba(71, 84, 103, 0.06)',
-  grid: '#f2f4f7',
-  tick: '#98a2b3',
-  legend: '#667085'
+/** CSS variable names for multi-segment donut/pie (teal scale only). */
+export const CHART_SEGMENT_VAR_NAMES = [
+  '--ds-primary-100',
+  '--ds-primary-200',
+  '--ds-primary-300',
+  '--ds-primary-400',
+  '--ds-primary-500',
+  '--ds-primary-600',
+  '--ds-primary-700',
+  '--ds-primary-800'
+] as const;
+
+const CHART_VAR_MAP = {
+  bar: '--ds-primary-500',
+  barLight: '--ds-primary-300',
+  salesLine: '--ds-primary-500',
+  salesFillAlpha: 0.12,
+  collectionsLine: '--ds-gray-600',
+  collectionsFillAlpha: 0.06,
+  grid: '--ds-gray-100',
+  tick: '--ds-gray-400',
+  legend: '--ds-gray-500',
+  segmentMuted: '--ds-gray-400'
 } as const;
 
+export type DashboardChartColors = {
+  bar: string;
+  barLight: string;
+  salesLine: string;
+  salesFill: string;
+  collectionsLine: string;
+  collectionsFill: string;
+  grid: string;
+  tick: string;
+  legend: string;
+  segmentTeal: string[];
+  segmentMuted: string;
+};
+
+function readDsVar(name: string): string {
+  if (typeof document === 'undefined') return '';
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const raw = hex.replace('#', '').trim();
+  if (!raw) return null;
+  const h =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw.length === 6
+        ? raw
+        : null;
+  if (!h) return null;
+  const n = Number.parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+}
+
+let chartColorsCache: DashboardChartColors | null = null;
+
+/** Resolve chart colors from design tokens (client-only; call inside `useEffect`). */
+export function getDashboardChartColors(): DashboardChartColors {
+  if (chartColorsCache) return chartColorsCache;
+
+  const salesBase = readDsVar(CHART_VAR_MAP.salesLine);
+  const collBase = readDsVar(CHART_VAR_MAP.collectionsLine);
+
+  chartColorsCache = {
+    bar: readDsVar(CHART_VAR_MAP.bar),
+    barLight: readDsVar(CHART_VAR_MAP.barLight),
+    salesLine: salesBase,
+    salesFill: withAlpha(salesBase, CHART_VAR_MAP.salesFillAlpha),
+    collectionsLine: collBase,
+    collectionsFill: withAlpha(collBase, CHART_VAR_MAP.collectionsFillAlpha),
+    grid: readDsVar(CHART_VAR_MAP.grid),
+    tick: readDsVar(CHART_VAR_MAP.tick),
+    legend: readDsVar(CHART_VAR_MAP.legend),
+    segmentTeal: CHART_SEGMENT_VAR_NAMES.map((name) => readDsVar(name)),
+    segmentMuted: readDsVar(CHART_VAR_MAP.segmentMuted)
+  };
+
+  return chartColorsCache;
+}
+
+export function chartSegmentColor(
+  index: number,
+  palette: Pick<DashboardChartColors, 'segmentTeal'>
+): string {
+  const { segmentTeal } = palette;
+  return segmentTeal[index % segmentTeal.length] ?? segmentTeal[0] ?? '';
+}
+
 export const CHART_DEFAULTS = {
-  font: { size: 10, family: 'inherit' },
-  gridColor: DASHBOARD_CHART.grid,
-  tickColor: DASHBOARD_CHART.tick
+  font: { size: 10, family: 'inherit' }
 } as const;
 
 export const WORKFLOW_BADGE_CLASS = [

@@ -20,6 +20,7 @@ import {
 } from './dashboard-charts';
 import {
   countInventoryBuckets,
+  countUnitStatusBreakdown,
   inrToCrLabel,
   monthKeyFromIsoDate,
   recentMonthKeys,
@@ -27,7 +28,8 @@ import {
   seriesFromMonthMap,
   type InventoryBuckets,
   type MonthPoint,
-  type SalesVsCollPoint
+  type SalesVsCollPoint,
+  type UnitStatusSlice
 } from './dashboard-utils';
 
 type RecentBooking = {
@@ -75,6 +77,7 @@ export default function DashboardPage() {
     sold: 0,
     blocked: 0
   });
+  const [statusBreakdown, setStatusBreakdown] = useState<UnitStatusSlice[]>([]);
   const [totalInventory, setTotalInventory] = useState(0);
   const [totalSalesInr, setTotalSalesInr] = useState(0);
   const [totalCollectionsInr, setTotalCollectionsInr] = useState(0);
@@ -119,6 +122,7 @@ export default function DashboardPage() {
       const statuses = (unitsRes.data ?? []).map((r: { status: string }) => r.status);
       const inv = countInventoryBuckets(statuses);
       setBuckets(inv);
+      setStatusBreakdown(countUnitStatusBreakdown(statuses));
       setTotalInventory(statuses.length);
 
       const overdueSum = (overdueRes.data ?? []).reduce(
@@ -338,7 +342,11 @@ export default function DashboardPage() {
 
         <aside className="flex min-w-0 flex-col gap-4">
           <ChartPanel title="Inventory Status">
-            {loading ? <ChartLoading /> : <InventoryDonutChart buckets={buckets} />}
+            {loading ? (
+              <ChartLoading />
+            ) : (
+              <InventoryDonutChart breakdown={statusBreakdown} />
+            )}
           </ChartPanel>
           <DashboardWorkflowCta />
         </aside>
