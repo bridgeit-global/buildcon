@@ -37,7 +37,11 @@ import {
   qualifyInquiryWithUnit
 } from './inquiry-stage-transitions';
 import type { InquiryStageData } from './inquiry-types';
-import { saveInquiryStageData } from './inquiry-stage-store';
+import {
+  loadInquiryStageData,
+  persistNegotiationApprovalRequest,
+  saveInquiryStageData
+} from './inquiry-stage-store';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
 import type { UnitRow } from './inquiry-types';
 import {
@@ -194,7 +198,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     void (async () => {
       const { data, error: loadErr } = await supabase
         .from('sales_inquiries')
-        .select('unit_id, stage_data')
+        .select('unit_id, funnel_stage')
         .eq('id', id)
         .maybeSingle();
       if (cancelled || loadErr || !data) return;
@@ -203,7 +207,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         setSellerForm((s) => ({ ...s, selectedUnitId: unitId }));
         setCreatedInquiryId(id);
       }
-      const sd = (data as { stage_data?: InquiryStageData }).stage_data;
+      const { data: sd } = await loadInquiryStageData(supabase, id);
       const neg = sd?.negotiation as
         | {
           approval_status?: string;
@@ -802,19 +806,19 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       );
       setLatestApprovalId(approvalId);
 
-      const ok = await persistVisitSiteStage(
-        {
-          site_visit: { outcome: 'Interested' },
-          negotiation: {
-            offered_price: offeredRaw,
-            approval_status: 'pending',
-            approval_id: approvalId,
-            notes: sellerForm.notes.trim() || undefined
-          }
-        },
-        'Negotiation'
-      );
-      if (!ok) return;
+      const persist = await persistNegotiationApprovalRequest(supabase, {
+        inquiryId: activeInquiryId,
+        approvalId,
+        offeredPrice: offeredRaw,
+        notes: sellerForm.notes.trim() || undefined,
+        funnelStage: 'Negotiation',
+        siteVisitPatch: { outcome: 'Interested' }
+      });
+      if (!persist.ok) {
+        throw new Error(persist.error ?? 'Could not save negotiation stage');
+      }
+      onFunnelStageChange?.('Negotiation');
+      onStageDataSaved?.();
       setApprovalStatus('pending');
       setApprovalNote('');
       onSkipToStage?.('Negotiation');
@@ -829,23 +833,21 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }
 
   async function refreshApprovalStatus() {
-    if (!latestApprovalId) return;
-    const { data, error: readErr } = await supabase
-      .from('negotiation_approvals')
-      .select('status, decision_note')
-      .eq('id', latestApprovalId)
-      .maybeSingle();
-    if (readErr || !data) return;
-    const row = data as { status: string; decision_note: string | null };
-    const next = row.status === 'Approved'
-      ? 'approved'
-      : row.status === 'Rejected'
-        ? 'rejected'
-        : row.status === 'Pending'
-          ? 'pending'
-          : 'none';
-    setApprovalStatus(next as typeof approvalStatus);
-    if (row.decision_note) setApprovalNote(row.decision_note);
+    if (!activeInquiryId) return;
+    const { data: loaded } = await loadInquiryStageData(supabase, activeInquiryId);
+    const neg = loaded.negotiation as
+      | {
+          approval_status?: string;
+          approval_id?: string;
+          decision_note?: string;
+        }
+      | undefined;
+    if (neg?.approval_id) setLatestApprovalId(String(neg.approval_id));
+    if (neg?.approval_status === 'pending') setApprovalStatus('pending');
+    else if (neg?.approval_status === 'approved') setApprovalStatus('approved');
+    else if (neg?.approval_status === 'rejected') setApprovalStatus('rejected');
+    if (neg?.decision_note) setApprovalNote(String(neg.decision_note));
+    onStageDataSaved?.();
   }
 
   return (

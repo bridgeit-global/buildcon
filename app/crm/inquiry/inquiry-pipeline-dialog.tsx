@@ -23,7 +23,9 @@ import {
 import { statusLabelForUnit } from '../inventory/inventory-utils';
 import type { InquiryStageData } from './inquiry-types';
 import {
+  enrichNegotiationFromApprovals,
   loadInquiryStageData,
+  persistNegotiationApprovalRequest,
   saveInquiryStageData
 } from './inquiry-stage-store';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
@@ -644,8 +646,32 @@ function NegotiationForm({
   onApprovalSubmitted?: () => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [approvalError, setApprovalError] = useState('');
   const approvalStatus = String(data.approval_status ?? '').trim().toLowerCase();
+
+  async function refreshApprovalStatus() {
+    if (!supabase || !inquiryId) return;
+    setRefreshing(true);
+    setApprovalError('');
+    try {
+      const { data: loaded } = await loadInquiryStageData(supabase, inquiryId);
+      const enriched = await enrichNegotiationFromApprovals(
+        supabase,
+        inquiryId,
+        loaded
+      );
+      const neg = enriched.negotiation ?? {};
+      onChange({ ...data, ...(neg as NegotiationStageData) });
+      onApprovalSubmitted?.();
+    } catch (e) {
+      setApprovalError(
+        e instanceof Error ? e.message : 'Could not refresh approval status'
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function sendForApproval() {
     if (!supabase || !inquiryId || !projectId) return;
@@ -705,8 +731,19 @@ function NegotiationForm({
       const approvalId = String(
         (approvalRow as { id?: string } | null)?.id || ''
       );
+      const persist = await persistNegotiationApprovalRequest(supabase, {
+        inquiryId,
+        approvalId,
+        offeredPrice: offeredRaw,
+        notes: data.notes?.trim() || undefined,
+        funnelStage: 'Negotiation'
+      });
+      if (!persist.ok) {
+        throw new Error(persist.error ?? 'Could not save negotiation stage');
+      }
       onChange({
         ...data,
+        offered_price: offeredRaw,
         approval_status: 'pending',
         approval_id: approvalId
       });
@@ -792,9 +829,21 @@ function NegotiationForm({
             Admin budget approval
           </p>
           {approvalStatus === 'pending' ? (
-            <p className="text-[11px] text-amber-900">
-              Awaiting admin decision — Super Admins review under CRM → Approvals.
-            </p>
+            <div className="space-y-2">
+              <p className="text-[11px] text-amber-900">
+                Awaiting admin decision — Super Admins review under CRM → Approvals.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11"
+                disabled={refreshing}
+                onClick={() => void refreshApprovalStatus()}
+              >
+                {refreshing ? 'Checking…' : 'Refresh status'}
+              </Button>
+            </div>
           ) : null}
           {approvalStatus === 'approved' ? (
             <p className="text-[11px] text-teal-900">

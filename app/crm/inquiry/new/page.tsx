@@ -96,18 +96,21 @@ function NewInquiryPageInner() {
 
       if (!data) return false;
       const row = data as unknown as InquiryFetchRow;
+      const { data: stageData } = await loadInquiryStageData(supabase, id);
+      const fs = String(row.funnel_stage || 'Enquiry').trim() as InquiryFunnelStage;
+      const resolvedStage = INQUIRY_FUNNEL_STAGE_ORDER.includes(fs)
+        ? fs
+        : 'Site Visit';
+
       setInquiry({
         id: row.id,
         funnel_stage: row.funnel_stage,
         assigned_to: row.assigned_to,
-        stage_data: row.stage_data
+        stage_data: stageData
       });
-      const fs = String(row.funnel_stage || 'Enquiry').trim() as InquiryFunnelStage;
-      setFunnelStage(fs);
-      setViewStage(
-        INQUIRY_FUNNEL_STAGE_ORDER.includes(fs) ? fs : 'Site Visit'
-      );
-      setWizardStep(wizardStepForFunnelStage(fs));
+      setFunnelStage(resolvedStage);
+      setViewStage(resolvedStage);
+      setWizardStep(wizardStepForFunnelStage(resolvedStage));
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
@@ -115,7 +118,6 @@ function NewInquiryPageInner() {
       setInquiryUnitId(String(row.unit_id || '').trim());
       setProjectId(String(row.project_id || '').trim());
 
-      const { data: stageData } = await loadInquiryStageData(supabase, id);
       const filled = new Set<InquiryFunnelStage>();
       for (const stage of INQUIRY_FUNNEL_STAGE_ORDER) {
         if (stageHasMeaningfulData(stage, stageData)) filled.add(stage);
@@ -157,7 +159,6 @@ function NewInquiryPageInner() {
       if (cancelled) return;
       if (ok) {
         setInquiryId(resumeInquiryId);
-        setWizardStep(3);
       } else {
         setResumeError(true);
         setInquiry(null);
@@ -194,7 +195,10 @@ function NewInquiryPageInner() {
     (stage: InquiryFunnelStage) => {
       if (!inquiryId && stage !== 'Enquiry' && stage !== 'Qualified') return;
       setViewStage(stage);
-      if (stage === 'Negotiation' || stage === 'Token') return;
+      if (stage === 'Negotiation' || stage === 'Token') {
+        setFunnelStage(stage);
+        return;
+      }
       setWizardStep(wizardStepForFunnelStage(stage));
     },
     [inquiryId]
