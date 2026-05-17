@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -23,6 +25,8 @@ import {
   tokenStageBlockedByNegotiation,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
+import { writeBookingPrefill } from '../booking-prefill-storage';
+import { buildBookingPrefillFromInquiry } from './booking-prefill-from-inquiry';
 import {
   formatInr,
   formatInrCompactLacCr,
@@ -1047,6 +1051,7 @@ export function InquiryPipelinePanel(props: {
   unitId?: string | null;
   unitStatus?: string | null;
   projectId?: string | null;
+  customerId?: string | null;
   /** Hide Customer → Unit → Enquiry macro strip (parent page supplies top stepper). */
   hideMacroStepper?: boolean;
   /** Hide left vertical funnel nav (parent supplies top stepper). */
@@ -1063,6 +1068,7 @@ export function InquiryPipelinePanel(props: {
     unitId,
     unitStatus,
     projectId,
+    customerId,
     hideMacroStepper,
     hideVerticalStepper,
     activeStageOverride,
@@ -1070,6 +1076,7 @@ export function InquiryPipelinePanel(props: {
     onSaved,
     onClose
   } = props;
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStageInternal, setActiveStageInternal] = useState<FunnelStage>('Enquiry');
@@ -1084,6 +1091,24 @@ export function InquiryPipelinePanel(props: {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
+
+  const navigateToBooking = useCallback(() => {
+    const inqId = String(inquiry?.id || '').trim();
+    const pid = String(projectId || '').trim();
+    const uid = String(unitId || '').trim();
+    const cid = String(customerId || '').trim();
+    if (!inqId || !pid || !uid || !cid) return;
+    writeBookingPrefill(
+      buildBookingPrefillFromInquiry({
+        inquiryId: inqId,
+        projectId: pid,
+        customerId: cid,
+        unitId: uid,
+        stageData: stageDataToJson(stageData)
+      })
+    );
+    router.push('/crm/bookings');
+  }, [inquiry?.id, projectId, unitId, customerId, stageData, router]);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
 
@@ -1471,6 +1496,21 @@ export function InquiryPipelinePanel(props: {
             </Button>
           ) : pipelineClosed ? null : (
             <>
+              {activeStage === 'Token' &&
+              projectId &&
+              unitId &&
+              customerId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={saving}
+                  onClick={navigateToBooking}
+                >
+                  Create booking
+                  <ArrowRight className="size-3.5 opacity-90" />
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 disabled={saving}

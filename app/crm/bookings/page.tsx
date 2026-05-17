@@ -15,7 +15,11 @@ import {
   PaymentCostOverview,
   type PaymentCostOverviewMode
 } from '../_components/payment-cost-overview';
-import { isUnitAvailableForBooking } from '../inventory/unit-status';
+import {
+  isUnitAvailableForBooking,
+  isUnitPrefillableFromInquiry,
+  normalizeUnitStatusCode
+} from '../inventory/unit-status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -455,7 +459,7 @@ export default function BookingsPage() {
         .select(
           'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
         )
-        .in('status', ['AVAILABLE', 'A'])
+        .in('status', ['AVAILABLE', 'A', 'TOKEN'])
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true })
@@ -517,10 +521,11 @@ export default function BookingsPage() {
         setCustomerId('');
       }
 
-      const avail = unitsList.find(
-        (u) => u.id === p.unitId && isUnitAvailableForBooking(u.status)
-      );
-      if (avail) {
+      const prefillUnit = unitsList.find((u) => u.id === p.unitId);
+      const prefillSelectable =
+        prefillUnit && isUnitPrefillableFromInquiry(prefillUnit.status);
+
+      if (prefillSelectable) {
         setUnitId(p.unitId);
         setUnitFromInquiryUnavailable(false);
         setBreakdownUnit(null);
@@ -536,6 +541,22 @@ export default function BookingsPage() {
           .maybeSingle();
         setBreakdownUnit(urow ? (urow as UnitOption) : null);
         if (urow?.project_id) void loadProjectPricing(urow.project_id as string);
+      }
+
+      const amount = String(p.bookingAmount ?? '').trim();
+      if (amount) setBookingAmount(amount);
+
+      const mode = String(p.paymentMode ?? '').trim();
+      if (mode && (PAYMENT_MODE_OPTIONS as readonly string[]).includes(mode)) {
+        setPaymentMode(mode);
+      }
+
+      const ref = String(p.paymentReference ?? '').trim();
+      if (ref) {
+        const resolvedMode = mode || 'Cash';
+        if (resolvedMode === 'UPI') setUpiUtr(ref);
+        else if (resolvedMode === 'Cheque') setChequeNo(ref);
+        else if (resolvedMode === 'NEFT/RTGS') setNeftRef(ref);
       }
     }
 
@@ -1012,9 +1033,19 @@ export default function BookingsPage() {
             </div>
             {unitFromInquiryUnavailable ? (
               <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950">
-                This inquiry&apos;s unit is not in the available list (it may be
-                booked). Pick another unit below. The cost overview still shows the
-                inquiry unit until you choose one.
+                {normalizeUnitStatusCode(breakdownUnit?.status) === 'TOKEN' ? (
+                  <>
+                    This unit is on token — pick it from the list below if it does
+                    not appear selected. Token amount and payment details were
+                    prefilled when available.
+                  </>
+                ) : (
+                  <>
+                    This inquiry&apos;s unit is not in the available list (it may be
+                    booked). Pick another unit below. The cost overview still shows
+                    the inquiry unit until you choose one.
+                  </>
+                )}
               </div>
             ) : null}
             {prefillCustomerMissing ? (

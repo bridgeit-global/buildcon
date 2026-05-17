@@ -29,6 +29,7 @@ import type { InquiryStageData } from '../inquiry-types';
 type InquiryFetchRow = {
   id: string;
   project_id: string;
+  customer_id: string;
   unit_id: string;
   funnel_stage: string;
   assigned_to: string | null;
@@ -70,6 +71,7 @@ function NewInquiryPageInner() {
   const [customerName, setCustomerName] = useState('');
   const [unitCode, setUnitCode] = useState('');
   const [inquiryUnitId, setInquiryUnitId] = useState('');
+  const [customerId, setCustomerId] = useState('');
   const [stagesWithData, setStagesWithData] = useState<Set<InquiryFunnelStage>>(
     () => new Set()
   );
@@ -85,6 +87,7 @@ function NewInquiryPageInner() {
           `
           id,
           project_id,
+          customer_id,
           unit_id,
           funnel_stage,
           assigned_to,
@@ -118,6 +121,7 @@ function NewInquiryPageInner() {
       const st = row.units?.status;
       setUnitStatus(st != null && String(st).trim() !== '' ? String(st) : null);
       setInquiryUnitId(String(row.unit_id || '').trim());
+      setCustomerId(String(row.customer_id || '').trim());
       setProjectId(String(row.project_id || '').trim());
 
       const filled = new Set<InquiryFunnelStage>();
@@ -145,6 +149,7 @@ function NewInquiryPageInner() {
         setUnitCode('');
         setUnitStatus(null);
         setInquiryUnitId('');
+        setCustomerId('');
         setProjectId('');
         setStagesWithData(new Set());
       }
@@ -172,6 +177,7 @@ function NewInquiryPageInner() {
         setUnitCode('');
         setUnitStatus(null);
         setInquiryUnitId('');
+        setCustomerId('');
         setProjectId('');
         setStagesWithData(new Set());
       }
@@ -377,6 +383,7 @@ function NewInquiryPageInner() {
                   unitId={inquiryUnitId || null}
                   unitStatus={unitStatus}
                   projectId={projectId || null}
+                  customerId={customerId || null}
                   hideMacroStepper
                   hideVerticalStepper
                   activeStageOverride={viewStage}

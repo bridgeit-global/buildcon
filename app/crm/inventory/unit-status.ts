@@ -62,6 +62,14 @@ export function isUnitAvailableForBooking(status: string | null | undefined): bo
   return s === 'AVAILABLE' || LEGACY_AVAILABLE.has(String(status || '').trim());
 }
 
+/** Inquiry → booking prefill: available units and units already on token. */
+export function isUnitPrefillableFromInquiry(
+  status: string | null | undefined
+): boolean {
+  const s = normalizeUnitStatusCode(status);
+  return isUnitAvailableForBooking(status) || s === 'TOKEN';
+}
+
 /** Inquiry / sales flow: show units that can still be pitched. */
 export function isUnitSelectableForInquiry(status: string | null | undefined): boolean {
   const s = normalizeUnitStatusCode(status);

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { writeBookingPrefill } from '../booking-prefill-storage';
-import { inquiryReference } from './inquiry-helpers';
+import { buildBookingPrefillFromInquiry } from './booking-prefill-from-inquiry';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
 
 const INQUIRY_SELECT = `
@@ -101,17 +101,15 @@ export function useInquiryListResources() {
     (inq: InquiryRowDb) => {
       const pid = String(inq.project_id || '').trim();
       if (!pid || !String(inq.unit_id || '').trim()) return;
-      writeBookingPrefill({
-        projectId: pid,
-        inquiryId: inq.id,
-        inquiryRef: inquiryReference(inq.id),
-        customerId: inq.customer_id,
-        unitId: inq.unit_id,
-        parkingRequired: 'No',
-        parkingCount: '1',
-        parkingSlotsAvailable: null,
-        parkingRateSnapshot: null
-      });
+      writeBookingPrefill(
+        buildBookingPrefillFromInquiry({
+          inquiryId: inq.id,
+          projectId: pid,
+          customerId: inq.customer_id,
+          unitId: inq.unit_id,
+          stageData: inq.stage_data
+        })
+      );
       router.push('/crm/bookings');
     },
     [router]

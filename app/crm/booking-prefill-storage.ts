@@ -12,6 +12,14 @@ export type BookingPrefillV1 = {
   parkingCount: string;
   parkingSlotsAvailable: number | null;
   parkingRateSnapshot: number | null;
+  /** Token stage amount → booking amount field. */
+  bookingAmount?: string | null;
+  /** Token stage date (informational; booking form has no date field yet). */
+  tokenDate?: string | null;
+  /** Token stage payment mode. */
+  paymentMode?: string | null;
+  /** Token cheque / UTR / NEFT reference → matching booking payment field. */
+  paymentReference?: string | null;
 };
 
 export function writeBookingPrefill(
