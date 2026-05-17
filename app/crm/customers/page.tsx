@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,16 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
+import {
+  isCustomerKycComplete,
+  maskAadhaarLast4,
+  normalizeAadhaarLast4,
+  normalizePan
+} from '@/lib/customer/kyc-identifiers';
+
+const CUSTOMER_SELECT =
+  'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
 
 type CustomerRow = {
   id: string;
@@ -32,6 +43,12 @@ type CustomerRow = {
   dob: string | null;
   occupation: string | null;
   nationality: string | null;
+  pan_number: string | null;
+  aadhaar_last4: string | null;
+  guardian_name: string | null;
+  residential_status: string | null;
+  passport_number: string | null;
+  office_name_address: string | null;
   created_at: string;
 };
 
@@ -148,6 +165,7 @@ function extensionFromFile(file: File): string {
 }
 
 export default function CustomersPage() {
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
@@ -165,7 +183,11 @@ export default function CustomersPage() {
     email: '',
     dob: '',
     occupation: '',
-    nationality: 'Indian'
+    nationality: 'Indian',
+    guardian_name: '',
+    residential_status: 'Resident Indian',
+    passport_number: '',
+    office_name_address: ''
   });
   const [editDraft, setEditDraft] = useState({
     full_name: '',
@@ -173,7 +195,13 @@ export default function CustomersPage() {
     email: '',
     dob: '',
     occupation: '',
-    nationality: 'Indian'
+    nationality: 'Indian',
+    pan_number: '',
+    aadhaar_last4: '',
+    guardian_name: '',
+    residential_status: 'Resident Indian',
+    passport_number: '',
+    office_name_address: ''
   });
 
   const [customerInquiries, setCustomerInquiries] = useState<
@@ -222,15 +250,17 @@ export default function CustomersPage() {
   const [kycDocType, setKycDocType] = useState('aadhaar');
   const kycFileRef = useRef<HTMLInputElement>(null);
   const [kycAlert, setKycAlert] = useState('');
+  const [kycPanInput, setKycPanInput] = useState('');
+  const [kycAadhaarInput, setKycAadhaarInput] = useState('');
+  const [identityPan, setIdentityPan] = useState('');
+  const [identityAadhaar, setIdentityAadhaar] = useState('');
 
   async function load() {
     setLoading(true);
     setError('');
     const { data, error: qErr } = await supabase
       .from('customers')
-      .select(
-        'id,full_name,phone,email,dob,occupation,nationality,created_at'
-      )
+      .select(CUSTOMER_SELECT)
       .order('created_at', { ascending: false })
       .limit(200);
     if (qErr) setError(qErr.message);
@@ -244,6 +274,15 @@ export default function CustomersPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const customerId = searchParams.get('customer');
+    if (!customerId) return;
+    setSelectedId(customerId);
+    if (searchParams.get('tab') === 'kyc') {
+      setDetailTab('kyc');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -352,6 +391,24 @@ export default function CustomersPage() {
       ? embedOne(latestInquiry.brokers)?.full_name ?? null
       : null;
 
+  const kycDocTypes = useMemo(
+    () => kycDocs.map((d) => d.doc_type),
+    [kycDocs]
+  );
+  const customerKycComplete = selected
+    ? isCustomerKycComplete(
+        selected.pan_number,
+        selected.aadhaar_last4,
+        kycDocTypes
+      )
+    : false;
+
+  useEffect(() => {
+    if (!selected) return;
+    setIdentityPan(selected.pan_number ?? '');
+    setIdentityAadhaar(selected.aadhaar_last4 ?? '');
+  }, [selected?.id, selected?.pan_number, selected?.aadhaar_last4]);
+
   async function createCustomer() {
     const full_name = draft.full_name.trim();
     if (!full_name) {
@@ -374,11 +431,13 @@ export default function CustomersPage() {
           email: draft.email || null,
           dob: draft.dob || null,
           occupation: draft.occupation || null,
-          nationality: draft.nationality || null
+          nationality: draft.nationality || null,
+          guardian_name: draft.guardian_name.trim() || null,
+          residential_status: draft.residential_status || null,
+          passport_number: draft.passport_number.trim() || null,
+          office_name_address: draft.office_name_address.trim() || null
         })
-        .select(
-          'id,full_name,phone,email,dob,occupation,nationality,created_at'
-        )
+        .select(CUSTOMER_SELECT)
         .single();
 
       if (insErr) throw insErr;
@@ -392,7 +451,11 @@ export default function CustomersPage() {
         email: '',
         dob: '',
         occupation: '',
-        nationality: 'Indian'
+        nationality: 'Indian',
+        guardian_name: '',
+        residential_status: 'Resident Indian',
+        passport_number: '',
+        office_name_address: ''
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create customer');
@@ -424,12 +487,16 @@ export default function CustomersPage() {
           email: editDraft.email || null,
           dob: editDraft.dob || null,
           occupation: editDraft.occupation || null,
-          nationality: editDraft.nationality || null
+          nationality: editDraft.nationality || null,
+          pan_number: normalizePan(editDraft.pan_number) || null,
+          aadhaar_last4: normalizeAadhaarLast4(editDraft.aadhaar_last4) || null,
+          guardian_name: editDraft.guardian_name.trim() || null,
+          residential_status: editDraft.residential_status || null,
+          passport_number: editDraft.passport_number.trim() || null,
+          office_name_address: editDraft.office_name_address.trim() || null
         })
         .eq('id', selectedId)
-        .select(
-          'id,full_name,phone,email,dob,occupation,nationality,created_at'
-        )
+        .select(CUSTOMER_SELECT)
         .single();
 
       if (upErr) throw upErr;
@@ -452,7 +519,14 @@ export default function CustomersPage() {
       email: selected.email ?? '',
       dob: selected.dob ? String(selected.dob).slice(0, 10) : '',
       occupation: selected.occupation ?? '',
-      nationality: selected.nationality || 'Indian'
+      nationality: selected.nationality || 'Indian',
+      pan_number: selected.pan_number ?? '',
+      aadhaar_last4: selected.aadhaar_last4 ?? '',
+      guardian_name: selected.guardian_name ?? '',
+      residential_status:
+        selected.residential_status || 'Resident Indian',
+      passport_number: selected.passport_number ?? '',
+      office_name_address: selected.office_name_address ?? ''
     });
     setEditOpen(true);
   }
@@ -748,8 +822,48 @@ export default function CustomersPage() {
     setExtrasError('');
     setKycAlert('');
     setKycDocType('aadhaar');
+    setKycPanInput(selected?.pan_number ?? '');
+    setKycAadhaarInput(selected?.aadhaar_last4 ?? '');
     if (kycFileRef.current) kycFileRef.current.value = '';
     setKycFormOpen(true);
+  }
+
+  async function persistCustomerIdentifiers(
+    pan: string,
+    aadhaarLast4: string
+  ): Promise<CustomerRow | null> {
+    if (!selectedId) return null;
+    const panNorm = normalizePan(pan);
+    const a4 = normalizeAadhaarLast4(aadhaarLast4);
+    const { data, error: upErr } = await supabase
+      .from('customers')
+      .update({
+        pan_number: panNorm || null,
+        aadhaar_last4: a4 || null
+      })
+      .eq('id', selectedId)
+      .select(CUSTOMER_SELECT)
+      .single();
+    if (upErr) throw upErr;
+    const row = data as CustomerRow;
+    setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
+    setIdentityPan(row.pan_number ?? '');
+    setIdentityAadhaar(row.aadhaar_last4 ?? '');
+    return row;
+  }
+
+  async function saveKycIdentityDetails() {
+    setExtrasSaving(true);
+    setExtrasError('');
+    try {
+      await persistCustomerIdentifiers(identityPan, identityAadhaar);
+    } catch (e) {
+      setExtrasError(
+        e instanceof Error ? e.message : 'Failed to save PAN / Aadhaar'
+      );
+    } finally {
+      setExtrasSaving(false);
+    }
   }
 
   async function uploadKycDocument() {
@@ -805,6 +919,25 @@ export default function CustomersPage() {
       }
 
       setKycDocs((prev) => [row as KycDocRow, ...prev]);
+
+      const panToSave =
+        kycDocType === 'pan' ? kycPanInput : selected?.pan_number ?? '';
+      const aadhaarToSave =
+        kycDocType === 'aadhaar'
+          ? kycAadhaarInput
+          : selected?.aadhaar_last4 ?? '';
+      if (panToSave.trim() || aadhaarToSave.trim()) {
+        try {
+          await persistCustomerIdentifiers(panToSave, aadhaarToSave);
+        } catch (e) {
+          setExtrasError(
+            e instanceof Error
+              ? e.message
+              : 'Document uploaded but failed to save PAN / Aadhaar on customer'
+          );
+        }
+      }
+
       setKycFormOpen(false);
       if (kycFileRef.current) kycFileRef.current.value = '';
     } catch (e) {
@@ -955,6 +1088,61 @@ export default function CustomersPage() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label>Father&apos;s / mother&apos;s / spouse&apos;s name</Label>
+                  <Input
+                    value={draft.guardian_name}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, guardian_name: e.target.value }))
+                    }
+                    placeholder="As on PAN / Aadhaar"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label>Residential status</Label>
+                  <Select
+                    value={draft.residential_status}
+                    onValueChange={(v) =>
+                      setDraft((d) => ({ ...d, residential_status: v }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RESIDENTIAL_STATUS_OPTIONS.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Passport no. (NRI / foreign)</Label>
+                  <Input
+                    value={draft.passport_number}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, passport_number: e.target.value }))
+                    }
+                    className="mt-1"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label>Office name &amp; address</Label>
+                  <Textarea
+                    value={draft.office_name_address}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        office_name_address: e.target.value
+                      }))
+                    }
+                    rows={2}
+                    className="mt-1"
+                  />
                 </div>
               </div>
 
@@ -1168,12 +1356,108 @@ export default function CustomersPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="col-span-2">
+                        <Label>Father&apos;s / mother&apos;s / spouse&apos;s name</Label>
+                        <Input
+                          value={editDraft.guardian_name}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              guardian_name: e.target.value
+                            }))
+                          }
+                          placeholder="As on PAN / Aadhaar"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Residential status</Label>
+                        <Select
+                          value={editDraft.residential_status}
+                          onValueChange={(v) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              residential_status: v
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {RESIDENTIAL_STATUS_OPTIONS.map((o) => (
+                              <SelectItem key={o} value={o}>
+                                {o}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Passport no. (NRI / foreign)</Label>
+                        <Input
+                          value={editDraft.passport_number}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              passport_number: e.target.value
+                            }))
+                          }
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Office name &amp; address</Label>
+                        <Textarea
+                          value={editDraft.office_name_address}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              office_name_address: e.target.value
+                            }))
+                          }
+                          rows={2}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>PAN</Label>
+                        <Input
+                          value={editDraft.pan_number}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              pan_number: e.target.value.toUpperCase()
+                            }))
+                          }
+                          placeholder="ABCDE1234F"
+                          className="mt-1 uppercase"
+                        />
+                      </div>
+                      <div>
+                        <Label>Aadhaar (last 4)</Label>
+                        <Input
+                          value={editDraft.aadhaar_last4}
+                          maxLength={4}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({
+                              ...d,
+                              aadhaar_last4: e.target.value
+                                .replace(/\D/g, '')
+                                .slice(0, 4)
+                            }))
+                          }
+                          placeholder="1234"
+                          className="mt-1"
+                        />
+                      </div>
                     </div>
 
                     <div className="mt-4 flex justify-end gap-2">
                       <Button
                         variant="outline"
                         onClick={() => setEditOpen(false)}
+
                         disabled={saving}
                       >
                         Cancel
@@ -1231,6 +1515,34 @@ export default function CustomersPage() {
                     <InfoRow
                       label="Nationality"
                       value={selected.nationality ?? '—'}
+                    />
+                    <InfoRow
+                      label="Father / mother / spouse"
+                      value={selected.guardian_name ?? '—'}
+                    />
+                    <InfoRow
+                      label="Residential status"
+                      value={selected.residential_status ?? '—'}
+                    />
+                    <InfoRow
+                      label="Passport no."
+                      value={selected.passport_number ?? '—'}
+                    />
+                    <InfoRow
+                      label="Office name & address"
+                      value={selected.office_name_address ?? '—'}
+                    />
+                    <InfoRow
+                      label="PAN"
+                      value={selected.pan_number ?? '—'}
+                    />
+                    <InfoRow
+                      label="Aadhaar"
+                      value={
+                        selected.aadhaar_last4
+                          ? maskAadhaarLast4(selected.aadhaar_last4)
+                          : '—'
+                      }
                     />
                     <InfoRow
                       label="Customer since"
@@ -1322,6 +1634,61 @@ export default function CustomersPage() {
 
             {detailTab === 'kyc' ? (
               <div className="flex flex-col gap-3">
+                <div className="rounded-lg border bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        PAN &amp; Aadhaar
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        Saved on the customer record when KYC is completed. Used on
+                        booking application forms.
+                      </p>
+                    </div>
+                    {customerKycComplete ? (
+                      <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-800">
+                        KYC complete
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>PAN</Label>
+                      <Input
+                        value={identityPan}
+                        onChange={(e) =>
+                          setIdentityPan(e.target.value.toUpperCase())
+                        }
+                        placeholder="ABCDE1234F"
+                        className="mt-1 uppercase"
+                      />
+                    </div>
+                    <div>
+                      <Label>Aadhaar (last 4)</Label>
+                      <Input
+                        value={identityAadhaar}
+                        maxLength={4}
+                        onChange={(e) =>
+                          setIdentityAadhaar(
+                            e.target.value.replace(/\D/g, '').slice(0, 4)
+                          )
+                        }
+                        placeholder="1234"
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => void saveKycIdentityDetails()}
+                    disabled={extrasSaving}
+                  >
+                    {extrasSaving ? 'Saving…' : 'Save to customer'}
+                  </Button>
+                </div>
+
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
                   <div className="text-sm font-semibold text-gray-900">
                     KYC documents
@@ -1434,7 +1801,15 @@ export default function CustomersPage() {
                     <div className="grid gap-4">
                       <div>
                         <Label>Document type</Label>
-                        <Select value={kycDocType} onValueChange={setKycDocType}>
+                        <Select
+                          value={kycDocType}
+                          onValueChange={(v) => {
+                            setKycDocType(v);
+                            if (v === 'pan') setKycPanInput(selected?.pan_number ?? '');
+                            if (v === 'aadhaar')
+                              setKycAadhaarInput(selected?.aadhaar_last4 ?? '');
+                          }}
+                        >
                           <SelectTrigger className="mt-1 w-full">
                             <SelectValue />
                           </SelectTrigger>
@@ -1447,6 +1822,38 @@ export default function CustomersPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {kycDocType === 'pan' ? (
+                        <div>
+                          <Label>PAN number</Label>
+                          <Input
+                            value={kycPanInput}
+                            onChange={(e) =>
+                              setKycPanInput(e.target.value.toUpperCase())
+                            }
+                            placeholder="ABCDE1234F"
+                            className="mt-1 uppercase"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Stored on the customer profile when you upload.
+                          </p>
+                        </div>
+                      ) : null}
+                      {kycDocType === 'aadhaar' ? (
+                        <div>
+                          <Label>Aadhaar (last 4 digits)</Label>
+                          <Input
+                            value={kycAadhaarInput}
+                            maxLength={4}
+                            onChange={(e) =>
+                              setKycAadhaarInput(
+                                e.target.value.replace(/\D/g, '').slice(0, 4)
+                              )
+                            }
+                            placeholder="1234"
+                            className="mt-1"
+                          />
+                        </div>
+                      ) : null}
                       <div>
                         <Label>File</Label>
                         <Input
@@ -1487,8 +1894,14 @@ export default function CustomersPage() {
             {detailTab === 'address' ? (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-gray-900">
-                    Addresses
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      Addresses
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Current → communication address; permanent → application
+                      form permanent address.
+                    </p>
                   </div>
                   <Button
                     type="button"

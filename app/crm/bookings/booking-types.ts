@@ -93,8 +93,22 @@ export type BookingListRow = {
       }[]
     | null;
   customers:
-    | { full_name: string; phone: string | null; pan_number?: string | null }
-    | { full_name: string; phone: string | null; pan_number?: string | null }[]
+    | {
+        full_name: string;
+        phone: string | null;
+        email?: string | null;
+        occupation?: string | null;
+        pan_number?: string | null;
+        aadhaar_last4?: string | null;
+      }
+    | {
+        full_name: string;
+        phone: string | null;
+        email?: string | null;
+        occupation?: string | null;
+        pan_number?: string | null;
+        aadhaar_last4?: string | null;
+      }[]
     | null;
 };
 

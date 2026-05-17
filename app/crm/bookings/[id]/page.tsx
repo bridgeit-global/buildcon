@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FileText, Upload } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,13 @@ import {
   type CoBuyerStored
 } from '../booking-types';
 import { canAdvanceWorkflowStage } from '../booking-stage-transitions';
+import { printApplicationForm } from '@/lib/booking/application-form-print';
+import {
+  buildApplicantRows,
+  type CustomerAddressSnippet,
+  type CustomerApplicationProfile
+} from '@/lib/customer/application-form-data';
+import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -50,6 +57,10 @@ function extensionFromFile(file: File) {
 type BuyerKyc = {
   customerId: string;
   label: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  occupation: string | null;
   pan: string;
   aadhaarLast4: string;
   hasPanDoc: boolean;
@@ -77,6 +88,14 @@ export default function BookingDetailPage() {
   } | null>(null);
 
   const [buyerKyc, setBuyerKyc] = useState<BuyerKyc[]>([]);
+  const [buyerProfiles, setBuyerProfiles] = useState<
+    Map<string, CustomerApplicationProfile>
+  >(new Map());
+  const [buyerAddresses, setBuyerAddresses] = useState<
+    Map<string, CustomerAddressSnippet[]>
+  >(new Map());
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [projectLocation, setProjectLocation] = useState<string | null>(null);
   const kycFileRef = useRef<HTMLInputElement>(null);
   const [kycUploadCustomerId, setKycUploadCustomerId] = useState('');
   const [kycDocType, setKycDocType] = useState('pan');
@@ -93,7 +112,7 @@ export default function BookingDetailPage() {
         created_at, updated_at, stage, workflow_stage, status,
         payment_mode, loan_bank, booking_amount, co_buyers, payment_detail, stage_data,
         units ( unit_code, wing_name, floor, unit_type, status ),
-        customers ( full_name, phone, pan_number, aadhaar_last4 )
+        customers ( full_name, phone, email, occupation, pan_number, aadhaar_last4 )
       `
       )
       .eq('id', bookingId)
@@ -112,9 +131,40 @@ export default function BookingDetailPage() {
 
     const row = data as unknown as BookingDetailRow;
     setBooking(row);
-    setStageData((row.stage_data ?? {}) as BookingStageData);
 
+    const stage = (row.stage_data ?? {}) as BookingStageData;
     const primary = unwrapJoin(row.customers);
+
+    const [{ data: projectRow }, { data: addrRows }] = await Promise.all([
+      supabase
+        .from('projects')
+        .select('name, location')
+        .eq('id', row.project_id)
+        .maybeSingle(),
+      supabase
+        .from('customer_addresses')
+        .select('kind,address_line1,city,state,pin')
+        .eq('customer_id', row.customer_id)
+        .order('created_at', { ascending: true })
+    ]);
+    setProjectName((projectRow?.name as string) ?? null);
+    setProjectLocation((projectRow?.location as string) ?? null);
+
+    const currentAddr =
+      (addrRows ?? []).find((a) => a.kind === 'current') ?? addrRows?.[0];
+    const app = stage.application ?? {};
+    setStageData({
+      ...stage,
+      application: {
+        ...app,
+        occupation: app.occupation || primary?.occupation || undefined,
+        address_line1:
+          app.address_line1 || (currentAddr?.address_line1 as string) || undefined,
+        city: app.city || (currentAddr?.city as string) || undefined,
+        state: app.state || (currentAddr?.state as string) || undefined,
+        pin: app.pin || (currentAddr?.pin as string) || undefined
+      }
+    });
     const co = (row.co_buyers ?? []) as CoBuyerStored[];
     const buyerIds = [
       { id: row.customer_id, label: primary?.full_name ?? 'Primary buyer' },
@@ -132,15 +182,41 @@ export default function BookingDetailPage() {
         buyerIds.map((b) => b.id)
       );
 
-    const { data: custRows } = await supabase
-      .from('customers')
-      .select('id,pan_number,aadhaar_last4')
-      .in(
-        'id',
-        buyerIds.map((b) => b.id)
-      );
+    const buyerIdList = buyerIds.map((b) => b.id);
+
+    const [{ data: custRows }, { data: allAddrRows }] = await Promise.all([
+      supabase
+        .from('customers')
+        .select(
+          'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address'
+        )
+        .in('id', buyerIdList),
+      supabase
+        .from('customer_addresses')
+        .select('customer_id,kind,address_line1,city,state,pin')
+        .in('customer_id', buyerIdList)
+    ]);
 
     const custById = new Map((custRows ?? []).map((c) => [c.id as string, c]));
+    const profiles = new Map<string, CustomerApplicationProfile>();
+    for (const c of custRows ?? []) {
+      profiles.set(c.id as string, c as CustomerApplicationProfile);
+    }
+    setBuyerProfiles(profiles);
+
+    const addrByCustomer = new Map<string, CustomerAddressSnippet[]>();
+    for (const row of allAddrRows ?? []) {
+      const cid = row.customer_id as string;
+      if (!addrByCustomer.has(cid)) addrByCustomer.set(cid, []);
+      addrByCustomer.get(cid)!.push({
+        kind: String(row.kind),
+        address_line1: row.address_line1 as string | null,
+        city: row.city as string | null,
+        state: row.state as string | null,
+        pin: row.pin as string | null
+      });
+    }
+    setBuyerAddresses(addrByCustomer);
     const docsByCustomer = new Map<string, Set<string>>();
     for (const doc of kycRows ?? []) {
       const cid = doc.customer_id as string;
@@ -155,6 +231,10 @@ export default function BookingDetailPage() {
         return {
           customerId: b.id,
           label: b.label,
+          fullName: String(c?.full_name ?? b.label),
+          phone: (c?.phone as string | null) ?? null,
+          email: (c?.email as string | null) ?? null,
+          occupation: (c?.occupation as string | null) ?? null,
           pan: String(c?.pan_number ?? ''),
           aadhaarLast4: String(c?.aadhaar_last4 ?? ''),
           hasPanDoc: docs.has('pan'),
@@ -175,15 +255,58 @@ export default function BookingDetailPage() {
 
   const kycComplete = useMemo(
     () =>
-      buyerKyc.every(
-        (b) =>
-          b.pan.trim().length >= 4 &&
-          b.aadhaarLast4.replace(/\D/g, '').length === 4 &&
-          b.hasPanDoc &&
-          b.hasAadhaarDoc
+      buyerKyc.every((b) =>
+        isCustomerKycComplete(b.pan, b.aadhaarLast4, [
+          ...(b.hasPanDoc ? ['pan'] : []),
+          ...(b.hasAadhaarDoc ? ['aadhaar'] : [])
+        ])
       ),
     [buyerKyc]
   );
+
+  const buyersNeedingKyc = useMemo(
+    () =>
+      buyerKyc.filter(
+        (b) =>
+          !isCustomerKycComplete(b.pan, b.aadhaarLast4, [
+            ...(b.hasPanDoc ? ['pan'] : []),
+            ...(b.hasAadhaarDoc ? ['aadhaar'] : [])
+          ])
+      ),
+    [buyerKyc]
+  );
+
+  function generateApplicationForm() {
+    if (!booking) return;
+    if (!kycComplete) {
+      setError(
+        'Complete KYC for all applicants (PAN, Aadhaar, and document uploads) on the Customers page before generating the application form.'
+      );
+      return;
+    }
+    setError('');
+    try {
+      const buyers = buyerKyc.map((b) => ({ id: b.customerId, label: b.label }));
+      const applicants = buildApplicantRows(buyers, buyerProfiles, buyerAddresses);
+      printApplicationForm({
+        applicationFormNo: booking.id,
+        projectName,
+        projectLocation,
+        unitCode: unit?.unit_code ?? null,
+        wingName: unit?.wing_name ?? null,
+        floor: unit?.floor ?? null,
+        unitType: unit?.unit_type ?? null,
+        bookingAmount: booking.booking_amount,
+        paymentMode:
+          stageData.token?.mode ?? booking.payment_mode ?? null,
+        loanFromBank: Boolean(booking.loan_bank),
+        preferredBank: booking.loan_bank,
+        applicants
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not generate form');
+    }
+  }
 
   async function saveStagePatch(patch: Record<string, unknown>) {
     if (!booking || cancelled) return;
@@ -481,7 +604,9 @@ export default function BookingDetailPage() {
             <Card className="space-y-4 p-4">
               <h2 className="font-semibold text-ds-gray-900">Application form</h2>
               <p className="text-sm text-ds-gray-600">
-                Capture buyer details, PAN / Aadhaar, and KYC documents for each applicant.
+                PAN and Aadhaar are loaded from each customer&apos;s profile (complete KYC on
+                Customers first). Upload documents here or generate a printable application
+                form.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -605,7 +730,46 @@ export default function BookingDetailPage() {
                 onChange={() => void uploadKyc()}
               />
 
+              {!kycComplete ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-ds-warning-800">
+                    Application form data is filled from each customer&apos;s profile after KYC
+                    is complete. Finish KYC on Customers, then generate the printable form here.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {buyersNeedingKyc.map((b) => (
+                      <Button
+                        key={b.customerId}
+                        type="button"
+                        variant="outline"
+                        className="gap-1"
+                        asChild
+                      >
+                        <Link
+                          href={`/crm/customers?customer=${encodeURIComponent(b.customerId)}&tab=kyc`}
+                        >
+                          <FileText className="h-4 w-4" />
+                          Complete KYC — {b.label}
+                        </Link>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex flex-wrap gap-2">
+                {kycComplete ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-1"
+                    disabled={saving || buyerKyc.length === 0}
+                    onClick={() => generateApplicationForm()}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Generate application form
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   disabled={saving}

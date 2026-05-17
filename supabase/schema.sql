@@ -261,6 +261,10 @@ create table if not exists public.customers (
   nationality text,
   pan_number text,
   aadhaar_last4 text,
+  guardian_name text,
+  residential_status text,
+  passport_number text,
+  office_name_address text,
   created_at timestamptz not null default now(),
   phone_normalized text generated always as (
     nullif(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), '')
