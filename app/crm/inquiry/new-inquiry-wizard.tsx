@@ -206,11 +206,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       const sd = (data as { stage_data?: InquiryStageData }).stage_data;
       const neg = sd?.negotiation as
         | {
-            approval_status?: string;
-            offered_price?: string;
-            decision_note?: string;
-            approval_id?: string;
-          }
+          approval_status?: string;
+          offered_price?: string;
+          decision_note?: string;
+          approval_id?: string;
+        }
         | undefined;
       if (neg?.offered_price) {
         setNegotiationOffer(String(neg.offered_price));
@@ -1568,131 +1568,7 @@ function StepVisitSite({
             </Button>
           </div>
 
-          <p className="pt-2 text-xs font-semibold text-ds-gray-800">Negotiation</p>
-          <p className="text-[11px] text-ds-gray-600">
-            Is the customer negotiating on price? If not, take the token straight
-            away.
-          </p>
 
-          <div>
-            <Label className="text-xs text-ds-gray-600">
-              Customer wants to negotiate?
-            </Label>
-            <div className="mt-1">
-              <NegotiatingToggle value={negotiating} onChange={setNegotiating} />
-            </div>
-          </div>
-
-          {negotiating === 'no' ? (
-            <div className="rounded-md border border-teal-200 bg-white p-3">
-              <p className="text-xs font-semibold text-ds-gray-800">
-                No negotiation — accept price and collect token
-              </p>
-              <p className="mt-1 text-[11px] text-ds-gray-600">
-                Marks the unit as TOKEN in inventory and moves the enquiry to the
-                Token stage.
-              </p>
-              <Button
-                type="button"
-                className="mt-3 min-h-11 w-full gap-1.5 bg-teal-600 hover:bg-teal-700 sm:w-auto"
-                disabled={saving}
-                onClick={onCustomerGaveToken}
-              >
-                Customer gave token
-                <ArrowRight className="size-4" aria-hidden />
-              </Button>
-            </div>
-          ) : null}
-
-          {negotiating === 'yes' ? (
-            <div className="space-y-3 rounded-md border border-ds-primary-100 bg-white p-3">
-              <div>
-                <Label className="text-xs text-ds-gray-600">
-                  Offered / negotiated price (₹)
-                </Label>
-                <Input
-                  type="number"
-                  className="mt-1 h-9 text-xs"
-                  value={negotiationOffer}
-                  onChange={(e) => setNegotiationOffer(e.target.value)}
-                  placeholder="Amount discussed"
-                  disabled={approvalStatus === 'pending' || approvalStatus === 'approved'}
-                />
-              </div>
-
-              {approvalStatus === 'pending' ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                  Awaiting admin approval on this budget. Admin can approve or
-                  reject from <span className="font-semibold">CRM → Approvals</span>.
-                </div>
-              ) : null}
-              {approvalStatus === 'approved' ? (
-                <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-[11px] text-teal-900">
-                  Budget approved by admin — record token when ready.
-                  {approvalNote ? (
-                    <p className="mt-1 italic">“{approvalNote}”</p>
-                  ) : null}
-                </div>
-              ) : null}
-              {approvalStatus === 'rejected' ? (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-900">
-                  Admin rejected this budget. Update the offered price and send
-                  again, or close the enquiry.
-                  {approvalNote ? (
-                    <p className="mt-1 italic">“{approvalNote}”</p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap gap-2">
-                {approvalStatus !== 'approved' && approvalStatus !== 'pending' ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11"
-                    disabled={saving || !negotiationOffer.trim()}
-                    onClick={onStartNegotiation}
-                  >
-                    Send for approval
-                  </Button>
-                ) : null}
-                {approvalStatus === 'pending' || approvalStatus === 'rejected' ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="min-h-11"
-                    disabled={saving}
-                    onClick={onRefreshApproval}
-                  >
-                    Check status
-                  </Button>
-                ) : null}
-                {approvalStatus === 'approved' ? (
-                  <Button
-                    type="button"
-                    className="min-h-11 gap-1.5 bg-teal-600 hover:bg-teal-700"
-                    disabled={saving}
-                    onClick={onCustomerGaveToken}
-                  >
-                    Record token
-                    <ArrowRight className="size-4" aria-hidden />
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 w-full gap-1.5"
-            disabled={saving}
-            onClick={onContinueBooking}
-          >
-            Continue to booking
-            <ArrowRight className="size-4" aria-hidden />
-          </Button>
         </div>
       ) : null}
 
