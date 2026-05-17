@@ -35,6 +35,8 @@ import {
 } from '../booking-types';
 import { canAdvanceWorkflowStage } from '../booking-stage-transitions';
 import { printApplicationForm } from '@/lib/booking/application-form-print';
+import { printAllotmentLetter } from '@/lib/booking/allotment-letter-print';
+import { formatCustomerAddress, pickCustomerAddress } from '@/lib/customer/application-form-data';
 import {
   buildApplicantRows,
   type CustomerAddressSnippet,
@@ -275,6 +277,36 @@ export default function BookingDetailPage() {
       ),
     [buyerKyc]
   );
+
+  function generateAllotmentLetter() {
+    if (!booking) return;
+    setError('');
+    try {
+      const primaryAddr = pickCustomerAddress(
+        buyerAddresses.get(booking.customer_id) ?? [],
+        'current'
+      );
+      const co = (booking.co_buyers ?? []) as CoBuyerStored[];
+      printAllotmentLetter({
+        letterRef: stageData.allotment?.allotment_letter_ref,
+        allotmentDate: stageData.allotment?.allotment_date,
+        projectName,
+        projectLocation,
+        unitCode: unit?.unit_code ?? null,
+        wingName: unit?.wing_name ?? null,
+        floor: unit?.floor ?? null,
+        unitType: unit?.unit_type ?? null,
+        bookingId: booking.id,
+        bookingCreatedAt: booking.created_at,
+        bookingAmount: booking.booking_amount,
+        customerName: customer?.full_name ?? null,
+        coBuyerNames: co.map((c) => c.full_name).filter(Boolean),
+        customerAddress: formatCustomerAddress(primaryAddr) || null
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not generate allotment letter');
+    }
+  }
 
   function generateApplicationForm() {
     if (!booking) return;
@@ -819,17 +851,29 @@ export default function BookingDetailPage() {
                   />
                 </div>
               </div>
-              <Button
-                disabled={saving}
-                onClick={() =>
-                  void saveStagePatch({
-                    allotment_date: stageData.allotment?.allotment_date,
-                    allotment_letter_ref: stageData.allotment?.allotment_letter_ref
-                  })
-                }
-              >
-                Save allotment
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={saving}
+                  onClick={() => generateAllotmentLetter()}
+                >
+                  <FileText className="h-4 w-4" />
+                  Generate allotment letter
+                </Button>
+                <Button
+                  disabled={saving}
+                  onClick={() =>
+                    void saveStagePatch({
+                      allotment_date: stageData.allotment?.allotment_date,
+                      allotment_letter_ref: stageData.allotment?.allotment_letter_ref
+                    })
+                  }
+                >
+                  Save allotment
+                </Button>
+              </div>
             </Card>
           ) : null}
 
@@ -843,9 +887,23 @@ export default function BookingDetailPage() {
                   ? 'Unit released to inventory. Refund details shown above if applicable.'
                   : 'Payment schedule created. Manage collections from Financials.'}
               </p>
-              <Button className="mt-3" variant="outline" asChild>
-                <Link href="/crm/financials">Open financials</Link>
-              </Button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {!cancelled ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-1"
+                    disabled={saving}
+                    onClick={() => generateAllotmentLetter()}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Generate allotment letter
+                  </Button>
+                ) : null}
+                <Button variant="outline" asChild>
+                  <Link href="/crm/financials">Open financials</Link>
+                </Button>
+              </div>
             </Card>
           ) : null}
 
