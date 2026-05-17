@@ -1,4 +1,5 @@
 import type { ApplicationFormApplicantRow } from '@/lib/customer/application-form-data';
+import DOCX_PARAS from '@/lib/booking/application-form-docx-paras.json';
 
 export type ApplicationFormPrintInput = {
   applicationFormNo?: string | null;
@@ -10,11 +11,52 @@ export type ApplicationFormPrintInput = {
   unitType?: string | null;
   bookingAmount?: number | null;
   paymentMode?: string | null;
+  tokenDate?: string | null;
+  tokenReference?: string | null;
   loanFromBank?: boolean | null;
   preferredBank?: string | null;
   applicants: ApplicationFormApplicantRow[];
   generatedAt?: Date;
 };
+
+const SECTION_HEADER_INDICES = new Set([
+  10, 11, 46, 61, 69, 73, 77, 81, 84, 120, 151, 159, 201, 230, 271, 307, 325, 341
+]);
+
+const CENTER_TITLE_INDICES = new Set([0, 2]);
+const CENTER_SUBTITLE_INDICES = new Set([1]);
+
+/** Docx blank line immediately after a label — filled with 1st / 2nd / 3rd applicant values */
+const APPLICANT_ANSWER_LINE: Record<
+  number,
+  (a: ApplicationFormApplicantRow) => string
+> = {
+  14: (a) => a.fullName.toUpperCase(),
+  16: (a) => a.guardianName,
+  18: (a) => a.dob,
+  20: (a) => a.pan,
+  22: (a) => a.aadhaar,
+  24: (a) => a.nationality,
+  26: (a) => a.residentialStatus,
+  28: (a) => a.profession,
+  30: (a) => a.passportNo,
+  32: (a) => a.permanentAddress,
+  33: (a) => a.permanentAddress,
+  35: (a) => a.mobile,
+  37: (a) => a.email,
+  39: (a) => a.communicationAddress,
+  41: (a) => a.officeNameAddress
+};
+
+const SIGNATURE_ANSWER_LINE: Record<number, number> = {
+  124: 0,
+  126: 1,
+  128: 2
+};
+
+const COMPANY_BLANK_LINES = new Set([48, 50, 52, 54, 55, 57, 63, 65, 67, 80, 94, 96, 98]);
+
+const UNIT_AREA_BLANK_LINES = new Set([94, 96, 98]);
 
 function esc(s: string | null | undefined): string {
   return String(s ?? '')
@@ -24,44 +66,293 @@ function esc(s: string | null | undefined): string {
     .replace(/"/g, '&quot;');
 }
 
-function applicantSection(a: ApplicationFormApplicantRow): string {
-  const rows: [string, string][] = [
-    ['Full name', a.fullName],
-    ["Father's / mother's / spouse's name", a.guardianName],
-    ['Date of birth', a.dob],
-    ['PAN', a.pan],
-    ['Aadhaar no.', a.aadhaar],
-    ['Nationality', a.nationality],
-    ['Residential status', a.residentialStatus],
-    ['Profession', a.profession],
-    ['Passport no. (NRI / foreign)', a.passportNo],
-    ['Permanent address', a.permanentAddress],
-    ['Mobile no.', a.mobile],
-    ['Email', a.email],
-    ['Address for communication', a.communicationAddress],
-    ['Office name & address', a.officeNameAddress]
-  ];
-  const dl = rows
-    .map(
-      ([label, value]) =>
-        `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`
-    )
-    .join('');
-  return `
-    <section class="applicant-block">
-      <h3>${esc(a.role)}</h3>
-      <p class="applicant-meta">Customer ID: ${esc(a.customerId)}</p>
-      <dl>${dl}</dl>
-    </section>`;
+function display(v: string | null | undefined, fallback = ''): string {
+  const s = String(v ?? '').trim();
+  if (!s || s === '—') return fallback;
+  return s;
+}
+
+function formatInr(amount: number | null | undefined): string {
+  if (amount == null || Number.isNaN(Number(amount))) return '';
+  return Number(amount).toLocaleString('en-IN');
+}
+
+function formatDate(d: Date): string {
+  return d.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
+function formatTokenDate(raw: string | null | undefined, fallback: Date): string {
+  const s = String(raw ?? '').trim();
+  if (!s) return formatDate(fallback);
+  const d = new Date(s.length === 10 ? `${s}T00:00:00` : s);
+  if (Number.isNaN(d.getTime())) return s;
+  return formatDate(d);
+}
+
+function applicantTriple(
+  applicants: ApplicationFormApplicantRow[],
+  pick: (a: ApplicationFormApplicantRow) => string
+): string {
+  const cells = [0, 1, 2].map((i) => {
+    const a = applicants[i];
+    const v = a ? display(pick(a)) : '';
+    return `<span class="fill-cell">${v ? esc(v) : '&nbsp;'}</span>`;
+  });
+  return `<p class="fill-row">${cells.join('')}</p>`;
+}
+
+function singleFillLine(value: string | null | undefined): string {
+  const v = display(value);
+  return `<p class="fill-row single"><span class="fill-cell">${v ? esc(v) : '&nbsp;'}</span></p>`;
+}
+
+function normalizePaymentMode(mode: string | null | undefined): string {
+  return String(mode ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+function paymentModeLine(
+  index: number,
+  text: string,
+  mode: string | null | undefined
+): string {
+  const m = normalizePaymentMode(mode);
+  const matches = (keywords: string[]) =>
+    keywords.some((k) => m.includes(k));
+  const mark = (on: boolean) => (on ? '☑' : '☐');
+  const blank = (on: boolean) => (on && m ? esc(mode!) : '__________');
+
+  if (index === 74) {
+    const on = matches(['cheque', 'check']);
+    return `${mark(on)} Cheque ${blank(on)}`;
+  }
+  if (index === 75) {
+    const on = matches(['draft', 'p.o', 'po', 'demand']);
+    return `${mark(on)} Draft / P.O. ${blank(on)}`;
+  }
+  if (index === 76) {
+    const on = matches(['rtgs', 'neft', 'upi', 'transfer', 'online']);
+    return `${mark(on)} RTGS/NEFT ${blank(on)}`;
+  }
+  return esc(text);
+}
+
+function paraClass(index: number): string {
+  if (CENTER_TITLE_INDICES.has(index)) return 'title-main';
+  if (CENTER_SUBTITLE_INDICES.has(index)) return 'title-sub';
+  if (SECTION_HEADER_INDICES.has(index)) return 'section-header';
+  if (index === 42 || index === 43) return 'note';
+  if (index >= 108 && index <= 110) return 'footnote';
+  if (index === 159) return 'annexure-title';
+  return 'para';
+}
+
+function textToHtml(text: string): string {
+  return esc(text).replace(/\n/g, '<br>');
+}
+
+function renderPhotoRow(): string {
+  return `<p class="para photo-labels">${textToHtml(
+    'Photo of Sole/First ApplicantPhoto of Second Applicant\nPhoto of Third Applicant\n'
+  )}</p>
+  <div class="photo-row">
+    <div class="photo-box"></div>
+    <div class="photo-box"></div>
+    <div class="photo-box"></div>
+  </div>`;
+}
+
+function renderParagraph(
+  index: number,
+  text: string,
+  input: ApplicationFormPrintInput
+): string {
+  const at = input.generatedAt ?? new Date();
+  const dateStr = formatDate(at);
+  const tokenDateStr = formatTokenDate(input.tokenDate, at);
+  const applicants = input.applicants;
+  const formNo = display(
+    input.applicationFormNo ?? applicants[0]?.customerId,
+    '_______________'
+  );
+  const project = display(input.projectName, '________');
+  const location = display(input.projectLocation, '_________________________');
+  const amountNum = formatInr(input.bookingAmount);
+  const amount = amountNum ? `₹${amountNum}` : '';
+  const unit = display(input.unitCode, '_____');
+  const floor =
+    input.floor != null ? String(input.floor) : '_____';
+  const tower = display(input.wingName, '_____');
+  const tokenRef = display(input.tokenReference);
+
+  if (index === 3) {
+    const body = text
+      .replace('“________”', `“${project}”`)
+      .replace('_________________________', location);
+    return `<p class="para">${esc(body)}</p>`;
+  }
+
+  if (index === 4) {
+    return `<p class="para">Application Form No./ Customer ID: <span class="filled">${esc(formNo)}</span> Date: <span class="filled">${esc(dateStr)}</span></p>`;
+  }
+
+  if (index === 5) return renderPhotoRow();
+
+  if (index === 70) {
+    const yes = input.loanFromBank === true;
+    const no = input.loanFromBank === false;
+    return `<p class="para">Yes ${yes ? '☑' : '☐'} / No ${no ? '☑' : '☐'}.</p>`;
+  }
+
+  if (index === 71) {
+    const bank = display(input.preferredBank);
+    return `<p class="para">If yes, Preferred Financial Institution: <span class="filled">${esc(bank)}</span></p>`;
+  }
+
+  if (index === 74 || index === 75 || index === 76) {
+    return `<p class="para">${paymentModeLine(index, text, input.paymentMode)}</p>`;
+  }
+
+  if (index === 87) {
+    return `<p class="para">Unit No. <span class="filled">${esc(unit)}</span></p>`;
+  }
+  if (index === 88) {
+    return `<p class="para">Floor <span class="filled">${esc(floor)}</span></p>`;
+  }
+  if (index === 89) {
+    return `<p class="para">Tower <span class="filled">${esc(tower)}</span></p>`;
+  }
+
+  if (index === 115) {
+    const amt = amount || '[________________]';
+    return `<p class="para">I/we, agree to pay the cost of property for the Unit which is Rs. <span class="filled">${esc(amt)}</span></p>`;
+  }
+
+  if (index === 116) {
+    const rupees = amount
+      ? `${amount} only`
+      : '[______________________________________________] only';
+    return `<p class="para">(Rupees <span class="filled">${esc(rupees)}</span>)(“Cost of Property”) details whereof and other charges payable by the Applicant(s) for transfer of the Unit in its favour, are mentioned in Annexure E (“Payment Plan”).</p>`;
+  }
+
+  if (index === 129 || index === 157) {
+    return `<p class="para">Date <span class="filled">${esc(dateStr)}</span></p>`;
+  }
+
+  if (index === 309 || index === 327) {
+    return `<p class="para">Date: <span class="filled">${esc(tokenDateStr)}</span></p>`;
+  }
+
+  if (index === 130 || index === 158) {
+    return `<p class="para">Place <span class="filled">&nbsp;</span></p>`;
+  }
+
+  if (index === 72) {
+    return singleFillLine(display(input.preferredBank));
+  }
+
+  if (index === 148) {
+    const ref = tokenRef || '___________________';
+    const dt = tokenDateStr || '______________';
+    const amt = amount || '___________________';
+    return `<p class="para">(i) Cheque/Demand Draft No. <span class="filled">${esc(ref)}</span> dated <span class="filled">${esc(dt)}</span> in favour of“__________________________________________________”<br>
+drawn on __________________ Bank,<br>
+________________ Branch and have paid a sum of<br>
+Rs. <span class="filled">${esc(amt)}</span></p>`;
+  }
+
+  if (index === 150) {
+    const ref = tokenRef || '________________';
+    const amt = amount || '___________________';
+    return `<p class="para">(ii) NEFT/RTGS/Debit Card/Credit Card bearing transaction reference no.<span class="filled">${esc(ref)}</span> dated <span class="filled">${esc(tokenDateStr)}</span> for a sum of<br>
+Rs. <span class="filled">${esc(amt)}</span> /-<br>
+(Rupees <span class="filled">${esc(amount ? `${amount} only` : '__________________________________________')}</span>)<br>
+(“Application Money”) as part of Booking Amount payable by me as per terms of this Application.</p>`;
+  }
+
+  if (index === 154) {
+    const n0 = display(applicants[0]?.fullName);
+    const n1 = display(applicants[1]?.fullName);
+    const n2 = display(applicants[2]?.fullName);
+    return `<p class="para">Signature of First Applicant(s) <span class="filled">${esc(n0 || '____________________________')}</span></p>
+<p class="para">Signature of Second Applicant(s) <span class="filled">${esc(n1 || '____________________________')}</span></p>
+<p class="para">Signature of Third Applicant(s) <span class="filled">${esc(n2 || '____________________________')}</span></p>`;
+  }
+
+  if (index === 111) {
+    let body = text;
+    body = body.replace(
+      /by the name of “_________________”/,
+      `by the name of “${project}”`
+    );
+    body = body.replace(
+      /situated at _________________ \(“Project Land”\)/,
+      `situated at ${location} (“Project Land”)`
+    );
+    return `<p class="para">${textToHtml(body)}</p>`;
+  }
+
+  if (index === 312) {
+    return `<p class="para">I/We have submitted my/our application form with Application Money for booking the Unit No. <span class="filled">${esc(unit)}</span> in the project <span class="filled">${esc(project)}</span> being developed by ______.</p>`;
+  }
+
+  if (index === 321) {
+    return `<p class="para">Unit No. Applied: <span class="filled">${esc(unit)}</span></p>`;
+  }
+
+  if (index === 322) {
+    return `<p class="para">Project Name: <span class="filled">${esc(project)}</span></p>`;
+  }
+
+  if (index === 331) {
+    return `<p class="para">Sub: Purchase of Unit No <span class="filled">${esc(unit)}</span> in the project <span class="filled">${esc(project)}</span> being developed by ____________.</p>`;
+  }
+
+  const cls = paraClass(index);
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  return `<p class="${cls}">${textToHtml(text)}</p>`;
 }
 
 export function buildApplicationFormHtml(input: ApplicationFormPrintInput): string {
-  const at = input.generatedAt ?? new Date();
-  const applicantsHtml = input.applicants.map(applicantSection).join('');
-  const tower = input.wingName ? esc(input.wingName) : '—';
-  const floor =
-    input.floor != null ? esc(String(input.floor)) : '—';
-  const unitType = input.unitType ? esc(input.unitType) : '';
+  const bodyParts: string[] = [];
+
+  for (const { i, t } of DOCX_PARAS as { i: number; t: string }[]) {
+    if (i in SIGNATURE_ANSWER_LINE) {
+      const slot = SIGNATURE_ANSWER_LINE[i]!;
+      const name = display(input.applicants[slot]?.fullName);
+      bodyParts.push(singleFillLine(name));
+      continue;
+    }
+
+    if (i in APPLICANT_ANSWER_LINE) {
+      bodyParts.push(
+        applicantTriple(input.applicants, APPLICANT_ANSWER_LINE[i]!)
+      );
+      continue;
+    }
+
+    if (COMPANY_BLANK_LINES.has(i) || UNIT_AREA_BLANK_LINES.has(i)) {
+      bodyParts.push(singleFillLine(''));
+      continue;
+    }
+
+    if (i === 154) {
+      bodyParts.push(renderParagraph(i, t, input));
+      continue;
+    }
+
+    if (i === 155 || i === 156) continue;
+
+    const html = renderParagraph(i, t, input);
+    if (html) bodyParts.push(html);
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -69,67 +360,83 @@ export function buildApplicationFormHtml(input: ApplicationFormPrintInput): stri
   <meta charset="utf-8" />
   <title>Application form</title>
   <style>
-    body { font-family: system-ui, sans-serif; color: #1e293b; margin: 24px; font-size: 12px; line-height: 1.45; }
-    h1 { font-size: 17px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.02em; }
-    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #0f766e; margin: 20px 0 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-    h3 { font-size: 13px; margin: 0 0 4px; color: #0f172a; }
-    .meta { color: #64748b; font-size: 11px; margin-bottom: 16px; }
-    .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 16px; }
-    .header-grid dt { color: #64748b; font-size: 11px; }
-    .header-grid dd { margin: 0; font-weight: 600; }
-    section.unit dl { display: grid; grid-template-columns: 150px 1fr; gap: 5px 12px; margin: 0; }
-    section.unit dt { color: #64748b; }
-    section.unit dd { margin: 0; font-weight: 600; }
-    .applicant-block { margin-bottom: 18px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; page-break-inside: avoid; }
-    .applicant-meta { font-size: 10px; color: #64748b; margin: 0 0 8px; }
-    .applicant-block dl { display: grid; grid-template-columns: 200px 1fr; gap: 4px 12px; margin: 0; }
-    .applicant-block dt { color: #64748b; font-size: 11px; }
-    .applicant-block dd { margin: 0; font-weight: 600; }
-    .signatures { margin-top: 28px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .sig-box { border-top: 1px solid #94a3b8; padding-top: 6px; font-size: 10px; color: #64748b; min-height: 48px; }
-    .footnote { margin-top: 20px; font-size: 10px; color: #64748b; }
-    @media print { body { margin: 10mm; } }
+    @page { size: A4; margin: 14mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    .title-main {
+      text-align: center;
+      font-weight: 700;
+      font-size: 14pt;
+      margin: 0 0 4px;
+      text-transform: uppercase;
+    }
+    .title-sub {
+      text-align: center;
+      font-size: 10pt;
+      margin: 0 0 12px;
+    }
+    .section-header {
+      font-weight: 700;
+      margin: 12px 0 4px;
+    }
+    .annexure-title {
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 20px 0 8px;
+      page-break-before: always;
+    }
+    .para { margin: 0 0 5px; text-align: justify; }
+    .note, .footnote { font-size: 10pt; margin: 6px 0; text-align: justify; }
+    .filled {
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .fill-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 6px;
+      min-height: 20px;
+      align-items: end;
+    }
+    .fill-row.single { grid-template-columns: 1fr; }
+    .fill-cell {
+      display: block;
+      border-bottom: 1px solid #000;
+      min-height: 18px;
+      padding: 0 2px 2px;
+      font-weight: 600;
+      font-size: 11pt;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .photo-labels { text-align: center; font-size: 9pt; margin-bottom: 4px; }
+    .photo-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 14px;
+    }
+    .photo-box {
+      border: 1px solid #000;
+      min-height: 88px;
+    }
+    @media print {
+      .annexure-title { page-break-before: always; }
+      .fill-row { page-break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
-  <h1>Application form</h1>
-  <p class="meta">Sole / first, second and third applicant details (Section A — individual)</p>
-
-  <dl class="header-grid">
-    <dt>Application form no. / customer ID</dt>
-    <dd>${esc(input.applicationFormNo ?? input.applicants[0]?.customerId ?? '—')}</dd>
-    <dt>Date</dt>
-    <dd>${esc(at.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}</dd>
-    <dt>Project</dt>
-    <dd>${esc(input.projectName ?? '—')}</dd>
-    <dt>Project location</dt>
-    <dd>${esc(input.projectLocation ?? '—')}</dd>
-  </dl>
-
-  <section class="unit">
-    <h2>Unit details (Section G — summary)</h2>
-    <dl>
-      <dt>Unit no.</dt><dd>${esc(input.unitCode ?? '—')}</dd>
-      <dt>Floor</dt><dd>${floor}</dd>
-      <dt>Tower / wing</dt><dd>${tower}</dd>
-      <dt>Unit type</dt><dd>${unitType || '—'}</dd>
-      <dt>Token / application amount</dt><dd>${input.bookingAmount != null ? `₹${Number(input.bookingAmount).toLocaleString('en-IN')}` : '—'}</dd>
-      <dt>Mode of payment</dt><dd>${esc(input.paymentMode ?? '—')}</dd>
-      <dt>Finance from bank</dt><dd>${input.loanFromBank ? 'Yes' : input.loanFromBank === false ? 'No' : '—'}</dd>
-      <dt>Preferred financial institution</dt><dd>${esc(input.preferredBank ?? '—')}</dd>
-    </dl>
-  </section>
-
-  <h2>A. Applicant details (individual)</h2>
-  ${applicantsHtml || '<p>—</p>'}
-
-  <div class="signatures">
-    <div class="sig-box">Signature — 1st applicant</div>
-    <div class="sig-box">Signature — 2nd applicant</div>
-    <div class="sig-box">Signature — 3rd applicant</div>
-  </div>
-
-  <p class="footnote">Data is sourced from customer profiles (KYC, addresses, and application fields). PAN and Aadhaar values are masked on print. Attach passport-size photographs and document copies as per the standard application checklist.</p>
+${bodyParts.join('\n')}
 </body>
 </html>`;
 }

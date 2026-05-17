@@ -299,6 +299,8 @@ export default function BookingDetailPage() {
         bookingAmount: booking.booking_amount,
         paymentMode:
           stageData.token?.mode ?? booking.payment_mode ?? null,
+        tokenDate: stageData.token?.date ?? null,
+        tokenReference: stageData.token?.reference ?? null,
         loanFromBank: Boolean(booking.loan_bank),
         preferredBank: booking.loan_bank,
         applicants
