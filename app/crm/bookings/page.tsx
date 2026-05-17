@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, Search, Sparkles, UserPlus, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -59,6 +60,8 @@ import {
   readConsumeBookingPrefill,
   type BookingPrefillV1
 } from '../booking-prefill-storage';
+import { BookingListTable } from './booking-list-table';
+import type { BookingListRow } from './booking-types';
 
 type UnitOption = {
   id: string;
@@ -95,26 +98,6 @@ type PaymentDetailStored = {
   utr?: string;
   cheque_number?: string;
   neft_ref?: string;
-};
-
-type BookingListRow = {
-  id: string;
-  project_id: string;
-  created_at: string;
-  stage: string;
-  payment_mode: string | null;
-  loan_bank: string | null;
-  payment_detail: PaymentDetailStored | null;
-  booking_amount: number | null;
-  co_buyers: CoBuyerStored[] | null;
-  units:
-  | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }
-  | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }[]
-  | null;
-  customers:
-  | { full_name: string; phone: string | null }
-  | { full_name: string; phone: string | null }[]
-  | null;
 };
 
 type CoBuyerSlot = { key: string; customerId: string };
@@ -365,6 +348,7 @@ function SearchablePicker<T extends { id: string }>({
 }
 
 export default function BookingsPage() {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { projects } = useCrmProjectsContext();
   const projectNameById = useMemo(
@@ -475,14 +459,19 @@ export default function BookingsPage() {
           `
           id,
           project_id,
+          unit_id,
+          customer_id,
           created_at,
+          updated_at,
           stage,
+          workflow_stage,
+          status,
           payment_mode,
           loan_bank,
           payment_detail,
           booking_amount,
           co_buyers,
-          units ( unit_code, wing_name, floor, unit_type ),
+          units ( unit_code, wing_name, floor, unit_type, status ),
           customers ( full_name, phone )
         `
         )
@@ -700,6 +689,7 @@ export default function BookingsPage() {
           projectId: selectedUnit.project_id,
           unitId,
           customerId,
+          salesInquiryId: prefillMeta?.inquiryId ?? null,
           coBuyerCustomerIds: coIdsOrdered,
           paymentMode,
           loanBank: paymentModeNeedsLoanBank(paymentMode) ? loanBank : null,
@@ -708,12 +698,23 @@ export default function BookingsPage() {
             cheque_number: chequeNo.trim(),
             neft_ref: neftRef.trim()
           },
-          bookingAmount: bookingAmount ? Number(bookingAmount) : null
+          bookingAmount: bookingAmount ? Number(bookingAmount) : null,
+          tokenDate: prefillMeta?.tokenDate ?? null,
+          confirmImmediately: false
         })
       });
-      const json = (await res.json()) as { bookingId?: string; error?: string };
+      const json = (await res.json()) as {
+        bookingId?: string;
+        redirectTo?: string;
+        error?: string;
+      };
       if (!res.ok) throw new Error(json.error || 'Failed to create booking');
-      setCreatedBookingId(json.bookingId ?? null);
+      const newId = json.bookingId ?? null;
+      setCreatedBookingId(newId);
+      if (json.redirectTo && newId) {
+        router.push(json.redirectTo);
+        return;
+      }
       setUnitId('');
       setCustomerId('');
       setCoBuyerSlots([]);
@@ -1549,7 +1550,7 @@ export default function BookingsPage() {
             onClick={createBooking}
             disabled={creating || !unitId || !customerId}
           >
-            {creating ? 'Creating…' : 'Confirm booking'}
+            {creating ? 'Starting…' : 'Record token & continue'}
           </Button>
         </div>
       </Card>
@@ -1558,101 +1559,19 @@ export default function BookingsPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-gray-900">
-              Booking list
+              Booking management
             </div>
             <div className="text-xs text-gray-500">
-              Recent bookings across projects ({bookings.length}).
+              Token → Application → Allotment → Confirmation ({bookings.length} total).
             </div>
           </div>
         </div>
 
-        {bookings.length === 0 ? (
-          <div className="mt-4 rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-            {loading ? 'Loading bookings…' : 'No bookings yet.'}
-          </div>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs font-semibold text-muted-foreground">
-                  <th className="pb-2 pr-3 font-medium">Project</th>
-                  <th className="pb-2 pr-3 font-medium">Unit</th>
-                  <th className="pb-2 pr-3 font-medium">Customer</th>
-                  <th className="pb-2 pr-3 font-medium">Stage</th>
-                  <th className="pb-2 pr-3 font-medium">Payment</th>
-                  <th className="pb-2 pr-3 font-medium text-right">Amount</th>
-                  <th className="pb-2 font-medium">Booked on</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => {
-                  const u = unwrapJoin(b.units);
-                  const c = unwrapJoin(b.customers);
-                  const coRaw = b.co_buyers;
-                  const coArr = Array.isArray(coRaw)
-                    ? (coRaw as CoBuyerStored[])
-                    : [];
-                  const amt = b.booking_amount;
-                  const pay = formatBookingPaymentDisplay(
-                    b.payment_mode,
-                    b.loan_bank,
-                    b.payment_detail
-                  );
-                  return (
-                    <tr key={b.id} className="border-b border-gray-100 last:border-0">
-                      <td className="max-w-[120px] truncate py-2.5 pr-3 align-top text-xs text-muted-foreground">
-                        {projectNameById.get(b.project_id) ?? '—'}
-                      </td>
-                      <td className="py-2.5 pr-3 align-top">
-                        <span className="font-medium text-gray-900">
-                          {u?.unit_code ?? '—'}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {u
-                            ? `${u.wing_name} · F${u.floor}${u.unit_type ? ` · ${u.unit_type}` : ''}`
-                            : ''}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-3 align-top">
-                        <span className="font-medium text-gray-900">
-                          {c?.full_name ?? '—'}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {c?.phone ?? ''}
-                        </span>
-                        {coArr.length > 0 ? (
-                          <div className="mt-2 border-t border-gray-100 pt-2 text-xs text-muted-foreground">
-                            <span className="font-semibold text-gray-700">
-                              Co-buyers:{' '}
-                            </span>
-                            {coArr.map((x) => x.full_name).filter(Boolean).join(', ')}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="py-2.5 pr-3 align-top capitalize text-gray-700">
-                        {b.stage.replace(/_/g, ' ')}
-                      </td>
-                      <td className="py-2.5 pr-3 align-top text-gray-700">
-                        {pay}
-                      </td>
-                      <td className="py-2.5 pr-3 align-top text-right tabular-nums text-gray-900">
-                        {amt != null
-                          ? `₹${Number(amt).toLocaleString('en-IN')}`
-                          : '—'}
-                      </td>
-                      <td className="py-2.5 align-top text-gray-600">
-                        {new Date(b.created_at).toLocaleString('en-IN', {
-                          dateStyle: 'medium',
-                          timeStyle: 'short'
-                        })}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <BookingListTable
+          rows={bookings as BookingListRow[]}
+          projectNameById={projectNameById}
+          loading={loading}
+        />
       </Card>
 
       <Dialog

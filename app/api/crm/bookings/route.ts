@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
-import { isUnitAvailableForBooking } from '@/app/crm/inventory/unit-status';
-
-type CoBuyerStored = {
-  customer_id: string;
-  full_name: string;
-  phone: string | null;
-  email: string | null;
-};
+import { resolveCoBuyers } from '@/lib/booking/co-buyers';
+import { insertDefaultPaymentSchedule } from '@/lib/booking/booking-schedule';
+import { isUnitBookableForWorkflow } from '@/app/crm/inventory/unit-status';
+import { mergeStageData } from '@/app/crm/bookings/booking-stage-transitions';
+import type { BookingStageData } from '@/app/crm/bookings/booking-types';
 
 type PaymentDetailPayload = {
   utr?: string;
@@ -20,13 +17,16 @@ type CreateBookingBody = {
   projectId: string;
   unitId: string;
   customerId: string;
-  /** Additional buyer customer IDs (order preserved). */
+  salesInquiryId?: string | null;
   coBuyerCustomerIds?: string[];
+  coBuyerRelationships?: Record<string, string>;
   paymentMode: string;
   loanBank?: string | null;
-  /** Mode-specific refs stored as JSON on the booking row. */
   paymentDetail?: PaymentDetailPayload | null;
   bookingAmount?: number | null;
+  tokenDate?: string | null;
+  /** When true, completes workflow in one step (legacy create form). */
+  confirmImmediately?: boolean;
 };
 
 function normalizePaymentDetail(
@@ -45,12 +45,6 @@ function normalizePaymentDetail(
 
 function normalizePhone(p: string | null | undefined) {
   return String(p ?? '').replace(/\D/g, '');
-}
-
-function addDaysISO(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 export async function POST(request: Request) {
@@ -78,9 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Enter NEFT / RTGS reference' }, { status: 400 });
   }
 
-  const rawCoIds = Array.isArray(body.coBuyerCustomerIds)
-    ? body.coBuyerCustomerIds
-    : [];
+  const rawCoIds = Array.isArray(body.coBuyerCustomerIds) ? body.coBuyerCustomerIds : [];
   const coBuyerIdsOrdered: string[] = [];
   const seen = new Set<string>();
   for (const id of rawCoIds) {
@@ -105,10 +97,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
   }
   if (!String(primaryCust.full_name ?? '').trim()) {
-    return NextResponse.json(
-      { error: 'Customer name is required' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
   }
   const primaryPhoneDigits = normalizePhone(primaryCust.phone as string | null);
   if (primaryPhoneDigits.length !== 10) {
@@ -118,69 +107,17 @@ export async function POST(request: Request) {
     );
   }
 
-  let coBuyersPayload: CoBuyerStored[] = [];
-  if (coBuyerIdsOrdered.length > 0) {
-    const primaryPhone = primaryPhoneDigits;
-
-    const { data: coRows, error: coErr } = await admin
-      .from('customers')
-      .select('id,full_name,phone,email')
-      .in('id', coBuyerIdsOrdered);
-    if (coErr) {
-      return NextResponse.json({ error: coErr.message }, { status: 500 });
-    }
-    if (!coRows || coRows.length !== coBuyerIdsOrdered.length) {
-      return NextResponse.json(
-        { error: 'One or more co-buyer customers were not found' },
-        { status: 400 }
-      );
-    }
-    const byId = new Map(
-      coRows.map((r) => [
-        r.id as string,
-        r as {
-          id: string;
-          full_name: string;
-          phone: string | null;
-          email: string | null;
-        }
-      ])
-    );
-    const usedCoPhones = new Set<string>();
-    for (const id of coBuyerIdsOrdered) {
-      const row = byId.get(id);
-      if (!row) {
-        return NextResponse.json(
-          { error: 'One or more co-buyer customers were not found' },
-          { status: 400 }
-        );
-      }
-      const p = normalizePhone(row.phone);
-      if (p && primaryPhone && p === primaryPhone) {
-        return NextResponse.json(
-          { error: 'A co-buyer cannot use the same phone number as the primary customer' },
-          { status: 400 }
-        );
-      }
-      if (p) {
-        if (usedCoPhones.has(p)) {
-          return NextResponse.json(
-            { error: 'Co-buyers cannot share the same phone number' },
-            { status: 400 }
-          );
-        }
-        usedCoPhones.add(p);
-      }
-      coBuyersPayload.push({
-        customer_id: row.id,
-        full_name: row.full_name,
-        phone: row.phone,
-        email: row.email
-      });
-    }
+  const coResolved = await resolveCoBuyers(
+    admin,
+    body.customerId,
+    primaryPhoneDigits,
+    coBuyerIdsOrdered,
+    body.coBuyerRelationships
+  );
+  if (coResolved.error) {
+    return NextResponse.json({ error: coResolved.error }, { status: 400 });
   }
 
-  // Ensure unit is available, then mark booked.
   const { data: unitRow, error: unitSelErr } = await admin
     .from('units')
     .select('id,status')
@@ -193,18 +130,35 @@ export async function POST(request: Request) {
   if (!unitRow) {
     return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
   }
-  if (!isUnitAvailableForBooking(unitRow.status as string)) {
-    return NextResponse.json(
-      { error: 'Unit is not available' },
-      { status: 409 }
-    );
+  if (!isUnitBookableForWorkflow(unitRow.status as string)) {
+    return NextResponse.json({ error: 'Unit is not available for booking' }, { status: 409 });
   }
+
+  const confirmNow = Boolean(body.confirmImmediately);
+  const bookingAmount = Number(body.bookingAmount || 0);
+  const tokenDate =
+    String(body.tokenDate ?? '').trim() || new Date().toISOString().slice(0, 10);
+
+  const stageData: BookingStageData = mergeStageData(null, 'token', {
+    amount: bookingAmount ? String(bookingAmount) : '',
+    date: tokenDate,
+    mode: modeTrim,
+    reference:
+      paymentDetailObj.utr ||
+      paymentDetailObj.cheque_number ||
+      paymentDetailObj.neft_ref ||
+      '',
+    recorded_at: new Date().toISOString()
+  });
+
+  const unitStatusBefore = String(unitRow.status || '').trim().toUpperCase();
+  const lockStatus = confirmNow ? 'BOOKED' : 'TOKEN';
 
   const { error: unitUpdErr } = await admin
     .from('units')
-    .update({ status: 'BOOKED' })
+    .update({ status: lockStatus })
     .eq('id', body.unitId)
-    .eq('status', 'AVAILABLE');
+    .in('status', ['AVAILABLE', 'TOKEN', 'A']);
   if (unitUpdErr) {
     return NextResponse.json({ error: unitUpdErr.message }, { status: 500 });
   }
@@ -215,86 +169,51 @@ export async function POST(request: Request) {
       project_id: body.projectId,
       unit_id: body.unitId,
       customer_id: body.customerId,
-      co_buyers: coBuyersPayload,
+      sales_inquiry_id: body.salesInquiryId?.trim() || null,
+      co_buyers: coResolved.coBuyers,
+      workflow_stage: confirmNow ? 'confirmation' : 'token',
       stage: 'booking',
+      stage_data: stageData,
+      status: 'active',
       payment_mode: body.paymentMode,
       loan_bank: body.loanBank ?? null,
       booking_amount: body.bookingAmount ?? null,
       payment_detail: paymentDetailObj,
-      created_by: gate.userId
+      created_by: gate.userId,
+      updated_at: new Date().toISOString()
     })
-    .select('id')
+    .select('id,workflow_stage')
     .single();
 
   if (bookingErr) {
-    // Best-effort rollback unit to available
-    await admin.from('units').update({ status: 'AVAILABLE' }).eq('id', body.unitId);
+    await admin
+      .from('units')
+      .update({ status: unitStatusBefore })
+      .eq('id', body.unitId);
     return NextResponse.json({ error: bookingErr.message }, { status: 500 });
   }
 
   const bookingId = bookingRow.id as string;
-  const bookingAmount = Number(body.bookingAmount || 0);
 
-  const scheduleRows = [
-    {
-      booking_id: bookingId,
-      instalment_no: 1,
-      milestone: 'Booking Amount',
-      due_date: addDaysISO(0),
-      amount: bookingAmount
-    },
-    {
-      booking_id: bookingId,
-      instalment_no: 2,
-      milestone: 'Allotment',
-      due_date: addDaysISO(30),
-      amount: 0
-    },
-    {
-      booking_id: bookingId,
-      instalment_no: 3,
-      milestone: 'Plinth Completed',
-      due_date: addDaysISO(60),
-      amount: 0
-    },
-    {
-      booking_id: bookingId,
-      instalment_no: 4,
-      milestone: '1st Slab Completed',
-      due_date: addDaysISO(90),
-      amount: 0
-    },
-    {
-      booking_id: bookingId,
-      instalment_no: 5,
-      milestone: '3rd Slab Completed',
-      due_date: addDaysISO(120),
-      amount: 0
-    },
-    {
-      booking_id: bookingId,
-      instalment_no: 6,
-      milestone: 'Brickwork Completed',
-      due_date: addDaysISO(150),
-      amount: 0
-    },
-    {
-      booking_id: bookingId,
-      instalment_no: 7,
-      milestone: 'Possession',
-      due_date: addDaysISO(180),
-      amount: 0
+  if (confirmNow) {
+    try {
+      await insertDefaultPaymentSchedule(admin, bookingId, bookingAmount);
+    } catch (e) {
+      await admin.from('bookings').delete().eq('id', bookingId);
+      await admin
+        .from('units')
+        .update({ status: unitStatusBefore })
+        .eq('id', body.unitId);
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Failed to create schedule' },
+        { status: 500 }
+      );
     }
-  ];
-
-  const { error: scheduleErr } = await admin
-    .from('payment_schedules')
-    .insert(scheduleRows);
-
-  if (scheduleErr) {
-    return NextResponse.json({ error: scheduleErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ bookingId });
+  return NextResponse.json({
+    bookingId,
+    workflowStage: bookingRow.workflow_stage,
+    redirectTo: confirmNow ? null : `/crm/bookings/${bookingId}`
+  });
 }
-

@@ -259,6 +259,8 @@ create table if not exists public.customers (
   dob date,
   occupation text,
   nationality text,
+  pan_number text,
+  aadhaar_last4 text,
   created_at timestamptz not null default now(),
   phone_normalized text generated always as (
     nullif(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), '')
@@ -382,13 +384,18 @@ create table if not exists public.bookings (
   unit_id uuid not null references public.units (id),
   customer_id uuid not null references public.customers (id),
   stage text not null default 'booking', -- inquiry|booking|allotment|agreement|possession
+  workflow_stage text not null default 'token', -- token|application|allotment|confirmation
+  stage_data jsonb not null default '{}'::jsonb,
+  sales_inquiry_id uuid references public.sales_inquiries (id) on delete set null,
+  status text not null default 'active', -- active|cancelled
   payment_mode text,
   loan_bank text,
   booking_amount numeric,
   co_buyers jsonb not null default '[]'::jsonb,
   payment_detail jsonb not null default '{}'::jsonb,
   created_by uuid references auth.users (id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.payment_schedules (

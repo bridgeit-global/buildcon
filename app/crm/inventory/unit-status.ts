@@ -62,6 +62,12 @@ export function isUnitAvailableForBooking(status: string | null | undefined): bo
   return s === 'AVAILABLE' || LEGACY_AVAILABLE.has(String(status || '').trim());
 }
 
+/** Start or continue booking while unit is available or already on token from inquiry. */
+export function isUnitBookableForWorkflow(status: string | null | undefined): boolean {
+  const s = normalizeUnitStatusCode(status);
+  return isUnitAvailableForBooking(status) || s === 'TOKEN';
+}
+
 /** Inquiry → booking prefill: available units and units already on token. */
 export function isUnitPrefillableFromInquiry(
   status: string | null | undefined
