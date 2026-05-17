@@ -34,6 +34,44 @@ export function isInquiryClosed(
   return (stageData as Record<string, unknown>).closed === true;
 }
 
+export type NegotiationApprovalStatus =
+  | 'none'
+  | 'pending'
+  | 'approved'
+  | 'rejected';
+
+export function getNegotiationApprovalStatus(
+  negotiation: Record<string, unknown> | null | undefined
+): NegotiationApprovalStatus {
+  if (!negotiation || typeof negotiation !== 'object' || Array.isArray(negotiation)) {
+    return 'none';
+  }
+  const status = String(negotiation.approval_status ?? '').trim().toLowerCase();
+  if (status === 'pending' || status === 'approved' || status === 'rejected') {
+    return status;
+  }
+  return 'none';
+}
+
+/** Discount from unit list (agreement) price vs buyer offer. */
+export function computeNegotiationDiscount(
+  listPriceInr: number | null | undefined,
+  offeredPriceRaw: string | number | null | undefined
+): { discountPct: number | null; discountInr: number | null } {
+  const listPrice = Number(listPriceInr);
+  const offered = Number(String(offeredPriceRaw ?? '').trim());
+  if (!Number.isFinite(listPrice) || listPrice <= 0) {
+    return { discountPct: null, discountInr: null };
+  }
+  if (!Number.isFinite(offered) || offered <= 0) {
+    return { discountPct: null, discountInr: null };
+  }
+  if (offered >= listPrice) return { discountPct: 0, discountInr: 0 };
+  const discountInr = listPrice - offered;
+  const discountPct = Number(((discountInr / listPrice) * 100).toFixed(2));
+  return { discountPct, discountInr };
+}
+
 /** True when a negotiation approval flow was started but token is not yet allowed. */
 export function negotiationBlocksTokenAdvance(
   negotiation: Record<string, unknown> | null | undefined
@@ -41,13 +79,28 @@ export function negotiationBlocksTokenAdvance(
   if (!negotiation || typeof negotiation !== 'object' || Array.isArray(negotiation)) {
     return false;
   }
-  const status = String(negotiation.approval_status ?? '').trim().toLowerCase();
+  const status = getNegotiationApprovalStatus(negotiation);
   const hasFlow =
-    status !== '' ||
+    status !== 'none' ||
     Boolean(String(negotiation.approval_id ?? '').trim()) ||
     Boolean(String(negotiation.offered_price ?? '').trim());
   if (!hasFlow) return false;
   return status !== 'approved';
+}
+
+/**
+ * Block entering token while on the Negotiate funnel stage, or when a
+ * negotiation approval flow exists but is not approved.
+ */
+export function tokenStageBlockedByNegotiation(
+  negotiation: Record<string, unknown> | null | undefined,
+  options?: { funnelStage?: string }
+): boolean {
+  const funnel = String(options?.funnelStage ?? '').trim();
+  if (funnel === 'Negotiation') {
+    return getNegotiationApprovalStatus(negotiation) !== 'approved';
+  }
+  return negotiationBlocksTokenAdvance(negotiation);
 }
 
 export function getInquiryClosedStatus(

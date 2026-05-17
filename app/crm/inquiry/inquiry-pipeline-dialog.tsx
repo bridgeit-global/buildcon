@@ -17,10 +17,18 @@ import { cn } from '@/lib/utils';
 import {
   applyUnitStatusForFunnelStage,
   closeInquiry,
+  computeNegotiationDiscount,
+  getNegotiationApprovalStatus,
   isInquiryClosed,
-  negotiationBlocksTokenAdvance,
+  tokenStageBlockedByNegotiation,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
+import {
+  formatInr,
+  formatInrCompactLacCr,
+  unitAgreementTotalInr,
+  type UnitPricingInput
+} from '../inr-format';
 import { statusLabelForUnit } from '../inventory/inventory-utils';
 import type { InquiryStageData } from './inquiry-types';
 import {
@@ -304,10 +312,12 @@ function MacroPipelineStepper({
 
 function VerticalEnquiryStageStepper({
   current,
-  onSelect
+  onSelect,
+  canSelectStage
 }: {
   current: string;
   onSelect: (stage: PipelineAnchorStage) => void;
+  canSelectStage?: (stage: PipelineAnchorStage) => boolean;
 }) {
   const currentIdx = stageIndex(current);
   return (
@@ -320,13 +330,24 @@ function VerticalEnquiryStageStepper({
           const isActive = step.id === current;
           const isDone = idx < currentIdx;
           const isLast = idx === PIPELINE_STEPS.length - 1;
+          const selectable = canSelectStage ? canSelectStage(step.id) : true;
           return (
             <li key={step.id}>
               <button
                 type="button"
-                onClick={() => onSelect(step.id)}
-                className="flex w-full min-h-[44px] gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3"
+                disabled={!selectable}
+                onClick={() => {
+                  if (!selectable) return;
+                  onSelect(step.id);
+                }}
+                className={cn(
+                  'flex w-full min-h-[44px] gap-2 rounded-md px-1 py-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3',
+                  selectable
+                    ? 'hover:bg-muted/60'
+                    : 'cursor-not-allowed opacity-50'
+                )}
                 aria-current={isActive ? 'step' : undefined}
+                aria-disabled={!selectable}
               >
                 <div className="flex shrink-0 flex-col items-center">
                   <div className="flex h-9 items-center justify-center">
@@ -653,7 +674,22 @@ function NegotiationForm({
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [approvalError, setApprovalError] = useState('');
-  const approvalStatus = String(data.approval_status ?? '').trim().toLowerCase();
+  const approvalStatus = getNegotiationApprovalStatus(data);
+  const listPrice =
+    listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
+  const { discountPct, discountInr } = computeNegotiationDiscount(
+    listPrice,
+    data.offered_price
+  );
+
+  function applyOfferedPrice(offeredRaw: string) {
+    const { discountPct: pct } = computeNegotiationDiscount(listPrice, offeredRaw);
+    onChange({
+      ...data,
+      offered_price: offeredRaw,
+      discount_pct: pct != null ? String(pct) : ''
+    });
+  }
 
   async function refreshApprovalStatus() {
     if (!supabase || !inquiryId) return;
@@ -720,12 +756,7 @@ function NegotiationForm({
       const customerId = String(
         (inqRow as { customer_id?: string } | null)?.customer_id || ''
       ).trim();
-      const listPrice =
-        listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
-      const discountPct =
-        listPrice && offered <= listPrice
-          ? Number((((listPrice - offered) / listPrice) * 100).toFixed(2))
-          : null;
+      const discountPct = computeNegotiationDiscount(listPrice, offered).discountPct;
 
       const { data: approvalRow, error: insErr } = await supabase
         .from('negotiation_approvals')
@@ -780,6 +811,37 @@ function NegotiationForm({
 
   return (
     <div className="grid gap-3">
+      {listPrice ? (
+        <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ds-gray-500">
+            Unit list price
+          </p>
+          <p className="mt-1 text-sm font-semibold text-ds-gray-900">
+            {formatInrCompactLacCr(listPrice)}
+            <span className="ml-1 text-xs font-normal text-ds-gray-600">
+              (₹ {formatInr(listPrice)})
+            </span>
+          </p>
+          {discountInr != null && discountPct != null ? (
+            <p className="mt-2 text-xs text-ds-gray-700">
+              Discount requested:{' '}
+              <span className="font-semibold text-ds-primary-700">
+                ₹ {formatInr(discountInr)} ({discountPct}%)
+              </span>
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-ds-gray-500">
+              Enter offered price to see discount vs list price.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
+          Unit list price is not set on this inventory row — approval will still
+          record the offered price.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label className="text-xs">Offered price (₹)</Label>
@@ -788,24 +850,17 @@ function NegotiationForm({
             className="h-8 text-xs"
             placeholder="75,00,000"
             value={data.offered_price ?? ''}
-            onChange={(e) =>
-              onChange({ ...data, offered_price: e.target.value })
-            }
+            onChange={(e) => applyOfferedPrice(e.target.value)}
           />
         </div>
         <div className="grid gap-1.5">
           <Label className="text-xs">Discount asked (%)</Label>
           <Input
-            type="number"
-            min={0}
-            max={100}
-            step={0.5}
-            className="h-8 text-xs"
-            placeholder="5"
-            value={data.discount_pct ?? ''}
-            onChange={(e) =>
-              onChange({ ...data, discount_pct: e.target.value })
-            }
+            type="text"
+            readOnly
+            className="h-8 bg-ds-gray-50 text-xs"
+            placeholder="—"
+            value={discountPct != null ? String(discountPct) : ''}
           />
         </div>
       </div>
@@ -1028,8 +1083,46 @@ export function InquiryPipelinePanel(props: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
+
+  const negotiationBlocksAdvance = tokenStageBlockedByNegotiation(
+    stageData.negotiation,
+    {
+      funnelStage:
+        activeStage === 'Negotiation' ? 'Negotiation' : inquiry?.funnel_stage
+    }
+  );
+
+  useEffect(() => {
+    const uid = String(unitId || '').trim();
+    if (!uid) {
+      setUnitListPriceInr(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data: unitRow } = await supabase
+        .from('units')
+        .select(
+          'area, carpet_area, bua_area, rate, floor_rise_charge, plc_charge'
+        )
+        .eq('id', uid)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!unitRow) {
+        setUnitListPriceInr(null);
+        return;
+      }
+      setUnitListPriceInr(
+        unitAgreementTotalInr(unitRow as UnitPricingInput) || null
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, unitId]);
 
   useEffect(() => {
     if (!inquiry) return;
@@ -1067,13 +1160,23 @@ export function InquiryPipelinePanel(props: {
 
   function assertCanAdvanceToToken(targetStage: FunnelStage) {
     if (targetStage !== 'Token') return;
-    if (!negotiationBlocksTokenAdvance(stageData.negotiation)) return;
-    const status = String(stageData.negotiation?.approval_status ?? '')
-      .trim()
-      .toLowerCase();
+    if (
+      !tokenStageBlockedByNegotiation(stageData.negotiation, {
+        funnelStage:
+          activeStage === 'Negotiation' ? 'Negotiation' : inquiry?.funnel_stage
+      })
+    ) {
+      return;
+    }
+    const status = getNegotiationApprovalStatus(stageData.negotiation);
     if (status === 'pending') {
       throw new Error(
         'Negotiation budget approval is pending. Wait for admin decision before token.'
+      );
+    }
+    if (status === 'rejected') {
+      throw new Error(
+        'Budget was rejected. Update the offer and send for approval again.'
       );
     }
     throw new Error(
@@ -1256,6 +1359,15 @@ export function InquiryPipelinePanel(props: {
               <VerticalEnquiryStageStepper
                 current={activeStage}
                 onSelect={(stage) => setActiveStage(stage)}
+                canSelectStage={(stage) => {
+                  if (stage !== 'Token') return true;
+                  return !tokenStageBlockedByNegotiation(stageData.negotiation, {
+                    funnelStage:
+                      activeStage === 'Negotiation'
+                        ? 'Negotiation'
+                        : inquiry?.funnel_stage
+                  });
+                }}
               />
             ) : null}
             <div className="min-w-0 flex-1 space-y-3">
@@ -1298,6 +1410,14 @@ export function InquiryPipelinePanel(props: {
                   pipelineClosed={pipelineClosed}
                 />
               )}
+              {activeStage === 'Negotiation' && negotiationBlocksAdvance ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  {getNegotiationApprovalStatus(stageData.negotiation) ===
+                  'pending'
+                    ? 'Admin approval is pending. Refresh status after decision — token is only available once approved.'
+                    : 'Send the offered price for admin approval. You cannot move to token until it is approved.'}
+                </p>
+              ) : null}
               {activeStage === 'Negotiation' && (
                 <NegotiationForm
                   data={stageData.negotiation ?? {}}
@@ -1307,7 +1427,7 @@ export function InquiryPipelinePanel(props: {
                   inquiryId={inquiry.id}
                   projectId={projectId ?? null}
                   unitId={unitId ?? null}
-                  listPriceInr={null}
+                  listPriceInr={unitListPriceInr}
                   supabase={supabase}
                   onApprovedProceedToToken={() => void save('Token')}
                   onRejectedClose={(note) => void closeFromRejectedApproval(note)}
@@ -1360,10 +1480,7 @@ export function InquiryPipelinePanel(props: {
               </Button>
               {!isLastPipelineStage &&
                 activeStage !== 'Site Visit' &&
-                !(
-                  activeStage === 'Negotiation' &&
-                  negotiationBlocksTokenAdvance(stageData.negotiation)
-                ) && (
+                !(activeStage === 'Negotiation' && negotiationBlocksAdvance) && (
                 <Button
                   disabled={saving}
                   className="bg-teal-600 hover:bg-teal-700"

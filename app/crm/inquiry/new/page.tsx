@@ -23,6 +23,8 @@ import {
   loadInquiryStageData,
   stageHasMeaningfulData
 } from '../inquiry-stage-store';
+import { tokenStageBlockedByNegotiation } from '../inquiry-stage-transitions';
+import type { InquiryStageData } from '../inquiry-types';
 
 type InquiryFetchRow = {
   id: string;
@@ -191,9 +193,27 @@ function NewInquiryPageInner() {
     [loadInquiry]
   );
 
+  const negotiationPayload = useMemo(() => {
+    const sd = inquiry?.stage_data;
+    if (!sd || typeof sd !== 'object' || Array.isArray(sd)) return undefined;
+    return (sd as InquiryStageData).negotiation;
+  }, [inquiry?.stage_data]);
+
+  const tokenNavigationBlocked = useMemo(
+    () =>
+      tokenStageBlockedByNegotiation(negotiationPayload, {
+        funnelStage:
+          viewStage === 'Negotiation' || funnelStage === 'Negotiation'
+            ? 'Negotiation'
+            : funnelStage
+      }),
+    [negotiationPayload, viewStage, funnelStage]
+  );
+
   const handleStageSelect = useCallback(
     (stage: InquiryFunnelStage) => {
       if (!inquiryId && stage !== 'Enquiry' && stage !== 'Qualified') return;
+      if (stage === 'Token' && tokenNavigationBlocked) return;
       setViewStage(stage);
       if (stage === 'Negotiation' || stage === 'Token') {
         setFunnelStage(stage);
@@ -201,7 +221,7 @@ function NewInquiryPageInner() {
       }
       setWizardStep(wizardStepForFunnelStage(stage));
     },
-    [inquiryId]
+    [inquiryId, tokenNavigationBlocked]
   );
 
   const handleFunnelStageChange = useCallback((stage: string) => {
@@ -213,12 +233,16 @@ function NewInquiryPageInner() {
     if (inquiryId) void loadInquiry(inquiryId);
   }, [inquiryId, loadInquiry]);
 
-  const handleSkipToStage = useCallback((stage: InquiryFunnelStage) => {
-    setViewStage(stage);
-    if (stage === 'Negotiation' || stage === 'Token') {
-      setFunnelStage(stage);
-    }
-  }, []);
+  const handleSkipToStage = useCallback(
+    (stage: InquiryFunnelStage) => {
+      if (stage === 'Token' && tokenNavigationBlocked) return;
+      setViewStage(stage);
+      if (stage === 'Negotiation' || stage === 'Token') {
+        setFunnelStage(stage);
+      }
+    },
+    [tokenNavigationBlocked]
+  );
 
   const handlePipelineStageChange = useCallback((stage: InquiryFunnelStage) => {
     setViewStage(stage);
@@ -293,6 +317,11 @@ function NewInquiryPageInner() {
             disabled={resuming}
             onSelect={inquiryId || wizardStep > 1 ? handleStageSelect : undefined}
           />
+          {tokenNavigationBlocked && viewStage === 'Negotiation' ? (
+            <p className="mt-2 text-[11px] text-amber-900">
+              Token step unlocks after admin approves the negotiated offer.
+            </p>
+          ) : null}
         </div>
 
         <div className="px-4 py-4 sm:px-6">
