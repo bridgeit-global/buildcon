@@ -34,6 +34,34 @@ export function isInquiryClosed(
   return (stageData as Record<string, unknown>).closed === true;
 }
 
+/** True when a negotiation approval flow was started but token is not yet allowed. */
+export function negotiationBlocksTokenAdvance(
+  negotiation: Record<string, unknown> | null | undefined
+): boolean {
+  if (!negotiation || typeof negotiation !== 'object' || Array.isArray(negotiation)) {
+    return false;
+  }
+  const status = String(negotiation.approval_status ?? '').trim().toLowerCase();
+  const hasFlow =
+    status !== '' ||
+    Boolean(String(negotiation.approval_id ?? '').trim()) ||
+    Boolean(String(negotiation.offered_price ?? '').trim());
+  if (!hasFlow) return false;
+  return status !== 'approved';
+}
+
+export function getInquiryClosedStatus(
+  stageData: InquiryStageData | Record<string, unknown> | null | undefined
+): string | null {
+  if (!stageData || typeof stageData !== 'object' || Array.isArray(stageData)) {
+    return null;
+  }
+  const status = String(
+    (stageData as Record<string, unknown>).closed_status ?? ''
+  ).trim();
+  return status || (isInquiryClosed(stageData) ? 'Closed' : null);
+}
+
 /** Inventory status to apply when `funnel_stage` changes (app + DB mirror). */
 export function targetUnitStatusForFunnelStage(
   funnelStage: string,
@@ -196,19 +224,22 @@ export async function closeInquiry(
     inquiryId: string;
     unitId?: string | null;
     stageData?: InquiryStageData | Record<string, unknown>;
+    /** Stored on `stage_data.closed_status` (e.g. Rejected, Not Interested). */
+    closedStatus?: string;
   }
 ): Promise<{ ok: boolean; error?: string }> {
-  const { inquiryId, unitId, stageData } = params;
+  const { inquiryId, unitId, stageData, closedStatus } = params;
 
   if (unitId) {
     const unitResult = await releaseInquiryUnit(supabase, unitId);
     if (!unitResult.ok) return { ok: false, error: unitResult.error };
   }
 
+  const closedLabel = String(closedStatus || 'Closed').trim() || 'Closed';
   const payload =
     stageData && typeof stageData === 'object' && !Array.isArray(stageData)
-      ? { ...stageData, closed: true }
-      : { closed: true };
+      ? { ...stageData, closed: true, closed_status: closedLabel }
+      : { closed: true, closed_status: closedLabel };
 
   const { error: inqErr } = await supabase
     .from('sales_inquiries')

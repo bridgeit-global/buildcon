@@ -18,6 +18,7 @@ import {
   applyUnitStatusForFunnelStage,
   closeInquiry,
   isInquiryClosed,
+  negotiationBlocksTokenAdvance,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
 import { statusLabelForUnit } from '../inventory/inventory-utils';
@@ -634,7 +635,9 @@ function NegotiationForm({
   unitId,
   listPriceInr,
   supabase,
-  onApprovalSubmitted
+  onApprovalSubmitted,
+  onApprovedProceedToToken,
+  onRejectedClose
 }: {
   data: NegotiationStageData;
   onChange: (d: NegotiationStageData) => void;
@@ -644,6 +647,8 @@ function NegotiationForm({
   listPriceInr?: number | null;
   supabase?: ReturnType<typeof createSupabaseBrowserClient>;
   onApprovalSubmitted?: () => void;
+  onApprovedProceedToToken?: () => void | Promise<void>;
+  onRejectedClose?: (decisionNote?: string) => void | Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -662,7 +667,23 @@ function NegotiationForm({
         loaded
       );
       const neg = enriched.negotiation ?? {};
-      onChange({ ...data, ...(neg as NegotiationStageData) });
+      const next = { ...data, ...(neg as NegotiationStageData) };
+      const prevStatus = String(data.approval_status ?? '').toLowerCase();
+      const nextStatus = String(next.approval_status ?? '').toLowerCase();
+      onChange(next);
+
+      if (nextStatus === 'rejected') {
+        await onRejectedClose?.(String(next.decision_note ?? ''));
+        onApprovalSubmitted?.();
+        return;
+      }
+
+      if (nextStatus === 'approved' && prevStatus !== 'approved') {
+        await onApprovedProceedToToken?.();
+        onApprovalSubmitted?.();
+        return;
+      }
+
       onApprovalSubmitted?.();
     } catch (e) {
       setApprovalError(
@@ -846,9 +867,21 @@ function NegotiationForm({
             </div>
           ) : null}
           {approvalStatus === 'approved' ? (
-            <p className="text-[11px] text-teal-900">
-              Budget approved. Save and move to Token when the buyer pays.
-            </p>
+            <div className="space-y-2">
+              <p className="text-[11px] text-teal-900">
+                Budget approved. Record token when the buyer pays.
+              </p>
+              {onApprovedProceedToToken ? (
+                <Button
+                  type="button"
+                  className="min-h-11 bg-teal-600 hover:bg-teal-700"
+                  disabled={submitting || refreshing}
+                  onClick={() => void onApprovedProceedToToken()}
+                >
+                  Proceed to token
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           {approvalStatus === 'rejected' ? (
             <p className="text-[11px] text-red-900">
@@ -1032,6 +1065,50 @@ export function InquiryPipelinePanel(props: {
     };
   }, [inquiry, supabase, activeStageOverride]);
 
+  function assertCanAdvanceToToken(targetStage: FunnelStage) {
+    if (targetStage !== 'Token') return;
+    if (!negotiationBlocksTokenAdvance(stageData.negotiation)) return;
+    const status = String(stageData.negotiation?.approval_status ?? '')
+      .trim()
+      .toLowerCase();
+    if (status === 'pending') {
+      throw new Error(
+        'Negotiation budget approval is pending. Wait for admin decision before token.'
+      );
+    }
+    throw new Error(
+      'Send the offer for admin approval and wait for acceptance before token.'
+    );
+  }
+
+  async function closeFromRejectedApproval(decisionNote?: string) {
+    if (!inquiry) return;
+    setSaving(true);
+    setError('');
+    try {
+      const result = await closeInquiry(supabase, {
+        inquiryId: inquiry.id,
+        unitId: unitId ?? null,
+        stageData: {
+          ...stageDataToJson(stageData),
+          negotiation: {
+            ...stageData.negotiation,
+            approval_status: 'rejected',
+            ...(decisionNote ? { decision_note: decisionNote } : {})
+          }
+        },
+        closedStatus: 'Rejected'
+      });
+      if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
+      setSaved(true);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Close failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save(nextStage?: FunnelStage) {
     if (!inquiry) return;
     setSaving(true);
@@ -1039,6 +1116,7 @@ export function InquiryPipelinePanel(props: {
     setSaved(false);
     try {
       const targetStage = nextStage ?? activeStage;
+      assertCanAdvanceToToken(targetStage);
       const uid = String(unitId || '').trim();
       if (uid) {
         const unitResult = await applyUnitStatusForFunnelStage(
@@ -1231,6 +1309,8 @@ export function InquiryPipelinePanel(props: {
                   unitId={unitId ?? null}
                   listPriceInr={null}
                   supabase={supabase}
+                  onApprovedProceedToToken={() => void save('Token')}
+                  onRejectedClose={(note) => void closeFromRejectedApproval(note)}
                   onApprovalSubmitted={() => {
                     void (async () => {
                       const { data } = await loadInquiryStageData(
@@ -1278,7 +1358,12 @@ export function InquiryPipelinePanel(props: {
               >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
-              {!isLastPipelineStage && activeStage !== 'Site Visit' && (
+              {!isLastPipelineStage &&
+                activeStage !== 'Site Visit' &&
+                !(
+                  activeStage === 'Negotiation' &&
+                  negotiationBlocksTokenAdvance(stageData.negotiation)
+                ) && (
                 <Button
                   disabled={saving}
                   className="bg-teal-600 hover:bg-teal-700"

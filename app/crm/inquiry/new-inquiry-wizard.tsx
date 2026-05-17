@@ -29,19 +29,17 @@ import {
   isUnitAvailableForBooking,
   statusLabelForUnit
 } from '../inventory/inventory-utils';
-import { unitAgreementTotalInr } from '../inr-format';
 import { unitStatusInquiryStageHint } from './inquiry-stage-unit-map';
 import {
   applyUnitStatusForFunnelStage,
   closeInquiry,
+  getInquiryClosedStatus,
+  isInquiryClosed,
+  negotiationBlocksTokenAdvance,
   qualifyInquiryWithUnit
 } from './inquiry-stage-transitions';
 import type { InquiryStageData } from './inquiry-types';
-import {
-  loadInquiryStageData,
-  persistNegotiationApprovalRequest,
-  saveInquiryStageData
-} from './inquiry-stage-store';
+import { loadInquiryStageData, saveInquiryStageData } from './inquiry-stage-store';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
 import type { UnitRow } from './inquiry-types';
 import {
@@ -71,7 +69,6 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]['id'];
 
 type SiteVisitInterest = 'Interested' | 'Not Interested' | '';
-type NegotiatingChoice = 'yes' | 'no' | '';
 
 type NewInquiryWizardProps = {
   onInquirySaved?: () => void | Promise<void>;
@@ -151,19 +148,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   const [createdInquiryId, setCreatedInquiryId] = useState('');
   const [visitInterest, setVisitInterest] = useState<SiteVisitInterest>('');
-  const [negotiating, setNegotiating] = useState<NegotiatingChoice>('');
   const [negotiationOffer, setNegotiationOffer] = useState('');
   const [approvalStatus, setApprovalStatus] = useState<
     'none' | 'pending' | 'approved' | 'rejected'
   >('none');
-  const [approvalNote, setApprovalNote] = useState('');
   const [latestApprovalId, setLatestApprovalId] = useState('');
-
-  useEffect(() => {
-    if (visitInterest !== 'Interested') {
-      setNegotiating('');
-    }
-  }, [visitInterest]);
+  const [inquiryClosed, setInquiryClosed] = useState(false);
+  const [closedStatus, setClosedStatus] = useState<string | null>(null);
 
   const activeInquiryId = String(inquiryIdProp || createdInquiryId || '').trim();
 
@@ -198,7 +189,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     void (async () => {
       const { data, error: loadErr } = await supabase
         .from('sales_inquiries')
-        .select('unit_id, funnel_stage')
+        .select('unit_id, funnel_stage, stage_data')
         .eq('id', id)
         .maybeSingle();
       if (cancelled || loadErr || !data) return;
@@ -207,6 +198,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         setSellerForm((s) => ({ ...s, selectedUnitId: unitId }));
         setCreatedInquiryId(id);
       }
+      const stageData = (data as { stage_data?: Record<string, unknown> })
+        .stage_data;
+      setInquiryClosed(isInquiryClosed(stageData));
+      setClosedStatus(getInquiryClosedStatus(stageData));
       const { data: sd } = await loadInquiryStageData(supabase, id);
       const neg = sd?.negotiation as
         | {
@@ -218,14 +213,25 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         | undefined;
       if (neg?.offered_price) {
         setNegotiationOffer(String(neg.offered_price));
-        setNegotiating('yes');
         setVisitInterest('Interested');
       }
       if (neg?.approval_status === 'pending') setApprovalStatus('pending');
       if (neg?.approval_status === 'approved') setApprovalStatus('approved');
-      if (neg?.approval_status === 'rejected') setApprovalStatus('rejected');
+      if (neg?.approval_status === 'rejected') {
+        setApprovalStatus('rejected');
+        if (!isInquiryClosed(stageData)) {
+          const closeResult = await closeInquiry(supabase, {
+            inquiryId: id,
+            unitId: unitId || null,
+            closedStatus: 'Rejected'
+          });
+          if (closeResult.ok) {
+            setInquiryClosed(true);
+            setClosedStatus('Rejected');
+          }
+        }
+      }
       if (neg?.approval_id) setLatestApprovalId(String(neg.approval_id));
-      if (neg?.decision_note) setApprovalNote(String(neg.decision_note));
       if (forcedStep == null) changeStep(3);
     })();
     return () => {
@@ -695,6 +701,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         unitId: sellerForm.selectedUnitId || null
       });
       if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
+      setInquiryClosed(true);
+      setClosedStatus('Not Interested');
       setSaveMsg('Enquiry closed. Unit released to available.');
       window.setTimeout(() => setSaveMsg(''), 2500);
       await onInquirySaved?.();
@@ -705,126 +713,56 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
   }
 
-  async function handleCustomerGaveToken() {
-    if (!activeInquiryId || saving) return;
-    setSaving(true);
-    setError('');
-    try {
-      const ok = await persistVisitSiteStage(
-        {
-          site_visit: {
-            outcome: 'Interested',
-            scheduled_at: sellerForm.followUpDate.trim() || undefined
-          }
-        },
+  function canProceedToToken(): boolean {
+    if (inquiryClosed) return false;
+    if (negotiationBlocksTokenAdvance({ approval_status: approvalStatus, approval_id: latestApprovalId, offered_price: negotiationOffer })) {
+      return false;
+    }
+    return true;
+  }
+
+  async function applyTokenStage(): Promise<boolean> {
+    if (!activeInquiryId) return false;
+    const ok = await persistVisitSiteStage(
+      {
+        site_visit: {
+          outcome: 'Interested',
+          scheduled_at: sellerForm.followUpDate.trim() || undefined
+        }
+      },
+      'Token'
+    );
+    if (!ok) return false;
+    const uid = String(sellerForm.selectedUnitId || '').trim();
+    if (uid) {
+      const unitResult = await applyUnitStatusForFunnelStage(
+        supabase,
+        uid,
         'Token'
       );
-      if (!ok) return;
-      const uid = String(sellerForm.selectedUnitId || '').trim();
-      if (uid) {
-        const unitResult = await applyUnitStatusForFunnelStage(
-          supabase,
-          uid,
-          'Token'
-        );
-        if (unitResult.error) throw new Error(unitResult.error);
-      }
-      onSkipToStage?.('Token');
-      setSaveMsg('Token recorded. Unit marked TOKEN in inventory.');
-      window.setTimeout(() => setSaveMsg(''), 2500);
-      await onInquirySaved?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
-    } finally {
-      setSaving(false);
+      if (unitResult.error) throw new Error(unitResult.error);
     }
+    onSkipToStage?.('Token');
+    setSaveMsg('Token recorded. Unit marked TOKEN in inventory.');
+    window.setTimeout(() => setSaveMsg(''), 2500);
+    await onInquirySaved?.();
+    return true;
   }
 
-  async function handleStartNegotiation() {
+  async function handleCustomerGaveToken() {
     if (!activeInquiryId || saving) return;
-    const offeredRaw = negotiationOffer.trim();
-    if (!offeredRaw) {
-      setError('Enter an offered price before sending for approval.');
-      return;
-    }
-    const offered = Number(offeredRaw);
-    if (!Number.isFinite(offered) || offered <= 0) {
-      setError('Offered price must be a positive number.');
+    if (!canProceedToToken()) {
+      setError(
+        approvalStatus === 'pending'
+          ? 'Budget approval is pending in the Negotiate stage. Check status there before token.'
+          : 'Complete budget approval in the Negotiate stage before token.'
+      );
       return;
     }
     setSaving(true);
     setError('');
     try {
-      const projectId = String(selectedUnit?.project_id || '').trim();
-      if (!projectId) throw new Error('Project not resolved on this enquiry.');
-
-      const { data: inqRow, error: inqErr } = await supabase
-        .from('sales_inquiries')
-        .select('customer_id, unit_id')
-        .eq('id', activeInquiryId)
-        .maybeSingle();
-      if (inqErr) throw inqErr;
-      const customerId = String(
-        (inqRow as { customer_id?: string } | null)?.customer_id || ''
-      ).trim();
-      const unitId = String(
-        (inqRow as { unit_id?: string } | null)?.unit_id || ''
-      ).trim();
-
-      const listPrice = selectedUnit
-        ? unitAgreementTotalInr(selectedUnit)
-        : null;
-      const discountPct =
-        listPrice && listPrice > 0 && offered <= listPrice
-          ? Number((((listPrice - offered) / listPrice) * 100).toFixed(2))
-          : null;
-
-      const { data: approvalRow, error: insErr } = await supabase
-        .from('negotiation_approvals')
-        .insert({
-          sales_inquiry_id: activeInquiryId,
-          project_id: projectId,
-          unit_id: unitId || null,
-          customer_id: customerId || null,
-          list_price: listPrice && listPrice > 0 ? listPrice : null,
-          offered_price: offered,
-          discount_pct: discountPct,
-          request_note: sellerForm.notes.trim() || null,
-          requested_by: userLabel.id || null
-        })
-        .select('id')
-        .single();
-      if (insErr) {
-        throw new Error(
-          insErr.message.includes('negotiation_approvals_one_pending')
-            ? 'A pending approval already exists for this enquiry.'
-            : insErr.message
-        );
-      }
-      const approvalId = String(
-        (approvalRow as { id?: string } | null)?.id || ''
-      );
-      setLatestApprovalId(approvalId);
-
-      const persist = await persistNegotiationApprovalRequest(supabase, {
-        inquiryId: activeInquiryId,
-        approvalId,
-        offeredPrice: offeredRaw,
-        notes: sellerForm.notes.trim() || undefined,
-        funnelStage: 'Negotiation',
-        siteVisitPatch: { outcome: 'Interested' }
-      });
-      if (!persist.ok) {
-        throw new Error(persist.error ?? 'Could not save negotiation stage');
-      }
-      onFunnelStageChange?.('Negotiation');
-      onStageDataSaved?.();
-      setApprovalStatus('pending');
-      setApprovalNote('');
-      onSkipToStage?.('Negotiation');
-      setSaveMsg('Sent to admin for budget approval.');
-      window.setTimeout(() => setSaveMsg(''), 2500);
-      await onInquirySaved?.();
+      await applyTokenStage();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Update failed');
     } finally {
@@ -832,23 +770,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
   }
 
-  async function refreshApprovalStatus() {
-    if (!activeInquiryId) return;
-    const { data: loaded } = await loadInquiryStageData(supabase, activeInquiryId);
-    const neg = loaded.negotiation as
-      | {
-          approval_status?: string;
-          approval_id?: string;
-          decision_note?: string;
-        }
-      | undefined;
-    if (neg?.approval_id) setLatestApprovalId(String(neg.approval_id));
-    if (neg?.approval_status === 'pending') setApprovalStatus('pending');
-    else if (neg?.approval_status === 'approved') setApprovalStatus('approved');
-    else if (neg?.approval_status === 'rejected') setApprovalStatus('rejected');
-    if (neg?.decision_note) setApprovalNote(String(neg.decision_note));
-    onStageDataSaved?.();
-  }
+  const tokenBlockedByApproval = negotiationBlocksTokenAdvance({
+    approval_status: approvalStatus,
+    approval_id: latestApprovalId,
+    offered_price: negotiationOffer
+  });
 
   return (
     <>
@@ -914,18 +840,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           selectedUnit={selectedUnit}
           visitInterest={visitInterest}
           setVisitInterest={setVisitInterest}
-          negotiating={negotiating}
-          setNegotiating={setNegotiating}
-          negotiationOffer={negotiationOffer}
-          setNegotiationOffer={setNegotiationOffer}
           approvalStatus={approvalStatus}
-          approvalNote={approvalNote}
+          inquiryClosed={inquiryClosed}
+          closedStatus={closedStatus}
+          tokenBlockedByApproval={tokenBlockedByApproval}
           saving={saving}
           onCloseNotInterested={() => void handleCloseAsNotInterested()}
-          onCustomerGaveToken={() => void handleCustomerGaveToken()}
-          onStartNegotiation={() => void handleStartNegotiation()}
-          onRefreshApproval={() => void refreshApprovalStatus()}
-          onContinueBooking={() => void continueToBooking()}
           onSkipToNegotiation={() => onSkipToStage?.('Negotiation')}
           onSkipToToken={() => void handleCustomerGaveToken()}
         />
@@ -1405,39 +1325,6 @@ function InterestToggle({
   );
 }
 
-function NegotiatingToggle({
-  value,
-  onChange
-}: {
-  value: NegotiatingChoice;
-  onChange: (v: NegotiatingChoice) => void;
-}) {
-  return (
-    <div className="flex overflow-hidden rounded-md border border-border">
-      {(
-        [
-          { value: 'no' as const, label: 'No · take token' },
-          { value: 'yes' as const, label: 'Yes · negotiating' }
-        ]
-      ).map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={cn(
-            'min-h-11 flex-1 px-3 py-2 text-xs font-medium transition-colors',
-            value === opt.value
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-background text-muted-foreground hover:bg-muted'
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ─── Step 3: Site visit & outcomes ───────────────────────────────────────────
 
 function StepVisitSite({
@@ -1446,18 +1333,12 @@ function StepVisitSite({
   selectedUnit,
   visitInterest,
   setVisitInterest,
-  negotiating,
-  setNegotiating,
-  negotiationOffer,
-  setNegotiationOffer,
   approvalStatus,
-  approvalNote,
+  inquiryClosed,
+  closedStatus,
+  tokenBlockedByApproval,
   saving,
   onCloseNotInterested,
-  onCustomerGaveToken,
-  onStartNegotiation,
-  onRefreshApproval,
-  onContinueBooking,
   onSkipToNegotiation,
   onSkipToToken
 }: {
@@ -1466,18 +1347,12 @@ function StepVisitSite({
   selectedUnit: UnitRow | null;
   visitInterest: SiteVisitInterest;
   setVisitInterest: (v: SiteVisitInterest) => void;
-  negotiating: NegotiatingChoice;
-  setNegotiating: (v: NegotiatingChoice) => void;
-  negotiationOffer: string;
-  setNegotiationOffer: (v: string) => void;
   approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
-  approvalNote: string;
+  inquiryClosed: boolean;
+  closedStatus: string | null;
+  tokenBlockedByApproval: boolean;
   saving: boolean;
   onCloseNotInterested: () => void;
-  onCustomerGaveToken: () => void;
-  onStartNegotiation: () => void;
-  onRefreshApproval: () => void;
-  onContinueBooking: () => void;
   onSkipToNegotiation?: () => void;
   onSkipToToken?: () => void;
 }) {
@@ -1491,6 +1366,20 @@ function StepVisitSite({
 
   return (
     <div className="mt-5 space-y-4">
+      {inquiryClosed ? (
+        <div
+          role="status"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-800"
+        >
+          <p className="font-semibold text-ds-gray-800">
+            Enquiry closed · {closedStatus ?? 'Closed'}
+          </p>
+          <p className="mt-1 text-[11px] text-ds-gray-600">
+            The unit has been released to available inventory when applicable.
+          </p>
+        </div>
+      ) : null}
+
       <SelectedUnitSummaryCard unit={selectedUnit} />
 
       <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
@@ -1523,7 +1412,7 @@ function StepVisitSite({
         </div>
       </div>
 
-      {visitInterest === 'Not Interested' ? (
+      {visitInterest === 'Not Interested' && !inquiryClosed ? (
         <div className="rounded-lg border border-red-200 bg-red-50/60 p-4">
           <p className="text-xs font-semibold text-ds-gray-800">
             Close this enquiry
@@ -1543,13 +1432,23 @@ function StepVisitSite({
         </div>
       ) : null}
 
-      {visitInterest === 'Interested' ? (
+      {visitInterest === 'Interested' && !inquiryClosed ? (
         <div className="space-y-3 rounded-lg border border-ds-primary-200 bg-ds-primary-50/50 p-4">
-          <p className="text-xs font-semibold text-ds-gray-800">Next step</p>
-          <p className="text-[11px] text-ds-gray-600">
-            Skip ahead to negotiate on price or collect token now. You can also
-            use the stepper above once this enquiry is saved.
+          <p className="text-xs font-semibold text-ds-gray-800">
+            Buyer liked the unit — choose next step
           </p>
+          <p className="text-[11px] text-ds-gray-600">
+            Start negotiation if price discussion is needed, or go straight to
+            token if they are ready to commit. Budget approval is handled in the
+            Negotiate stage.
+          </p>
+          {tokenBlockedByApproval ? (
+            <p className="text-[11px] text-amber-900">
+              {approvalStatus === 'pending'
+                ? 'Budget approval is pending in the Negotiate stage. Complete or refresh there before token.'
+                : 'Complete budget approval in the Negotiate stage before token.'}
+            </p>
+          ) : null}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               type="button"
@@ -1558,19 +1457,17 @@ function StepVisitSite({
               disabled={saving}
               onClick={onSkipToNegotiation}
             >
-              Go to negotiate
+              Negotiation
             </Button>
             <Button
               type="button"
               className="min-h-11 flex-1 bg-teal-600 hover:bg-teal-700"
-              disabled={saving}
+              disabled={saving || tokenBlockedByApproval}
               onClick={onSkipToToken}
             >
               Skip to token
             </Button>
           </div>
-
-
         </div>
       ) : null}
 
