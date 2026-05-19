@@ -161,9 +161,6 @@ export function ProjectListTable({
           const p = row.original;
           return (
             <div className="flex flex-wrap gap-1.5">
-              <Button type="button" size="sm" onClick={() => router.push('/crm/dashboard')}>
-                Open
-              </Button>
               <Button
                 type="button"
                 size="sm"
@@ -171,6 +168,14 @@ export function ProjectListTable({
                 onClick={() => router.push(`/crm/inventory?projectId=${p.id}`)}
               >
                 Inventory
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/crm/project/${p.id}/cld`)}
+              >
+                CLD
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => onManage(p)}>
                 Manage

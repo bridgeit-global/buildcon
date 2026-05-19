@@ -977,9 +977,13 @@ export default function BookingDetailPage() {
                     Manage collections
                   </Link>
                 </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/crm/cld">Project CLD</Link>
-                </Button>
+                {booking?.project_id ? (
+                  <Button variant="outline" asChild>
+                    <Link href={`/crm/project/${booking.project_id}/cld`}>
+                      Project CLD
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
             </Card>
           ) : null}

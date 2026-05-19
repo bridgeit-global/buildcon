@@ -3,7 +3,6 @@ import {
   BarChart3,
   Briefcase,
   Building2,
-  Factory,
   FileSpreadsheet,
   FileText,
   Gauge,
@@ -31,7 +30,6 @@ export type CrmNavItemId =
   | 'financials'
   | 'quotations'
   | 'documents'
-  | 'cld'
   | 'possession'
   | 'reports'
   | 'bankloans'
@@ -164,13 +162,6 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         label: 'Financials',
         href: '/crm/financials',
         icon: HandCoins
-      },
-      {
-        id: 'cld',
-        pageTitle: 'Construction-linked demand',
-        label: 'CLD',
-        href: '/crm/cld',
-        icon: Factory
       },
       {
         id: 'possession',
