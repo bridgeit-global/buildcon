@@ -1097,8 +1097,8 @@ export default function CustomersPage() {
   const listShownCount = listTotal ?? customers.length;
 
   return (
-    <div className="grid h-[calc(100dvh-10.75rem)] min-h-[28rem] grid-cols-[260px_1fr] gap-4">
-      <Card className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3">
+    <div className="grid min-h-[28rem] grid-cols-[260px_1fr] items-start gap-4">
+      <Card className="sticky top-4 flex max-h-[calc(100dvh-10.75rem)] min-h-[28rem] flex-col gap-3 overflow-hidden p-3">
         <div className="flex shrink-0 items-center justify-between">
           <div>
             <div className="text-sm font-semibold text-gray-900">Customers</div>
@@ -1326,7 +1326,7 @@ export default function CustomersPage() {
         </Button>
       </Card>
 
-      <Card className="h-full min-h-0 overflow-y-auto p-5">
+      <Card className="p-5">
         {error && !open && !editOpen && !extrasDialogOpen ? (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {error}
