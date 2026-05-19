@@ -4,6 +4,11 @@ import {
   type InquiryFunnelStage
 } from './inquiry-funnel-stages';
 import type { InquiryStageData } from './inquiry-types';
+import {
+  inquiryTokenPayloadsEqual,
+  isInquiryTokenComplete,
+  isInquiryTokenLocked
+} from './inquiry-token-stage';
 
 export const INQUIRY_STAGE_DB_NAMES = INQUIRY_FUNNEL_STAGE_ORDER;
 
@@ -249,6 +254,26 @@ export async function upsertInquiryStagePayload(
   return { ok: true };
 }
 
+export async function inquiryHasConfirmedBooking(
+  supabase: SupabaseClient,
+  inquiryId: string
+): Promise<boolean> {
+  const id = String(inquiryId || '').trim();
+  if (!id) return false;
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('sales_inquiry_id', id)
+    .eq('workflow_stage', 'confirmation')
+    .neq('status', 'cancelled')
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean(data);
+}
+
 /** Upsert one or more stage payloads; DB trigger mirrors into `sales_inquiries.stage_data`. */
 export async function saveInquiryStageData(
   supabase: SupabaseClient,
@@ -262,11 +287,63 @@ export async function saveInquiryStageData(
   const id = String(params.inquiryId || '').trim();
   if (!id) return { ok: false, error: 'Missing inquiry id' };
 
+  const patch: Partial<InquiryStageData> = { ...params.patch };
+
+  const [{ rows: existingRows }, { data: inquiryRow }, bookingConfirmed] =
+    await Promise.all([
+      loadInquiryStageRows(supabase, id),
+      supabase
+        .from('sales_inquiries')
+        .select('stage_data')
+        .eq('id', id)
+        .maybeSingle(),
+      inquiryHasConfirmedBooking(supabase, id)
+    ]);
+
+  const existingStageData = stageDataFromRows(existingRows);
+  const closedPayload =
+    (inquiryRow?.stage_data as Record<string, unknown> | null) ?? existingStageData;
+  const inquiryClosed =
+    closedPayload &&
+    typeof closedPayload === 'object' &&
+    !Array.isArray(closedPayload) &&
+    (closedPayload as Record<string, unknown>).closed === true;
+  const tokenLocked = isInquiryTokenLocked(existingStageData, {
+    inquiryClosed,
+    bookingConfirmed
+  });
+
+  if (patch.token !== undefined) {
+    const nextToken = (patch.token ?? {}) as Record<string, unknown>;
+    const existingToken = (existingStageData.token ?? {}) as Record<string, unknown>;
+
+    if (tokenLocked) {
+      if (!inquiryTokenPayloadsEqual(existingToken, nextToken)) {
+        return {
+          ok: false,
+          error:
+            'Token details cannot be changed after recording or booking confirmation.'
+        };
+      }
+      delete patch.token;
+    } else {
+      const mergedToken = { ...existingToken, ...nextToken };
+      if (isInquiryTokenComplete({ token: mergedToken })) {
+        patch.token = {
+          ...mergedToken,
+          recorded_at:
+            String(mergedToken.recorded_at ?? '').trim() ||
+            new Date().toISOString()
+        };
+      }
+    }
+  }
+
   const completed = new Set(params.markStagesCompleted ?? []);
 
   for (const stage of INQUIRY_STAGE_DB_NAMES) {
     const key = STAGE_JSON_KEY[stage];
-    const payload = params.patch[key];
+    const payload = patch[key];
     if (payload === undefined) continue;
     const result = await upsertInquiryStagePayload(supabase, {
       inquiryId: id,

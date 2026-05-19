@@ -105,7 +105,7 @@ export function FinancialsListTable({
       },
       {
         id: 'demand',
-        header: 'Demand',
+        header: 'Final price',
         accessorFn: (r) => r.total_demand,
         cell: ({ row }) => (
           <span className="tabular-nums text-ds-gray-800">

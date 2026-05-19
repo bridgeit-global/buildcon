@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
-import { mergeStageData } from '@/app/crm/bookings/booking-stage-transitions';
+import {
+  isTokenStageLocked,
+  mergeStageData
+} from '@/app/crm/bookings/booking-stage-transitions';
 import type {
   BookingStageData,
   BookingWorkflowStage
@@ -53,14 +56,29 @@ export async function PATCH(
     updated_at: new Date().toISOString()
   };
 
-  const stage =
-    (body.workflowStage as BookingWorkflowStage) ||
-    (booking.workflow_stage as BookingWorkflowStage);
+  const workflowStage = booking.workflow_stage as BookingWorkflowStage;
+  const existingStageData = (booking.stage_data ?? {}) as BookingStageData;
 
   if (body.stageDataPatch && typeof body.stageDataPatch === 'object') {
+    const patchStage = body.workflowStage ?? workflowStage;
+    if (
+      patchStage === 'token' &&
+      isTokenStageLocked(existingStageData, workflowStage)
+    ) {
+      return NextResponse.json(
+        { error: 'Token details cannot be changed after recording or confirmation.' },
+        { status: 409 }
+      );
+    }
+    if (patchStage !== workflowStage) {
+      return NextResponse.json(
+        { error: 'Stage data can only be updated for the current workflow stage.' },
+        { status: 400 }
+      );
+    }
     updates.stage_data = mergeStageData(
-      booking.stage_data as BookingStageData,
-      stage,
+      existingStageData,
+      workflowStage,
       body.stageDataPatch
     );
   }

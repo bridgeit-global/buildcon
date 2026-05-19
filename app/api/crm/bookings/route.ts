@@ -4,7 +4,10 @@ import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { resolveCoBuyers } from '@/lib/booking/co-buyers';
 import { insertDefaultPaymentSchedule } from '@/lib/booking/booking-schedule';
 import { isUnitBookableForWorkflow } from '@/app/crm/inventory/unit-status';
-import { mergeStageData } from '@/app/crm/bookings/booking-stage-transitions';
+import {
+  isTokenStageComplete,
+  mergeStageData
+} from '@/app/crm/bookings/booking-stage-transitions';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
 
 type PaymentDetailPayload = {
@@ -25,6 +28,8 @@ type CreateBookingBody = {
   paymentDetail?: PaymentDetailPayload | null;
   bookingAmount?: number | null;
   tokenDate?: string | null;
+  /** Final unit sale price (negotiated or catalog incl. GST) for payment schedule. */
+  saleTotalInr?: number | null;
   /** When true, completes workflow in one step (legacy create form). */
   confirmImmediately?: boolean;
 };
@@ -151,6 +156,13 @@ export async function POST(request: Request) {
     recorded_at: new Date().toISOString()
   });
 
+  const tokenRecorded = isTokenStageComplete(stageData);
+  const initialWorkflowStage = confirmNow
+    ? 'confirmation'
+    : tokenRecorded
+      ? 'application'
+      : 'token';
+
   const unitStatusBefore = String(unitRow.status || '').trim().toUpperCase();
   const lockStatus = confirmNow ? 'BOOKED' : 'TOKEN';
 
@@ -171,7 +183,7 @@ export async function POST(request: Request) {
       customer_id: body.customerId,
       sales_inquiry_id: body.salesInquiryId?.trim() || null,
       co_buyers: coResolved.coBuyers,
-      workflow_stage: confirmNow ? 'confirmation' : 'token',
+      workflow_stage: initialWorkflowStage,
       stage: 'booking',
       stage_data: stageData,
       status: 'active',
@@ -195,13 +207,19 @@ export async function POST(request: Request) {
 
   const bookingId = bookingRow.id as string;
 
-  if (confirmNow) {
+  const shouldSeedSchedule = confirmNow || tokenRecorded;
+  if (shouldSeedSchedule) {
     try {
       await insertDefaultPaymentSchedule(admin, bookingId, {
         projectId: body.projectId,
         unitId: body.unitId,
         bookingAmount,
-        salesInquiryId: body.salesInquiryId?.trim() || null
+        salesInquiryId: body.salesInquiryId?.trim() || null,
+        stageData: stageData as Record<string, unknown>,
+        saleTotalInr:
+          body.saleTotalInr != null && body.saleTotalInr > 0
+            ? body.saleTotalInr
+            : null
       });
     } catch (e) {
       await admin.from('bookings').delete().eq('id', bookingId);

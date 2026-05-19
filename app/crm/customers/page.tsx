@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -34,6 +34,8 @@ import {
 
 const CUSTOMER_SELECT =
   'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
+
+const LIST_PAGE_SIZE = 40;
 
 type CustomerRow = {
   id: string;
@@ -170,9 +172,17 @@ export default function CustomersPage() {
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [pinnedCustomer, setPinnedCustomer] = useState<CustomerRow | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [listTotal, setListTotal] = useState<number | null>(null);
+  const [listHasMore, setListHasMore] = useState(false);
+  const [listNextOffset, setListNextOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -255,25 +265,84 @@ export default function CustomersPage() {
   const [identityPan, setIdentityPan] = useState('');
   const [identityAadhaar, setIdentityAadhaar] = useState('');
 
-  async function load() {
-    setLoading(true);
-    setError('');
-    const { data, error: qErr } = await supabase
-      .from('customers')
-      .select(CUSTOMER_SELECT)
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (qErr) setError(qErr.message);
-    const rows = (data ?? []) as CustomerRow[];
-    setCustomers(rows);
-    setSelectedId((prev) => prev ?? rows[0]?.id ?? null);
-    setLoading(false);
-  }
+  const fetchCustomerList = useCallback(
+    async (opts: { reset: boolean }) => {
+      const offset = opts.reset ? 0 : listNextOffset;
+      if (opts.reset) {
+        setLoading(true);
+        setListHasMore(false);
+        setListNextOffset(0);
+      } else {
+        if (!listHasMore || loadingMore) return;
+        setLoadingMore(true);
+      }
+      setError('');
+      try {
+        const params = new URLSearchParams({
+          limit: String(LIST_PAGE_SIZE),
+          offset: String(offset)
+        });
+        if (searchQuery) params.set('q', searchQuery);
+        const res = await fetch(`/api/crm/customers?${params.toString()}`);
+        const body = (await res.json()) as {
+          error?: string;
+          items?: CustomerRow[];
+          hasMore?: boolean;
+          nextOffset?: number;
+          total?: number | null;
+        };
+        if (!res.ok) throw new Error(body.error || 'Failed to load customers');
+        const rows = body.items ?? [];
+        setCustomers((prev) => (opts.reset ? rows : [...prev, ...rows]));
+        setListHasMore(Boolean(body.hasMore));
+        setListNextOffset(body.nextOffset ?? offset + rows.length);
+        if (opts.reset && body.total != null) setListTotal(body.total);
+        if (opts.reset) {
+          const urlCustomerId = searchParams.get('customer');
+          setSelectedId((prev) => {
+            const preferred = urlCustomerId || prev;
+            if (preferred && rows.some((r) => r.id === preferred)) return preferred;
+            return rows[0]?.id ?? null;
+          });
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load customers');
+        if (opts.reset) {
+          setCustomers([]);
+          setListTotal(null);
+        }
+      } finally {
+        if (opts.reset) setLoading(false);
+        else setLoadingMore(false);
+      }
+    },
+    [listHasMore, listNextOffset, loadingMore, searchParams, searchQuery]
+  );
 
   useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const t = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    void fetchCustomerList({ reset: true });
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const root = listScrollRef.current;
+    const target = loadMoreSentinelRef.current;
+    if (!root || !target) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          void fetchCustomerList({ reset: false });
+        }
+      },
+      { root, rootMargin: '120px', threshold: 0 }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fetchCustomerList]);
 
   useEffect(() => {
     const customerId = searchParams.get('customer');
@@ -368,21 +437,45 @@ export default function CustomersPage() {
     };
   }, [selectedId, supabase]);
 
-  const filtered = customers.filter((c) => {
-    const s = search.trim().toLowerCase();
-    if (!s) return true;
+  const selected = useMemo(() => {
+    if (!selectedId) return null;
     return (
-      c.full_name.toLowerCase().includes(s) ||
-      c.phone?.toLowerCase().includes(s) ||
-      c.email?.toLowerCase().includes(s) ||
-      c.id.toLowerCase().includes(s)
+      customers.find((c) => c.id === selectedId) ??
+      (pinnedCustomer?.id === selectedId ? pinnedCustomer : null)
     );
-  });
+  }, [customers, pinnedCustomer, selectedId]);
 
-  const selected =
-    filtered.find((c) => c.id === selectedId) ??
-    customers.find((c) => c.id === selectedId) ??
-    null;
+  useEffect(() => {
+    if (!selectedId) {
+      setPinnedCustomer(null);
+      return;
+    }
+    const inList = customers.find((c) => c.id === selectedId);
+    if (inList) {
+      setPinnedCustomer(inList);
+      return;
+    }
+    if (pinnedCustomer?.id === selectedId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error: qErr } = await supabase
+        .from('customers')
+        .select(CUSTOMER_SELECT)
+        .eq('id', selectedId)
+        .maybeSingle();
+      if (!cancelled && !qErr && data) {
+        setPinnedCustomer(data as CustomerRow);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customers, pinnedCustomer?.id, selectedId, supabase]);
+
+  function selectCustomer(row: CustomerRow) {
+    setSelectedId(row.id);
+    setPinnedCustomer(row);
+  }
 
   const latestInquiry = customerInquiries[0] ?? null;
   const latestBrokerName =
@@ -443,7 +536,8 @@ export default function CustomersPage() {
       if (insErr) throw insErr;
       const row = data as CustomerRow;
       setCustomers((cs) => [row, ...cs]);
-      setSelectedId(row.id);
+      setListTotal((t) => (t != null ? t + 1 : t));
+      selectCustomer(row);
       setOpen(false);
       setDraft({
         full_name: '',
@@ -502,6 +596,7 @@ export default function CustomersPage() {
       if (upErr) throw upErr;
       const row = data as CustomerRow;
       setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
+      setPinnedCustomer((p) => (p?.id === row.id ? row : p));
       setEditOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update customer');
@@ -847,6 +942,7 @@ export default function CustomersPage() {
     if (upErr) throw upErr;
     const row = data as CustomerRow;
     setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
+    setPinnedCustomer((p) => (p?.id === row.id ? row : p));
     setIdentityPan(row.pan_number ?? '');
     setIdentityAadhaar(row.aadhaar_last4 ?? '');
     return row;
@@ -998,14 +1094,20 @@ export default function CustomersPage() {
   const extrasDialogOpen =
     addressFormOpen || nomineeFormOpen || bankFormOpen || kycFormOpen;
 
+  const listShownCount = listTotal ?? customers.length;
+
   return (
-    <div className="grid grid-cols-[260px_1fr] gap-4">
-      <Card className="flex flex-col gap-3 overflow-hidden p-3">
-        <div className="flex items-center justify-between">
+    <div className="grid h-[calc(100dvh-10.75rem)] min-h-[28rem] grid-cols-[260px_1fr] gap-4">
+      <Card className="flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3">
+        <div className="flex shrink-0 items-center justify-between">
           <div>
             <div className="text-sm font-semibold text-gray-900">Customers</div>
             <div className="text-xs text-gray-500">
-              {loading ? 'Loading…' : `${filtered.length} shown`}
+              {loading
+                ? 'Loading…'
+                : searchQuery
+                  ? `${customers.length} of ${listShownCount} shown`
+                  : `${listShownCount} shown`}
             </div>
           </div>
 
@@ -1170,18 +1272,22 @@ export default function CustomersPage() {
         </div>
 
         <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          className="shrink-0"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search…"
         />
 
-        <div className="-mx-3 overflow-auto px-3">
+        <div
+          ref={listScrollRef}
+          className="-mx-3 min-h-0 flex-1 overflow-y-auto px-3"
+        >
           <div className="flex flex-col gap-1">
-            {filtered.map((c) => (
+            {customers.map((c) => (
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => selectCustomer(c)}
                 className={`rounded-lg border px-3 py-2 text-left ${
                   selectedId === c.id
                     ? 'border-blue-200 bg-blue-50'
@@ -1196,20 +1302,31 @@ export default function CustomersPage() {
                 </div>
               </button>
             ))}
-            {!loading && filtered.length === 0 ? (
+            {!loading && customers.length === 0 ? (
               <div className="py-10 text-center text-sm text-gray-500">
                 No customers found.
+              </div>
+            ) : null}
+            <div ref={loadMoreSentinelRef} className="h-1 shrink-0" aria-hidden />
+            {loadingMore ? (
+              <div className="py-3 text-center text-xs text-gray-500">
+                Loading more…
               </div>
             ) : null}
           </div>
         </div>
 
-        <Button variant="outline" onClick={load} disabled={loading}>
+        <Button
+          variant="outline"
+          className="shrink-0"
+          onClick={() => void fetchCustomerList({ reset: true })}
+          disabled={loading || loadingMore}
+        >
           Refresh
         </Button>
       </Card>
 
-      <Card className="p-5">
+      <Card className="h-full min-h-0 overflow-y-auto p-5">
         {error && !open && !editOpen && !extrasDialogOpen ? (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {error}

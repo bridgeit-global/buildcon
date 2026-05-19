@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -35,17 +34,6 @@ type BookingRow = {
   customer_id: string;
   created_at: string;
   status: string;
-};
-
-type OverdueRow = {
-  project_id: string;
-  booking_id: string;
-  schedule_id: string;
-  instalment_no?: number;
-  milestone: string;
-  due_date: string | null;
-  demand_amount: number;
-  outstanding_amount: number;
 };
 
 function KpiCard({
@@ -87,34 +75,25 @@ export default function FinancialsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState<null | 'ledger' | 'receipts'>(null);
-  const [loadingOverdue, setLoadingOverdue] = useState(false);
 
   const [totalDemand, setTotalDemand] = useState(0);
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalOverdue, setTotalOverdue] = useState(0);
   const [tableRows, setTableRows] = useState<FinancialBookingRow[]>([]);
-  const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
 
-  async function loadOverdue() {
-    setLoadingOverdue(true);
-    const { data, error: oErr } = await supabase
-      .from('v_payment_schedule_outstanding')
-      .select(
-        'project_id,booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount'
-      )
-      .eq('is_overdue', true)
-      .order('due_date', { ascending: true })
-      .limit(100);
-    if (!oErr && data) {
-      setOverdueRows(data as OverdueRow[]);
-      setTotalOverdue(
-        (data as OverdueRow[]).reduce(
-          (s, r) => s + Number(r.outstanding_amount || 0),
-          0
+  async function syncSchedulesForBookings(bookingIds: string[]) {
+    const batchSize = 8;
+    for (let i = 0; i < bookingIds.length; i += batchSize) {
+      const slice = bookingIds.slice(i, i + batchSize);
+      await Promise.all(
+        slice.map((id) =>
+          fetch(`/api/crm/bookings/${encodeURIComponent(id)}/sync-schedule`, {
+            method: 'POST',
+            credentials: 'same-origin'
+          }).catch(() => undefined)
         )
       );
     }
-    setLoadingOverdue(false);
   }
 
   async function load() {
@@ -134,12 +113,23 @@ export default function FinancialsPage() {
       return;
     }
 
-    const bookings = (bData ?? []) as BookingRow[];
+    const bookingsRaw = (bData ?? []) as BookingRow[];
+    // One row per unit: keep newest booking when duplicates exist (ordered by created_at desc).
+    const seenUnitIds = new Set<string>();
+    const bookings = bookingsRaw.filter((b) => {
+      if (seenUnitIds.has(b.unit_id)) return false;
+      seenUnitIds.add(b.unit_id);
+      return true;
+    });
     const bookingIds = bookings.map((b) => b.id);
+    if (bookingIds.length) {
+      await syncSchedulesForBookings(bookingIds);
+    }
     if (!bookingIds.length) {
       setTableRows([]);
       setTotalDemand(0);
       setTotalReceived(0);
+      setTotalOverdue(0);
       setLoading(false);
       return;
     }
@@ -230,6 +220,7 @@ export default function FinancialsPage() {
 
     setTotalDemand(demandSum);
     setTotalReceived(receivedSum);
+    setTotalOverdue(rows.reduce((s, r) => s + r.overdue, 0));
     setTableRows(rows);
     setLoading(false);
   }
@@ -270,23 +261,8 @@ export default function FinancialsPage() {
 
   useEffect(() => {
     void load();
-    void loadOverdue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const scrollToOverdue = () => {
-      if (window.location.hash !== '#crm-financials-overdue') return;
-      document.getElementById('crm-financials-overdue')?.scrollIntoView({
-        block: 'start',
-        behavior: 'smooth'
-      });
-    };
-    scrollToOverdue();
-    window.addEventListener('hashchange', scrollToOverdue);
-    return () => window.removeEventListener('hashchange', scrollToOverdue);
-  }, [overdueRows.length]);
 
   const totalBalance = Math.max(0, totalDemand - totalReceived);
 
@@ -311,7 +287,10 @@ export default function FinancialsPage() {
         </div>
 
         <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KpiCard label="Total demand" value={formatInrCompactLacCr(totalDemand)} />
+          <KpiCard
+            label="Portfolio final price"
+            value={formatInrCompactLacCr(totalDemand)}
+          />
           <KpiCard
             label="Total received"
             value={formatInrCompactLacCr(totalReceived)}
@@ -385,91 +364,6 @@ export default function FinancialsPage() {
         </div>
       </Card>
 
-      <div id="crm-financials-overdue">
-        <Card className="p-4 sm:p-6">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="text-sm font-semibold text-ds-gray-900">
-                Overdue demands
-              </div>
-              <p className="text-xs text-ds-gray-500">
-                Past-due instalments with outstanding balance
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void loadOverdue()}
-              disabled={loadingOverdue}
-            >
-              Refresh
-            </Button>
-          </div>
-          <div className="mt-3 overflow-x-auto">
-            <table className="min-w-[48rem] w-full text-sm">
-              <thead className="bg-ds-gray-50 text-xs text-ds-gray-500">
-                <tr>
-                  {['Project', 'Unit / booking', '#', 'Milestone', 'Due', 'Outstanding', ''].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="border-b border-ds-gray-200 px-3 py-2 text-left font-semibold"
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {overdueRows.map((r) => {
-                  const bookingRow = tableRows.find((b) => b.id === r.booking_id);
-                  return (
-                    <tr key={r.schedule_id} className="border-b border-ds-gray-100">
-                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-ds-gray-600">
-                        {projectNameById.get(r.project_id) ?? '—'}
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {bookingRow?.unit_code ?? '—'}
-                      </td>
-                      <td className="px-3 py-2 text-ds-gray-600">
-                        {r.instalment_no != null ? r.instalment_no : '—'}
-                      </td>
-                      <td className="px-3 py-2">{r.milestone}</td>
-                      <td className="px-3 py-2 text-ds-gray-600">
-                        {r.due_date ?? '—'}
-                      </td>
-                      <td className="px-3 py-2 font-semibold text-ds-error-700">
-                        {formatInrCompactLacCr(Number(r.outstanding_amount))}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/crm/financials/${r.booking_id}`}>
-                            Manage
-                          </Link>
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {overdueRows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-3 py-8 text-center text-ds-gray-500"
-                    >
-                      {loadingOverdue
-                        ? 'Loading…'
-                        : 'No overdue schedule lines.'}
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

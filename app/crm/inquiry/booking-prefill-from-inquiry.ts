@@ -9,6 +9,7 @@ export type InquiryTokenStage = {
   mode?: string;
   reference?: string;
   notes?: string;
+  recorded_at?: string;
 };
 
 const BOOKING_PAYMENT_MODES = new Set([

@@ -33,7 +33,10 @@ import {
   type BookingWorkflowStage,
   type CoBuyerStored
 } from '../booking-types';
-import { canAdvanceWorkflowStage } from '../booking-stage-transitions';
+import {
+  canAdvanceWorkflowStage,
+  isTokenStageLocked
+} from '../booking-stage-transitions';
 import { printApplicationForm } from '@/lib/booking/application-form-print';
 import { printAllotmentLetter } from '@/lib/booking/allotment-letter-print';
 import { formatCustomerAddress, pickCustomerAddress } from '@/lib/customer/application-form-data';
@@ -264,6 +267,14 @@ export default function BookingDetailPage() {
   const loadPaymentSchedule = useCallback(async () => {
     if (!bookingId) return;
     setLoadingSchedule(true);
+    try {
+      await fetch(
+        `/api/crm/bookings/${encodeURIComponent(bookingId)}/sync-schedule`,
+        { method: 'POST', credentials: 'same-origin' }
+      );
+    } catch {
+      /* non-blocking */
+    }
     const [{ data: sData, error: sErr }, { data: cData, error: cErr }] =
       await Promise.all([
         supabase
@@ -305,6 +316,10 @@ export default function BookingDetailPage() {
   const workflowStage = (booking?.workflow_stage ?? 'token') as BookingWorkflowStage;
   const cancelled = booking?.status === 'cancelled';
   const stepIndex = BOOKING_WORKFLOW_STAGES.indexOf(workflowStage);
+  const tokenStageLocked = useMemo(
+    () => isTokenStageLocked(stageData, workflowStage),
+    [stageData, workflowStage]
+  );
 
   const kycComplete = useMemo(
     () =>
@@ -631,6 +646,42 @@ export default function BookingDetailPage() {
           {workflowStage === 'token' && !cancelled ? (
             <Card className="space-y-4 p-4">
               <h2 className="font-semibold text-ds-gray-900">Token received</h2>
+              {tokenStageLocked ? (
+                <>
+                  <p className="text-sm text-ds-gray-600">
+                    Token was recorded when this booking was created (from inquiry or the
+                    bookings form). Token details cannot be changed. Continue to the
+                    application form.
+                  </p>
+                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-ds-gray-500">Amount</dt>
+                      <dd className="font-medium tabular-nums text-ds-gray-900">
+                        ₹{' '}
+                        {Number(
+                          stageData.token?.amount ?? booking.booking_amount ?? 0
+                        ).toLocaleString('en-IN')}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-ds-gray-500">Date</dt>
+                      <dd className="font-medium text-ds-gray-900">
+                        {stageData.token?.date ?? '—'}
+                      </dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-ds-gray-500">Payment mode</dt>
+                      <dd className="font-medium text-ds-gray-900">
+                        {stageData.token?.mode ?? booking.payment_mode ?? '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <Button disabled={saving} onClick={() => void advanceStage()}>
+                    Continue to application
+                  </Button>
+                </>
+              ) : (
+              <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Amount (INR)</Label>
@@ -682,6 +733,8 @@ export default function BookingDetailPage() {
               >
                 Save token
               </Button>
+              </>
+              )}
             </Card>
           ) : null}
 

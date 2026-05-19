@@ -59,6 +59,36 @@ export function canAdvanceWorkflowStage(
   }
 }
 
+/** Token captured at inquiry or on the bookings create form — no separate token step needed. */
+export function isTokenStageComplete(
+  stageData: BookingStageData | null | undefined
+): boolean {
+  return canAdvanceWorkflowStage('token', stageData).ok;
+}
+
+/** Token was officially recorded (create form, inquiry, or save). */
+export function isTokenRecorded(
+  stageData: BookingStageData | null | undefined
+): boolean {
+  const token = stageData?.token;
+  if (String(token?.recorded_at ?? '').trim()) return true;
+  return isTokenStageComplete(stageData);
+}
+
+/**
+ * Token amount/date/mode must not change after recording or once the booking is confirmed.
+ */
+export function isTokenStageLocked(
+  stageData: BookingStageData | null | undefined,
+  workflowStage: BookingWorkflowStage
+): boolean {
+  if (workflowStage === 'confirmation') return true;
+  if (isTokenRecorded(stageData)) return true;
+  const stageIdx = BOOKING_WORKFLOW_STAGES.indexOf(workflowStage);
+  const tokenIdx = BOOKING_WORKFLOW_STAGES.indexOf('token');
+  return stageIdx > tokenIdx;
+}
+
 export function mergeStageData(
   existing: BookingStageData | Record<string, unknown> | null | undefined,
   stage: BookingWorkflowStage,

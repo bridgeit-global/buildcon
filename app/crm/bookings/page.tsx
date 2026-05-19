@@ -740,6 +740,9 @@ export default function BookingsPage() {
           },
           bookingAmount: bookingAmount ? Number(bookingAmount) : null,
           tokenDate: prefillMeta?.tokenDate ?? null,
+          saleTotalInr:
+            paymentFinancialTotal?.financialTotalInr ??
+            (catalogTotalInr > 0 ? catalogTotalInr : null),
           confirmImmediately: false
         })
       });

@@ -63,10 +63,23 @@ export default function FinancialsBookingPage() {
   const [entryRef, setEntryRef] = useState('');
   const [saving, setSaving] = useState(false);
 
+  async function syncScheduleIfNeeded() {
+    try {
+      await fetch(`/api/crm/bookings/${encodeURIComponent(bookingId)}/sync-schedule`, {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
+    } catch {
+      /* non-blocking; schedule may already be correct */
+    }
+  }
+
   async function loadFinancials() {
     if (!bookingId) return;
     setLoading(true);
     setError('');
+
+    await syncScheduleIfNeeded();
 
     const { data: booking, error: bErr } = await supabase
       .from('bookings')
@@ -186,7 +199,7 @@ export default function FinancialsBookingPage() {
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            ['Total demand', totalAmount, 'text-ds-gray-900'],
+            ['Final unit price', totalAmount, 'text-ds-gray-900'],
             ['Total received', totalReceived, 'text-ds-success-700'],
             ['Balance', totalBalance, 'text-ds-error-700'],
             [
@@ -219,7 +232,8 @@ export default function FinancialsBookingPage() {
       <Card className="p-4 sm:p-6">
         <div className="text-sm font-semibold text-ds-gray-900">Payment schedule</div>
         <p className="mt-1 text-xs text-ds-gray-500">
-          Generated from project CLD configuration at booking confirmation.
+          Seeded at booking confirmation; instalment due dates update when the matching
+          CLD stage is logged complete on the project.
         </p>
         <div className="mt-3">
           <PaymentScheduleTable

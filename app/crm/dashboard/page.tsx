@@ -270,7 +270,7 @@ export default function DashboardPage() {
           valueCr={loading ? '—' : inrToCrLabel(overdueInr)}
           sub="Past due"
           tone="destructive"
-          href="/crm/financials#crm-financials-overdue"
+          href="/crm/financials"
         />
       </section>
 

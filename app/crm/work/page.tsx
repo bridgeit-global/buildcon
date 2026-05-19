@@ -396,7 +396,7 @@ export default function WorkQueuePage() {
               Overdue schedule lines
             </div>
             <Link
-              href="/crm/financials#crm-financials-overdue"
+              href="/crm/financials"
               className="text-[11px] font-semibold text-ds-primary-600 underline"
             >
               Open in Financials
@@ -449,7 +449,7 @@ export default function WorkQueuePage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         <Link
-                          href="/crm/financials#crm-financials-overdue"
+                          href="/crm/financials"
                           className="text-xs font-semibold text-ds-primary-600 underline"
                         >
                           Record receipt

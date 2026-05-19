@@ -37,10 +37,12 @@ import { statusLabelForUnit } from '../inventory/inventory-utils';
 import type { InquiryStageData } from './inquiry-types';
 import {
   enrichNegotiationFromApprovals,
+  inquiryHasConfirmedBooking,
   loadInquiryStageData,
   persistNegotiationApprovalRequest,
   saveInquiryStageData
 } from './inquiry-stage-store';
+import { isInquiryTokenLocked } from './inquiry-token-stage';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
@@ -160,6 +162,7 @@ type TokenStageData = {
   mode?: string;
   reference?: string;
   notes?: string;
+  recorded_at?: string;
 };
 type StageData = {
   enquiry?: EnquiryStageData;
@@ -967,13 +970,55 @@ function NegotiationForm({
   );
 }
 
+function TokenReadOnlySummary({ data }: { data: TokenStageData }) {
+  return (
+    <dl className="grid gap-2 text-sm sm:grid-cols-2">
+      <div>
+        <dt className="text-xs text-ds-gray-500">Token amount (₹)</dt>
+        <dd className="font-medium tabular-nums text-ds-gray-900">
+          {data.amount
+            ? `₹ ${Number(data.amount).toLocaleString('en-IN')}`
+            : '—'}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs text-ds-gray-500">Token date</dt>
+        <dd className="font-medium text-ds-gray-900">{data.date ?? '—'}</dd>
+      </div>
+      <div className="sm:col-span-2">
+        <dt className="text-xs text-ds-gray-500">Payment mode</dt>
+        <dd className="font-medium text-ds-gray-900">{data.mode ?? '—'}</dd>
+      </div>
+      {data.reference ? (
+        <div className="sm:col-span-2">
+          <dt className="text-xs text-ds-gray-500">Reference</dt>
+          <dd className="font-medium text-ds-gray-900">{data.reference}</dd>
+        </div>
+      ) : null}
+      {data.notes ? (
+        <div className="sm:col-span-2">
+          <dt className="text-xs text-ds-gray-500">Notes</dt>
+          <dd className="whitespace-pre-wrap font-medium text-ds-gray-900">
+            {data.notes}
+          </dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
 function TokenForm({
   data,
-  onChange
+  onChange,
+  readOnly = false
 }: {
   data: TokenStageData;
   onChange: (d: TokenStageData) => void;
+  readOnly?: boolean;
 }) {
+  if (readOnly) {
+    return <TokenReadOnlySummary data={data} />;
+  }
   return (
     <div className="grid gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1091,6 +1136,7 @@ export function InquiryPipelinePanel(props: {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
 
   const navigateToBooking = useCallback(() => {
     const inqId = String(inquiry?.id || '').trim();
@@ -1111,6 +1157,15 @@ export function InquiryPipelinePanel(props: {
   }, [inquiry?.id, projectId, unitId, customerId, stageData, router]);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
+
+  const tokenStageLocked = useMemo(
+    () =>
+      isInquiryTokenLocked(stageDataToJson(stageData), {
+        inquiryClosed: pipelineClosed,
+        bookingConfirmed
+      }),
+    [stageData, pipelineClosed, bookingConfirmed]
+  );
 
   const negotiationBlocksAdvance = tokenStageBlockedByNegotiation(
     stageData.negotiation,
@@ -1165,11 +1220,12 @@ export function InquiryPipelinePanel(props: {
         );
       }
       setMacroStep('enquiry');
-      const { data, error: loadErr } = await loadInquiryStageData(
-        supabase,
-        inquiry.id
-      );
+      const [{ data, error: loadErr }, confirmed] = await Promise.all([
+        loadInquiryStageData(supabase, inquiry.id),
+        inquiryHasConfirmedBooking(supabase, inquiry.id)
+      ]);
       if (cancelled) return;
+      setBookingConfirmed(confirmed);
       if (loadErr) {
         setStageData(mergeStageDataFromJson(inquiry.stage_data));
       } else {
@@ -1262,6 +1318,7 @@ export function InquiryPipelinePanel(props: {
         markStagesCompleted: [targetStage as InquiryFunnelStage]
       });
       if (!saveResult.ok) throw new Error(saveResult.error ?? 'Save failed');
+      setBookingConfirmed(await inquiryHasConfirmedBooking(supabase, inquiry.id));
       if (nextStage) setActiveStage(nextStage);
       setSaved(true);
       onSaved();
@@ -1469,10 +1526,20 @@ export function InquiryPipelinePanel(props: {
                 />
               )}
               {activeStage === 'Token' && (
-                <TokenForm
-                  data={stageData.token ?? {}}
-                  onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
-                />
+                <div className="space-y-3">
+                  {tokenStageLocked ? (
+                    <p className="text-sm text-ds-gray-600">
+                      {bookingConfirmed
+                        ? 'Token was recorded and the linked booking is confirmed. Token details cannot be changed.'
+                        : 'Token was recorded on this enquiry. Token details cannot be changed.'}
+                    </p>
+                  ) : null}
+                  <TokenForm
+                    data={stageData.token ?? {}}
+                    readOnly={tokenStageLocked}
+                    onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
+                  />
+                </div>
               )}
             </div>
           </div>

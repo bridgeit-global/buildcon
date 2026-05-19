@@ -42,6 +42,7 @@ export function ProjectCldManage({
   const [value, setValue] = useState('5');
   const [slab, setSlab] = useState('');
   const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -89,6 +90,26 @@ export function ProjectCldManage({
       if (e) throw e;
       setName('');
       setSlab('');
+      const syncRes = await fetch(
+        `/api/crm/projects/${encodeURIComponent(projectId)}/cld/sync-schedules`,
+        { method: 'POST', credentials: 'same-origin' }
+      );
+      if (!syncRes.ok) {
+        const syncJson = (await syncRes.json()) as { error?: string };
+        throw new Error(
+          syncJson.error ?? 'Stage saved but payment schedules could not be updated'
+        );
+      }
+      const syncJson = (await syncRes.json()) as {
+        bookingsProcessed?: number;
+        schedulesUpdated?: number;
+      };
+      const n = syncJson.schedulesUpdated ?? 0;
+      if (n > 0) {
+        setSuccess(
+          `CLD stage added. Payment schedules updated for ${n} booking unit${n === 1 ? '' : 's'}.`
+        );
+      }
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save stage');
@@ -100,24 +121,28 @@ export function ProjectCldManage({
   async function logCompletion(stage: StageRow) {
     setSaving(true);
     setError('');
+    setSuccess('');
     try {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      const { error: e } = await supabase.from('cld_stage_completions').insert({
-        project_id: stage.project_id,
-        stage_id: stage.id,
-        notes: 'Marked complete from CRM',
-        created_by: user?.id ?? null
-      });
-      if (e) throw e;
-      const { error: qErr } = await supabase.from('cld_notification_queue').insert({
-        project_id: stage.project_id,
-        channel: 'email',
-        payload: { stage_id: stage.id, kind: 'cld_stage_complete' },
-        status: 'pending'
-      });
-      if (qErr) throw qErr;
+      const res = await fetch(
+        `/api/crm/projects/${encodeURIComponent(stage.project_id)}/cld/completions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stageId: stage.id })
+        }
+      );
+      const json = (await res.json()) as {
+        error?: string;
+        bookingsProcessed?: number;
+        schedulesUpdated?: number;
+      };
+      if (!res.ok) throw new Error(json.error ?? 'Failed to log completion');
+      const n = json.bookingsProcessed ?? 0;
+      setSuccess(
+        n > 0
+          ? `Stage completed. Payment milestones updated for ${n} booking unit${n === 1 ? '' : 's'} — open Financials to issue demand letters and record collections.`
+          : 'Stage completed. No active bookings yet; milestones will apply when units are booked.'
+      );
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to log completion');
@@ -139,6 +164,11 @@ export function ProjectCldManage({
           {error}
         </div>
       ) : null}
+      {success ? (
+        <div className="rounded-md border border-ds-primary-200 bg-ds-primary-50 p-3 text-sm text-ds-primary-800">
+          {success}
+        </div>
+      ) : null}
       <Card className="rounded-xl border-ds-gray-200 p-4 shadow-sm">
         <div className="text-sm font-semibold text-ds-gray-900">
           Construction-linked stages
@@ -147,9 +177,10 @@ export function ProjectCldManage({
           ) : null}
         </div>
         <p className="mt-1 text-xs text-ds-gray-500">
-          Define slab-linked demand percentages or fixed amounts. Logging a completion
-          queues a notification row for downstream automation. Used when bookings are
-          confirmed to generate payment schedules.
+          Define slab-linked demand percentages or fixed amounts. When you log a stage
+          completion, the matching instalment is activated on every active booking (due
+          date set to today) so finance can generate demand letters and post collections
+          under Financials.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1 sm:col-span-2">
