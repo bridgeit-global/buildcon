@@ -512,7 +512,7 @@ export default function BookingDetailPage() {
   const customer = booking ? unwrapJoin(booking.customers) : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4 pb-12 md:p-6">
+    <div className="mx-auto  space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" className="h-9 gap-1" asChild>
           <Link href="/crm/bookings">
@@ -702,9 +702,9 @@ export default function BookingDetailPage() {
                             rows.map((r) =>
                               r.customerId === b.customerId
                                 ? {
-                                    ...r,
-                                    aadhaarLast4: e.target.value.replace(/\D/g, '').slice(0, 4)
-                                  }
+                                  ...r,
+                                  aadhaarLast4: e.target.value.replace(/\D/g, '').slice(0, 4)
+                                }
                                 : r
                             )
                           )
