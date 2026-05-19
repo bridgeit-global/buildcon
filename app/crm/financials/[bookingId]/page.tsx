@@ -135,14 +135,27 @@ export default function FinancialsBookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  const receivedBySchedule = collections.reduce<Record<string, number>>(
-    (acc, c) => {
-      if (c.schedule_id) {
-        acc[c.schedule_id] = (acc[c.schedule_id] || 0) + c.received_amount;
-      }
-      return acc;
-    },
-    {}
+  const receivedBySchedule = useMemo(
+    () =>
+      collections.reduce<Record<string, number>>((acc, c) => {
+        if (c.schedule_id) {
+          acc[c.schedule_id] = (acc[c.schedule_id] || 0) + c.received_amount;
+        }
+        return acc;
+      }, {}),
+    [collections]
+  );
+
+  const pendingSchedules = useMemo(
+    () =>
+      schedules
+        .map((s) => {
+          const received = receivedBySchedule[s.id] || 0;
+          const pending = Math.max(0, (s.amount || 0) - received);
+          return { ...s, pending };
+        })
+        .filter((s) => s.pending > 0),
+    [schedules, receivedBySchedule]
   );
 
   const totalAmount = schedules.reduce((s, r) => s + (r.amount || 0), 0);
@@ -255,9 +268,17 @@ export default function FinancialsBookingPage() {
                   ? FIN_SCHEDULE_UNASSIGNED
                   : entryScheduleId
               }
-              onValueChange={(v) =>
-                setEntryScheduleId(v === FIN_SCHEDULE_UNASSIGNED ? '' : v)
-              }
+              onValueChange={(v) => {
+                if (v === FIN_SCHEDULE_UNASSIGNED) {
+                  setEntryScheduleId('');
+                  return;
+                }
+                setEntryScheduleId(v);
+                const row = pendingSchedules.find((s) => s.id === v);
+                if (row) {
+                  setEntryAmount(String(Math.round(row.pending)));
+                }
+              }}
               disabled={loading}
             >
               <SelectTrigger className="mt-1 w-full">
@@ -267,9 +288,10 @@ export default function FinancialsBookingPage() {
                 <SelectItem value={FIN_SCHEDULE_UNASSIGNED}>
                   (Optional) Unassigned
                 </SelectItem>
-                {schedules.map((s) => (
+                {pendingSchedules.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.instalment_no}. {s.milestone}
+                    {s.instalment_no}. {s.milestone} · ₹{' '}
+                    {formatInr(s.pending, { maximumFractionDigits: 0 })} due
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -280,7 +302,11 @@ export default function FinancialsBookingPage() {
             <Input
               value={entryAmount}
               onChange={(e) => setEntryAmount(e.target.value)}
-              placeholder="671040"
+              placeholder={
+                pendingSchedules[0]
+                  ? String(Math.round(pendingSchedules[0].pending))
+                  : 'Amount'
+              }
               disabled={loading}
             />
           </div>
