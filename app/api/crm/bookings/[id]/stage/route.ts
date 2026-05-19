@@ -79,11 +79,11 @@ export async function POST(
       .eq('booking_id', bookingId);
     if (!count) {
       try {
-        await insertDefaultPaymentSchedule(
-          admin,
-          bookingId,
-          Number(booking.booking_amount || 0)
-        );
+        await insertDefaultPaymentSchedule(admin, bookingId, {
+          projectId: booking.project_id as string,
+          unitId: booking.unit_id as string,
+          bookingAmount: Number(booking.booking_amount || 0)
+        });
       } catch (e) {
         return NextResponse.json(
           { error: e instanceof Error ? e.message : 'Schedule failed' },

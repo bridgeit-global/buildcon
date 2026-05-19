@@ -1,11 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -14,10 +14,19 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { formatInr } from '../inr-format';
+import { formatInrCompactLacCr } from '../inr-format';
+import {
+  FinancialsListTable,
+  type FinancialBookingRow
+} from './financials-list-table';
 
-const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
-const FIN_BOOKING_NONE = '__fin_booking_none__';
+type LedgerRow = {
+  booking_id: string;
+  demand_amount: number;
+  received_amount: number;
+  outstanding_amount: number;
+  is_overdue: boolean;
+};
 
 type BookingRow = {
   id: string;
@@ -25,26 +34,7 @@ type BookingRow = {
   unit_id: string;
   customer_id: string;
   created_at: string;
-};
-
-type UnitRow = { id: string; unit_code: string };
-type CustomerRow = { id: string; full_name: string };
-
-type ScheduleRow = {
-  id: string;
-  instalment_no: number;
-  milestone: string;
-  due_date: string | null;
-  amount: number;
-};
-
-type CollectionRow = {
-  id: string;
-  schedule_id: string | null;
-  received_amount: number;
-  received_at: string | null;
-  mode: string | null;
-  reference: string | null;
+  status: string;
 };
 
 type OverdueRow = {
@@ -56,8 +46,34 @@ type OverdueRow = {
   due_date: string | null;
   demand_amount: number;
   outstanding_amount: number;
-  customer_id: string;
 };
+
+function KpiCard({
+  label,
+  value,
+  tone = 'default'
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'success' | 'warning' | 'destructive';
+}) {
+  const valueClass =
+    tone === 'success'
+      ? 'text-ds-success-700'
+      : tone === 'warning'
+        ? 'text-ds-warning-700'
+        : tone === 'destructive'
+          ? 'text-ds-error-700'
+          : 'text-ds-gray-900';
+  return (
+    <Card className="min-w-0 flex-1 rounded-xl border-ds-gray-200 p-4 shadow-sm">
+      <div className="text-xs font-medium text-ds-gray-500">{label}</div>
+      <div className={`mt-1 text-xl font-bold tabular-nums sm:text-2xl ${valueClass}`}>
+        {value}
+      </div>
+    </Card>
+  );
+}
 
 export default function FinancialsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -66,88 +82,155 @@ export default function FinancialsPage() {
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
   );
+
   const [exportProjectId, setExportProjectId] = useState<string>('all');
-
-  const [bookings, setBookings] = useState<BookingRow[]>([]);
-  const [unitsById, setUnitsById] = useState<Record<string, UnitRow>>({});
-  const [customersById, setCustomersById] = useState<Record<string, CustomerRow>>(
-    {}
-  );
-  const [bookingId, setBookingId] = useState<string>('');
-
-  const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
-  const [collections, setCollections] = useState<CollectionRow[]>([]);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const [entryScheduleId, setEntryScheduleId] = useState<string>('');
-  const [entryAmount, setEntryAmount] = useState('');
-  const [entryDate, setEntryDate] = useState('');
-  const [entryMode, setEntryMode] = useState('NEFT');
-  const [entryRef, setEntryRef] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
-  const [loadingOverdue, setLoadingOverdue] = useState(false);
   const [exporting, setExporting] = useState<null | 'ledger' | 'receipts'>(null);
+  const [loadingOverdue, setLoadingOverdue] = useState(false);
+
+  const [totalDemand, setTotalDemand] = useState(0);
+  const [totalReceived, setTotalReceived] = useState(0);
+  const [totalOverdue, setTotalOverdue] = useState(0);
+  const [tableRows, setTableRows] = useState<FinancialBookingRow[]>([]);
+  const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
 
   async function loadOverdue() {
     setLoadingOverdue(true);
     const { data, error: oErr } = await supabase
       .from('v_payment_schedule_outstanding')
       .select(
-        'project_id,booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id'
+        'project_id,booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount'
       )
       .eq('is_overdue', true)
       .order('due_date', { ascending: true })
-      .limit(200);
-    if (!oErr && data) setOverdueRows(data as OverdueRow[]);
+      .limit(100);
+    if (!oErr && data) {
+      setOverdueRows(data as OverdueRow[]);
+      setTotalOverdue(
+        (data as OverdueRow[]).reduce(
+          (s, r) => s + Number(r.outstanding_amount || 0),
+          0
+        )
+      );
+    }
     setLoadingOverdue(false);
   }
 
-  async function loadBookings() {
+  async function load() {
     setLoading(true);
     setError('');
 
     const { data: bData, error: bErr } = await supabase
       .from('bookings')
-      .select('id,project_id,unit_id,customer_id,created_at')
+      .select('id,project_id,unit_id,customer_id,created_at,status')
+      .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
-      .limit(300);
-    if (bErr) setError(bErr.message);
-    const bRows = (bData ?? []) as BookingRow[];
-    setBookings(bRows);
-    setBookingId((prev) => prev || bRows[0]?.id || '');
+      .limit(500);
 
-    const unitIds = Array.from(new Set(bRows.map((b) => b.unit_id)));
-    const custIds = Array.from(new Set(bRows.map((b) => b.customer_id)));
-
-    if (unitIds.length) {
-      const { data, error } = await supabase
-        .from('units')
-        .select('id,unit_code')
-        .in('id', unitIds);
-      if (error) setError(error.message);
-      const map: Record<string, UnitRow> = {};
-      (data ?? []).forEach((u) => (map[(u as UnitRow).id] = u as UnitRow));
-      setUnitsById(map);
-    } else {
-      setUnitsById({});
+    if (bErr) {
+      setError(bErr.message);
+      setLoading(false);
+      return;
     }
 
-    if (custIds.length) {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('id,full_name')
-        .in('id', custIds);
-      if (error) setError(error.message);
-      const map: Record<string, CustomerRow> = {};
-      (data ?? []).forEach((c) => (map[(c as CustomerRow).id] = c as CustomerRow));
-      setCustomersById(map);
-    } else {
-      setCustomersById({});
+    const bookings = (bData ?? []) as BookingRow[];
+    const bookingIds = bookings.map((b) => b.id);
+    if (!bookingIds.length) {
+      setTableRows([]);
+      setTotalDemand(0);
+      setTotalReceived(0);
+      setLoading(false);
+      return;
     }
 
+    const unitIds = Array.from(new Set(bookings.map((b) => b.unit_id)));
+    const custIds = Array.from(new Set(bookings.map((b) => b.customer_id)));
+
+    const [unitsRes, custRes, ledgerRes, collRes] = await Promise.all([
+      supabase.from('units').select('id,unit_code').in('id', unitIds),
+      supabase.from('customers').select('id,full_name').in('id', custIds),
+      supabase
+        .from('v_payment_schedule_outstanding')
+        .select(
+          'booking_id,demand_amount,received_amount,outstanding_amount,is_overdue'
+        )
+        .in('booking_id', bookingIds),
+      supabase
+        .from('collections')
+        .select('booking_id,received_amount')
+        .in('booking_id', bookingIds)
+    ]);
+
+    if (unitsRes.error) setError(unitsRes.error.message);
+    if (custRes.error) setError(custRes.error.message);
+    if (ledgerRes.error) setError(ledgerRes.error.message);
+    if (collRes.error) setError(collRes.error.message);
+
+    const unitById = new Map(
+      (unitsRes.data ?? []).map((u) => [u.id as string, u.unit_code as string])
+    );
+    const custById = new Map(
+      (custRes.data ?? []).map((c) => [c.id as string, c.full_name as string])
+    );
+
+    const ledgerByBooking = new Map<
+      string,
+      { demand: number; received: number; overdue: number }
+    >();
+    for (const row of (ledgerRes.data ?? []) as LedgerRow[]) {
+      const cur = ledgerByBooking.get(row.booking_id) ?? {
+        demand: 0,
+        received: 0,
+        overdue: 0
+      };
+      cur.demand += Number(row.demand_amount || 0);
+      cur.received += Number(row.received_amount || 0);
+      if (row.is_overdue) {
+        cur.overdue += Number(row.outstanding_amount || 0);
+      }
+      ledgerByBooking.set(row.booking_id, cur);
+    }
+
+    const collByBooking = new Map<string, number>();
+    for (const c of collRes.data ?? []) {
+      const id = c.booking_id as string;
+      collByBooking.set(
+        id,
+        (collByBooking.get(id) ?? 0) + Number(c.received_amount || 0)
+      );
+    }
+
+    let demandSum = 0;
+    let receivedSum = 0;
+
+    const rows: FinancialBookingRow[] = bookings.map((b) => {
+      const ledger = ledgerByBooking.get(b.id);
+      const demand = ledger?.demand ?? 0;
+      const receivedAlloc = ledger?.received ?? 0;
+      const receivedTotal = collByBooking.get(b.id) ?? receivedAlloc;
+      const balance = Math.max(0, demand - receivedTotal);
+      demandSum += demand;
+      receivedSum += receivedTotal;
+      return {
+        id: b.id,
+        project_id: b.project_id,
+        unit_id: b.unit_id,
+        customer_id: b.customer_id,
+        created_at: b.created_at,
+        status: b.status,
+        unit_code: unitById.get(b.unit_id) ?? '—',
+        customer_name: custById.get(b.customer_id) ?? '—',
+        total_demand: demand,
+        total_received: receivedTotal,
+        balance,
+        overdue: ledger?.overdue ?? 0
+      };
+    });
+
+    setTotalDemand(demandSum);
+    setTotalReceived(receivedSum);
+    setTableRows(rows);
     setLoading(false);
   }
 
@@ -185,46 +268,11 @@ export default function FinancialsPage() {
     }
   }
 
-  async function loadFinancials() {
-    if (!bookingId) {
-      setSchedules([]);
-      setCollections([]);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    const [{ data: sData, error: sErr }, { data: cData, error: cErr }] =
-      await Promise.all([
-        supabase
-          .from('payment_schedules')
-          .select('id,instalment_no,milestone,due_date,amount')
-          .eq('booking_id', bookingId)
-          .order('instalment_no', { ascending: true }),
-        supabase
-          .from('collections')
-          .select('id,schedule_id,received_amount,received_at,mode,reference')
-          .eq('booking_id', bookingId)
-          .order('created_at', { ascending: false })
-      ]);
-
-    if (sErr) setError(sErr.message);
-    if (cErr) setError(cErr.message);
-    setSchedules((sData ?? []) as ScheduleRow[]);
-    setCollections((cData ?? []) as CollectionRow[]);
-    setEntryScheduleId('');
-    setLoading(false);
-  }
-
   useEffect(() => {
-    void loadBookings();
+    void load();
     void loadOverdue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    void loadFinancials();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -240,79 +288,56 @@ export default function FinancialsPage() {
     return () => window.removeEventListener('hashchange', scrollToOverdue);
   }, [overdueRows.length]);
 
-  const receivedBySchedule = collections.reduce<Record<string, number>>(
-    (acc, c) => {
-      if (c.schedule_id) acc[c.schedule_id] = (acc[c.schedule_id] || 0) + c.received_amount;
-      return acc;
-    },
-    {}
-  );
-
-  const totalAmount = schedules.reduce((s, r) => s + (r.amount || 0), 0);
-  const totalReceived = collections.reduce((s, r) => s + (r.received_amount || 0), 0);
-  const totalBalance = totalAmount - totalReceived;
-
-  async function addCollection() {
-    if (!bookingId || !entryAmount) return;
-    setSaving(true);
-    setError('');
-    try {
-      const { error } = await supabase.from('collections').insert({
-        booking_id: bookingId,
-        schedule_id: entryScheduleId || null,
-        received_amount: Number(entryAmount),
-        received_at: entryDate || null,
-        mode: entryMode,
-        reference: entryRef || null
-      });
-      if (error) throw error;
-      setEntryAmount('');
-      setEntryDate('');
-      setEntryRef('');
-      await loadFinancials();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save collection');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const booking = bookings.find((b) => b.id === bookingId) ?? null;
-  const unitCode = booking ? unitsById[booking.unit_id]?.unit_code : null;
-  const customerName = booking
-    ? customersById[booking.customer_id]?.full_name
-    : null;
+  const totalBalance = Math.max(0, totalDemand - totalReceived);
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[360px]">
-            <Label>Booking</Label>
-            <Select
-              value={bookingId === '' ? FIN_BOOKING_NONE : bookingId}
-              onValueChange={(v) =>
-                setBookingId(v === FIN_BOOKING_NONE ? '' : v)
-              }
-              disabled={loading}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={FIN_BOOKING_NONE}>Select booking…</SelectItem>
-                {bookings.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {projectNameById.get(b.project_id) ?? '—'} ·{' '}
-                    {unitsById[b.unit_id]?.unit_code ?? '—'} ·{' '}
-                    {customersById[b.customer_id]?.full_name ?? '—'} ·{' '}
-                    {new Date(b.created_at).toLocaleDateString()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <Card className="p-4 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-sm font-semibold text-ds-gray-900">
+              Collections &amp; accounts
+            </h1>
+            <p className="mt-1 text-xs text-ds-gray-500">
+              Portfolio demand vs receipts. Open a booking to record collections
+              against the CLD payment schedule.
+            </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
+        </div>
 
+        <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiCard label="Total demand" value={formatInrCompactLacCr(totalDemand)} />
+          <KpiCard
+            label="Total received"
+            value={formatInrCompactLacCr(totalReceived)}
+            tone="success"
+          />
+          <KpiCard
+            label="Balance"
+            value={formatInrCompactLacCr(totalBalance)}
+            tone="warning"
+          />
+          <KpiCard
+            label="Overdue"
+            value={formatInrCompactLacCr(totalOverdue)}
+            tone="destructive"
+          />
+        </section>
+
+        {error ? (
+          <div className="mt-3 rounded-md border border-ds-error-200 bg-ds-error-25 p-3 text-sm text-ds-error-700">
+            {error}
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="p-4 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-end gap-3">
           <div className="min-w-[200px]">
             <Label>Export scope</Label>
             <Select value={exportProjectId} onValueChange={setExportProjectId}>
@@ -329,7 +354,6 @@ export default function FinancialsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex-1" />
           <Button
             type="button"
             variant="outline"
@@ -346,245 +370,31 @@ export default function FinancialsPage() {
           >
             {exporting === 'receipts' ? 'Exporting…' : 'Export receipts CSV'}
           </Button>
-          <Button variant="outline" onClick={loadBookings} disabled={loading}>
-            Refresh
-          </Button>
         </div>
 
-        {booking ? (
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            <div className="rounded-lg border bg-white p-3">
-              <div className="text-xs text-gray-500">Customer</div>
-              <div className="text-sm font-semibold text-gray-900">
-                {customerName ?? '—'}
-              </div>
-            </div>
-            <div className="rounded-lg border bg-white p-3">
-              <div className="text-xs text-gray-500">Unit</div>
-              <div className="text-sm font-semibold text-gray-900">
-                {unitCode ?? '—'}
-              </div>
-            </div>
-            <div className="rounded-lg border bg-white p-3">
-              <div className="text-xs text-gray-500">Balance</div>
-              <div className="text-sm font-semibold text-gray-900">
-                ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-      </Card>
-
-      <Card className="p-4">
-        <div className="text-sm font-semibold text-gray-900">
-          Payment schedule
-        </div>
-        <div className="mt-3 overflow-auto">
-          <table className="min-w-[900px] w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500">
-              <tr>
-                {[
-                  '#',
-                  'Milestone',
-                  'Due date',
-                  'Amount',
-                  'Received',
-                  'Balance',
-                  'Status'
-                ].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold border-b">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {schedules.map((s) => {
-                const rec = receivedBySchedule[s.id] || 0;
-                const bal = (s.amount || 0) - rec;
-                const status = bal <= 0 ? 'Paid' : rec > 0 ? 'Partially Paid' : 'Pending';
-                return (
-                  <tr key={s.id} className="border-b">
-                    <td className="px-4 py-3 text-gray-600">{s.instalment_no}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">
-                      {s.milestone}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{s.due_date ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-700">
-                      ₹ {formatInr(Number(s.amount || 0), { maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="px-4 py-3 text-green-700 font-semibold">
-                      ₹ {formatInr(rec, { maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="px-4 py-3 text-red-700 font-semibold">
-                      ₹ {formatInr(bal, { maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full border px-2 py-1 text-xs">
-                        {status}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-              {schedules.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
-                    No schedule rows yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-50">
-                <td colSpan={3} className="px-4 py-3 font-semibold text-gray-900">
-                  Total
-                </td>
-                <td className="px-4 py-3 font-semibold text-gray-900">
-                  ₹ {formatInr(totalAmount, { maximumFractionDigits: 0 })}
-                </td>
-                <td className="px-4 py-3 font-semibold text-green-700">
-                  ₹ {formatInr(totalReceived, { maximumFractionDigits: 0 })}
-                </td>
-                <td className="px-4 py-3 font-semibold text-red-700">
-                  ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </Card>
-
-      <Card className="p-4">
-        <div className="text-sm font-semibold text-gray-900">
-          Collection entry
-        </div>
-        <div className="mt-3 grid grid-cols-4 gap-3 items-end">
-          <div className="col-span-2">
-            <Label>Instalment</Label>
-            <Select
-              value={
-                entryScheduleId === ''
-                  ? FIN_SCHEDULE_UNASSIGNED
-                  : entryScheduleId
-              }
-              onValueChange={(v) =>
-                setEntryScheduleId(
-                  v === FIN_SCHEDULE_UNASSIGNED ? '' : v
-                )
-              }
-              disabled={!bookingId}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={FIN_SCHEDULE_UNASSIGNED}>
-                  (Optional) Unassigned
-                </SelectItem>
-                {schedules.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.instalment_no}. {s.milestone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Amount (₹)</Label>
-            <Input
-              value={entryAmount}
-              onChange={(e) => setEntryAmount(e.target.value)}
-              placeholder="671040"
-              disabled={!bookingId}
-            />
-          </div>
-          <div>
-            <Label>Date</Label>
-            <Input
-              type="date"
-              value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
-              disabled={!bookingId}
-            />
-          </div>
-          <div>
-            <Label>Mode</Label>
-            <Select
-              value={entryMode}
-              onValueChange={setEntryMode}
-              disabled={!bookingId}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {['NEFT', 'RTGS', 'Cheque', 'Cash', 'UPI'].map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2">
-            <Label>Reference</Label>
-            <Input
-              value={entryRef}
-              onChange={(e) => setEntryRef(e.target.value)}
-              placeholder="UTR / Cheque No."
-              disabled={!bookingId}
-            />
-          </div>
-          <div className="col-span-1" />
-          <Button onClick={addCollection} disabled={saving || !bookingId || !entryAmount}>
-            {saving ? 'Saving…' : 'Save collection'}
-          </Button>
-        </div>
-
+        <div className="text-sm font-semibold text-ds-gray-900">Bookings</div>
+        <p className="mt-1 text-xs text-ds-gray-500">
+          Select Manage to open payment schedule and collection entry for a booking.
+        </p>
         <div className="mt-4">
-          <div className="text-xs font-semibold text-gray-500">Saved entries</div>
-          <div className="mt-2 flex flex-col gap-2">
-            {collections.map((c) => (
-              <div
-                key={c.id}
-                className="rounded-lg border bg-white p-3 text-sm flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-gray-900">
-                    ₹{' '}
-                    {formatInr(Number(c.received_amount), {
-                      maximumFractionDigits: 0
-                    })}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {c.mode ?? '—'} · {c.received_at ?? '—'} · {c.reference ?? '—'}
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {c.schedule_id ? 'Assigned' : 'Unassigned'}
-                </div>
-              </div>
-            ))}
-            {collections.length === 0 ? (
-              <div className="py-6 text-sm text-gray-500">No collections yet.</div>
-            ) : null}
-          </div>
+          <FinancialsListTable
+            rows={tableRows}
+            projectNameById={projectNameById}
+            loading={loading}
+          />
         </div>
       </Card>
 
       <div id="crm-financials-overdue">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-900">
-              Overdue demands (ledger view)
+        <Card className="p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-ds-gray-900">
+                Overdue demands
+              </div>
+              <p className="text-xs text-ds-gray-500">
+                Past-due instalments with outstanding balance
+              </p>
             </div>
             <Button
               type="button"
@@ -596,13 +406,16 @@ export default function FinancialsPage() {
               Refresh
             </Button>
           </div>
-          <div className="mt-3 overflow-auto">
-            <table className="min-w-[800px] w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500">
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-[48rem] w-full text-sm">
+              <thead className="bg-ds-gray-50 text-xs text-ds-gray-500">
                 <tr>
-                  {['Project', 'Booking', '#', 'Milestone', 'Due', 'Demand', 'Outstanding'].map(
+                  {['Project', 'Unit / booking', '#', 'Milestone', 'Due', 'Outstanding', ''].map(
                     (h) => (
-                      <th key={h} className="px-3 py-2 text-left font-semibold border-b">
+                      <th
+                        key={h}
+                        className="border-b border-ds-gray-200 px-3 py-2 text-left font-semibold"
+                      >
                         {h}
                       </th>
                     )
@@ -610,34 +423,42 @@ export default function FinancialsPage() {
                 </tr>
               </thead>
               <tbody>
-                {overdueRows.map((r) => (
-                  <tr key={r.schedule_id} className="border-b">
-                    <td className="max-w-[120px] truncate px-3 py-2 text-xs text-gray-600">
-                      {projectNameById.get(r.project_id) ?? '—'}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs">{r.booking_id}</td>
-                    <td className="px-3 py-2 text-gray-600">
-                      {r.instalment_no != null ? r.instalment_no : '—'}
-                    </td>
-                    <td className="px-3 py-2">{r.milestone}</td>
-                    <td className="px-3 py-2 text-gray-600">{r.due_date ?? '—'}</td>
-                    <td className="px-3 py-2">
-                      ₹{' '}
-                      {formatInr(Number(r.demand_amount), {
-                        maximumFractionDigits: 0
-                      })}
-                    </td>
-                    <td className="px-3 py-2 text-red-700 font-semibold">
-                      ₹{' '}
-                      {formatInr(Number(r.outstanding_amount), {
-                        maximumFractionDigits: 0
-                      })}
-                    </td>
-                  </tr>
-                ))}
+                {overdueRows.map((r) => {
+                  const bookingRow = tableRows.find((b) => b.id === r.booking_id);
+                  return (
+                    <tr key={r.schedule_id} className="border-b border-ds-gray-100">
+                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-ds-gray-600">
+                        {projectNameById.get(r.project_id) ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {bookingRow?.unit_code ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 text-ds-gray-600">
+                        {r.instalment_no != null ? r.instalment_no : '—'}
+                      </td>
+                      <td className="px-3 py-2">{r.milestone}</td>
+                      <td className="px-3 py-2 text-ds-gray-600">
+                        {r.due_date ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-ds-error-700">
+                        {formatInrCompactLacCr(Number(r.outstanding_amount))}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/crm/financials/${r.booking_id}`}>
+                            Manage
+                          </Link>
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {overdueRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
+                    <td
+                      colSpan={7}
+                      className="px-3 py-8 text-center text-ds-gray-500"
+                    >
                       {loadingOverdue
                         ? 'Loading…'
                         : 'No overdue schedule lines.'}
@@ -652,4 +473,3 @@ export default function FinancialsPage() {
     </div>
   );
 }
-

@@ -43,6 +43,7 @@ import {
   type CustomerApplicationProfile
 } from '@/lib/customer/application-form-data';
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
+import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -101,6 +102,19 @@ export default function BookingDetailPage() {
   const kycFileRef = useRef<HTMLInputElement>(null);
   const [kycUploadCustomerId, setKycUploadCustomerId] = useState('');
   const [kycDocType, setKycDocType] = useState('pan');
+  const [paymentSchedules, setPaymentSchedules] = useState<
+    {
+      id: string;
+      instalment_no: number;
+      milestone: string;
+      due_date: string | null;
+      amount: number;
+    }[]
+  >([]);
+  const [scheduleReceivedById, setScheduleReceivedById] = useState<
+    Record<string, number>
+  >({});
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -247,9 +261,46 @@ export default function BookingDetailPage() {
     setLoading(false);
   }, [bookingId, supabase]);
 
+  const loadPaymentSchedule = useCallback(async () => {
+    if (!bookingId) return;
+    setLoadingSchedule(true);
+    const [{ data: sData, error: sErr }, { data: cData, error: cErr }] =
+      await Promise.all([
+        supabase
+          .from('payment_schedules')
+          .select('id,instalment_no,milestone,due_date,amount')
+          .eq('booking_id', bookingId)
+          .order('instalment_no', { ascending: true }),
+        supabase
+          .from('collections')
+          .select('schedule_id,received_amount')
+          .eq('booking_id', bookingId)
+      ]);
+    if (!sErr) setPaymentSchedules((sData ?? []) as typeof paymentSchedules);
+    if (!cErr) {
+      const map: Record<string, number> = {};
+      for (const c of cData ?? []) {
+        const sid = c.schedule_id as string | null;
+        if (!sid) continue;
+        map[sid] = (map[sid] || 0) + Number(c.received_amount || 0);
+      }
+      setScheduleReceivedById(map);
+    }
+    setLoadingSchedule(false);
+  }, [bookingId, supabase]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (
+      booking?.workflow_stage === 'confirmation' ||
+      booking?.status === 'cancelled'
+    ) {
+      void loadPaymentSchedule();
+    }
+  }, [booking?.workflow_stage, booking?.status, loadPaymentSchedule]);
 
   const workflowStage = (booking?.workflow_stage ?? 'token') as BookingWorkflowStage;
   const cancelled = booking?.status === 'cancelled';
@@ -878,16 +929,37 @@ export default function BookingDetailPage() {
           ) : null}
 
           {workflowStage === 'confirmation' || cancelled ? (
-            <Card className="p-4">
-              <h2 className="font-semibold text-ds-gray-900">
-                {cancelled ? 'Booking cancelled' : 'Booking confirmed'}
-              </h2>
-              <p className="mt-1 text-sm text-ds-gray-600">
-                {cancelled
-                  ? 'Unit released to inventory. Refund details shown above if applicable.'
-                  : 'Payment schedule created. Manage collections from Financials.'}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+            <Card className="space-y-4 p-4">
+              <div>
+                <h2 className="font-semibold text-ds-gray-900">
+                  {cancelled ? 'Booking cancelled' : 'Booking confirmed'}
+                </h2>
+                <p className="mt-1 text-sm text-ds-gray-600">
+                  {cancelled
+                    ? 'Unit released to inventory. Refund details shown above if applicable.'
+                    : 'Payment schedule was generated from this project’s CLD configuration at confirmation.'}
+                </p>
+              </div>
+              {!cancelled ? (
+                <div>
+                  <div className="text-sm font-semibold text-ds-gray-900">
+                    Payment schedule
+                  </div>
+                  <p className="mt-1 text-xs text-ds-gray-500">
+                    Configure stages under CLD if milestones or demand splits need
+                    to change for future bookings.
+                  </p>
+                  <div className="mt-3">
+                    <PaymentScheduleTable
+                      rows={paymentSchedules}
+                      receivedBySchedule={scheduleReceivedById}
+                      loading={loadingSchedule}
+                      compact
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
                 {!cancelled ? (
                   <Button
                     type="button"
@@ -901,7 +973,12 @@ export default function BookingDetailPage() {
                   </Button>
                 ) : null}
                 <Button variant="outline" asChild>
-                  <Link href="/crm/financials">Open financials</Link>
+                  <Link href={`/crm/financials/${bookingId}`}>
+                    Manage collections
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/crm/cld">Project CLD</Link>
                 </Button>
               </div>
             </Card>

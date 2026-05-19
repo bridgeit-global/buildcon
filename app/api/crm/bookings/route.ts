@@ -197,7 +197,11 @@ export async function POST(request: Request) {
 
   if (confirmNow) {
     try {
-      await insertDefaultPaymentSchedule(admin, bookingId, bookingAmount);
+      await insertDefaultPaymentSchedule(admin, bookingId, {
+        projectId: body.projectId,
+        unitId: body.unitId,
+        bookingAmount
+      });
     } catch (e) {
       await admin.from('bookings').delete().eq('id', bookingId);
       await admin

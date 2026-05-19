@@ -1,4 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { unitAgreementTotalInr, type UnitPricingInput } from '@/app/crm/inr-format';
+
+type CldStageRow = {
+  sort_order: number;
+  name: string;
+  demand_kind: string;
+  demand_value: number;
+  slab_label: string | null;
+};
+
+export type PaymentScheduleInsertRow = {
+  booking_id: string;
+  instalment_no: number;
+  milestone: string;
+  due_date: string;
+  amount: number;
+};
 
 function addDaysISO(days: number) {
   const d = new Date();
@@ -6,12 +23,32 @@ function addDaysISO(days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-export async function insertDefaultPaymentSchedule(
-  admin: SupabaseClient,
-  bookingId: string,
+function milestoneLabel(stage: CldStageRow) {
+  const slab = stage.slab_label?.trim();
+  return slab ? `${stage.name} (${slab})` : stage.name;
+}
+
+function stageDemandAmount(
+  stage: CldStageRow,
+  agreementTotalInr: number,
+  instalmentNo: number,
   bookingAmount: number
 ) {
-  const scheduleRows = [
+  if (instalmentNo === 1 && bookingAmount > 0) {
+    return bookingAmount;
+  }
+  if (stage.demand_kind === 'fixed') {
+    return Math.max(0, Math.round(Number(stage.demand_value) || 0));
+  }
+  const pct = Number(stage.demand_value) || 0;
+  return Math.max(0, Math.round((agreementTotalInr * pct) / 100));
+}
+
+function fallbackScheduleRows(
+  bookingId: string,
+  bookingAmount: number
+): PaymentScheduleInsertRow[] {
+  return [
     {
       booking_id: bookingId,
       instalment_no: 1,
@@ -62,6 +99,83 @@ export async function insertDefaultPaymentSchedule(
       amount: 0
     }
   ];
+}
+
+export function buildPaymentScheduleRows(
+  stages: CldStageRow[],
+  bookingId: string,
+  agreementTotalInr: number,
+  bookingAmount: number
+): PaymentScheduleInsertRow[] {
+  if (!stages.length) {
+    return fallbackScheduleRows(bookingId, bookingAmount);
+  }
+
+  const ordered = [...stages].sort((a, b) => a.sort_order - b.sort_order);
+  return ordered.map((stage, index) => {
+    const instalmentNo = index + 1;
+    return {
+      booking_id: bookingId,
+      instalment_no: instalmentNo,
+      milestone: milestoneLabel(stage),
+      due_date: addDaysISO(index * 30),
+      amount: stageDemandAmount(
+        stage,
+        agreementTotalInr,
+        instalmentNo,
+        bookingAmount
+      )
+    };
+  });
+}
+
+async function loadAgreementTotalInr(
+  admin: SupabaseClient,
+  unitId: string
+): Promise<number> {
+  const { data, error } = await admin
+    .from('units')
+    .select('area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge')
+    .eq('id', unitId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return 0;
+  return unitAgreementTotalInr(data as UnitPricingInput);
+}
+
+async function loadProjectCldStages(
+  admin: SupabaseClient,
+  projectId: string
+): Promise<CldStageRow[]> {
+  const { data, error } = await admin
+    .from('project_cld_stages')
+    .select('sort_order,name,demand_kind,demand_value,slab_label')
+    .eq('project_id', projectId)
+    .order('sort_order', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CldStageRow[];
+}
+
+export async function insertDefaultPaymentSchedule(
+  admin: SupabaseClient,
+  bookingId: string,
+  opts: {
+    projectId: string;
+    unitId: string;
+    bookingAmount: number;
+  }
+) {
+  const [stages, agreementTotalInr] = await Promise.all([
+    loadProjectCldStages(admin, opts.projectId),
+    loadAgreementTotalInr(admin, opts.unitId)
+  ]);
+
+  const scheduleRows = buildPaymentScheduleRows(
+    stages,
+    bookingId,
+    agreementTotalInr,
+    opts.bookingAmount
+  );
 
   const { error } = await admin.from('payment_schedules').insert(scheduleRows);
   if (error) throw new Error(error.message);
