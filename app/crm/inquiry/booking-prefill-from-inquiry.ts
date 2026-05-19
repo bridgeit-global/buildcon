@@ -1,4 +1,5 @@
 import type { BookingPrefillV1 } from '../booking-prefill-storage';
+import { negotiatedPriceFromInquiryStage } from '../booking-financial-total';
 import { inquiryReference } from './inquiry-helpers';
 import type { InquiryStageData } from './inquiry-types';
 
@@ -56,6 +57,7 @@ export function buildBookingPrefillFromInquiry(
 ): Omit<BookingPrefillV1, 'version'> {
   const token = tokenStageFromInquiry(input.stageData);
   const amount = String(token.amount ?? '').trim();
+  const negotiatedPriceInr = negotiatedPriceFromInquiryStage(input.stageData);
 
   return {
     projectId: String(input.projectId || '').trim(),
@@ -70,6 +72,7 @@ export function buildBookingPrefillFromInquiry(
     bookingAmount: amount || null,
     tokenDate: String(token.date ?? '').trim() || null,
     paymentMode: normalizePaymentMode(token.mode),
-    paymentReference: String(token.reference ?? '').trim() || null
+    paymentReference: String(token.reference ?? '').trim() || null,
+    negotiatedPriceInr
   };
 }

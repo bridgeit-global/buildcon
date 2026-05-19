@@ -200,7 +200,8 @@ export async function POST(request: Request) {
       await insertDefaultPaymentSchedule(admin, bookingId, {
         projectId: body.projectId,
         unitId: body.unitId,
-        bookingAmount
+        bookingAmount,
+        salesInquiryId: body.salesInquiryId?.trim() || null
       });
     } catch (e) {
       await admin.from('bookings').delete().eq('id', bookingId);

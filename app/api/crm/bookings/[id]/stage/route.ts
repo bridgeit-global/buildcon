@@ -25,7 +25,7 @@ export async function POST(
   const { data: booking, error: loadErr } = await admin
     .from('bookings')
     .select(
-      'id,project_id,unit_id,workflow_stage,stage,stage_data,status,booking_amount,payment_detail'
+      'id,project_id,unit_id,sales_inquiry_id,workflow_stage,stage,stage_data,status,booking_amount,payment_detail'
     )
     .eq('id', bookingId)
     .maybeSingle();
@@ -82,7 +82,8 @@ export async function POST(
         await insertDefaultPaymentSchedule(admin, bookingId, {
           projectId: booking.project_id as string,
           unitId: booking.unit_id as string,
-          bookingAmount: Number(booking.booking_amount || 0)
+          bookingAmount: Number(booking.booking_amount || 0),
+          salesInquiryId: (booking.sales_inquiry_id as string | null) ?? null
         });
       } catch (e) {
         return NextResponse.json(

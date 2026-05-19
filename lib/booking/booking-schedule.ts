@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { negotiatedPriceFromInquiryStage } from '@/app/crm/booking-financial-total';
 import { unitAgreementTotalInr, type UnitPricingInput } from '@/app/crm/inr-format';
 
 type CldStageRow = {
@@ -129,6 +130,23 @@ export function buildPaymentScheduleRows(
   });
 }
 
+async function loadNegotiatedTotalFromInquiry(
+  admin: SupabaseClient,
+  salesInquiryId: string | null | undefined
+): Promise<number | null> {
+  const inquiryId = String(salesInquiryId ?? '').trim();
+  if (!inquiryId) return null;
+  const { data, error } = await admin
+    .from('sales_inquiries')
+    .select('stage_data')
+    .eq('id', inquiryId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return negotiatedPriceFromInquiryStage(
+    (data?.stage_data as Record<string, unknown> | null) ?? null
+  );
+}
+
 async function loadAgreementTotalInr(
   admin: SupabaseClient,
   unitId: string
@@ -163,12 +181,23 @@ export async function insertDefaultPaymentSchedule(
     projectId: string;
     unitId: string;
     bookingAmount: number;
+    salesInquiryId?: string | null;
+    /** Agreed deal value; defaults to inquiry negotiation then unit list. */
+    agreementTotalInr?: number | null;
   }
 ) {
-  const [stages, agreementTotalInr] = await Promise.all([
+  const [stages, unitListInr, negotiatedInr] = await Promise.all([
     loadProjectCldStages(admin, opts.projectId),
-    loadAgreementTotalInr(admin, opts.unitId)
+    loadAgreementTotalInr(admin, opts.unitId),
+    opts.agreementTotalInr != null && opts.agreementTotalInr > 0
+      ? Promise.resolve(Math.round(opts.agreementTotalInr))
+      : loadNegotiatedTotalFromInquiry(admin, opts.salesInquiryId)
   ]);
+
+  const agreementTotalInr =
+    negotiatedInr != null && negotiatedInr > 0
+      ? negotiatedInr
+      : unitListInr;
 
   const scheduleRows = buildPaymentScheduleRows(
     stages,

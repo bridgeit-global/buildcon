@@ -57,6 +57,10 @@ import {
 import { formatInr, formatInrCompactLacCr, unitAgreementTotalInr, unitBillableAreaSqft } from '../inr-format';
 import { formatFloorLabel } from '../inventory/inventory-utils';
 import {
+  negotiatedPriceFromInquiryStage,
+  resolveBookingFinancialTotal
+} from '../booking-financial-total';
+import {
   readConsumeBookingPrefill,
   type BookingPrefillV1
 } from '../booking-prefill-storage';
@@ -376,6 +380,9 @@ export default function BookingsPage() {
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   const [prefillMeta, setPrefillMeta] = useState<BookingPrefillV1 | null>(null);
+  const [inquiryNegotiatedPrice, setInquiryNegotiatedPrice] = useState<
+    number | null
+  >(null);
   const [breakdownUnit, setBreakdownUnit] = useState<UnitOption | null>(null);
   const [unitFromInquiryUnavailable, setUnitFromInquiryUnavailable] =
     useState(false);
@@ -578,6 +585,7 @@ export default function BookingsPage() {
 
   useEffect(() => {
     setPrefillMeta(null);
+    setInquiryNegotiatedPrice(null);
     setPrefillCustomerMissing(false);
     setBreakdownUnit(null);
     setUnitFromInquiryUnavailable(false);
@@ -615,6 +623,38 @@ export default function BookingsPage() {
     setChequeNo('');
     setNeftRef('');
   }, [paymentMode]);
+
+  useEffect(() => {
+    const inquiryId = prefillMeta?.inquiryId;
+    if (!inquiryId) {
+      setInquiryNegotiatedPrice(null);
+      return;
+    }
+    if (
+      prefillMeta.negotiatedPriceInr != null &&
+      prefillMeta.negotiatedPriceInr > 0
+    ) {
+      setInquiryNegotiatedPrice(prefillMeta.negotiatedPriceInr);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('sales_inquiries')
+        .select('stage_data')
+        .eq('id', inquiryId)
+        .maybeSingle();
+      if (cancelled) return;
+      setInquiryNegotiatedPrice(
+        negotiatedPriceFromInquiryStage(
+          (data?.stage_data as Record<string, unknown> | null) ?? null
+        )
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [prefillMeta, supabase]);
 
   async function createBooking() {
     const selectedUnit = units.find((u) => u.id === unitId);
@@ -927,6 +967,38 @@ export default function BookingsPage() {
     prefillMeta,
     inquiryCostBreakdown,
     unitRateStructureRows
+  ]);
+
+  const catalogTotalInr = useMemo(() => {
+    if (inquiryCostBreakdown?.grandTotalInr && inquiryCostBreakdown.grandTotalInr > 0) {
+      return inquiryCostBreakdown.grandTotalInr;
+    }
+    const u = unitForCostPreview;
+    if (!u) return 0;
+    const dwellingInr = unitAgreementTotalInr(u);
+    if (dwellingInr <= 0) return 0;
+    const gstInr = projectPricing?.gst_registered
+      ? Math.round(
+          (dwellingInr * (Number(projectPricing.gst_percent) || 0)) / 100
+        )
+      : Math.round(dwellingInr * 0.05);
+    return dwellingInr + gstInr;
+  }, [inquiryCostBreakdown, unitForCostPreview, projectPricing]);
+
+  const paymentFinancialTotal = useMemo(() => {
+    if (catalogTotalInr <= 0) return null;
+    const negotiated =
+      prefillMeta?.negotiatedPriceInr ?? inquiryNegotiatedPrice ?? null;
+    const resolved = resolveBookingFinancialTotal(
+      catalogTotalInr,
+      negotiated
+    );
+    if (!resolved.negotiatedPriceInr) return null;
+    return resolved;
+  }, [
+    catalogTotalInr,
+    prefillMeta?.negotiatedPriceInr,
+    inquiryNegotiatedPrice
   ]);
 
   const matchUnit = useCallback((u: UnitOption, q: string) => {
@@ -1533,6 +1605,7 @@ export default function BookingsPage() {
                 : (unitRateStructureRows ?? [])
             }
             bookingAmount={Number(bookingAmount || 0)}
+            financialTotal={paymentFinancialTotal}
             alert={
               paymentCostOverviewMode === 'inquiry' && inquiryUnitMismatch ? (
                 <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">

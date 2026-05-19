@@ -20,6 +20,8 @@ export type BookingPrefillV1 = {
   paymentMode?: string | null;
   /** Token cheque / UTR / NEFT reference → matching booking payment field. */
   paymentReference?: string | null;
+  /** Approved / agreed negotiation price — final financial total for the deal. */
+  negotiatedPriceInr?: number | null;
 };
 
 export function writeBookingPrefill(
