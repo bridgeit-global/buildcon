@@ -2,27 +2,21 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  loadBookingPrintPack,
-  printAgreementFromPack,
-  printAllotmentLetterFromPack,
-  printApplicationFormFromPack,
-  printDemandLetterFromPack,
-  printReceiptFromPack,
-  type BookingPrintPack
-} from '@/lib/booking/load-booking-print-pack';
-import { recordBookingDocumentPrint } from '@/lib/booking/record-booking-document-print';
+import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
+import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
+import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
+import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
 import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
 } from './generated-documents-table';
 import { DocumentsBookingListTable } from './documents-booking-list-table';
+import { BookingDocumentsMatrixTable, buildMatrixRows } from './booking-documents-matrix-table';
 
 type BookingPickRow = {
   id: string;
@@ -42,9 +36,6 @@ function unwrapJoin<T>(x: T | T[] | null | undefined): T | null {
   if (x == null) return null;
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
-
-const GENERATED_SELECT =
-  'id,project_id,booking_id,customer_id,template_id,storage_path,generated_at,projects(name),bookings(id,units(unit_code)),customers(full_name)';
 
 export type DocumentsPageContentProps = {
   /** When set (from `/crm/documents/[booking_id]`), tools target this booking only. */
@@ -67,7 +58,8 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [printPack, setPrintPack] = useState<BookingPrintPack | null>(null);
   const [loadingPack, setLoadingPack] = useState(false);
-  const [printBusy, setPrintBusy] = useState(false);
+  const [generatingKind, setGeneratingKind] = useState<BookingDocumentPrintKind | null>(null);
+  const [deliveryBanner, setDeliveryBanner] = useState('');
 
   useEffect(() => {
     if (lockedBookingId) {
@@ -112,7 +104,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       setError('');
       const { data, error: gErr } = await supabase
         .from('generated_documents')
-        .select(GENERATED_SELECT)
+        .select(GENERATED_DOCUMENTS_LIST_SELECT)
         .eq('booking_id', bookingId)
         .order('generated_at', { ascending: false })
         .limit(200);
@@ -152,115 +144,50 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     void loadPrintPack();
   }, [loadPrintPack]);
 
-  async function refreshGenerated() {
+  const refreshGenerated = useCallback(async () => {
     const id = lockedBookingId || selectedBookingId;
     if (id) await loadGeneratedForBooking(id);
-  }
+  }, [lockedBookingId, selectedBookingId, loadGeneratedForBooking]);
 
-  async function runApplicationPrint() {
-    if (!printPack) return;
-    setPrintBusy(true);
-    setError('');
-    try {
-      printApplicationFormFromPack(printPack);
-      const { error: recErr } = await recordBookingDocumentPrint(supabase, {
-        projectId: printPack.booking.project_id,
-        bookingId: printPack.booking.id,
-        customerId: printPack.booking.customer_id,
-        kind: 'application-form'
-      });
-      if (recErr) setError(recErr);
-      await refreshGenerated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate application form');
-    } finally {
-      setPrintBusy(false);
-    }
-  }
+  const handleMatrixGenerate = useCallback(
+    async (kind: BookingDocumentPrintKind) => {
+      if (!printPack) return;
+      setGeneratingKind(kind);
+      setError('');
+      setDeliveryBanner('');
+      try {
+        const r = await generateAndNotifyBookingDocument({
+          supabase,
+          bookingId: printPack.booking.id,
+          pack: printPack,
+          kind
+        });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        const n = r.notify;
+        const bits: string[] = [];
+        if (n.emailSent) bits.push('Customer email sent.');
+        if (n.emailSkippedReason) bits.push(`Email: ${n.emailSkippedReason}`);
+        if (n.whatsappUrl) {
+          window.open(n.whatsappUrl, '_blank', 'noopener,noreferrer');
+          bits.push('WhatsApp opened with a prefilled message — press Send to deliver to the customer.');
+        } else if (n.whatsappSkippedReason) {
+          bits.push(`WhatsApp: ${n.whatsappSkippedReason}`);
+        }
+        setDeliveryBanner(bits.join(' '));
+        await refreshGenerated();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Generate failed');
+      } finally {
+        setGeneratingKind(null);
+      }
+    },
+    [printPack, supabase, refreshGenerated]
+  );
 
-  async function runAllotmentPrint() {
-    if (!printPack) return;
-    setPrintBusy(true);
-    setError('');
-    try {
-      printAllotmentLetterFromPack(printPack);
-      const { error: recErr } = await recordBookingDocumentPrint(supabase, {
-        projectId: printPack.booking.project_id,
-        bookingId: printPack.booking.id,
-        customerId: printPack.booking.customer_id,
-        kind: 'allotment-letter'
-      });
-      if (recErr) setError(recErr);
-      await refreshGenerated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate allotment letter');
-    } finally {
-      setPrintBusy(false);
-    }
-  }
-
-  async function runReceiptPrint() {
-    if (!printPack) return;
-    setPrintBusy(true);
-    setError('');
-    try {
-      printReceiptFromPack(printPack);
-      const { error: recErr } = await recordBookingDocumentPrint(supabase, {
-        projectId: printPack.booking.project_id,
-        bookingId: printPack.booking.id,
-        customerId: printPack.booking.customer_id,
-        kind: 'receipt'
-      });
-      if (recErr) setError(recErr);
-      await refreshGenerated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate receipt');
-    } finally {
-      setPrintBusy(false);
-    }
-  }
-
-  async function runDemandLetterPrint() {
-    if (!printPack) return;
-    setPrintBusy(true);
-    setError('');
-    try {
-      printDemandLetterFromPack(printPack);
-      const { error: recErr } = await recordBookingDocumentPrint(supabase, {
-        projectId: printPack.booking.project_id,
-        bookingId: printPack.booking.id,
-        customerId: printPack.booking.customer_id,
-        kind: 'demand-letter'
-      });
-      if (recErr) setError(recErr);
-      await refreshGenerated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate demand letter');
-    } finally {
-      setPrintBusy(false);
-    }
-  }
-
-  async function runAgreementPrint() {
-    if (!printPack) return;
-    setPrintBusy(true);
-    setError('');
-    try {
-      printAgreementFromPack(printPack);
-      const { error: recErr } = await recordBookingDocumentPrint(supabase, {
-        projectId: printPack.booking.project_id,
-        bookingId: printPack.booking.id,
-        customerId: printPack.booking.customer_id,
-        kind: 'agreement'
-      });
-      if (recErr) setError(recErr);
-      await refreshGenerated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate agreement');
-    } finally {
-      setPrintBusy(false);
-    }
-  }
+  const matrixRows = useMemo(() => buildMatrixRows(generated), [generated]);
 
   const unit = printPack ? unwrapJoin(printPack.booking.units) : null;
   const customer = printPack ? unwrapJoin(printPack.booking.customers) : null;
@@ -290,8 +217,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           <p className="mt-1 text-sm text-ds-gray-600">
             {lockedBookingId ? (
               <>
-                Generate PDFs from the buttons below. Rows in the table are a print log; uploaded
-                files in storage can be downloaded.{' '}
+                Generate documents from the table below; each version is stored and can be
+                downloaded. Configure email in environment variables to notify the buyer
+                automatically.{' '}
                 <Link
                   className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
                   href="/crm/documents"
@@ -402,62 +330,22 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                   </div>
                 ) : null}
 
+                {deliveryBanner ? (
+                  <div className="rounded-lg border border-ds-primary-200 bg-ds-primary-50/70 px-3 py-2 text-sm text-ds-primary-900">
+                    {deliveryBanner}
+                  </div>
+                ) : null}
+
                 <div>
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ds-gray-500">
-                    Generate
+                    Documents
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-1"
-                      disabled={printBusy}
-                      onClick={() => void runReceiptPrint()}
-                    >
-                      <FileText className="h-4 w-4" />
-                      Receipt
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-1"
-                      disabled={printBusy}
-                      onClick={() => void runDemandLetterPrint()}
-                    >
-                      <FileText className="h-4 w-4" />
-                      Demand letter
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-1"
-                      disabled={printBusy}
-                      onClick={() => void runAgreementPrint()}
-                    >
-                      <FileText className="h-4 w-4" />
-                      Agreement
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-1"
-                      disabled={printBusy || !printPack.kycComplete}
-                      onClick={() => void runApplicationPrint()}
-                    >
-                      <FileText className="h-4 w-4" />
-                      Application form
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="gap-1"
-                      disabled={printBusy}
-                      onClick={() => void runAllotmentPrint()}
-                    >
-                      <FileText className="h-4 w-4" />
-                      Allotment letter
-                    </Button>
-                  </div>
+                  <BookingDocumentsMatrixTable
+                    rows={matrixRows}
+                    kycComplete={printPack.kycComplete}
+                    generatingKind={generatingKind}
+                    onGenerate={handleMatrixGenerate}
+                  />
                 </div>
               </>
             ) : (
@@ -466,10 +354,10 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
 
             <div className="border-t border-ds-gray-200 pt-4">
               <div className="mb-3">
-                <div className="text-sm font-semibold text-ds-gray-900">Documents</div>
+                <div className="text-sm font-semibold text-ds-gray-900">History</div>
                 <div className="text-xs text-ds-gray-500">
-                  Download when a file exists in storage. Print jobs are listed for audit (no file
-                  until upload is wired).
+                  All generated rows for this booking (newest first). Older print-only audit rows
+                  may appear without a download.
                 </div>
               </div>
               <GeneratedDocumentsTable

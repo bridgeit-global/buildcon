@@ -86,11 +86,19 @@ export function storageBucketForGeneratedPath(storagePath: string): string | nul
 }
 
 export function formatGeneratedDocKind(storagePath: string, hasTemplate: boolean): string {
-  if (storagePath.startsWith('print/application-form/')) return 'Application form (print)';
-  if (storagePath.startsWith('print/allotment-letter/')) return 'Allotment letter (print)';
-  if (storagePath.startsWith('print/receipt/')) return 'Receipt (print)';
-  if (storagePath.startsWith('print/demand-letter/')) return 'Demand letter (print)';
-  if (storagePath.startsWith('print/agreement/')) return 'Agreement (print)';
+  if (storagePath.includes('/booking-generated/')) {
+    if (storagePath.includes('/application-form-')) return 'Application form';
+    if (storagePath.includes('/allotment-letter-')) return 'Allotment letter';
+    if (storagePath.includes('/receipt-')) return 'Payment receipt';
+    if (storagePath.includes('/demand-letter-')) return 'Demand letter';
+    if (storagePath.includes('/agreement-')) return 'Draft sale agreement';
+    return 'Booking document (file)';
+  }
+  if (storagePath.startsWith('print/application-form/')) return 'Application form (print log)';
+  if (storagePath.startsWith('print/allotment-letter/')) return 'Allotment letter (print log)';
+  if (storagePath.startsWith('print/receipt/')) return 'Receipt (print log)';
+  if (storagePath.startsWith('print/demand-letter/')) return 'Demand letter (print log)';
+  if (storagePath.startsWith('print/agreement/')) return 'Agreement (print log)';
   if (hasTemplate) return 'From template';
   return 'Other';
 }

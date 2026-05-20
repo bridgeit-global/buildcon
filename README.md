@@ -12,7 +12,7 @@ Staff CRM built with Next.js (App Router) and Supabase.
 - ✅ Bookings (create booking + mark unit booked + seed payment schedule)
 - ✅ Financials (payment schedule + collections entry)
 - ✅ Bank loans (loan cases)
-- ✅ Documents (templates + generated document records; booking application form & allotment letter prints from **Agreements & documents** with audit rows)
+- ✅ Documents (templates + generated document records; confirmed bookings: generate/store HTML in **documents** storage, download, optional Resend email + WhatsApp share)
 - ✅ Reports (basic aggregates)
 - ✅ Sales pipeline (opportunities, funnel stages, follow-ups, site visits) on inquiries
 - ✅ Quotations + project pricing profile (GST / stamp duty / registration estimates)

@@ -39,6 +39,15 @@ import {
 } from '../booking-stage-transitions';
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
+import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
+import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
+import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
+import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
+import {
+  BookingDocumentsMatrixTable,
+  buildMatrixRows
+} from '@/app/crm/documents/booking-documents-matrix-table';
+import type { GeneratedDocRow } from '@/app/crm/documents/generated-documents-table';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -104,6 +113,14 @@ export default function BookingDetailPage() {
     Record<string, number>
   >({});
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+
+  const [confirmationPrintPack, setConfirmationPrintPack] = useState<BookingPrintPack | null>(
+    null
+  );
+  const [confirmationDocsLoading, setConfirmationDocsLoading] = useState(false);
+  const [confirmationGenerated, setConfirmationGenerated] = useState<GeneratedDocRow[]>([]);
+  const [generatingDocKind, setGeneratingDocKind] = useState<BookingDocumentPrintKind | null>(null);
+  const [docDeliveryBanner, setDocDeliveryBanner] = useState('');
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -276,6 +293,98 @@ export default function BookingDetailPage() {
 
   const workflowStage = (booking?.workflow_stage ?? 'token') as BookingWorkflowStage;
   const cancelled = booking?.status === 'cancelled';
+
+  const refreshConfirmationGenerated = useCallback(async () => {
+    if (!bookingId) return;
+    const { data, error: gErr } = await supabase
+      .from('generated_documents')
+      .select(GENERATED_DOCUMENTS_LIST_SELECT)
+      .eq('booking_id', bookingId)
+      .order('generated_at', { ascending: false })
+      .limit(200);
+    if (gErr) {
+      setError(gErr.message);
+      return;
+    }
+    setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
+  }, [bookingId, supabase]);
+
+  useEffect(() => {
+    if (!bookingId || workflowStage !== 'confirmation' || cancelled) {
+      setConfirmationPrintPack(null);
+      setConfirmationGenerated([]);
+      setConfirmationDocsLoading(false);
+      setDocDeliveryBanner('');
+      return;
+    }
+    let ignore = false;
+    (async () => {
+      setConfirmationDocsLoading(true);
+      const [packRes, genRes] = await Promise.all([
+        loadBookingPrintPack(supabase, bookingId),
+        supabase
+          .from('generated_documents')
+          .select(GENERATED_DOCUMENTS_LIST_SELECT)
+          .eq('booking_id', bookingId)
+          .order('generated_at', { ascending: false })
+          .limit(200)
+      ]);
+      if (ignore) return;
+      if (packRes.ok) setConfirmationPrintPack(packRes.pack);
+      else setConfirmationPrintPack(null);
+      if (genRes.error) setError(genRes.error.message);
+      else setConfirmationGenerated((genRes.data ?? []) as GeneratedDocRow[]);
+      setConfirmationDocsLoading(false);
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [bookingId, workflowStage, cancelled, supabase]);
+
+  const confirmationMatrixRows = useMemo(
+    () => buildMatrixRows(confirmationGenerated),
+    [confirmationGenerated]
+  );
+
+  const handleConfirmationDocGenerate = useCallback(
+    async (kind: BookingDocumentPrintKind) => {
+      if (!confirmationPrintPack) return;
+      setGeneratingDocKind(kind);
+      setDocDeliveryBanner('');
+      try {
+        const r = await generateAndNotifyBookingDocument({
+          supabase,
+          bookingId: confirmationPrintPack.booking.id,
+          pack: confirmationPrintPack,
+          kind
+        });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        const n = r.notify;
+        const bits: string[] = [];
+        if (n.emailSent) bits.push('Customer email sent.');
+        if (n.emailSkippedReason) bits.push(`Email: ${n.emailSkippedReason}`);
+        if (n.whatsappUrl) {
+          window.open(n.whatsappUrl, '_blank', 'noopener,noreferrer');
+          bits.push(
+            'WhatsApp opened with a prefilled message — press Send to deliver to the customer.'
+          );
+        } else if (n.whatsappSkippedReason) {
+          bits.push(`WhatsApp: ${n.whatsappSkippedReason}`);
+        }
+        setDocDeliveryBanner(bits.join(' '));
+        await refreshConfirmationGenerated();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Generate failed');
+      } finally {
+        setGeneratingDocKind(null);
+      }
+    },
+    [confirmationPrintPack, supabase, refreshConfirmationGenerated]
+  );
+
   const stepIndex = BOOKING_WORKFLOW_STAGES.indexOf(workflowStage);
   const tokenStageLocked = useMemo(
     () => isTokenStageLocked(stageData, workflowStage),
@@ -956,13 +1065,50 @@ export default function BookingDetailPage() {
                 </div>
               ) : null}
               {!cancelled ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" className="gap-1" asChild>
-                    <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
-                      <FileText className="h-4 w-4" />
-                      Agreements &amp; documents
-                    </Link>
-                  </Button>
+                <>
+                  <div className="space-y-3 border-t border-ds-gray-200 pt-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ds-gray-900">Booking documents</h3>
+                      <p className="mt-1 text-xs text-ds-gray-500">
+                        Generate and store each document, download from the table, and notify the
+                        buyer (email when Resend is configured; WhatsApp opens with a prefilled
+                        message for you to send).
+                      </p>
+                    </div>
+                    {docDeliveryBanner ? (
+                      <div className="rounded-lg border border-ds-primary-200 bg-ds-primary-50/70 px-3 py-2 text-sm text-ds-primary-900">
+                        {docDeliveryBanner}
+                      </div>
+                    ) : null}
+                    {confirmationDocsLoading ? (
+                      <p className="text-sm text-ds-gray-500">Loading document tools…</p>
+                    ) : confirmationPrintPack ? (
+                      <BookingDocumentsMatrixTable
+                        rows={confirmationMatrixRows}
+                        kycComplete={confirmationPrintPack.kycComplete}
+                        generatingKind={generatingDocKind}
+                        onGenerate={handleConfirmationDocGenerate}
+                      />
+                    ) : (
+                      <p className="text-sm text-ds-warning-800">
+                        Could not load document data. Open{' '}
+                        <Link
+                          className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
+                          href={`/crm/documents/${encodeURIComponent(booking.id)}`}
+                        >
+                          Agreements &amp; documents
+                        </Link>{' '}
+                        for the full page.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" className="gap-1" asChild>
+                      <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
+                        <FileText className="h-4 w-4" />
+                        Agreements &amp; documents
+                      </Link>
+                    </Button>
                   <Button variant="outline" asChild>
                     <Link href={`/crm/financials/${bookingId}`}>
                       Manage collections
@@ -976,6 +1122,7 @@ export default function BookingDetailPage() {
                     </Button>
                   ) : null}
                 </div>
+                </>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" asChild>
