@@ -491,6 +491,14 @@ export default function BookingDetailPage() {
             Unit locked while workflow is active. Complete each step to confirm the booking.
           </p>
         </div>
+        {!loading && booking && workflowStage === 'confirmation' && !cancelled ? (
+          <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1" asChild>
+            <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
+              <FileText className="h-4 w-4" />
+              Documents
+            </Link>
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
