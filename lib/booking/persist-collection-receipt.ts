@@ -1,11 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
-import { persistGeneratedBookingDocument } from '@/lib/booking/persist-generated-booking-document';
-import { parseKindFromBookingGeneratedPath, parseLinkIdFromBookingGeneratedPath } from '@/lib/booking/booking-generated-doc-kind';
-import {
-  notifyGeneratedBookingDocument,
-  type NotifyBookingDocumentResponse
-} from '@/lib/booking/notify-booking-document';
+import { generatedReceiptExistsForCollection } from '@/lib/booking/booking-generated-doc-kind';
+import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
+import type { NotifyBookingDocumentResponse } from '@/lib/booking/notify-booking-document';
 
 export type CollectionReceiptContext = {
   collectionId: string;
@@ -16,20 +12,11 @@ export type CollectionReceiptContext = {
   instalmentLabel: string | null;
 };
 
-/** True if a stored receipt already exists for this collection id. */
-export function generatedReceiptExistsForCollection(
-  generated: { storage_path: string }[],
-  collectionId: string
-): boolean {
-  return generated.some((row) => {
-    if (parseKindFromBookingGeneratedPath(row.storage_path) !== 'receipt') return false;
-    return parseLinkIdFromBookingGeneratedPath(row.storage_path) === collectionId;
-  });
-}
+export { generatedReceiptExistsForCollection } from '@/lib/booking/booking-generated-doc-kind';
 
-/** Saves a payment receipt HTML file linked to a collection; optionally emails / WhatsApp. */
+/** Saves a payment receipt PDF linked to a collection; optionally emails / WhatsApp. */
 export async function persistCollectionReceipt(
-  supabase: SupabaseClient,
+  _supabase: SupabaseClient,
   bookingId: string,
   collection: CollectionReceiptContext,
   opts?: { notify?: boolean }
@@ -37,10 +24,8 @@ export async function persistCollectionReceipt(
   | { ok: true; id: string; notify?: NotifyBookingDocumentResponse }
   | { ok: false; error: string }
 > {
-  const packRes = await loadBookingPrintPack(supabase, bookingId);
-  if (!packRes.ok) return { ok: false, error: packRes.error };
-
-  const persisted = await persistGeneratedBookingDocument(supabase, packRes.pack, 'receipt', {
+  const result = await requestGenerateBookingDocument(bookingId, {
+    kind: 'receipt',
     linkId: collection.collectionId,
     htmlOverrides: {
       receivedAmount: collection.receivedAmount,
@@ -48,15 +33,19 @@ export async function persistCollectionReceipt(
       paymentMode: collection.mode,
       paymentReference: collection.reference,
       instalmentLabel: collection.instalmentLabel
-    }
+    },
+    notify: opts?.notify !== false
   });
 
-  if (!persisted.ok) return { ok: false, error: persisted.error };
+  if (!result.ok) return { ok: false, error: result.error };
 
   if (opts?.notify === false) {
-    return { ok: true, id: persisted.id };
+    return { ok: true, id: result.generatedDocumentId };
   }
 
-  const notify = await notifyGeneratedBookingDocument(bookingId, persisted.id);
-  return { ok: true, id: persisted.id, notify };
+  return {
+    ok: true,
+    id: result.generatedDocumentId,
+    notify: result.notify
+  };
 }

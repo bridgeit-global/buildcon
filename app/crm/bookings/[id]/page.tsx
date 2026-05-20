@@ -116,6 +116,9 @@ export default function BookingDetailPage() {
   const [scheduleReceivedById, setScheduleReceivedById] = useState<
     Record<string, number>
   >({});
+  const [bookingCollections, setBookingCollections] = useState<
+    { id: string; schedule_id: string | null }[]
+  >([]);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
 
   const [confirmationPrintPack, setConfirmationPrintPack] = useState<BookingPrintPack | null>(
@@ -268,17 +271,23 @@ export default function BookingDetailPage() {
           .order('instalment_no', { ascending: true }),
         supabase
           .from('collections')
-          .select('schedule_id,received_amount')
+          .select('id,schedule_id,received_amount')
           .eq('booking_id', bookingId)
       ]);
     if (!sErr) setPaymentSchedules((sData ?? []) as typeof paymentSchedules);
     if (!cErr) {
       const map: Record<string, number> = {};
+      const collRows: { id: string; schedule_id: string | null }[] = [];
       for (const c of cData ?? []) {
+        collRows.push({
+          id: c.id as string,
+          schedule_id: c.schedule_id as string | null
+        });
         const sid = c.schedule_id as string | null;
         if (!sid) continue;
         map[sid] = (map[sid] || 0) + Number(c.received_amount || 0);
       }
+      setBookingCollections(collRows);
       setScheduleReceivedById(map);
     }
     setLoadingSchedule(false);
@@ -348,6 +357,21 @@ export default function BookingDetailPage() {
       ignore = true;
     };
   }, [bookingId, workflowStage, cancelled, supabase]);
+
+  const scheduleLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of paymentSchedules) {
+      m.set(s.id, `${s.instalment_no}. ${s.milestone}`);
+    }
+    for (const c of bookingCollections) {
+      if (c.schedule_id && m.has(c.schedule_id)) {
+        m.set(c.id, m.get(c.schedule_id)!);
+      } else if (!c.schedule_id) {
+        m.set(c.id, 'Unassigned receipt');
+      }
+    }
+    return m;
+  }, [paymentSchedules, bookingCollections]);
 
   const confirmationMatrixRows = useMemo(
     () => buildMatrixRows(confirmationGenerated),
@@ -476,9 +500,41 @@ export default function BookingDetailPage() {
           stageDataPatch: stagePatchForAdvance()
         })
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as {
+        error?: string;
+        workflowStage?: string;
+        confirmationDocs?: {
+          tokenReceiptCreated?: boolean;
+          tokenReceiptSkipped?: boolean;
+          seedError?: string;
+        };
+      };
       if (!res.ok) throw new Error(json.error || 'Advance failed');
+      if (json.confirmationDocs) {
+        const cd = json.confirmationDocs;
+        if (cd.seedError) {
+          setDocDeliveryBanner(
+            `Booking confirmed. Token receipt PDF could not be saved: ${cd.seedError}`
+          );
+        } else if (cd.tokenReceiptCreated) {
+          setDocDeliveryBanner(
+            'Booking confirmed. Token posted to the ledger; token receipt PDF saved under Documents below.'
+          );
+        } else {
+          setDocDeliveryBanner(
+            'Booking confirmed. Payment schedule and ledger are ready — generate or review documents below.'
+          );
+        }
+      }
       await load();
+      if (json.workflowStage === 'confirmation') {
+        requestAnimationFrame(() => {
+          document.getElementById('booking-documents')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Advance failed');
     } finally {
@@ -1064,7 +1120,10 @@ export default function BookingDetailPage() {
               ) : null}
               {!cancelled ? (
                 <>
-                  <div className="space-y-3 border-t border-ds-gray-200 pt-4">
+                  <div
+                    id="booking-documents"
+                    className="space-y-3 border-t border-ds-gray-200 pt-4 scroll-mt-4"
+                  >
                     <div>
                       <h3 className="text-sm font-semibold text-ds-gray-900">Booking documents</h3>
                       <p className="mt-1 text-xs text-ds-gray-500">
@@ -1086,6 +1145,7 @@ export default function BookingDetailPage() {
                         kycComplete={confirmationPrintPack.kycComplete}
                         generatingKind={generatingDocKind}
                         onGenerate={handleConfirmationDocGenerate}
+                        scheduleLabelById={scheduleLabelById}
                       />
                     ) : (
                       <p className="text-sm text-ds-warning-800">
@@ -1112,20 +1172,21 @@ export default function BookingDetailPage() {
                         loading={confirmationDocsLoading || confirmationDocsLoadingGenerated}
                         variant="bookingFocus"
                         showDownload
+                        scheduleLabelById={scheduleLabelById}
                         onRefresh={() => void refreshConfirmationGenerated()}
                       />
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" className="gap-1" asChild>
+                    <Button type="button" className="gap-1" asChild>
                       <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
                         <FileText className="h-4 w-4" />
-                        Agreements &amp; documents
+                        View all documents
                       </Link>
                     </Button>
                   <Button variant="outline" asChild>
                     <Link href={`/crm/financials/${bookingId}`}>
-                      Manage collections
+                      Ledger &amp; collections
                     </Link>
                   </Button>
                   {booking?.project_id ? (

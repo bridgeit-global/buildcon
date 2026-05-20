@@ -14,7 +14,8 @@ import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-docu
 import {
   BOOKING_DOCUMENT_KIND_LABEL,
   BOOKING_DOCUMENT_MATRIX_KINDS,
-  parseKindFromBookingGeneratedPath
+  parseKindFromBookingGeneratedPath,
+  parseLinkIdFromBookingGeneratedPath
 } from '@/lib/booking/booking-generated-doc-kind';
 import type { GeneratedDocRow } from './generated-documents-table';
 import { storageBucketForGeneratedPath } from './generated-documents-table';
@@ -67,13 +68,25 @@ type BookingDocumentsMatrixTableProps = {
   kycComplete: boolean;
   generatingKind: BookingDocumentPrintKind | null;
   onGenerate: (kind: BookingDocumentPrintKind) => void | Promise<void>;
+  /** Maps schedule/collection id from filename to instalment label. */
+  scheduleLabelById?: Map<string, string>;
 };
+
+function linkLabelForRow(
+  row: GeneratedDocRow,
+  scheduleLabelById?: Map<string, string>
+): string | null {
+  const linkId = parseLinkIdFromBookingGeneratedPath(row.storage_path);
+  if (!linkId) return null;
+  return scheduleLabelById?.get(linkId) ?? `Linked · ${linkId.slice(0, 8)}…`;
+}
 
 export function BookingDocumentsMatrixTable({
   rows,
   kycComplete,
   generatingKind,
-  onGenerate
+  onGenerate,
+  scheduleLabelById
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
@@ -125,17 +138,32 @@ export function BookingDocumentsMatrixTable({
             return <span className="text-sm text-ds-gray-500">Not generated yet</span>;
           }
           const multi = versions.length > 1;
-          const showCount =
-            multi && (kind === 'receipt' || kind === 'demand-letter');
+          const showLinked =
+            kind === 'receipt' || kind === 'demand-letter';
+          const recent =
+            showLinked && multi ? versions.slice(0, 3) : [latest];
           return (
             <div className="text-sm text-ds-gray-600">
               <span className="whitespace-nowrap">
-                {new Date(latest.generated_at).toLocaleString()}
+                Latest {new Date(latest.generated_at).toLocaleString()}
               </span>
-              {showCount ? (
-                <div className="mt-0.5 text-xs text-ds-primary-700">
-                  {versions.length} saved — see History below for all
-                </div>
+              {showLinked && recent.length > 0 ? (
+                <ul className="mt-1 space-y-0.5 text-xs text-ds-primary-800">
+                  {recent.map((v) => {
+                    const lbl = linkLabelForRow(v, scheduleLabelById);
+                    return (
+                      <li key={v.id}>
+                        {lbl ?? 'Saved PDF'} ·{' '}
+                        {new Date(v.generated_at).toLocaleDateString()}
+                      </li>
+                    );
+                  })}
+                  {multi && versions.length > 3 ? (
+                    <li className="text-ds-gray-500">
+                      +{versions.length - 3} more in History below
+                    </li>
+                  ) : null}
+                </ul>
               ) : null}
             </div>
           );
@@ -195,7 +223,7 @@ export function BookingDocumentsMatrixTable({
         }
       }
     ],
-    [downloadBusyId, downloadRow, generatingKind, kycComplete, onGenerate]
+    [downloadBusyId, downloadRow, generatingKind, kycComplete, onGenerate, scheduleLabelById]
   );
 
   const table = useReactTable({
@@ -239,11 +267,9 @@ export function BookingDocumentsMatrixTable({
         </table>
       </div>
       <p className="text-xs text-ds-gray-500">
-        Files are stored as HTML (open in the browser, then Print → Save as PDF if needed). After each
-        generate, the app emails the buyer when{' '}
-        <span className="font-medium">RESEND_API_KEY</span> and{' '}
-        <span className="font-medium">CRM_DOCUMENTS_EMAIL_FROM</span> are set, and opens a prefilled
-        WhatsApp message when a mobile number is on file.
+        Files are stored as PDF in Documents. Receipts and demand letters from Financials and CLD
+        completions appear here automatically. Email/WhatsApp runs when you use Generate with notify
+        enabled.
       </p>
     </div>
   );

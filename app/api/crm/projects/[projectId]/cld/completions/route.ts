@@ -6,6 +6,7 @@ import {
   syncProjectBookingPaymentSchedules,
   type CldStageWithId
 } from '@/lib/booking/booking-schedule';
+import { generateCldDemandLettersForProject } from '@/lib/booking/generate-cld-demand-letters';
 
 type CompletionBody = {
   stageId: string;
@@ -116,10 +117,19 @@ export async function POST(
     }
   }
 
+  const demandResult = await generateCldDemandLettersForProject(admin, {
+    projectId,
+    stage: stage as CldStageWithId,
+    generatedBy: gate.userId
+  });
+
   return NextResponse.json({
     ok: true,
     completionId: completion.id,
     completedOn: completion.completed_on,
-    ...applyResult
+    ...applyResult,
+    demandLettersGenerated: demandResult.demandLettersGenerated,
+    demandLettersSkipped: demandResult.demandLettersSkipped,
+    demandLetterErrors: demandResult.errors.length ? demandResult.errors : undefined
   });
 }

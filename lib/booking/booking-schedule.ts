@@ -320,7 +320,7 @@ async function loadAgreementTotalInr(
   return unitAgreementTotalInr(data as UnitPricingInput);
 }
 
-async function loadProjectCldStages(
+export async function loadProjectCldStages(
   admin: SupabaseClient,
   projectId: string
 ): Promise<CldStageWithId[]> {

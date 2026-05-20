@@ -135,13 +135,28 @@ export function ProjectCldManage({
         error?: string;
         bookingsProcessed?: number;
         schedulesUpdated?: number;
+        demandLettersGenerated?: number;
+        demandLettersSkipped?: number;
+        demandLetterErrors?: string[];
       };
       if (!res.ok) throw new Error(json.error ?? 'Failed to log completion');
       const n = json.bookingsProcessed ?? 0;
+      const generated = json.demandLettersGenerated ?? 0;
+      const skipped = json.demandLettersSkipped ?? 0;
+      const demandNote =
+        generated > 0
+          ? ` Demand letter PDFs created for ${generated} confirmed booking${generated === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped — already issued or fully paid)` : ''}.`
+          : n > 0
+            ? ' No new demand PDFs (instalments may already be paid or letters already on file).'
+            : '';
+      const errNote =
+        json.demandLetterErrors?.length
+          ? ` Some units failed: ${json.demandLetterErrors.slice(0, 2).join('; ')}${json.demandLetterErrors.length > 2 ? '…' : ''}`
+          : '';
       setSuccess(
         n > 0
-          ? `Stage completed. Payment milestones updated for ${n} booking unit${n === 1 ? '' : 's'} — open Financials to issue demand letters and record collections.`
-          : 'Stage completed. No active bookings yet; milestones will apply when units are booked.'
+          ? `Stage completed. Payment milestones updated for ${n} booking unit${n === 1 ? '' : 's'}.${demandNote} Review under Agreements & documents or Financials.${errNote}`
+          : `Stage completed. No active bookings yet; milestones will apply when units are booked.${demandNote}`
       );
       await load();
     } catch (e) {

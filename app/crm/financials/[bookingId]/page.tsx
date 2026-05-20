@@ -19,13 +19,16 @@ import {
 } from '@/components/ui/select';
 import { formatInr, formatInrCompactLacCr } from '../../inr-format';
 import { PaymentScheduleTable } from '../payment-schedule-table';
-import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
+import {
+  BookingLedgerTable,
+  buildBookingLedgerRows
+} from '../booking-ledger-table';
 import {
   generatedReceiptExistsForCollection,
   persistCollectionReceipt
 } from '@/lib/booking/persist-collection-receipt';
 import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
-import { persistGeneratedBookingDocument } from '@/lib/booking/persist-generated-booking-document';
+import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
 
 const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
 
@@ -44,6 +47,7 @@ type CollectionRow = {
   received_at: string | null;
   mode: string | null;
   reference: string | null;
+  created_at: string | null;
 };
 
 export default function FinancialsBookingPage() {
@@ -123,7 +127,7 @@ export default function FinancialsBookingPage() {
           .order('instalment_no', { ascending: true }),
         supabase
           .from('collections')
-          .select('id,schedule_id,received_amount,received_at,mode,reference')
+          .select('id,schedule_id,received_amount,received_at,mode,reference,created_at')
           .eq('booking_id', bookingId)
           .order('created_at', { ascending: false })
       ]);
@@ -174,6 +178,19 @@ export default function FinancialsBookingPage() {
   );
   const totalBalance = totalAmount - totalReceived;
 
+  const scheduleLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of schedules) {
+      m.set(s.id, `${s.instalment_no}. ${s.milestone}`);
+    }
+    return m;
+  }, [schedules]);
+
+  const ledgerRows = useMemo(
+    () => buildBookingLedgerRows(schedules, collections, scheduleLabelById),
+    [schedules, collections, scheduleLabelById]
+  );
+
   function instalmentLabelForSchedule(scheduleId: string | null): string | null {
     if (!scheduleId) return 'Unassigned receipt';
     const row = schedules.find((s) => s.id === scheduleId);
@@ -212,13 +229,13 @@ export default function FinancialsBookingPage() {
         });
         if (receiptRes.ok) {
           setDocNotice(
-            formatDocumentDeliveryNotice(
-              'Collection saved. Payment receipt stored in Documents for this unit.',
+            `${formatDocumentDeliveryNotice(
+              'Collection saved. Payment receipt PDF stored in Documents.',
               receiptRes.notify
-            )
+            )} View all files in Unit documents.`
           );
         } else {
-          setDocNotice(`Collection saved; receipt file failed: ${receiptRes.error}`);
+          setDocNotice(`Collection saved; receipt PDF failed: ${receiptRes.error}`);
         }
       }
       setEntryAmount('');
@@ -238,26 +255,21 @@ export default function FinancialsBookingPage() {
     setError('');
     setDocNotice('');
     try {
-      const packRes = await loadBookingPrintPack(supabase, bookingId);
-      if (!packRes.ok) throw new Error(packRes.error);
       const received = receivedBySchedule[schedule.id] || 0;
       const pending = Math.max(0, (schedule.amount || 0) - received);
-      const persisted = await persistGeneratedBookingDocument(
-        supabase,
-        packRes.pack,
-        'demand-letter',
-        {
-          linkId: schedule.id,
-          htmlOverrides: {
-            instalmentLabel: `${schedule.instalment_no}. ${schedule.milestone}`,
-            demandAmount: pending > 0 ? pending : schedule.amount,
-            demandDueDate: schedule.due_date
-          }
-        }
-      );
+      const persisted = await requestGenerateBookingDocument(bookingId, {
+        kind: 'demand-letter',
+        linkId: schedule.id,
+        htmlOverrides: {
+          instalmentLabel: `${schedule.instalment_no}. ${schedule.milestone}`,
+          demandAmount: pending > 0 ? pending : schedule.amount,
+          demandDueDate: schedule.due_date
+        },
+        notify: false
+      });
       if (!persisted.ok) throw new Error(persisted.error);
       setDocNotice(
-        `Demand letter for instalment ${schedule.instalment_no} saved to Documents.`
+        `Demand letter PDF for instalment ${schedule.instalment_no} saved. Open Unit documents to download.`
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Demand letter failed');
@@ -319,7 +331,7 @@ export default function FinancialsBookingPage() {
         <Button variant="outline" size="sm" asChild>
           <Link href={`/crm/bookings/${bookingId}`}>Open booking</Link>
         </Button>
-        <Button variant="outline" size="sm" asChild>
+        <Button size="sm" asChild>
           <Link href={`/crm/documents/${encodeURIComponent(bookingId)}`}>
             Unit documents
           </Link>
@@ -367,6 +379,17 @@ export default function FinancialsBookingPage() {
             {docNotice}
           </div>
         ) : null}
+      </Card>
+
+      <Card className="p-4 sm:p-6">
+        <div className="text-sm font-semibold text-ds-gray-900">Account ledger</div>
+        <p className="mt-1 text-xs text-ds-gray-500">
+          Debit rows are instalment demands; credit rows are collections. Balance is demand minus
+          receipts (updates when you save a collection or when token is posted at confirmation).
+        </p>
+        <div className="mt-3">
+          <BookingLedgerTable rows={ledgerRows} loading={loading} />
+        </div>
       </Card>
 
       <Card className="p-4 sm:p-6">

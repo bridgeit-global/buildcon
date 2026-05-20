@@ -61,6 +61,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const [loadingPack, setLoadingPack] = useState(false);
   const [generatingKind, setGeneratingKind] = useState<BookingDocumentPrintKind | null>(null);
   const [deliveryBanner, setDeliveryBanner] = useState('');
+  const [docScheduleLabels, setDocScheduleLabels] = useState<Map<string, string>>(
+    () => new Map()
+  );
 
   useEffect(() => {
     if (lockedBookingId) {
@@ -119,10 +122,33 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   useEffect(() => {
     if (!lockedBookingId) {
       setGenerated([]);
+      setDocScheduleLabels(new Map());
       return;
     }
     void loadGeneratedForBooking(lockedBookingId);
-  }, [lockedBookingId, loadGeneratedForBooking]);
+    void (async () => {
+      const [{ data: sched }, { data: cols }] = await Promise.all([
+        supabase
+          .from('payment_schedules')
+          .select('id,instalment_no,milestone')
+          .eq('booking_id', lockedBookingId),
+        supabase
+          .from('collections')
+          .select('id,schedule_id')
+          .eq('booking_id', lockedBookingId)
+      ]);
+      const m = new Map<string, string>();
+      for (const s of sched ?? []) {
+        m.set(s.id as string, `${s.instalment_no}. ${s.milestone}`);
+      }
+      for (const c of cols ?? []) {
+        const sid = c.schedule_id as string | null;
+        if (sid && m.has(sid)) m.set(c.id as string, m.get(sid)!);
+        else if (!sid) m.set(c.id as string, 'Unassigned receipt');
+      }
+      setDocScheduleLabels(m);
+    })();
+  }, [lockedBookingId, loadGeneratedForBooking, supabase]);
 
   const loadPrintPack = useCallback(async () => {
     if (!selectedBookingId) {
@@ -210,9 +236,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           <p className="mt-1 text-sm text-ds-gray-600">
             {lockedBookingId ? (
               <>
-                Generate documents from the table below; each version is stored and can be
-                downloaded. Configure email in environment variables to notify the buyer
-                automatically.{' '}
+                All PDFs for this unit (including receipts and demands from Financials and CLD)
+                are listed below. Generate from the matrix or open Ledger &amp; collections to
+                post payments.{' '}
                 <Link
                   className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
                   href="/crm/documents"
@@ -240,6 +266,16 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" asChild>
               <Link href="/crm/documents">All confirmed bookings</Link>
+            </Button>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href={`/crm/financials/${encodeURIComponent(lockedBookingId)}`}>
+                Ledger &amp; collections
+              </Link>
+            </Button>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link href={`/crm/bookings/${encodeURIComponent(lockedBookingId)}`}>
+                Open booking
+              </Link>
             </Button>
           </div>
         ) : null}
@@ -338,6 +374,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                     kycComplete={printPack.kycComplete}
                     generatingKind={generatingKind}
                     onGenerate={handleMatrixGenerate}
+                    scheduleLabelById={docScheduleLabels}
                   />
                 </div>
               </>
@@ -359,6 +396,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                 loading={loadingGenerated}
                 variant="bookingFocus"
                 showDownload
+                scheduleLabelById={docScheduleLabels}
                 onRefresh={() => void loadGeneratedForBooking(lockedBookingId)}
               />
             </div>

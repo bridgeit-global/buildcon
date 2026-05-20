@@ -13,7 +13,10 @@ import {
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Download, RefreshCw, Search } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { parseLinkIdFromBookingGeneratedPath } from '@/lib/booking/booking-generated-doc-kind';
+import {
+  parseKindFromBookingGeneratedPath,
+  parseLinkIdFromBookingGeneratedPath
+} from '@/lib/booking/booking-generated-doc-kind';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,15 +89,24 @@ export function storageBucketForGeneratedPath(storagePath: string): string | nul
   return null;
 }
 
-export function formatGeneratedDocKind(storagePath: string, hasTemplate: boolean): string {
+export function formatGeneratedDocKind(
+  storagePath: string,
+  hasTemplate: boolean,
+  scheduleLabelById?: Map<string, string>
+): string {
   if (storagePath.includes('/booking-generated/')) {
+    const kind = parseKindFromBookingGeneratedPath(storagePath);
     const linkId = parseLinkIdFromBookingGeneratedPath(storagePath);
-    const linkNote = linkId ? ' · linked entry' : '';
-    if (storagePath.includes('/application-form-')) return 'Application form';
-    if (storagePath.includes('/allotment-letter-')) return 'Allotment letter';
-    if (storagePath.includes('/receipt-')) return `Payment receipt${linkNote}`;
-    if (storagePath.includes('/demand-letter-')) return `Demand letter${linkNote}`;
-    if (storagePath.includes('/agreement-')) return 'Draft sale agreement';
+    const linkNote = linkId
+      ? scheduleLabelById?.get(linkId)
+        ? ` · ${scheduleLabelById.get(linkId)}`
+        : ' · linked entry'
+      : '';
+    if (kind === 'application-form') return 'Application form';
+    if (kind === 'allotment-letter') return 'Allotment letter';
+    if (kind === 'receipt') return `Payment receipt${linkNote}`;
+    if (kind === 'demand-letter') return `Demand letter${linkNote}`;
+    if (kind === 'agreement') return 'Draft sale agreement';
     return 'Booking document (file)';
   }
   if (storagePath.startsWith('print/application-form/')) return 'Application form (print log)';
@@ -132,6 +144,7 @@ type GeneratedDocumentsTableProps = {
   /** Signed URL download for rows backed by storage (e.g. `documents/…`). */
   showDownload?: boolean;
   onRefresh?: () => void;
+  scheduleLabelById?: Map<string, string>;
 };
 
 export function GeneratedDocumentsTable({
@@ -139,7 +152,8 @@ export function GeneratedDocumentsTable({
   loading,
   variant = 'default',
   showDownload = false,
-  onRefresh
+  onRefresh,
+  scheduleLabelById
 }: GeneratedDocumentsTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -177,10 +191,14 @@ export function GeneratedDocumentsTable({
       id: 'kind',
       header: 'Kind',
       accessorFn: (row) =>
-        formatGeneratedDocKind(row.storage_path, Boolean(row.template_id)),
+        formatGeneratedDocKind(row.storage_path, Boolean(row.template_id), scheduleLabelById),
       cell: ({ row }) => (
         <span className="text-ds-gray-800">
-          {formatGeneratedDocKind(row.original.storage_path, Boolean(row.original.template_id))}
+          {formatGeneratedDocKind(
+            row.original.storage_path,
+            Boolean(row.original.template_id),
+            scheduleLabelById
+          )}
         </span>
       )
     };
@@ -283,7 +301,7 @@ export function GeneratedDocumentsTable({
       pathCol,
       ...(showDownload ? [downloadCol] : [])
     ];
-  }, [variant, showDownload, downloadBusyId, downloadRow]);
+  }, [variant, showDownload, downloadBusyId, downloadRow, scheduleLabelById]);
 
   const table = useReactTable({
     data: rows,
