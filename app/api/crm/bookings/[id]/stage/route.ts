@@ -5,6 +5,7 @@ import {
   resolveBookingAmountInr,
   syncBookingPaymentScheduleToSaleTotal
 } from '@/lib/booking/booking-schedule';
+import { seedConfirmationDocuments } from '@/lib/booking/seed-confirmation-documents';
 import {
   canAdvanceWorkflowStage,
   isTokenStageLocked,
@@ -168,5 +169,22 @@ export async function POST(
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, workflowStage: next });
+  let confirmationDocs: {
+    tokenReceiptCreated?: boolean;
+    tokenReceiptSkipped?: boolean;
+    seedError?: string;
+  } | undefined;
+
+  if (next === 'confirmation') {
+    const seed = await seedConfirmationDocuments(admin, bookingId, {
+      generatedBy: gate.userId
+    });
+    confirmationDocs = {
+      tokenReceiptCreated: seed.tokenReceiptCreated,
+      tokenReceiptSkipped: seed.tokenReceiptSkipped,
+      seedError: seed.error
+    };
+  }
+
+  return NextResponse.json({ ok: true, workflowStage: next, confirmationDocs });
 }

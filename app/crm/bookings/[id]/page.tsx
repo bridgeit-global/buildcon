@@ -37,16 +37,21 @@ import {
   canAdvanceWorkflowStage,
   isTokenStageLocked
 } from '../booking-stage-transitions';
-import { printApplicationForm } from '@/lib/booking/application-form-print';
-import { printAllotmentLetter } from '@/lib/booking/allotment-letter-print';
-import { formatCustomerAddress, pickCustomerAddress } from '@/lib/customer/application-form-data';
-import {
-  buildApplicantRows,
-  type CustomerAddressSnippet,
-  type CustomerApplicationProfile
-} from '@/lib/customer/application-form-data';
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
+import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
+import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
+import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
+import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
+import {
+  BookingDocumentsMatrixTable,
+  buildMatrixRows
+} from '@/app/crm/documents/booking-documents-matrix-table';
+import {
+  GeneratedDocumentsTable,
+  type GeneratedDocRow
+} from '@/app/crm/documents/generated-documents-table';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -94,12 +99,6 @@ export default function BookingDetailPage() {
   } | null>(null);
 
   const [buyerKyc, setBuyerKyc] = useState<BuyerKyc[]>([]);
-  const [buyerProfiles, setBuyerProfiles] = useState<
-    Map<string, CustomerApplicationProfile>
-  >(new Map());
-  const [buyerAddresses, setBuyerAddresses] = useState<
-    Map<string, CustomerAddressSnippet[]>
-  >(new Map());
   const [projectName, setProjectName] = useState<string | null>(null);
   const [projectLocation, setProjectLocation] = useState<string | null>(null);
   const kycFileRef = useRef<HTMLInputElement>(null);
@@ -117,7 +116,20 @@ export default function BookingDetailPage() {
   const [scheduleReceivedById, setScheduleReceivedById] = useState<
     Record<string, number>
   >({});
+  const [bookingCollections, setBookingCollections] = useState<
+    { id: string; schedule_id: string | null }[]
+  >([]);
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+
+  const [confirmationPrintPack, setConfirmationPrintPack] = useState<BookingPrintPack | null>(
+    null
+  );
+  const [confirmationDocsLoading, setConfirmationDocsLoading] = useState(false);
+  const [confirmationGenerated, setConfirmationGenerated] = useState<GeneratedDocRow[]>([]);
+  const [generatingDocKind, setGeneratingDocKind] = useState<BookingDocumentPrintKind | null>(null);
+  const [docDeliveryBanner, setDocDeliveryBanner] = useState('');
+  const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
+    useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -203,39 +215,14 @@ export default function BookingDetailPage() {
 
     const buyerIdList = buyerIds.map((b) => b.id);
 
-    const [{ data: custRows }, { data: allAddrRows }] = await Promise.all([
-      supabase
-        .from('customers')
-        .select(
-          'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address'
-        )
-        .in('id', buyerIdList),
-      supabase
-        .from('customer_addresses')
-        .select('customer_id,kind,address_line1,city,state,pin')
-        .in('customer_id', buyerIdList)
-    ]);
+    const { data: custRows } = await supabase
+      .from('customers')
+      .select(
+        'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address'
+      )
+      .in('id', buyerIdList);
 
     const custById = new Map((custRows ?? []).map((c) => [c.id as string, c]));
-    const profiles = new Map<string, CustomerApplicationProfile>();
-    for (const c of custRows ?? []) {
-      profiles.set(c.id as string, c as CustomerApplicationProfile);
-    }
-    setBuyerProfiles(profiles);
-
-    const addrByCustomer = new Map<string, CustomerAddressSnippet[]>();
-    for (const row of allAddrRows ?? []) {
-      const cid = row.customer_id as string;
-      if (!addrByCustomer.has(cid)) addrByCustomer.set(cid, []);
-      addrByCustomer.get(cid)!.push({
-        kind: String(row.kind),
-        address_line1: row.address_line1 as string | null,
-        city: row.city as string | null,
-        state: row.state as string | null,
-        pin: row.pin as string | null
-      });
-    }
-    setBuyerAddresses(addrByCustomer);
     const docsByCustomer = new Map<string, Set<string>>();
     for (const doc of kycRows ?? []) {
       const cid = doc.customer_id as string;
@@ -284,17 +271,23 @@ export default function BookingDetailPage() {
           .order('instalment_no', { ascending: true }),
         supabase
           .from('collections')
-          .select('schedule_id,received_amount')
+          .select('id,schedule_id,received_amount')
           .eq('booking_id', bookingId)
       ]);
     if (!sErr) setPaymentSchedules((sData ?? []) as typeof paymentSchedules);
     if (!cErr) {
       const map: Record<string, number> = {};
+      const collRows: { id: string; schedule_id: string | null }[] = [];
       for (const c of cData ?? []) {
+        collRows.push({
+          id: c.id as string,
+          schedule_id: c.schedule_id as string | null
+        });
         const sid = c.schedule_id as string | null;
         if (!sid) continue;
         map[sid] = (map[sid] || 0) + Number(c.received_amount || 0);
       }
+      setBookingCollections(collRows);
       setScheduleReceivedById(map);
     }
     setLoadingSchedule(false);
@@ -315,6 +308,105 @@ export default function BookingDetailPage() {
 
   const workflowStage = (booking?.workflow_stage ?? 'token') as BookingWorkflowStage;
   const cancelled = booking?.status === 'cancelled';
+
+  const refreshConfirmationGenerated = useCallback(async () => {
+    if (!bookingId) return;
+    setConfirmationDocsLoadingGenerated(true);
+    const { data, error: gErr } = await supabase
+      .from('generated_documents')
+      .select(GENERATED_DOCUMENTS_LIST_SELECT)
+      .eq('booking_id', bookingId)
+      .order('generated_at', { ascending: false })
+      .limit(200);
+    if (gErr) {
+      setError(gErr.message);
+    } else {
+      setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
+    }
+    setConfirmationDocsLoadingGenerated(false);
+  }, [bookingId, supabase]);
+
+  useEffect(() => {
+    if (!bookingId || workflowStage !== 'confirmation' || cancelled) {
+      setConfirmationPrintPack(null);
+      setConfirmationGenerated([]);
+      setConfirmationDocsLoading(false);
+      setDocDeliveryBanner('');
+      return;
+    }
+    let ignore = false;
+    (async () => {
+      setConfirmationDocsLoading(true);
+      const [packRes, genRes] = await Promise.all([
+        loadBookingPrintPack(supabase, bookingId),
+        supabase
+          .from('generated_documents')
+          .select(GENERATED_DOCUMENTS_LIST_SELECT)
+          .eq('booking_id', bookingId)
+          .order('generated_at', { ascending: false })
+          .limit(200)
+      ]);
+      if (ignore) return;
+      if (packRes.ok) setConfirmationPrintPack(packRes.pack);
+      else setConfirmationPrintPack(null);
+      if (genRes.error) setError(genRes.error.message);
+      else setConfirmationGenerated((genRes.data ?? []) as GeneratedDocRow[]);
+      setConfirmationDocsLoading(false);
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [bookingId, workflowStage, cancelled, supabase]);
+
+  const scheduleLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of paymentSchedules) {
+      m.set(s.id, `${s.instalment_no}. ${s.milestone}`);
+    }
+    for (const c of bookingCollections) {
+      if (c.schedule_id && m.has(c.schedule_id)) {
+        m.set(c.id, m.get(c.schedule_id)!);
+      } else if (!c.schedule_id) {
+        m.set(c.id, 'Unassigned receipt');
+      }
+    }
+    return m;
+  }, [paymentSchedules, bookingCollections]);
+
+  const confirmationMatrixRows = useMemo(
+    () => buildMatrixRows(confirmationGenerated),
+    [confirmationGenerated]
+  );
+
+  const handleConfirmationDocGenerate = useCallback(
+    async (kind: BookingDocumentPrintKind) => {
+      if (!confirmationPrintPack) return;
+      setGeneratingDocKind(kind);
+      setDocDeliveryBanner('');
+      try {
+        const r = await generateAndNotifyBookingDocument({
+          supabase,
+          bookingId: confirmationPrintPack.booking.id,
+          pack: confirmationPrintPack,
+          kind
+        });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setDocDeliveryBanner(
+          formatDocumentDeliveryNotice('Document generated and saved.', r.notify)
+        );
+        await refreshConfirmationGenerated();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Generate failed');
+      } finally {
+        setGeneratingDocKind(null);
+      }
+    },
+    [confirmationPrintPack, supabase, refreshConfirmationGenerated]
+  );
+
   const stepIndex = BOOKING_WORKFLOW_STAGES.indexOf(workflowStage);
   const tokenStageLocked = useMemo(
     () => isTokenStageLocked(stageData, workflowStage),
@@ -343,70 +435,6 @@ export default function BookingDetailPage() {
       ),
     [buyerKyc]
   );
-
-  function generateAllotmentLetter() {
-    if (!booking) return;
-    setError('');
-    try {
-      const primaryAddr = pickCustomerAddress(
-        buyerAddresses.get(booking.customer_id) ?? [],
-        'current'
-      );
-      const co = (booking.co_buyers ?? []) as CoBuyerStored[];
-      printAllotmentLetter({
-        letterRef: stageData.allotment?.allotment_letter_ref,
-        allotmentDate: stageData.allotment?.allotment_date,
-        projectName,
-        projectLocation,
-        unitCode: unit?.unit_code ?? null,
-        wingName: unit?.wing_name ?? null,
-        floor: unit?.floor ?? null,
-        unitType: unit?.unit_type ?? null,
-        bookingId: booking.id,
-        bookingCreatedAt: booking.created_at,
-        bookingAmount: booking.booking_amount,
-        customerName: customer?.full_name ?? null,
-        coBuyerNames: co.map((c) => c.full_name).filter(Boolean),
-        customerAddress: formatCustomerAddress(primaryAddr) || null
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate allotment letter');
-    }
-  }
-
-  function generateApplicationForm() {
-    if (!booking) return;
-    if (!kycComplete) {
-      setError(
-        'Complete KYC for all applicants (PAN, Aadhaar, and document uploads) on the Customers page before generating the application form.'
-      );
-      return;
-    }
-    setError('');
-    try {
-      const buyers = buyerKyc.map((b) => ({ id: b.customerId, label: b.label }));
-      const applicants = buildApplicantRows(buyers, buyerProfiles, buyerAddresses);
-      printApplicationForm({
-        applicationFormNo: booking.id,
-        projectName,
-        projectLocation,
-        unitCode: unit?.unit_code ?? null,
-        wingName: unit?.wing_name ?? null,
-        floor: unit?.floor ?? null,
-        unitType: unit?.unit_type ?? null,
-        bookingAmount: booking.booking_amount,
-        paymentMode:
-          stageData.token?.mode ?? booking.payment_mode ?? null,
-        tokenDate: stageData.token?.date ?? null,
-        tokenReference: stageData.token?.reference ?? null,
-        loanFromBank: Boolean(booking.loan_bank),
-        preferredBank: booking.loan_bank,
-        applicants
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate form');
-    }
-  }
 
   async function saveStagePatch(patch: Record<string, unknown>) {
     if (!booking || cancelled) return;
@@ -472,9 +500,41 @@ export default function BookingDetailPage() {
           stageDataPatch: stagePatchForAdvance()
         })
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as {
+        error?: string;
+        workflowStage?: string;
+        confirmationDocs?: {
+          tokenReceiptCreated?: boolean;
+          tokenReceiptSkipped?: boolean;
+          seedError?: string;
+        };
+      };
       if (!res.ok) throw new Error(json.error || 'Advance failed');
+      if (json.confirmationDocs) {
+        const cd = json.confirmationDocs;
+        if (cd.seedError) {
+          setDocDeliveryBanner(
+            `Booking confirmed. Token receipt PDF could not be saved: ${cd.seedError}`
+          );
+        } else if (cd.tokenReceiptCreated) {
+          setDocDeliveryBanner(
+            'Booking confirmed. Token posted to the ledger; token receipt PDF saved under Documents below.'
+          );
+        } else {
+          setDocDeliveryBanner(
+            'Booking confirmed. Payment schedule and ledger are ready — generate or review documents below.'
+          );
+        }
+      }
       await load();
+      if (json.workflowStage === 'confirmation') {
+        requestAnimationFrame(() => {
+          document.getElementById('booking-documents')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Advance failed');
     } finally {
@@ -594,6 +654,14 @@ export default function BookingDetailPage() {
             Unit locked while workflow is active. Complete each step to confirm the booking.
           </p>
         </div>
+        {!loading && booking && workflowStage === 'confirmation' && !cancelled ? (
+          <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1" asChild>
+            <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
+              <FileText className="h-4 w-4" />
+              Documents
+            </Link>
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
@@ -743,8 +811,15 @@ export default function BookingDetailPage() {
               <h2 className="font-semibold text-ds-gray-900">Application form</h2>
               <p className="text-sm text-ds-gray-600">
                 PAN and Aadhaar are loaded from each customer&apos;s profile (complete KYC on
-                Customers first). Upload documents here or generate a printable application
-                form.
+                Customers first). Upload documents here; generate the printable application form
+                from{' '}
+                <Link
+                  className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
+                  href={`/crm/documents/${encodeURIComponent(booking.id)}`}
+                >
+                  Agreements &amp; documents
+                </Link>
+                .
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -896,18 +971,17 @@ export default function BookingDetailPage() {
               ) : null}
 
               <div className="flex flex-wrap gap-2">
-                {kycComplete ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-1"
-                    disabled={saving || buyerKyc.length === 0}
-                    onClick={() => generateApplicationForm()}
-                  >
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  asChild
+                >
+                  <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
                     <FileText className="h-4 w-4" />
-                    Generate application form
-                  </Button>
-                ) : null}
+                    Agreements &amp; documents
+                  </Link>
+                </Button>
                 <Button
                   variant="outline"
                   disabled={saving}
@@ -956,15 +1030,11 @@ export default function BookingDetailPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-1"
-                  disabled={saving}
-                  onClick={() => generateAllotmentLetter()}
-                >
-                  <FileText className="h-4 w-4" />
-                  Generate allotment letter
+                <Button type="button" variant="outline" className="gap-1" asChild>
+                  <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
+                    <FileText className="h-4 w-4" />
+                    Allotment letter &amp; PDFs
+                  </Link>
                 </Button>
                 <Button
                   disabled={saving}
@@ -1012,32 +1082,138 @@ export default function BookingDetailPage() {
                   </div>
                 </div>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                {!cancelled ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-1"
-                    disabled={saving}
-                    onClick={() => generateAllotmentLetter()}
+              {!cancelled && unit ? (
+                <div className="rounded-lg border border-ds-gray-200 bg-ds-gray-50/40 p-3">
+                  <div className="text-sm font-semibold text-ds-gray-900">
+                    Booked unit
+                  </div>
+                  <p className="mt-1 text-xs text-ds-gray-500">
+                    Inventory locked to this booking at confirmation.
+                  </p>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-ds-gray-200 text-xs text-ds-gray-500">
+                          <th className="py-2 pr-3 font-medium">Unit</th>
+                          <th className="py-2 pr-3 font-medium">Wing</th>
+                          <th className="py-2 pr-3 font-medium">Floor</th>
+                          <th className="py-2 pr-3 font-medium">Type</th>
+                          <th className="py-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-ds-gray-100 text-ds-gray-800">
+                          <td className="py-2 pr-3 font-medium tabular-nums">
+                            {unit.unit_code}
+                          </td>
+                          <td className="py-2 pr-3">{unit.wing_name ?? '—'}</td>
+                          <td className="py-2 pr-3 tabular-nums">
+                            {unit.floor ?? '—'}
+                          </td>
+                          <td className="py-2 pr-3">{unit.unit_type ?? '—'}</td>
+                          <td className="py-2">{unit.status ?? '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+              {!cancelled ? (
+                <>
+                  <div
+                    id="booking-documents"
+                    className="space-y-3 border-t border-ds-gray-200 pt-4 scroll-mt-4"
                   >
-                    <FileText className="h-4 w-4" />
-                    Generate allotment letter
-                  </Button>
-                ) : null}
-                <Button variant="outline" asChild>
-                  <Link href={`/crm/financials/${bookingId}`}>
-                    Manage collections
-                  </Link>
-                </Button>
-                {booking?.project_id ? (
+                    <div>
+                      <h3 className="text-sm font-semibold text-ds-gray-900">Booking documents</h3>
+                      <p className="mt-1 text-xs text-ds-gray-500">
+                        Generate and store each document, download from the table, and notify the
+                        buyer (email when Resend is configured; WhatsApp opens with a prefilled
+                        message for you to send).
+                      </p>
+                    </div>
+                    {docDeliveryBanner ? (
+                      <div className="rounded-lg border border-ds-primary-200 bg-ds-primary-50/70 px-3 py-2 text-sm text-ds-primary-900">
+                        {docDeliveryBanner}
+                      </div>
+                    ) : null}
+                    {confirmationDocsLoading ? (
+                      <p className="text-sm text-ds-gray-500">Loading document tools…</p>
+                    ) : confirmationPrintPack ? (
+                      <BookingDocumentsMatrixTable
+                        rows={confirmationMatrixRows}
+                        kycComplete={confirmationPrintPack.kycComplete}
+                        generatingKind={generatingDocKind}
+                        onGenerate={handleConfirmationDocGenerate}
+                        scheduleLabelById={scheduleLabelById}
+                      />
+                    ) : (
+                      <p className="text-sm text-ds-warning-800">
+                        Could not load document data. Open{' '}
+                        <Link
+                          className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
+                          href={`/crm/documents/${encodeURIComponent(booking.id)}`}
+                        >
+                          Agreements &amp; documents
+                        </Link>{' '}
+                        for the full page.
+                      </p>
+                    )}
+                    <div className="border-t border-ds-gray-200 pt-4">
+                      <div className="mb-2">
+                        <div className="text-sm font-semibold text-ds-gray-900">Document history</div>
+                        <p className="text-xs text-ds-gray-500">
+                          Every payment receipt and demand letter for this unit (including from
+                          Financials). Multiple receipts and demands appear as separate rows.
+                        </p>
+                      </div>
+                      <GeneratedDocumentsTable
+                        rows={confirmationGenerated}
+                        loading={confirmationDocsLoading || confirmationDocsLoadingGenerated}
+                        variant="bookingFocus"
+                        showDownload
+                        scheduleLabelById={scheduleLabelById}
+                        onRefresh={() => void refreshConfirmationGenerated()}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" className="gap-1" asChild>
+                      <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
+                        <FileText className="h-4 w-4" />
+                        View all documents
+                      </Link>
+                    </Button>
                   <Button variant="outline" asChild>
-                    <Link href={`/crm/project/${booking.project_id}/cld`}>
-                      Project CLD
+                    <Link href={`/crm/financials/${bookingId}`}>
+                      Ledger &amp; collections
                     </Link>
                   </Button>
-                ) : null}
-              </div>
+                  {booking?.project_id ? (
+                    <Button variant="outline" asChild>
+                      <Link href={`/crm/project/${booking.project_id}/cld`}>
+                        Project CLD
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
+                </>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" asChild>
+                    <Link href={`/crm/financials/${bookingId}`}>
+                      Manage collections
+                    </Link>
+                  </Button>
+                  {booking?.project_id ? (
+                    <Button variant="outline" asChild>
+                      <Link href={`/crm/project/${booking.project_id}/cld`}>
+                        Project CLD
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
+              )}
             </Card>
           ) : null}
 
