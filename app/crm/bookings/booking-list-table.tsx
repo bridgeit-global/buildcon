@@ -81,13 +81,19 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
         header: 'Unit',
         cell: ({ row }) => {
           const u = unwrapJoin(row.original.units);
+          const href = `/crm/bookings/${row.original.id}`;
           return (
-            <div>
-              <span className="font-medium text-ds-gray-900">{u?.unit_code ?? '—'}</span>
+            <Link
+              href={href}
+              className="block min-h-[44px] min-w-0 rounded-md py-1.5 pl-0 pr-2 text-left outline-offset-2 hover:bg-ds-primary-50/50 focus-visible:ring-2 focus-visible:ring-ds-primary-500"
+            >
+              <span className="font-medium text-ds-gray-900 underline-offset-2 hover:underline">
+                {u?.unit_code ?? '—'}
+              </span>
               <span className="block text-xs text-ds-gray-500">
                 {u ? `${u.wing_name} · F${u.floor}` : ''}
               </span>
-            </div>
+            </Link>
           );
         }
       },

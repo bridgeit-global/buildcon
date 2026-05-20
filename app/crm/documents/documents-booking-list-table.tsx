@@ -1,0 +1,265 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type FilterFn
+} from '@tanstack/react-table';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+
+export type DocumentsBookingListRow = {
+  id: string;
+  workflow_stage: string;
+  projects: { name: string } | { name: string }[] | null;
+  customers:
+    | { full_name: string }
+    | { full_name: string }[]
+    | null;
+  units:
+    | { unit_code: string }
+    | { unit_code: string }[]
+    | null;
+};
+
+function unwrapJoin<T>(x: T | T[] | null | undefined): T | null {
+  if (x == null) return null;
+  return Array.isArray(x) ? (x[0] ?? null) : x;
+}
+
+function projectName(p: DocumentsBookingListRow['projects']) {
+  const row = unwrapJoin(p);
+  return row?.name ?? '—';
+}
+
+const globalDocumentsBookingFilter: FilterFn<DocumentsBookingListRow> = (
+  row,
+  _columnId,
+  raw
+) => {
+  const q = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (!q) return true;
+  const b = row.original;
+  const u = unwrapJoin(b.units);
+  const c = unwrapJoin(b.customers);
+  const hay = [projectName(b.projects), u?.unit_code, c?.full_name, b.id]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+};
+
+type DocumentsBookingListTableProps = {
+  rows: DocumentsBookingListRow[];
+  loading: boolean;
+  selectedBookingId: string;
+};
+
+export function DocumentsBookingListTable({
+  rows,
+  loading,
+  selectedBookingId
+}: DocumentsBookingListTableProps) {
+  const router = useRouter();
+  const [globalFilter, setGlobalFilter] = useState('');
+
+  const columns = useMemo<ColumnDef<DocumentsBookingListRow, unknown>[]>(
+    () => [
+      {
+        id: 'project',
+        header: 'Project',
+        accessorFn: (row) => projectName(row.projects),
+        cell: ({ row }) => (
+          <span className="text-ds-gray-700">{projectName(row.original.projects)}</span>
+        )
+      },
+      {
+        id: 'unit',
+        header: 'Unit',
+        accessorFn: (row) => unwrapJoin(row.units)?.unit_code ?? '',
+        cell: ({ row }) => {
+          const u = unwrapJoin(row.original.units);
+          return (
+            <span className="font-semibold text-ds-gray-900">{u?.unit_code ?? '—'}</span>
+          );
+        }
+      },
+      {
+        id: 'customer',
+        header: 'Customer',
+        accessorFn: (row) => unwrapJoin(row.customers)?.full_name ?? '',
+        cell: ({ row }) => (
+          <span className="text-ds-gray-700">
+            {unwrapJoin(row.original.customers)?.full_name ?? '—'}
+          </span>
+        )
+      }
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { globalFilter },
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: globalDocumentsBookingFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 15 } }
+  });
+
+  function goToBookingDocuments(bookingId: string) {
+    router.push(`/crm/documents/${encodeURIComponent(bookingId)}`);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-[200px] flex-1">
+          <Label className="text-ds-gray-600">Search bookings</Label>
+          <div className="relative mt-1">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ds-gray-400" />
+            <Input
+              className="pl-9"
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="Project, unit, customer…"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="sr-only sm:not-sr-only sm:text-ds-gray-600">Rows</Label>
+          <Select
+            value={String(table.getState().pagination.pageSize)}
+            onValueChange={(v) => table.setPageSize(Number(v))}
+          >
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[10, 15, 25, 50].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+        <table className="w-full min-w-[52rem] caption-bottom text-sm">
+          <thead>
+            {table.getHeaderGroups().map((hg) => (
+              <tr
+                key={hg.id}
+                className="border-b border-ds-gray-200 bg-ds-gray-50 text-left text-xs font-semibold text-ds-gray-500"
+              >
+                {hg.headers.map((h) => (
+                  <th key={h.id} className="px-4 py-3">
+                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-10 text-center text-ds-gray-500">
+                  Loading bookings…
+                </td>
+              </tr>
+            ) : table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-10 text-center text-ds-gray-500">
+                  {rows.length === 0
+                    ? 'No confirmed bookings.'
+                    : 'No rows match your search.'}
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row) => {
+                const id = row.original.id;
+                const isSelected = id === selectedBookingId;
+                return (
+                  <tr
+                    key={row.id}
+                    tabIndex={0}
+                    role="link"
+                    aria-label="Open documents for this booking"
+                    className={cn(
+                      'cursor-pointer border-b border-ds-gray-100 transition-colors hover:bg-ds-gray-50/80',
+                      isSelected && 'bg-ds-primary-50/70 hover:bg-ds-primary-50'
+                    )}
+                    onClick={() => goToBookingDocuments(id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        goToBookingDocuments(id);
+                      }
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-4 py-3 align-middle">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-ds-gray-500">
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Prev
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
