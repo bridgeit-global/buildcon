@@ -41,13 +41,17 @@ import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
 import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
+import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
 import {
   BookingDocumentsMatrixTable,
   buildMatrixRows
 } from '@/app/crm/documents/booking-documents-matrix-table';
-import type { GeneratedDocRow } from '@/app/crm/documents/generated-documents-table';
+import {
+  GeneratedDocumentsTable,
+  type GeneratedDocRow
+} from '@/app/crm/documents/generated-documents-table';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -121,6 +125,8 @@ export default function BookingDetailPage() {
   const [confirmationGenerated, setConfirmationGenerated] = useState<GeneratedDocRow[]>([]);
   const [generatingDocKind, setGeneratingDocKind] = useState<BookingDocumentPrintKind | null>(null);
   const [docDeliveryBanner, setDocDeliveryBanner] = useState('');
+  const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
+    useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -296,6 +302,7 @@ export default function BookingDetailPage() {
 
   const refreshConfirmationGenerated = useCallback(async () => {
     if (!bookingId) return;
+    setConfirmationDocsLoadingGenerated(true);
     const { data, error: gErr } = await supabase
       .from('generated_documents')
       .select(GENERATED_DOCUMENTS_LIST_SELECT)
@@ -304,9 +311,10 @@ export default function BookingDetailPage() {
       .limit(200);
     if (gErr) {
       setError(gErr.message);
-      return;
+    } else {
+      setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
     }
-    setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
+    setConfirmationDocsLoadingGenerated(false);
   }, [bookingId, supabase]);
 
   useEffect(() => {
@@ -362,19 +370,9 @@ export default function BookingDetailPage() {
           setError(r.error);
           return;
         }
-        const n = r.notify;
-        const bits: string[] = [];
-        if (n.emailSent) bits.push('Customer email sent.');
-        if (n.emailSkippedReason) bits.push(`Email: ${n.emailSkippedReason}`);
-        if (n.whatsappUrl) {
-          window.open(n.whatsappUrl, '_blank', 'noopener,noreferrer');
-          bits.push(
-            'WhatsApp opened with a prefilled message — press Send to deliver to the customer.'
-          );
-        } else if (n.whatsappSkippedReason) {
-          bits.push(`WhatsApp: ${n.whatsappSkippedReason}`);
-        }
-        setDocDeliveryBanner(bits.join(' '));
+        setDocDeliveryBanner(
+          formatDocumentDeliveryNotice('Document generated and saved.', r.notify)
+        );
         await refreshConfirmationGenerated();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Generate failed');
@@ -1101,6 +1099,22 @@ export default function BookingDetailPage() {
                         for the full page.
                       </p>
                     )}
+                    <div className="border-t border-ds-gray-200 pt-4">
+                      <div className="mb-2">
+                        <div className="text-sm font-semibold text-ds-gray-900">Document history</div>
+                        <p className="text-xs text-ds-gray-500">
+                          Every payment receipt and demand letter for this unit (including from
+                          Financials). Multiple receipts and demands appear as separate rows.
+                        </p>
+                      </div>
+                      <GeneratedDocumentsTable
+                        rows={confirmationGenerated}
+                        loading={confirmationDocsLoading || confirmationDocsLoadingGenerated}
+                        variant="bookingFocus"
+                        showDownload
+                        onRefresh={() => void refreshConfirmationGenerated()}
+                      />
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" className="gap-1" asChild>

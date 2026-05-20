@@ -19,6 +19,13 @@ import {
 } from '@/components/ui/select';
 import { formatInr, formatInrCompactLacCr } from '../../inr-format';
 import { PaymentScheduleTable } from '../payment-schedule-table';
+import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
+import {
+  generatedReceiptExistsForCollection,
+  persistCollectionReceipt
+} from '@/lib/booking/persist-collection-receipt';
+import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import { persistGeneratedBookingDocument } from '@/lib/booking/persist-generated-booking-document';
 
 const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
 
@@ -62,6 +69,8 @@ export default function FinancialsBookingPage() {
   const [entryMode, setEntryMode] = useState('NEFT');
   const [entryRef, setEntryRef] = useState('');
   const [saving, setSaving] = useState(false);
+  const [docNotice, setDocNotice] = useState('');
+  const [generatingDemandFor, setGeneratingDemandFor] = useState<string | null>(null);
 
   async function syncScheduleIfNeeded() {
     try {
@@ -165,26 +174,134 @@ export default function FinancialsBookingPage() {
   );
   const totalBalance = totalAmount - totalReceived;
 
+  function instalmentLabelForSchedule(scheduleId: string | null): string | null {
+    if (!scheduleId) return 'Unassigned receipt';
+    const row = schedules.find((s) => s.id === scheduleId);
+    if (!row) return null;
+    return `${row.instalment_no}. ${row.milestone}`;
+  }
+
   async function addCollection() {
     if (!bookingId || !entryAmount) return;
     setSaving(true);
     setError('');
+    setDocNotice('');
     try {
-      const { error: insErr } = await supabase.from('collections').insert({
-        booking_id: bookingId,
-        schedule_id: entryScheduleId || null,
-        received_amount: Number(entryAmount),
-        received_at: entryDate || null,
-        mode: entryMode,
-        reference: entryRef || null
-      });
+      const { data: inserted, error: insErr } = await supabase
+        .from('collections')
+        .insert({
+          booking_id: bookingId,
+          schedule_id: entryScheduleId || null,
+          received_amount: Number(entryAmount),
+          received_at: entryDate || null,
+          mode: entryMode,
+          reference: entryRef || null
+        })
+        .select('id')
+        .maybeSingle();
       if (insErr) throw insErr;
+      const collectionId = inserted?.id as string | undefined;
+      if (collectionId) {
+        const receiptRes = await persistCollectionReceipt(supabase, bookingId, {
+          collectionId,
+          receivedAmount: Number(entryAmount),
+          receivedAt: entryDate || null,
+          mode: entryMode,
+          reference: entryRef || null,
+          instalmentLabel: instalmentLabelForSchedule(entryScheduleId || null)
+        });
+        if (receiptRes.ok) {
+          setDocNotice(
+            formatDocumentDeliveryNotice(
+              'Collection saved. Payment receipt stored in Documents for this unit.',
+              receiptRes.notify
+            )
+          );
+        } else {
+          setDocNotice(`Collection saved; receipt file failed: ${receiptRes.error}`);
+        }
+      }
       setEntryAmount('');
       setEntryDate('');
       setEntryRef('');
       await loadFinancials();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save collection');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function generateDemandForSchedule(schedule: ScheduleRow) {
+    if (!bookingId) return;
+    setGeneratingDemandFor(schedule.id);
+    setError('');
+    setDocNotice('');
+    try {
+      const packRes = await loadBookingPrintPack(supabase, bookingId);
+      if (!packRes.ok) throw new Error(packRes.error);
+      const received = receivedBySchedule[schedule.id] || 0;
+      const pending = Math.max(0, (schedule.amount || 0) - received);
+      const persisted = await persistGeneratedBookingDocument(
+        supabase,
+        packRes.pack,
+        'demand-letter',
+        {
+          linkId: schedule.id,
+          htmlOverrides: {
+            instalmentLabel: `${schedule.instalment_no}. ${schedule.milestone}`,
+            demandAmount: pending > 0 ? pending : schedule.amount,
+            demandDueDate: schedule.due_date
+          }
+        }
+      );
+      if (!persisted.ok) throw new Error(persisted.error);
+      setDocNotice(
+        `Demand letter for instalment ${schedule.instalment_no} saved to Documents.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Demand letter failed');
+    } finally {
+      setGeneratingDemandFor(null);
+    }
+  }
+
+  async function generateReceiptForCollection(c: CollectionRow) {
+    setSaving(true);
+    setError('');
+    setDocNotice('');
+    try {
+      const { data: existing } = await supabase
+        .from('generated_documents')
+        .select('storage_path')
+        .eq('booking_id', bookingId)
+        .limit(200);
+      if (
+        generatedReceiptExistsForCollection(
+          (existing ?? []) as { storage_path: string }[],
+          c.id
+        )
+      ) {
+        setDocNotice('Receipt for this collection is already in Documents.');
+        return;
+      }
+      const receiptRes = await persistCollectionReceipt(supabase, bookingId, {
+        collectionId: c.id,
+        receivedAmount: c.received_amount,
+        receivedAt: c.received_at,
+        mode: c.mode,
+        reference: c.reference,
+        instalmentLabel: instalmentLabelForSchedule(c.schedule_id)
+      });
+      if (!receiptRes.ok) throw new Error(receiptRes.error);
+      setDocNotice(
+        formatDocumentDeliveryNotice(
+          'Payment receipt saved to Documents for this unit.',
+          receiptRes.notify
+        )
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Receipt failed');
     } finally {
       setSaving(false);
     }
@@ -201,6 +318,11 @@ export default function FinancialsBookingPage() {
         </Button>
         <Button variant="outline" size="sm" asChild>
           <Link href={`/crm/bookings/${bookingId}`}>Open booking</Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/crm/documents/${encodeURIComponent(bookingId)}`}>
+            Unit documents
+          </Link>
         </Button>
       </div>
 
@@ -240,6 +362,11 @@ export default function FinancialsBookingPage() {
             {error}
           </div>
         ) : null}
+        {docNotice ? (
+          <div className="mt-3 rounded-md border border-ds-primary-200 bg-ds-primary-50/70 p-3 text-sm text-ds-primary-900">
+            {docNotice}
+          </div>
+        ) : null}
       </Card>
 
       <Card className="p-4 sm:p-6">
@@ -255,6 +382,39 @@ export default function FinancialsBookingPage() {
             loading={loading}
           />
         </div>
+        {schedules.length > 0 ? (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="text-xs font-semibold text-ds-gray-500">Demand letters</div>
+            <p className="text-xs text-ds-gray-500">
+              Generate one demand letter per instalment; each is stored under Documents for this
+              unit.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {schedules.map((s) => {
+                const received = receivedBySchedule[s.id] || 0;
+                const pending = Math.max(0, (s.amount || 0) - received);
+                const busy = generatingDemandFor === s.id;
+                return (
+                  <Button
+                    key={s.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || loading || pending <= 0}
+                    onClick={() => void generateDemandForSchedule(s)}
+                    title={
+                      pending <= 0
+                        ? 'No pending amount on this instalment'
+                        : `Demand for ₹ ${formatInr(pending, { maximumFractionDigits: 0 })}`
+                    }
+                  >
+                    {busy ? 'Saving…' : `Demand — ${s.instalment_no}. ${s.milestone}`}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="p-4 sm:p-6">
@@ -373,8 +533,19 @@ export default function FinancialsBookingPage() {
                     {c.mode ?? '—'} · {c.received_at ?? '—'} · {c.reference ?? '—'}
                   </div>
                 </div>
-                <div className="text-xs text-ds-gray-500">
-                  {c.schedule_id ? 'Assigned to instalment' : 'Unassigned'}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-ds-gray-500">
+                    {c.schedule_id ? 'Assigned to instalment' : 'Unassigned'}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={saving || loading}
+                    onClick={() => void generateReceiptForCollection(c)}
+                  >
+                    Save receipt to Documents
+                  </Button>
                 </div>
               </div>
             ))}

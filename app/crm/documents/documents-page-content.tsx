@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
+import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
 import {
@@ -166,17 +167,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           setError(r.error);
           return;
         }
-        const n = r.notify;
-        const bits: string[] = [];
-        if (n.emailSent) bits.push('Customer email sent.');
-        if (n.emailSkippedReason) bits.push(`Email: ${n.emailSkippedReason}`);
-        if (n.whatsappUrl) {
-          window.open(n.whatsappUrl, '_blank', 'noopener,noreferrer');
-          bits.push('WhatsApp opened with a prefilled message — press Send to deliver to the customer.');
-        } else if (n.whatsappSkippedReason) {
-          bits.push(`WhatsApp: ${n.whatsappSkippedReason}`);
-        }
-        setDeliveryBanner(bits.join(' '));
+        setDeliveryBanner(
+          formatDocumentDeliveryNotice('Document generated and saved.', r.notify)
+        );
         await refreshGenerated();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Generate failed');
@@ -356,8 +349,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
               <div className="mb-3">
                 <div className="text-sm font-semibold text-ds-gray-900">History</div>
                 <div className="text-xs text-ds-gray-500">
-                  All generated rows for this booking (newest first). Older print-only audit rows
-                  may appear without a download.
+                  All generated rows for this booking (newest first), including every payment
+                  receipt and demand letter. Older print-only audit rows may appear without a
+                  download.
                 </div>
               </div>
               <GeneratedDocumentsTable

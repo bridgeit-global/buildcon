@@ -23,28 +23,43 @@ export type BookingDocMatrixRow = {
   kind: BookingDocumentPrintKind;
   label: string;
   latest: GeneratedDocRow | null;
+  /** All stored files for this kind (newest first). */
+  versions: GeneratedDocRow[];
 };
+
+export function storedRowsForKind(
+  rows: GeneratedDocRow[],
+  kind: BookingDocumentPrintKind
+): GeneratedDocRow[] {
+  return rows
+    .filter((r) => {
+      if (storageBucketForGeneratedPath(r.storage_path) !== 'documents') return false;
+      return parseKindFromBookingGeneratedPath(r.storage_path) === kind;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime()
+    );
+}
 
 function latestStoredRowForKind(
   rows: GeneratedDocRow[],
   kind: BookingDocumentPrintKind
 ): GeneratedDocRow | null {
-  const matches = rows.filter((r) => {
-    if (storageBucketForGeneratedPath(r.storage_path) !== 'documents') return false;
-    return parseKindFromBookingGeneratedPath(r.storage_path) === kind;
-  });
-  if (matches.length === 0) return null;
-  return matches.reduce((a, b) =>
-    new Date(a.generated_at).getTime() >= new Date(b.generated_at).getTime() ? a : b
-  );
+  const matches = storedRowsForKind(rows, kind);
+  return matches[0] ?? null;
 }
 
 function buildMatrixRows(generated: GeneratedDocRow[]): BookingDocMatrixRow[] {
-  return BOOKING_DOCUMENT_MATRIX_KINDS.map((kind) => ({
-    kind,
-    label: BOOKING_DOCUMENT_KIND_LABEL[kind],
-    latest: latestStoredRowForKind(generated, kind)
-  }));
+  return BOOKING_DOCUMENT_MATRIX_KINDS.map((kind) => {
+    const versions = storedRowsForKind(generated, kind);
+    return {
+      kind,
+      label: BOOKING_DOCUMENT_KIND_LABEL[kind],
+      latest: versions[0] ?? null,
+      versions
+    };
+  });
 }
 
 type BookingDocumentsMatrixTableProps = {
@@ -105,14 +120,24 @@ export function BookingDocumentsMatrixTable({
         header: 'Last generated',
         accessorFn: (r) => r.latest?.generated_at ?? '',
         cell: ({ row }) => {
-          const latest = row.original.latest;
+          const { latest, versions, kind } = row.original;
           if (!latest) {
             return <span className="text-sm text-ds-gray-500">Not generated yet</span>;
           }
+          const multi = versions.length > 1;
+          const showCount =
+            multi && (kind === 'receipt' || kind === 'demand-letter');
           return (
-            <span className="whitespace-nowrap text-sm text-ds-gray-600">
-              {new Date(latest.generated_at).toLocaleString()}
-            </span>
+            <div className="text-sm text-ds-gray-600">
+              <span className="whitespace-nowrap">
+                {new Date(latest.generated_at).toLocaleString()}
+              </span>
+              {showCount ? (
+                <div className="mt-0.5 text-xs text-ds-primary-700">
+                  {versions.length} saved — see History below for all
+                </div>
+              ) : null}
+            </div>
           );
         }
       },

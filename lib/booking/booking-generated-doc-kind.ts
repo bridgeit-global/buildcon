@@ -16,12 +16,23 @@ export const BOOKING_DOCUMENT_KIND_LABEL: Record<BookingDocumentPrintKind, strin
   agreement: 'Draft sale agreement'
 };
 
-const KIND_PATH_RE =
-  /\/booking-generated\/[^/]+\/(application-form|allotment-letter|receipt|demand-letter|agreement)-[0-9a-f-]+\.html$/i;
-
 /** Parses document kind from a stored CRM path, or null for print logs / other paths. */
 export function parseKindFromBookingGeneratedPath(storagePath: string): BookingDocumentPrintKind | null {
-  const m = storagePath.match(KIND_PATH_RE);
-  if (!m?.[1]) return null;
-  return m[1] as BookingDocumentPrintKind;
+  const name = storagePath.split('/').pop() ?? '';
+  if (!name.endsWith('.html')) return null;
+  for (const kind of BOOKING_DOCUMENT_MATRIX_KINDS) {
+    if (name.startsWith(`${kind}-`)) return kind;
+  }
+  return null;
+}
+
+/** Optional collection or schedule id in filename: `{kind}--{linkId}--{fileId}.html`. */
+export function parseLinkIdFromBookingGeneratedPath(storagePath: string): string | null {
+  const name = storagePath.split('/').pop() ?? '';
+  if (!name.endsWith('.html')) return null;
+  const base = name.slice(0, -'.html'.length);
+  if (!base.includes('--')) return null;
+  const parts = base.split('--');
+  if (parts.length !== 3) return null;
+  return parts[1]?.trim() || null;
 }

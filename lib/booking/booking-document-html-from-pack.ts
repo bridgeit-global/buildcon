@@ -20,7 +20,24 @@ function unwrapJoin<T>(x: T | T[] | null): T | null {
   return Array.isArray(x) ? (x[0] ?? null) : x;
 }
 
-function salesDocBaseFromPack(pack: BookingPrintPack): BookingSalesDocPrintBase {
+export type BookingDocumentHtmlOverrides = Partial<
+  Pick<
+    BookingSalesDocPrintBase,
+    | 'receivedAmount'
+    | 'receivedAt'
+    | 'paymentReference'
+    | 'paymentMode'
+    | 'instalmentLabel'
+    | 'demandAmount'
+    | 'demandDueDate'
+    | 'generatedAt'
+  >
+>;
+
+function salesDocBaseFromPack(
+  pack: BookingPrintPack,
+  overrides?: BookingDocumentHtmlOverrides
+): BookingSalesDocPrintBase {
   const booking = pack.booking;
   const unit = unwrapJoin(booking.units);
   const customer = unwrapJoin(booking.customers);
@@ -38,22 +55,24 @@ function salesDocBaseFromPack(pack: BookingPrintPack): BookingSalesDocPrintBase 
     coBuyerNames: co.map((c) => c.full_name).filter(Boolean),
     bookingAmount: booking.booking_amount,
     workflowStage: booking.workflow_stage,
-    paymentMode: pack.stageData.token?.mode ?? booking.payment_mode ?? null
+    paymentMode: pack.stageData.token?.mode ?? booking.payment_mode ?? null,
+    ...overrides
   };
 }
 
 /** Printable HTML for a booking-backed document (same content as print preview). */
 export function buildBookingDocumentHtmlFromPack(
   kind: BookingDocumentPrintKind,
-  pack: BookingPrintPack
+  pack: BookingPrintPack,
+  overrides?: BookingDocumentHtmlOverrides
 ): string {
   switch (kind) {
     case 'receipt':
-      return buildBookingReceiptHtml(salesDocBaseFromPack(pack));
+      return buildBookingReceiptHtml(salesDocBaseFromPack(pack, overrides));
     case 'demand-letter':
-      return buildDemandLetterHtml(salesDocBaseFromPack(pack));
+      return buildDemandLetterHtml(salesDocBaseFromPack(pack, overrides));
     case 'agreement':
-      return buildSaleAgreementHtml(salesDocBaseFromPack(pack));
+      return buildSaleAgreementHtml(salesDocBaseFromPack(pack, overrides));
     case 'application-form': {
       const booking = pack.booking;
       const unit = unwrapJoin(booking.units);

@@ -15,6 +15,14 @@ export type BookingSalesDocPrintBase = {
   workflowStage?: string | null;
   paymentMode?: string | null;
   generatedAt?: Date;
+  /** When set (e.g. from a collection entry), receipt shows this amount instead of booking amount. */
+  receivedAmount?: number | null;
+  receivedAt?: string | null;
+  paymentReference?: string | null;
+  instalmentLabel?: string | null;
+  /** Demand letter: amount due for this instalment / milestone. */
+  demandAmount?: number | null;
+  demandDueDate?: string | null;
 };
 
 function esc(s: string | null | undefined): string {
@@ -166,7 +174,17 @@ function sharedStyles(): string {
 export function buildBookingReceiptHtml(input: BookingSalesDocPrintBase): string {
   const at = input.generatedAt ?? new Date();
   const bookingRef = formatBookingDisplayId(input.bookingId, input.bookingCreatedAt);
-  const receiptNo = `RC-${bookingRef.replace(/^BK-/, '')}`;
+  const receiptSuffix = input.paymentReference?.trim()
+    ? input.paymentReference.trim().slice(0, 12)
+    : formatDate(at).replace(/\s/g, '');
+  const receiptNo = `RC-${bookingRef.replace(/^BK-/, '')}-${receiptSuffix}`;
+  const amountReceived =
+    input.receivedAmount != null && !Number.isNaN(Number(input.receivedAmount))
+      ? Number(input.receivedAmount)
+      : input.bookingAmount;
+  const receivedDate =
+    input.receivedAt?.trim() ||
+    formatDate(at);
   const project = display(input.projectName, 'the Project');
   const location = display(input.projectLocation, '—');
   const customer = display(input.customerName);
@@ -195,7 +213,8 @@ export function buildBookingReceiptHtml(input: BookingSalesDocPrintBase): string
     <p class="para">Received with thanks from <strong>${esc(customer)}</strong></p>
     ${coBlock}
     <p class="para">
-      the sum of <strong>${esc(formatInr(input.bookingAmount))}</strong> towards booking / token for the unit
+      the sum of <strong>${esc(formatInr(amountReceived))}</strong> towards
+      ${input.instalmentLabel ? esc(input.instalmentLabel) : 'booking / instalment dues'} for the unit
       described below in <strong>${esc(project)}</strong>${locationSuffix}.
     </p>
     <table class="details">
@@ -203,8 +222,11 @@ export function buildBookingReceiptHtml(input: BookingSalesDocPrintBase): string
         <tr><th>Project</th><td>${esc(project)}</td></tr>
         <tr><th>Unit</th><td>${esc(unitLine(input))}</td></tr>
         <tr><th>Booking reference</th><td>${esc(bookingRef)}</td></tr>
-        <tr><th>Payment mode (if recorded)</th><td>${esc(display(input.paymentMode, '—'))}</td></tr>
-        <tr><th>Amount received</th><td>${esc(formatInr(input.bookingAmount))}</td></tr>
+        ${input.instalmentLabel ? `<tr><th>Instalment</th><td>${esc(input.instalmentLabel)}</td></tr>` : ''}
+        <tr><th>Payment mode</th><td>${esc(display(input.paymentMode, '—'))}</td></tr>
+        <tr><th>Payment date</th><td>${esc(receivedDate)}</td></tr>
+        <tr><th>Reference</th><td>${esc(display(input.paymentReference, '—'))}</td></tr>
+        <tr><th>Amount received</th><td>${esc(formatInr(amountReceived))}</td></tr>
       </tbody>
     </table>
     <p class="para">
@@ -228,7 +250,11 @@ export function printBookingReceipt(input: BookingSalesDocPrintBase): void {
 export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
   const at = input.generatedAt ?? new Date();
   const bookingRef = formatBookingDisplayId(input.bookingId, input.bookingCreatedAt);
-  const demandRef = `DL-${bookingRef.replace(/^BK-/, '')}`;
+  const demandSuffix = input.instalmentLabel?.trim()
+    ? input.instalmentLabel.trim().slice(0, 16)
+    : formatDate(at).replace(/\s/g, '');
+  const demandRef = `DL-${bookingRef.replace(/^BK-/, '')}-${demandSuffix}`;
+  const dueAmount = input.demandAmount ?? input.bookingAmount;
   const project = display(input.projectName, 'the Project');
   const location = display(input.projectLocation, '—');
   const customer = display(input.customerName);
@@ -257,7 +283,7 @@ export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
       With reference to your booking <strong>${esc(bookingRef)}</strong> for unit <strong>${esc(
         unitLine(input)
       )}</strong> in our project <strong>${esc(project)}</strong>${addressSuffix}, you are requested to
-      remit all outstanding instalments and charges as per the agreed payment schedule without further delay.
+      remit ${input.instalmentLabel ? `the amount due for <strong>${esc(input.instalmentLabel)}</strong>` : 'all outstanding instalments and charges as per the agreed payment schedule'} without further delay.
     </p>
     <p class="para">
       Kindly note that continued default may attract interest / penalties and other remedies as per the
@@ -268,7 +294,9 @@ export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
       <tbody>
         <tr><th>Booking reference</th><td>${esc(bookingRef)}</td></tr>
         <tr><th>Unit</th><td>${esc(unitLine(input))}</td></tr>
-        <tr><th>Recorded booking / token amount</th><td>${esc(formatInr(input.bookingAmount))}</td></tr>
+        ${input.instalmentLabel ? `<tr><th>Instalment / milestone</th><td>${esc(input.instalmentLabel)}</td></tr>` : ''}
+        <tr><th>Amount demanded</th><td>${esc(formatInr(dueAmount))}</td></tr>
+        ${input.demandDueDate ? `<tr><th>Due date</th><td>${esc(input.demandDueDate)}</td></tr>` : ''}
         <tr><th>Current workflow stage</th><td>${esc(display(input.workflowStage, '—'))}</td></tr>
       </tbody>
     </table>

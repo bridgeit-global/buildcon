@@ -13,6 +13,7 @@ import {
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Download, RefreshCw, Search } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { parseLinkIdFromBookingGeneratedPath } from '@/lib/booking/booking-generated-doc-kind';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -87,10 +88,12 @@ export function storageBucketForGeneratedPath(storagePath: string): string | nul
 
 export function formatGeneratedDocKind(storagePath: string, hasTemplate: boolean): string {
   if (storagePath.includes('/booking-generated/')) {
+    const linkId = parseLinkIdFromBookingGeneratedPath(storagePath);
+    const linkNote = linkId ? ' · linked entry' : '';
     if (storagePath.includes('/application-form-')) return 'Application form';
     if (storagePath.includes('/allotment-letter-')) return 'Allotment letter';
-    if (storagePath.includes('/receipt-')) return 'Payment receipt';
-    if (storagePath.includes('/demand-letter-')) return 'Demand letter';
+    if (storagePath.includes('/receipt-')) return `Payment receipt${linkNote}`;
+    if (storagePath.includes('/demand-letter-')) return `Demand letter${linkNote}`;
     if (storagePath.includes('/agreement-')) return 'Draft sale agreement';
     return 'Booking document (file)';
   }

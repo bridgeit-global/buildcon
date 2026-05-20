@@ -1,19 +1,31 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
-import { buildBookingDocumentHtmlFromPack } from '@/lib/booking/booking-document-html-from-pack';
+import {
+  buildBookingDocumentHtmlFromPack,
+  type BookingDocumentHtmlOverrides
+} from '@/lib/booking/booking-document-html-from-pack';
+
+export type PersistGeneratedBookingDocumentOpts = {
+  /** Collection or schedule id — stored in filename so each payment/demand is a separate file. */
+  linkId?: string | null;
+  htmlOverrides?: BookingDocumentHtmlOverrides;
+};
 
 /** Uploads printable HTML to the private `documents` bucket and inserts `generated_documents`. */
 export async function persistGeneratedBookingDocument(
   supabase: SupabaseClient,
   pack: BookingPrintPack,
-  kind: BookingDocumentPrintKind
+  kind: BookingDocumentPrintKind,
+  opts?: PersistGeneratedBookingDocumentOpts
 ): Promise<{ ok: true; id: string; storagePath: string } | { ok: false; error: string }> {
-  const html = buildBookingDocumentHtmlFromPack(kind, pack);
+  const html = buildBookingDocumentHtmlFromPack(kind, pack, opts?.htmlOverrides);
   const projectId = pack.booking.project_id;
   const bookingId = pack.booking.id;
   const fileId = crypto.randomUUID();
-  const storagePath = `documents/project/${projectId}/booking-generated/${bookingId}/${kind}-${fileId}.html`;
+  const linkId = opts?.linkId?.trim();
+  const fileStem = linkId ? `${kind}--${linkId}--${fileId}` : `${kind}-${fileId}`;
+  const storagePath = `documents/project/${projectId}/booking-generated/${bookingId}/${fileStem}.html`;
 
   const { error: upErr } = await supabase.storage.from('documents').upload(storagePath, new Blob([html], { type: 'text/html' }), {
     contentType: 'text/html;charset=utf-8',
