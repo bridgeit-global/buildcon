@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { dispatchGeneratedDocumentNotification } from '@/lib/notifications/dispatch-notification';
+import { toNotifyBookingDocumentResponse } from '@/lib/booking/notify-generated-booking-document-server';
 
 type Body = { generatedDocumentId?: string; preferShareLink?: boolean };
 
@@ -52,24 +53,5 @@ export async function POST(
     preferShareLink: body.preferShareLink === true
   });
 
-  return NextResponse.json({
-    ok: result.ok,
-    docLabel: result.docLabel,
-    emailSent: result.email.status === 'sent',
-    emailSkippedReason:
-      result.email.status === 'skipped'
-        ? result.email.skippedReason
-        : result.email.status === 'failed'
-          ? result.email.error
-          : undefined,
-    whatsappSent: result.whatsapp.status === 'sent',
-    whatsappSkippedReason:
-      result.whatsapp.status === 'skipped'
-        ? result.whatsapp.skippedReason
-        : result.whatsapp.status === 'failed'
-          ? result.whatsapp.error
-          : undefined,
-    whatsappUrl: result.whatsapp.fallbackShareUrl,
-    error: result.error
-  });
+  return NextResponse.json(toNotifyBookingDocumentResponse(result));
 }

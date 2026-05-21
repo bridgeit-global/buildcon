@@ -5,7 +5,7 @@ import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import type { BookingDocumentHtmlOverrides } from '@/lib/booking/booking-document-html-from-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
-import { notifyGeneratedBookingDocument } from '@/lib/booking/notify-booking-document';
+import { notifyGeneratedBookingDocumentServer } from '@/lib/booking/notify-generated-booking-document-server';
 import { loadBookingKycReport } from '@/lib/customer/server-kyc-loader';
 import {
   BOOKING_DOCUMENT_KIND_LABEL,
@@ -203,7 +203,7 @@ export async function POST(
   const shouldNotify = body.notify !== false;
   let notify;
   if (shouldNotify) {
-    notify = await notifyGeneratedBookingDocument(bookingId, persisted.id);
+    notify = await notifyGeneratedBookingDocumentServer(admin, bookingId, persisted.id);
     if (!notify.ok) {
       return NextResponse.json(
         {
