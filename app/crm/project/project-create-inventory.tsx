@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { applyDefaultUnitTypeToFloorProvisions } from './project-create-shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -304,6 +305,19 @@ export function FloorConfigureStep({
     () => getStructureLeaves(normalizeStructures(structures)),
     [structures]
   );
+
+  useEffect(() => {
+    if (!defaultUnitType || floorProvisions.length === 0) return;
+    const hasEmpty = floorProvisions.some((row) =>
+      (row.unitConfigs || []).some((u) => !(u.type || '').trim())
+    );
+    if (!hasEmpty) return;
+    onFloorProvisionsChange(
+      applyDefaultUnitTypeToFloorProvisions(floorProvisions, defaultUnitType)
+    );
+    // Only re-run when the default type or row count changes (auto-fill / step entry).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- floorProvisions read at fill time
+  }, [defaultUnitType, floorProvisions.length]);
 
   const grouped = useMemo(() => {
     const acc: Record<string, FloorProvisionDraft[]> = {};
