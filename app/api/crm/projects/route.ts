@@ -293,6 +293,26 @@ export async function POST(request: Request) {
   }
   const unitTypes = [...unitTypeSet];
 
+  if (unitTypes.length === 0) {
+    return NextResponse.json(
+      { error: 'At least one unit type is required' },
+      { status: 400 }
+    );
+  }
+
+  if (provisions) {
+    for (const p of provisions) {
+      for (const uc of p.unitConfigs || []) {
+        if (!(uc.type || '').trim()) {
+          return NextResponse.json(
+            { error: 'Every unit must have a unit type' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+  }
+
   if (wings.length) {
     const { error } = await admin.from('project_wings').insert(
       wings.map((name, i) => ({

@@ -216,8 +216,10 @@ export function buildUnitConfigs(
   unitsPerFloor: number,
   prevConfigs: UnitConfigDraft[] | undefined,
   defaultRate: number,
-  leaves: StructureLeafRow[]
+  leaves: StructureLeafRow[],
+  defaultUnitType?: string
 ): UnitConfigDraft[] {
+  const fallbackType = (defaultUnitType || '').trim();
   const count = Math.max(1, Number(unitsPerFloor) || 1);
   const baseArea = computeAreaPerUnitFromInventory(
     structureLeafId,
@@ -232,7 +234,7 @@ export function buildUnitConfigs(
     next.push({
       unitNo: i,
       name: typeof old?.name === 'string' ? old.name : '',
-      type: old?.type || '',
+      type: (old?.type || '').trim() || fallbackType,
       area: Math.max(1, Number(old?.area) || baseArea),
       rate: Math.max(1, Number(old?.rate) || baseRate),
       ...(old
@@ -258,7 +260,10 @@ export function buildDefaultFloorProvisions(params: {
   floorsPerWingDefault: number;
   unitsPerFloorDefault: number;
   baseRate: number;
+  /** First unit type from step 2 (comma-separated list). */
+  defaultUnitType?: string;
 }): FloorProvisionDraft[] {
+  const defaultUnitType = (params.defaultUnitType || '').trim();
   const structures = normalizeStructures(params.structures);
   const leaves = getStructureLeaves(structures);
   const defaults: FloorProvisionDraft[] = [];
@@ -290,7 +295,8 @@ export function buildDefaultFloorProvisions(params: {
           defaultUnits,
           [],
           rate,
-          leaves
+          leaves,
+          defaultUnitType
         ),
         rate
       });

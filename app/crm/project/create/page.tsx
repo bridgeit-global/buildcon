@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
-  DEFAULT_UNIT_TYPES,
   buildDefaultFloorProvisions,
   countProjectUnits,
   normalizeStructures,
@@ -38,6 +37,11 @@ import {
   type CreateProjectDraft,
   wingsFromDraft,
   validateCreateStep,
+  validateCreateDraft,
+  parseUnitTypesCsv,
+  firstUnitTypeFromCsv,
+  applyDefaultUnitTypeToFloorProvisions,
+  unitTypesFromDraft,
   createInitialDraft,
   resetDraft
 } from '../project-create-shared';
@@ -126,21 +130,14 @@ export default function CreateProjectPage() {
     setCreating(true);
     setError('');
     try {
-      const wings = wingsFromDraft(draft);
-      const fromCsv = draft.unitTypesCsv
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const fromFloors = new Set<string>();
-      for (const row of draft.floorProvisions) {
-        for (const u of row.unitConfigs || []) {
-          const t = (u.type || '').trim();
-          if (t) fromFloors.add(t);
-        }
+      const validationErr = validateCreateDraft(draft);
+      if (validationErr) {
+        setError(validationErr);
+        return;
       }
-      const unitTypes = Array.from(
-        new Set([...DEFAULT_UNIT_TYPES, ...fromCsv, ...fromFloors])
-      );
+
+      const wings = wingsFromDraft(draft);
+      const unitTypes = unitTypesFromDraft(draft);
 
       const metaFloors = Math.max(
         1,
@@ -208,18 +205,26 @@ export default function CreateProjectPage() {
     }
     setError('');
     if (createStep === 1) {
-      setDraft((d) => ({
-        ...d,
-        floorProvisions:
+      setDraft((d) => {
+        const defaultUnitType = firstUnitTypeFromCsv(d.unitTypesCsv);
+        const provisions =
           d.floorProvisions.length > 0
             ? d.floorProvisions
             : buildDefaultFloorProvisions({
-              structures: d.structures,
-              floorsPerWingDefault: d.floors_per_wing,
-              unitsPerFloorDefault: d.units_per_floor,
-              baseRate: d.base_rate
-            })
-      }));
+                structures: d.structures,
+                floorsPerWingDefault: d.floors_per_wing,
+                unitsPerFloorDefault: d.units_per_floor,
+                baseRate: d.base_rate,
+                defaultUnitType
+              });
+        return {
+          ...d,
+          floorProvisions: applyDefaultUnitTypeToFloorProvisions(
+            provisions,
+            defaultUnitType
+          )
+        };
+      });
     }
     setCreateStep((s) => Math.min(s + 1, lastWizardStep));
   }
@@ -229,13 +234,15 @@ export default function CreateProjectPage() {
     setCreateStep((s) => Math.max(0, s - 1));
   }
 
-  const mergedUnitTypes = useMemo(() => {
-    const fromCsv = draft.unitTypesCsv
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean);
-    return Array.from(new Set([...DEFAULT_UNIT_TYPES, ...fromCsv]));
-  }, [draft.unitTypesCsv]);
+  const mergedUnitTypes = useMemo(
+    () => parseUnitTypesCsv(draft.unitTypesCsv),
+    [draft.unitTypesCsv]
+  );
+
+  const createBlockedReason = useMemo(
+    () => validateCreateDraft(draft),
+    [draft]
+  );
 
   const previewUnitTotal = useMemo(() => {
     if (draft.floorProvisions.length > 0) {
@@ -462,7 +469,10 @@ export default function CreateProjectPage() {
                 }
               />
               <div>
-                <Label>Unit types (comma-separated)</Label>
+                <Label>
+                  Unit types (comma-separated){' '}
+                  <span className="text-ds-error-600">*</span>
+                </Label>
                 <Input
                   className="mt-1"
                   value={draft.unitTypesCsv}
@@ -470,10 +480,11 @@ export default function CreateProjectPage() {
                     setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }))
                   }
                   placeholder="1BHK,2BHK,3BHK"
+                  required
                 />
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                  Used as dropdown options when configuring each unit on the
-                  floor step.
+                  Required. Used as dropdown options when configuring each unit
+                  on the floor step.
                 </p>
               </div>
               <div className="font-semibold text-slate-900">Structure tree</div>
@@ -543,15 +554,19 @@ export default function CreateProjectPage() {
               unitTypes={mergedUnitTypes}
               baseRate={draft.base_rate}
               onAutoFill={() =>
-                setDraft((d) => ({
-                  ...d,
-                  floorProvisions: buildDefaultFloorProvisions({
-                    structures: d.structures,
-                    floorsPerWingDefault: d.floors_per_wing,
-                    unitsPerFloorDefault: d.units_per_floor,
-                    baseRate: d.base_rate
-                  })
-                }))
+                setDraft((d) => {
+                  const defaultUnitType = firstUnitTypeFromCsv(d.unitTypesCsv);
+                  return {
+                    ...d,
+                    floorProvisions: buildDefaultFloorProvisions({
+                      structures: d.structures,
+                      floorsPerWingDefault: d.floors_per_wing,
+                      unitsPerFloorDefault: d.units_per_floor,
+                      baseRate: d.base_rate,
+                      defaultUnitType
+                    })
+                  };
+                })
               }
             />
           ) : null}
@@ -750,6 +765,7 @@ export default function CreateProjectPage() {
                     'Rates (base / min / max)',
                     `${draft.base_rate} / ${draft.min_rate} / ${draft.max_rate}`
                   ],
+                  ['Unit types', mergedUnitTypes.join(', ') || '—'],
                   ['Members', `${draft.memberIds.length} selected`]
                 ].map(([k, v]) => (
                   <div key={String(k)} className="bg-slate-50 px-3 py-2">
@@ -785,7 +801,9 @@ export default function CreateProjectPage() {
               <Button
                 type="button"
                 onClick={() => void createProject()}
-                disabled={creating || !draft.name.trim()}
+                disabled={
+                  creating || !draft.name.trim() || Boolean(createBlockedReason)
+                }
               >
                 {creating ? 'Creating…' : 'Create project'}
               </Button>

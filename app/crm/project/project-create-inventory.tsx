@@ -26,7 +26,7 @@ import {
   type UnitConfigDraft
 } from './project-structure-utils';
 
-const UNIT_TYPE_AUTO_VALUE = '__unit_type_auto__';
+const UNIT_TYPE_UNSET_VALUE = '__unit_type_unset__';
 
 type StructureTreeFieldsProps = {
   nodes: StructureNode[];
@@ -299,6 +299,7 @@ export function FloorConfigureStep({
   baseRate,
   onAutoFill
 }: FloorConfigureStepProps) {
+  const defaultUnitType = unitTypes[0] ?? '';
   const leaves = useMemo(
     () => getStructureLeaves(normalizeStructures(structures)),
     [structures]
@@ -385,7 +386,8 @@ export function FloorConfigureStep({
                       unitCount,
                       cfg.unitConfigs,
                       cfg.rate ?? baseRate,
-                      leaves
+                      leaves,
+                      defaultUnitType
                     );
                     const floorArea = unitConfigs.reduce(
                       (s, u) => s + Math.max(1, Number(u.area) || 1),
@@ -449,7 +451,8 @@ export function FloorConfigureStep({
                                       units,
                                       row.unitConfigs,
                                       row.rate ?? baseRate,
-                                      leaves
+                                      leaves,
+                                      defaultUnitType
                                     )
                                   });
                                 }}
@@ -479,7 +482,8 @@ export function FloorConfigureStep({
                                       v,
                                       row.unitConfigs,
                                       row.rate ?? baseRate,
-                                      leaves
+                                      leaves,
+                                      defaultUnitType
                                     )
                                   });
                                 }}
@@ -508,7 +512,8 @@ export function FloorConfigureStep({
                                       units,
                                       row.unitConfigs,
                                       row.rate ?? baseRate,
-                                      leaves
+                                      leaves,
+                                      defaultUnitType
                                     )
                                   });
                                 }}
@@ -528,6 +533,7 @@ export function FloorConfigureStep({
                               actualIdx={actualIdx}
                               floorProvisions={floorProvisions}
                               unitTypes={unitTypes}
+                              defaultUnitType={defaultUnitType}
                               leaves={leaves}
                               baseRate={baseRate}
                               onPatchProvision={patchProvision}
@@ -566,7 +572,8 @@ export function FloorConfigureStep({
                                       row.unitsPerFloor,
                                       row.unitConfigs,
                                       v,
-                                      leaves
+                                      leaves,
+                                      defaultUnitType
                                     )
                                   });
                                 }}
@@ -592,6 +599,7 @@ type UnitConfigBlockProps = {
   actualIdx: number;
   floorProvisions: FloorProvisionDraft[];
   unitTypes: string[];
+  defaultUnitType: string;
   leaves: ReturnType<typeof getStructureLeaves>;
   baseRate: number;
   onPatchProvision: (
@@ -606,6 +614,7 @@ function UnitConfigBlock({
   actualIdx,
   floorProvisions,
   unitTypes,
+  defaultUnitType,
   leaves,
   baseRate,
   onPatchProvision
@@ -620,7 +629,8 @@ function UnitConfigBlock({
         row.unitsPerFloor,
         row.unitConfigs,
         row.rate ?? baseRate,
-        leaves
+        leaves,
+        defaultUnitType
       )
     );
     onPatchProvision(actualIdx, { unitConfigs: list });
@@ -729,31 +739,33 @@ function UnitConfigBlock({
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground">
-            Unit {uCfg.unitNo} type
+            Unit {uCfg.unitNo} type{' '}
+            <span className="text-ds-error-600">*</span>
           </Label>
           <Select
-            value={uCfg.type ? uCfg.type : UNIT_TYPE_AUTO_VALUE}
+            value={uCfg.type ? uCfg.type : UNIT_TYPE_UNSET_VALUE}
             onValueChange={(v) => {
+              if (v === UNIT_TYPE_UNSET_VALUE) return;
               syncUnitConfigs((list) =>
                 list.map((x) =>
-                  x.unitNo === uCfg.unitNo
-                    ? {
-                        ...x,
-                        type: v === UNIT_TYPE_AUTO_VALUE ? '' : v
-                      }
-                    : x
+                  x.unitNo === uCfg.unitNo ? { ...x, type: v } : x
                 )
               );
             }}
           >
             <SelectTrigger
               size="sm"
-              className="mt-1 h-8 w-full px-2 text-[11px] shadow-none"
+              className={cn(
+                'mt-1 h-8 w-full px-2 text-[11px] shadow-none',
+                !uCfg.type?.trim() && 'border-ds-error-200'
+              )}
             >
-              <SelectValue />
+              <SelectValue placeholder="Select type…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={UNIT_TYPE_AUTO_VALUE}>Auto</SelectItem>
+              <SelectItem value={UNIT_TYPE_UNSET_VALUE} disabled>
+                Select type…
+              </SelectItem>
               {unitTypes.map((t) => (
                 <SelectItem key={t} value={t}>
                   {t}
