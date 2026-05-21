@@ -49,7 +49,7 @@ type OutboundNotificationRow = {
   id: string;
   booking_id: string | null;
   channel: 'email' | 'whatsapp';
-  provider: 'resend' | 'meta_cloud';
+  provider: 'resend' | 'smtp' | 'meta_cloud';
   status: 'queued' | 'sent' | 'failed' | 'delivered' | 'read' | 'skipped';
   template_name: string | null;
   recipient: string | null;

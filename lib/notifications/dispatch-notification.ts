@@ -10,10 +10,10 @@ import {
   type NotificationRecipient
 } from './notification-templates';
 import {
-  getResendConfig,
-  sendResendEmail,
-  type ResendSendResult
-} from './resend-email';
+  getSmtpConfig,
+  sendSmtpEmail,
+  type SmtpSendResult
+} from './nodemailer-email';
 import {
   buildWaMeShareUrl,
   getWhatsappCloudConfig,
@@ -44,7 +44,7 @@ export type DispatchNotificationResult = {
 export type DispatchNotificationOpts = {
   /** When true, generates a wa.me share URL even when Cloud API is configured. */
   preferShareLink?: boolean;
-  /** When true, suppresses Resend send (only WhatsApp). */
+  /** When true, suppresses email send (only WhatsApp). */
   skipEmail?: boolean;
   /** When true, suppresses WhatsApp send (only email). */
   skipWhatsapp?: boolean;
@@ -104,7 +104,7 @@ export async function dispatchGeneratedDocumentNotification(
     customerId: gen.row.customer_id,
     templateName: null,
     channel: 'email',
-    provider: 'resend',
+    provider: 'smtp',
     recipient: recipient.email,
     result: emailResult
   });
@@ -137,16 +137,16 @@ async function sendEmailChannel(
   recipient: NotificationRecipient,
   doc: NotificationDocumentContext
 ): Promise<DispatchChannelResult> {
-  if (!getResendConfig()) {
+  if (!getSmtpConfig()) {
     return skipped(
-      'Set RESEND_API_KEY and CRM_DOCUMENTS_EMAIL_FROM to send email automatically.'
+      'Set SMTP_HOST and CRM_DOCUMENTS_EMAIL_FROM (and SMTP_USER/SMTP_PASS when required) to send email automatically.'
     );
   }
   if (!recipient.email) {
     return skipped('Customer has no email on file.');
   }
   const tpl = buildEmailTemplateSpec(recipient, doc);
-  const res: ResendSendResult = await sendResendEmail({
+  const res: SmtpSendResult = await sendSmtpEmail({
     to: recipient.email,
     subject: tpl.subject,
     html: tpl.html
@@ -338,7 +338,7 @@ async function persistChannelOutcome(
     customerId: string | null;
     templateName: string | null;
     channel: 'email' | 'whatsapp';
-    provider: 'resend' | 'meta_cloud';
+    provider: 'resend' | 'smtp' | 'meta_cloud';
     recipient: string | null;
     result: DispatchChannelResult;
   }

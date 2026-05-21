@@ -10,7 +10,7 @@ type OutboundRow = {
   id: string;
   generated_document_id: string | null;
   channel: 'email' | 'whatsapp';
-  provider: 'resend' | 'meta_cloud';
+  provider: 'resend' | 'smtp' | 'meta_cloud';
   status: 'queued' | 'sent' | 'failed' | 'delivered' | 'read' | 'skipped';
   template_name: string | null;
   recipient: string | null;
@@ -28,7 +28,7 @@ export function BookingNotificationsCard({ bookingId }: Props) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [rows, setRows] = useState<OutboundRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [resendBusy, setResendBusy] = useState<string | null>(null);
+  const [retryBusy, setRetryBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -53,12 +53,12 @@ export function BookingNotificationsCard({ bookingId }: Props) {
     void load();
   }, [load]);
 
-  const resend = async (row: OutboundRow) => {
+  const retryDispatch = async (row: OutboundRow) => {
     if (!row.generated_document_id) {
-      setError('This row has no linked document to resend.');
+      setError('This row has no linked document to retry.');
       return;
     }
-    setResendBusy(row.id);
+    setRetryBusy(row.id);
     setError('');
     setNotice('');
     try {
@@ -73,14 +73,14 @@ export function BookingNotificationsCard({ bookingId }: Props) {
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        throw new Error(json.error ?? 'Resend failed');
+        throw new Error(json.error ?? 'Retry failed');
       }
       setNotice('Notification dispatched.');
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Resend failed');
+      setError(e instanceof Error ? e.message : 'Retry failed');
     } finally {
-      setResendBusy(null);
+      setRetryBusy(null);
     }
   };
 
@@ -90,7 +90,7 @@ export function BookingNotificationsCard({ bookingId }: Props) {
         <div>
           <h3 className="text-sm font-semibold text-ds-gray-900">Customer notifications</h3>
           <p className="text-xs text-ds-gray-500">
-            Email (Resend) and WhatsApp (Meta Cloud) dispatches for this booking. Failed rows can be re-sent.
+            Email (SMTP) and WhatsApp (Meta Cloud) dispatches for this booking. Failed rows can be retried.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => void load()}>
@@ -143,15 +143,15 @@ export function BookingNotificationsCard({ bookingId }: Props) {
                         variant="outline"
                         size="sm"
                         className="gap-1"
-                        disabled={resendBusy === r.id}
-                        onClick={() => void resend(r)}
+                        disabled={retryBusy === r.id}
+                        onClick={() => void retryDispatch(r)}
                       >
-                        {resendBusy === r.id ? (
+                        {retryBusy === r.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
                         ) : (
                           <Send className="h-3 w-3" />
                         )}
-                        Resend
+                        Retry
                       </Button>
                     ) : (
                       <span className="text-xs text-ds-gray-400">—</span>

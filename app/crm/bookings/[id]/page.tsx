@@ -1146,7 +1146,7 @@ export default function BookingDetailPage() {
                       <h3 className="text-sm font-semibold text-ds-gray-900">Booking documents</h3>
                       <p className="mt-1 text-xs text-ds-gray-500">
                         Generate and store each document, download from the table, and notify the
-                        buyer (email when Resend is configured; WhatsApp opens with a prefilled
+                        buyer (email when SMTP is configured; WhatsApp opens with a prefilled
                         message for you to send).
                       </p>
                     </div>

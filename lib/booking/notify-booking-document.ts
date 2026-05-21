@@ -9,7 +9,7 @@ export type NotifyBookingDocumentResponse = {
   error?: string;
 };
 
-/** Calls the CRM notify API (Resend email + Meta Cloud WhatsApp, with wa.me fallback). */
+/** Calls the CRM notify API (SMTP email + Meta Cloud WhatsApp, with wa.me fallback). */
 export async function notifyGeneratedBookingDocument(
   bookingId: string,
   generatedDocumentId: string
