@@ -4,6 +4,7 @@ import { parseKindFromBookingGeneratedPath } from '@/lib/booking/booking-generat
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import {
   buildEmailTemplateSpec,
+  buildSmsPlainText,
   buildWhatsappTemplateSpec,
   getDocLabelForKind,
   type NotificationDocumentContext,
@@ -21,6 +22,12 @@ import {
   sendWhatsappTemplateDocument,
   type WhatsappSendResult
 } from './meta-cloud-whatsapp';
+import {
+  getSmsAlertConfig,
+  phoneToSmsMobileNo,
+  sendSmsAlertPlainText,
+  type SmsSendResult
+} from './smsalert-sms';
 
 const SIGNED_URL_VALID_DAYS = 7;
 const SIGNED_URL_VALID_SECONDS = SIGNED_URL_VALID_DAYS * 24 * 60 * 60;
@@ -37,6 +44,7 @@ export type DispatchNotificationResult = {
   docLabel: string;
   signedUrl: string | null;
   email: DispatchChannelResult;
+  sms: DispatchChannelResult;
   whatsapp: DispatchChannelResult & { fallbackShareUrl: string | null };
   error?: string;
 };
@@ -44,13 +52,15 @@ export type DispatchNotificationResult = {
 export type DispatchNotificationOpts = {
   /** When true, generates a wa.me share URL even when Cloud API is configured. */
   preferShareLink?: boolean;
-  /** When true, suppresses email send (only WhatsApp). */
+  /** When true, suppresses email send. */
   skipEmail?: boolean;
-  /** When true, suppresses WhatsApp send (only email). */
+  /** When true, suppresses SMS send. */
+  skipSms?: boolean;
+  /** When true, suppresses WhatsApp send. */
   skipWhatsapp?: boolean;
 };
 
-/** Dispatches a generated document to the linked customer over email + WhatsApp. */
+/** Dispatches a generated document to the linked customer over email, SMS, and WhatsApp. */
 export async function dispatchGeneratedDocumentNotification(
   admin: SupabaseClient,
   generatedDocumentId: string,
@@ -92,6 +102,10 @@ export async function dispatchGeneratedDocumentNotification(
     ? skipped('Email channel disabled for this dispatch.')
     : await sendEmailChannel(recipient, docCtx);
 
+  const smsResult = opts?.skipSms
+    ? skipped('SMS channel disabled for this dispatch.')
+    : await sendSmsChannel(recipient, docCtx, customer?.phone ?? null);
+
   const whatsappResult = opts?.skipWhatsapp
     ? { ...skipped('WhatsApp channel disabled for this dispatch.'), fallbackShareUrl: null }
     : await sendWhatsappChannel(recipient, docCtx, opts?.preferShareLink ?? false);
@@ -115,6 +129,19 @@ export async function dispatchGeneratedDocumentNotification(
     bookingId: gen.row.booking_id,
     unitId: unitInfo?.unit_id ?? null,
     customerId: gen.row.customer_id,
+    templateName: null,
+    channel: 'sms',
+    provider: 'smsalert',
+    recipient: phoneToSmsMobileNo(customer?.phone ?? null),
+    result: smsResult
+  });
+
+  await persistChannelOutcome(admin, {
+    generatedDocumentId,
+    projectId: gen.row.project_id,
+    bookingId: gen.row.booking_id,
+    unitId: unitInfo?.unit_id ?? null,
+    customerId: gen.row.customer_id,
     templateName: docKind
       ? buildWhatsappTemplateSpec(recipient, docCtx).name
       : null,
@@ -125,10 +152,14 @@ export async function dispatchGeneratedDocumentNotification(
   });
 
   return {
-    ok: emailResult.status !== 'failed' && whatsappResult.status !== 'failed',
+    ok:
+      emailResult.status !== 'failed' &&
+      smsResult.status !== 'failed' &&
+      whatsappResult.status !== 'failed',
     docLabel,
     signedUrl: signed.url,
     email: emailResult,
+    sms: smsResult,
     whatsapp: whatsappResult
   };
 }
@@ -151,6 +182,46 @@ async function sendEmailChannel(
     subject: tpl.subject,
     html: tpl.html
   });
+  if (res.ok) {
+    return {
+      status: 'sent',
+      providerMessageId: res.providerMessageId,
+      error: null,
+      skippedReason: null
+    };
+  }
+  if ('skipped' in res && res.skipped) {
+    return skipped(res.reason);
+  }
+  return {
+    status: 'failed',
+    providerMessageId: null,
+    error: res.error,
+    skippedReason: null
+  };
+}
+
+async function sendSmsChannel(
+  recipient: NotificationRecipient,
+  doc: NotificationDocumentContext,
+  phoneRaw: string | null
+): Promise<DispatchChannelResult> {
+  if (!getSmsAlertConfig()) {
+    return skipped('Set SMS_API_KEY to send SMS automatically.');
+  }
+  const mobileNo = phoneToSmsMobileNo(phoneRaw);
+  if (!mobileNo) {
+    return skipped('Customer has no valid 10-digit mobile number on file.');
+  }
+  const text = buildSmsPlainText(recipient, doc);
+  if (!text) {
+    return skipped(
+      'Set SMS_DOCUMENT_MESSAGE to the exact SMS Alert/DLT-approved text for document alerts (sender PKAEPL). ' +
+        'Do not include download URLs. Placeholders: {mobile}, {name}, {doc}, {days}. ' +
+        'Your login OTP template only allows that OTP wording — register a separate document template on smsalert.co.in.'
+    );
+  }
+  const res: SmsSendResult = await sendSmsAlertPlainText({ mobileNo, text });
   if (res.ok) {
     return {
       status: 'sent',
@@ -337,8 +408,8 @@ async function persistChannelOutcome(
     unitId: string | null;
     customerId: string | null;
     templateName: string | null;
-    channel: 'email' | 'whatsapp';
-    provider: 'resend' | 'smtp' | 'meta_cloud';
+    channel: 'email' | 'whatsapp' | 'sms';
+    provider: 'resend' | 'smtp' | 'meta_cloud' | 'smsalert';
     recipient: string | null;
     result: DispatchChannelResult;
   }
@@ -408,6 +479,7 @@ function failureShell(error: string, docLabel = 'Booking document'): DispatchNot
     docLabel,
     signedUrl: null,
     email: failed,
+    sms: failed,
     whatsapp: { ...failed, fallbackShareUrl: null },
     error
   };

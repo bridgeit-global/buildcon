@@ -14,7 +14,7 @@ export type CollectionReceiptContext = {
 
 export { generatedReceiptExistsForCollection } from '@/lib/booking/booking-generated-doc-kind';
 
-/** Saves a payment receipt PDF linked to a collection; optionally emails / WhatsApp. */
+/** Saves a payment receipt PDF linked to a collection; optionally email / SMS / WhatsApp. */
 export async function persistCollectionReceipt(
   _supabase: SupabaseClient,
   bookingId: string,

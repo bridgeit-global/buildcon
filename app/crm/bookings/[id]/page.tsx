@@ -1146,8 +1146,9 @@ export default function BookingDetailPage() {
                       <h3 className="text-sm font-semibold text-ds-gray-900">Booking documents</h3>
                       <p className="mt-1 text-xs text-ds-gray-500">
                         Generate and store each document, download from the table, and notify the
-                        buyer (email when SMTP is configured; WhatsApp opens with a prefilled
-                        message for you to send).
+                        buyer (email when SMTP is configured; plain SMS when SMS_API_KEY and
+                        SMS_DOCUMENT_MESSAGE match your SMS Alert DLT template; WhatsApp when Cloud
+                        API is configured, or a prefilled share link otherwise).
                       </p>
                     </div>
                     {docDeliveryBanner ? (

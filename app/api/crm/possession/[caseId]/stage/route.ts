@@ -122,6 +122,7 @@ export async function POST(
           ok: notify.ok,
           docLabel: notify.docLabel,
           emailSent: notify.email.status === 'sent',
+          smsSent: notify.sms.status === 'sent',
           whatsappSent: notify.whatsapp.status === 'sent',
           error: notify.error
         }

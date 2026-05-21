@@ -316,6 +316,13 @@ export async function POST(
               : notifyResult.email.status === 'failed'
                 ? notifyResult.email.error
                 : undefined,
+          smsSent: notifyResult.sms.status === 'sent',
+          smsSkippedReason:
+            notifyResult.sms.status === 'skipped'
+              ? notifyResult.sms.skippedReason
+              : notifyResult.sms.status === 'failed'
+                ? notifyResult.sms.error
+                : undefined,
           whatsappSent: notifyResult.whatsapp.status === 'sent',
           whatsappSkippedReason:
             notifyResult.whatsapp.status === 'skipped'

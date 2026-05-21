@@ -32,6 +32,39 @@ export type EmailTemplateSpec = {
 };
 
 /**
+ * Plain SMS for push.json. Returns null unless SMS_DOCUMENT_MESSAGE is set to text
+ * approved on SMS Alert/DLT (login OTP template cannot be reused for other wording).
+ */
+export function buildSmsPlainText(
+  recipient: NotificationRecipient,
+  doc: NotificationDocumentContext
+): string | null {
+  const custom = process.env.SMS_DOCUMENT_MESSAGE?.trim();
+  if (!custom) return null;
+
+  return applySmsPlaceholders(custom, recipient, doc);
+}
+
+function applySmsPlaceholders(
+  template: string,
+  recipient: NotificationRecipient,
+  doc: NotificationDocumentContext
+): string {
+  const name = recipient.fullName || 'Customer';
+  const mobile = recipient.phoneE164Digits?.replace(/\D/g, '').slice(-10) ?? '';
+  const unit = doc.unitCode ?? '';
+  const project = doc.projectName ?? '';
+  return template
+    .replaceAll('{mobile}', mobile)
+    .replaceAll('{name}', name)
+    .replaceAll('{doc}', doc.docLabel)
+    .replaceAll('{url}', doc.signedUrl)
+    .replaceAll('{days}', String(doc.signedUrlValidDays))
+    .replaceAll('{unit}', unit)
+    .replaceAll('{project}', project);
+}
+
+/**
  * Env-overridable template names per document kind. WABA templates must be
  * approved in Meta Business Manager with a document header and body params:
  *   {{1}} = customer name

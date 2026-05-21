@@ -3,6 +3,8 @@ export type NotifyBookingDocumentResponse = {
   docLabel?: string;
   emailSent?: boolean;
   emailSkippedReason?: string;
+  smsSent?: boolean;
+  smsSkippedReason?: string;
   whatsappSent?: boolean;
   whatsappSkippedReason?: string;
   whatsappUrl?: string | null;
@@ -58,6 +60,9 @@ export function formatDocumentDeliveryNotice(
 
   if (notify.emailSent) bits.push('Customer email sent.');
   if (notify.emailSkippedReason) bits.push(`Email: ${notify.emailSkippedReason}`);
+
+  if (notify.smsSent) bits.push('Customer SMS sent.');
+  if (notify.smsSkippedReason) bits.push(`SMS: ${notify.smsSkippedReason}`);
 
   if (notify.whatsappSent) {
     bits.push('WhatsApp message sent to the customer.');

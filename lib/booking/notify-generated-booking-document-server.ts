@@ -20,6 +20,13 @@ export function toNotifyBookingDocumentResponse(
         : result.email.status === 'failed'
           ? (result.email.error ?? undefined)
           : undefined,
+    smsSent: result.sms.status === 'sent',
+    smsSkippedReason:
+      result.sms.status === 'skipped'
+        ? result.sms.skippedReason ?? undefined
+        : result.sms.status === 'failed'
+          ? (result.sms.error ?? undefined)
+          : undefined,
     whatsappSent: result.whatsapp.status === 'sent',
     whatsappSkippedReason:
       result.whatsapp.status === 'skipped'
@@ -32,7 +39,7 @@ export function toNotifyBookingDocumentResponse(
   };
 }
 
-/** Server-side notify (email + WhatsApp) after auth on the caller route. */
+/** Server-side notify (email + SMS + WhatsApp) after auth on the caller route. */
 export async function notifyGeneratedBookingDocumentServer(
   admin: SupabaseClient,
   bookingId: string,

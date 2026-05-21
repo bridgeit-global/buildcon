@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 type OutboundRow = {
   id: string;
   generated_document_id: string | null;
-  channel: 'email' | 'whatsapp';
-  provider: 'resend' | 'smtp' | 'meta_cloud';
+  channel: 'email' | 'whatsapp' | 'sms';
+  provider: 'resend' | 'smtp' | 'meta_cloud' | 'smsalert';
   status: 'queued' | 'sent' | 'failed' | 'delivered' | 'read' | 'skipped';
   template_name: string | null;
   recipient: string | null;
@@ -90,7 +90,7 @@ export function BookingNotificationsCard({ bookingId }: Props) {
         <div>
           <h3 className="text-sm font-semibold text-ds-gray-900">Customer notifications</h3>
           <p className="text-xs text-ds-gray-500">
-            Email (SMTP) and WhatsApp (Meta Cloud) dispatches for this booking. Failed rows can be retried.
+            Email (SMTP), plain-text SMS (SMS Alert), and WhatsApp (Meta Cloud) for this booking. Failed rows can be retried.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => void load()}>

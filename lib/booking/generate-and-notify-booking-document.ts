@@ -6,7 +6,7 @@ import type { NotifyBookingDocumentResponse } from '@/lib/booking/notify-booking
 
 export type { NotifyBookingDocumentResponse };
 
-/** Persists PDF to Storage, inserts `generated_documents`, then emails / WhatsApp (when configured). */
+/** Persists PDF to Storage, inserts `generated_documents`, then email / SMS / WhatsApp (when configured). */
 export async function generateAndNotifyBookingDocument(opts: {
   supabase: SupabaseClient;
   bookingId: string;
