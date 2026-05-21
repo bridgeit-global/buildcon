@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { formatInrCompactLacCr } from '../inr-format';
+import { STATUS_COLOR, STATUS_LABEL } from '../inventory/unit-status';
 
 export type FinancialBookingRow = {
   id: string;
@@ -32,6 +33,7 @@ export type FinancialBookingRow = {
   created_at: string;
   status: string;
   unit_code: string;
+  unit_status?: string | null;
   customer_name: string;
   total_demand: number;
   total_received: number;
@@ -102,6 +104,25 @@ export function FinancialsListTable({
         cell: ({ row }) => (
           <span className="text-ds-gray-800">{row.original.customer_name}</span>
         )
+      },
+      {
+        id: 'unit_status',
+        header: 'Unit status',
+        accessorFn: (r) => r.unit_status ?? '',
+        cell: ({ row }) => {
+          const code = String(row.original.unit_status ?? '').toUpperCase();
+          if (!code) return <span className="text-ds-gray-400">—</span>;
+          const label = STATUS_LABEL[code] ?? code;
+          const color = STATUS_COLOR[code] ?? '#64748B';
+          return (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+              style={{ backgroundColor: `${color}1a`, color }}
+            >
+              {label}
+            </span>
+          );
+        }
       },
       {
         id: 'demand',

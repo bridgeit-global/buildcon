@@ -265,11 +265,14 @@ export default function FinancialsBookingPage() {
           demandAmount: pending > 0 ? pending : schedule.amount,
           demandDueDate: schedule.due_date
         },
-        notify: false
+        notify: true
       });
       if (!persisted.ok) throw new Error(persisted.error);
       setDocNotice(
-        `Demand letter PDF for instalment ${schedule.instalment_no} saved. Open Unit documents to download.`
+        formatDocumentDeliveryNotice(
+          `Demand letter PDF for instalment ${schedule.instalment_no} saved.`,
+          persisted.notify
+        )
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Demand letter failed');

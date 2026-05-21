@@ -8,6 +8,8 @@ import {
   buildSaleAgreementHtml,
   type BookingSalesDocPrintBase
 } from '@/lib/booking/booking-receipt-demand-agreement-print';
+import { buildRegistrationDeedHtml } from '@/lib/booking/registration-deed-print';
+import { buildPossessionLetterHtml } from '@/lib/booking/possession-letter-print';
 import {
   buildApplicantRows,
   formatCustomerAddress,
@@ -95,6 +97,10 @@ export function buildBookingDocumentHtmlFromPack(
         applicants
       });
     }
+    case 'registration-deed':
+      return buildRegistrationDeedHtml(salesDocBaseFromPack(pack, overrides));
+    case 'possession-letter':
+      return buildPossessionLetterHtml(salesDocBaseFromPack(pack, overrides));
     case 'allotment-letter': {
       const booking = pack.booking;
       const unit = unwrapJoin(booking.units);

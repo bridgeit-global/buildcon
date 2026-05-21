@@ -136,15 +136,19 @@ export default function PossessionPage() {
     setSaving(true);
     setError('');
     try {
-      const patch: Record<string, unknown> = { workflow_stage: stage };
-      if (stage === 'Closed') {
-        patch.keys_handed_over_at = new Date().toISOString();
+      const res = await fetch(
+        `/api/crm/possession/${encodeURIComponent(caseId)}/stage`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ stage })
+        }
+      );
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? 'Update failed');
       }
-      const { error: e } = await supabase
-        .from('possession_cases')
-        .update(patch)
-        .eq('id', caseId);
-      if (e) throw e;
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Update failed');

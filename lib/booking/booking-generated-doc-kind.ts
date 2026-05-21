@@ -5,7 +5,9 @@ export const BOOKING_DOCUMENT_MATRIX_KINDS: BookingDocumentPrintKind[] = [
   'allotment-letter',
   'receipt',
   'demand-letter',
-  'agreement'
+  'agreement',
+  'registration-deed',
+  'possession-letter'
 ];
 
 export const BOOKING_DOCUMENT_KIND_LABEL: Record<BookingDocumentPrintKind, string> = {
@@ -13,7 +15,9 @@ export const BOOKING_DOCUMENT_KIND_LABEL: Record<BookingDocumentPrintKind, strin
   'allotment-letter': 'Allotment letter',
   receipt: 'Payment receipt',
   'demand-letter': 'Demand letter',
-  agreement: 'Draft sale agreement'
+  agreement: 'Draft sale agreement',
+  'registration-deed': 'Registration deed',
+  'possession-letter': 'Possession letter'
 };
 
 function fileBaseName(storagePath: string): string | null {

@@ -107,6 +107,8 @@ export function formatGeneratedDocKind(
     if (kind === 'receipt') return `Payment receipt${linkNote}`;
     if (kind === 'demand-letter') return `Demand letter${linkNote}`;
     if (kind === 'agreement') return 'Draft sale agreement';
+    if (kind === 'registration-deed') return 'Registration deed';
+    if (kind === 'possession-letter') return 'Possession letter';
     return 'Booking document (file)';
   }
   if (storagePath.startsWith('print/application-form/')) return 'Application form (print log)';
@@ -114,6 +116,8 @@ export function formatGeneratedDocKind(
   if (storagePath.startsWith('print/receipt/')) return 'Receipt (print log)';
   if (storagePath.startsWith('print/demand-letter/')) return 'Demand letter (print log)';
   if (storagePath.startsWith('print/agreement/')) return 'Agreement (print log)';
+  if (storagePath.startsWith('print/registration-deed/')) return 'Registration deed (print log)';
+  if (storagePath.startsWith('print/possession-letter/')) return 'Possession letter (print log)';
   if (hasTemplate) return 'From template';
   return 'Other';
 }

@@ -13,6 +13,7 @@ import {
   nextWorkflowStage
 } from '@/app/crm/bookings/booking-stage-transitions';
 import type { BookingStageData, BookingWorkflowStage } from '@/app/crm/bookings/booking-types';
+import { loadBookingKycReport } from '@/lib/customer/server-kyc-loader';
 
 type StageBody = {
   action: 'advance' | 'save';
@@ -101,7 +102,25 @@ export async function POST(
     return NextResponse.json({ ok: true, workflowStage: current });
   }
 
-  const check = canAdvanceWorkflowStage(current, stageData);
+  if (current === 'application') {
+    const kycRes = await loadBookingKycReport(admin, bookingId);
+    if (!kycRes.ok) {
+      return NextResponse.json({ error: kycRes.error }, { status: 500 });
+    }
+    if (!kycRes.report.kycComplete) {
+      return NextResponse.json(
+        {
+          error: 'Upload PAN and Aadhaar for the primary buyer and each co-applicant.',
+          missing: kycRes.report.missing
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  const check = canAdvanceWorkflowStage(current, stageData, {
+    kycComplete: current === 'application' ? true : undefined
+  });
   if (!check.ok) {
     return NextResponse.json({ error: check.reason }, { status: 400 });
   }

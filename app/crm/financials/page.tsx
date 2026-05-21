@@ -138,7 +138,7 @@ export default function FinancialsPage() {
     const custIds = Array.from(new Set(bookings.map((b) => b.customer_id)));
 
     const [unitsRes, custRes, ledgerRes, collRes] = await Promise.all([
-      supabase.from('units').select('id,unit_code').in('id', unitIds),
+      supabase.from('units').select('id,unit_code,status').in('id', unitIds),
       supabase.from('customers').select('id,full_name').in('id', custIds),
       supabase
         .from('v_payment_schedule_outstanding')
@@ -158,7 +158,13 @@ export default function FinancialsPage() {
     if (collRes.error) setError(collRes.error.message);
 
     const unitById = new Map(
-      (unitsRes.data ?? []).map((u) => [u.id as string, u.unit_code as string])
+      (unitsRes.data ?? []).map((u) => [
+        u.id as string,
+        {
+          unit_code: u.unit_code as string,
+          status: (u.status as string | null) ?? null
+        }
+      ])
     );
     const custById = new Map(
       (custRes.data ?? []).map((c) => [c.id as string, c.full_name as string])
@@ -209,7 +215,8 @@ export default function FinancialsPage() {
         customer_id: b.customer_id,
         created_at: b.created_at,
         status: b.status,
-        unit_code: unitById.get(b.unit_id) ?? '—',
+        unit_code: unitById.get(b.unit_id)?.unit_code ?? '—',
+        unit_status: unitById.get(b.unit_id)?.status ?? null,
         customer_name: custById.get(b.customer_id) ?? '—',
         total_demand: demand,
         total_received: receivedTotal,

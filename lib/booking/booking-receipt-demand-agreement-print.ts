@@ -25,7 +25,7 @@ export type BookingSalesDocPrintBase = {
   demandDueDate?: string | null;
 };
 
-function esc(s: string | null | undefined): string {
+export function esc(s: string | null | undefined): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -33,17 +33,17 @@ function esc(s: string | null | undefined): string {
     .replace(/"/g, '&quot;');
 }
 
-function display(v: string | null | undefined, fallback = '—'): string {
+export function display(v: string | null | undefined, fallback = '—'): string {
   const s = String(v ?? '').trim();
   return s || fallback;
 }
 
-function formatInr(amount: number | null | undefined): string {
+export function formatInr(amount: number | null | undefined): string {
   if (amount == null || Number.isNaN(Number(amount))) return '—';
   return `₹ ${Number(amount).toLocaleString('en-IN')}`;
 }
 
-function formatDate(d: Date): string {
+export function formatPrintDate(d: Date): string {
   return d.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
@@ -51,7 +51,11 @@ function formatDate(d: Date): string {
   });
 }
 
-function unitLine(input: BookingSalesDocPrintBase): string {
+function formatDate(d: Date): string {
+  return formatPrintDate(d);
+}
+
+export function unitLine(input: BookingSalesDocPrintBase): string {
   const parts = [
     input.unitCode,
     input.wingName ? `Wing ${input.wingName}` : null,
@@ -103,7 +107,7 @@ function openPrintPreview(html: string, title: string): void {
   }, 300);
 }
 
-function sharedStyles(): string {
+export function sharedStyles(): string {
   return `
     @page { size: A4; margin: 18mm 16mm; }
     * { box-sizing: border-box; }

@@ -64,6 +64,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const [docScheduleLabels, setDocScheduleLabels] = useState<Map<string, string>>(
     () => new Map()
   );
+  const [outstandingTotal, setOutstandingTotal] = useState<number | null>(null);
 
   useEffect(() => {
     if (lockedBookingId) {
@@ -123,11 +124,12 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     if (!lockedBookingId) {
       setGenerated([]);
       setDocScheduleLabels(new Map());
+      setOutstandingTotal(null);
       return;
     }
     void loadGeneratedForBooking(lockedBookingId);
     void (async () => {
-      const [{ data: sched }, { data: cols }] = await Promise.all([
+      const [{ data: sched }, { data: cols }, { data: outRows }] = await Promise.all([
         supabase
           .from('payment_schedules')
           .select('id,instalment_no,milestone')
@@ -135,6 +137,10 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         supabase
           .from('collections')
           .select('id,schedule_id')
+          .eq('booking_id', lockedBookingId),
+        supabase
+          .from('v_payment_schedule_outstanding')
+          .select('outstanding_amount')
           .eq('booking_id', lockedBookingId)
       ]);
       const m = new Map<string, string>();
@@ -147,6 +153,11 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         else if (!sid) m.set(c.id as string, 'Unassigned receipt');
       }
       setDocScheduleLabels(m);
+      const total = (outRows ?? []).reduce(
+        (sum, r) => sum + Number((r as { outstanding_amount?: number }).outstanding_amount ?? 0),
+        0
+      );
+      setOutstandingTotal(total);
     })();
   }, [lockedBookingId, loadGeneratedForBooking, supabase]);
 
@@ -277,6 +288,13 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                 Open booking
               </Link>
             </Button>
+            {printPack ? (
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link href={`/crm/units/${encodeURIComponent(printPack.booking.unit_id)}`}>
+                  Open unit page
+                </Link>
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -375,6 +393,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                     generatingKind={generatingKind}
                     onGenerate={handleMatrixGenerate}
                     scheduleLabelById={docScheduleLabels}
+                    outstandingTotal={outstandingTotal}
                   />
                 </div>
               </>

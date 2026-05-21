@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   BOOKING_WORKFLOW_LABEL,
+  BOOKING_WORKFLOW_STAGES,
   type BookingListRow,
   type BookingWorkflowStage
 } from './booking-types';
@@ -62,8 +63,42 @@ type Props = {
   loading?: boolean;
 };
 
+const STAGE_TABS: Array<{
+  id: 'token' | 'all' | BookingWorkflowStage;
+  label: string;
+}> = [
+  { id: 'token', label: 'Token received' },
+  { id: 'all', label: 'All stages' },
+  ...BOOKING_WORKFLOW_STAGES.filter((s) => s !== 'token').map((s) => ({
+    id: s,
+    label: BOOKING_WORKFLOW_LABEL[s]
+  }))
+];
+
 export function BookingListTable({ rows, projectNameById, loading }: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
+  const [stageTab, setStageTab] = useState<(typeof STAGE_TABS)[number]['id']>('token');
+
+  const filteredRows = useMemo(() => {
+    if (stageTab === 'all') return rows;
+    if (stageTab === 'token') {
+      return rows.filter(
+        (b) => b.workflow_stage === 'token' && b.status !== 'cancelled'
+      );
+    }
+    return rows.filter((b) => b.workflow_stage === stageTab);
+  }, [rows, stageTab]);
+
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: rows.length };
+    counts.token = rows.filter(
+      (b) => b.workflow_stage === 'token' && b.status !== 'cancelled'
+    ).length;
+    for (const s of BOOKING_WORKFLOW_STAGES) {
+      counts[s] = rows.filter((b) => b.workflow_stage === s).length;
+    }
+    return counts;
+  }, [rows]);
 
   const columns = useMemo<ColumnDef<BookingListRow, unknown>[]>(
     () => [
@@ -168,7 +203,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
   );
 
   const table = useReactTable({
-    data: rows,
+    data: filteredRows,
     columns,
     state: { globalFilter },
     onGlobalFilterChange: setGlobalFilter,
@@ -181,6 +216,30 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap gap-1 border-b border-ds-gray-200">
+        {STAGE_TABS.map((t) => {
+          const active = stageTab === t.id;
+          const count = stageCounts[t.id] ?? 0;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={cn(
+                'px-3 py-2 text-xs font-medium',
+                active
+                  ? 'border-b-2 border-ds-primary-500 text-ds-primary-700'
+                  : 'text-ds-gray-600 hover:text-ds-gray-900'
+              )}
+              onClick={() => setStageTab(t.id)}
+            >
+              {t.label}{' '}
+              <span className="ml-1 rounded-full bg-ds-gray-100 px-1.5 py-0.5 text-[10px] text-ds-gray-600">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Input
           placeholder="Search unit, buyer, stage…"

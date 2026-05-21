@@ -6,13 +6,47 @@ import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-docu
 import type { BookingDocumentHtmlOverrides } from '@/lib/booking/booking-document-html-from-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
 import { notifyGeneratedBookingDocument } from '@/lib/booking/notify-booking-document';
+import { loadBookingKycReport } from '@/lib/customer/server-kyc-loader';
+import {
+  BOOKING_DOCUMENT_KIND_LABEL,
+  parseKindFromBookingGeneratedPath
+} from '@/lib/booking/booking-generated-doc-kind';
+
+function labelFor(kind: BookingDocumentPrintKind): string {
+  return BOOKING_DOCUMENT_KIND_LABEL[kind] ?? kind;
+}
 
 const VALID_KINDS = new Set<BookingDocumentPrintKind>([
   'application-form',
   'allotment-letter',
   'receipt',
   'demand-letter',
-  'agreement'
+  'agreement',
+  'registration-deed',
+  'possession-letter'
+]);
+
+const KIND_REQUIRES_KYC = new Set<BookingDocumentPrintKind>([
+  'application-form',
+  'allotment-letter',
+  'agreement',
+  'registration-deed',
+  'possession-letter'
+]);
+
+/** Document predecessors enforced server-side. PDF for the predecessor must exist. */
+const KIND_PREDECESSORS: Partial<Record<BookingDocumentPrintKind, BookingDocumentPrintKind[]>> = {
+  'allotment-letter': ['application-form'],
+  agreement: ['allotment-letter'],
+  'registration-deed': ['agreement'],
+  'possession-letter': ['registration-deed']
+};
+
+/** Kinds that require all instalment demand to be settled before generation. */
+const KIND_REQUIRES_FULLY_PAID = new Set<BookingDocumentPrintKind>([
+  'agreement',
+  'registration-deed',
+  'possession-letter'
 ]);
 
 type Body = {
@@ -62,6 +96,70 @@ export async function POST(
   if (!ro.ok) return NextResponse.json({ error: ro.error }, { status: ro.status });
   if (ro.readOnly) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  if (KIND_REQUIRES_KYC.has(kind)) {
+    const kycRes = await loadBookingKycReport(admin, bookingId);
+    if (!kycRes.ok) {
+      return NextResponse.json({ error: kycRes.error }, { status: 500 });
+    }
+    if (!kycRes.report.kycComplete) {
+      return NextResponse.json(
+        {
+          error:
+            'KYC is incomplete. Upload PAN and Aadhaar for the primary buyer and each co-applicant before generating this document.',
+          missing: kycRes.report.missing
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  const predecessors = KIND_PREDECESSORS[kind];
+  if (predecessors && predecessors.length > 0) {
+    const { data: gen } = await admin
+      .from('generated_documents')
+      .select('storage_path')
+      .eq('booking_id', bookingId)
+      .limit(500);
+    const seenKinds = new Set<BookingDocumentPrintKind>();
+    for (const row of gen ?? []) {
+      const k = parseKindFromBookingGeneratedPath(row.storage_path as string);
+      if (k) seenKinds.add(k);
+    }
+    const missingPredecessor = predecessors.find((k) => !seenKinds.has(k));
+    if (missingPredecessor) {
+      return NextResponse.json(
+        {
+          error: `Generate the ${labelFor(missingPredecessor)} first.`,
+          missingPredecessor
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  if (KIND_REQUIRES_FULLY_PAID.has(kind)) {
+    const { data: outstandingRows, error: vErr } = await admin
+      .from('v_payment_schedule_outstanding')
+      .select('outstanding_amount')
+      .eq('booking_id', bookingId);
+    if (vErr) {
+      return NextResponse.json({ error: vErr.message }, { status: 500 });
+    }
+    const outstandingTotal = (outstandingRows ?? []).reduce(
+      (sum, r) => sum + Number((r as { outstanding_amount?: number }).outstanding_amount ?? 0),
+      0
+    );
+    if (outstandingTotal > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot generate ${labelFor(kind)} until all payment instalments are received. Outstanding amount: ₹${outstandingTotal.toLocaleString('en-IN')}.`,
+          outstandingTotal
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   const packRes = await loadBookingPrintPack(admin, bookingId);
   if (!packRes.ok) {
     return NextResponse.json({ error: packRes.error }, { status: 500 });
@@ -80,6 +178,26 @@ export async function POST(
 
   if (!persisted.ok) {
     return NextResponse.json({ error: persisted.error }, { status: 500 });
+  }
+
+  // Governed unit-status transition for sale/registration milestones.
+  const targetStatus: 'AGREEMENT' | 'REGISTERED' | null =
+    kind === 'agreement'
+      ? 'AGREEMENT'
+      : kind === 'registration-deed'
+        ? 'REGISTERED'
+        : null;
+  if (targetStatus) {
+    const { error: rpcErr } = await admin.rpc('set_unit_status_for_booking', {
+      p_booking_id: bookingId,
+      p_target_status: targetStatus
+    });
+    if (rpcErr) {
+      // Document is saved; surface the status-update error without blocking.
+      console.warn(
+        `set_unit_status_for_booking(${bookingId}, ${targetStatus}) failed: ${rpcErr.message}`
+      );
+    }
   }
 
   const shouldNotify = body.notify !== false;

@@ -541,6 +541,9 @@ function UnitDetailDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
+          <Button asChild variant="outline">
+            <Link href={`/crm/units/${unit.id}`}>Open unit page</Link>
+          </Button>
           {isUnitAvailableForBooking(unit.status) ? (
             <Button
               onClick={() => {

@@ -5,7 +5,9 @@ export type BookingDocumentPrintKind =
   | 'allotment-letter'
   | 'receipt'
   | 'demand-letter'
-  | 'agreement';
+  | 'agreement'
+  | 'registration-deed'
+  | 'possession-letter';
 
 /** Persists a row when staff prints a booking PDF from the browser (no file upload yet). */
 export async function recordBookingDocumentPrint(

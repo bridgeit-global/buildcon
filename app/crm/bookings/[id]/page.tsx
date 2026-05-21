@@ -48,6 +48,7 @@ import {
   BookingDocumentsMatrixTable,
   buildMatrixRows
 } from '@/app/crm/documents/booking-documents-matrix-table';
+import { BookingNotificationsCard } from '@/app/crm/bookings/booking-notifications-card';
 import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
@@ -378,6 +379,16 @@ export default function BookingDetailPage() {
     [confirmationGenerated]
   );
 
+  const outstandingTotal = useMemo(() => {
+    if (paymentSchedules.length === 0) return null;
+    let total = 0;
+    for (const s of paymentSchedules) {
+      const received = scheduleReceivedById[s.id] ?? 0;
+      total += Math.max(0, Number(s.amount ?? 0) - Number(received));
+    }
+    return total;
+  }, [paymentSchedules, scheduleReceivedById]);
+
   const handleConfirmationDocGenerate = useCallback(
     async (kind: BookingDocumentPrintKind) => {
       if (!confirmationPrintPack) return;
@@ -654,6 +665,13 @@ export default function BookingDetailPage() {
             Unit locked while workflow is active. Complete each step to confirm the booking.
           </p>
         </div>
+        {!loading && booking ? (
+          <Button variant="outline" size="sm" className="h-9 shrink-0" asChild>
+            <Link href={`/crm/units/${encodeURIComponent(booking.unit_id)}`}>
+              Unit page
+            </Link>
+          </Button>
+        ) : null}
         {!loading && booking && workflowStage === 'confirmation' && !cancelled ? (
           <Button variant="outline" size="sm" className="h-9 shrink-0 gap-1" asChild>
             <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
@@ -1146,6 +1164,7 @@ export default function BookingDetailPage() {
                         generatingKind={generatingDocKind}
                         onGenerate={handleConfirmationDocGenerate}
                         scheduleLabelById={scheduleLabelById}
+                        outstandingTotal={outstandingTotal}
                       />
                     ) : (
                       <p className="text-sm text-ds-warning-800">
@@ -1197,6 +1216,7 @@ export default function BookingDetailPage() {
                     </Button>
                   ) : null}
                 </div>
+                <BookingNotificationsCard bookingId={booking.id} />
                 </>
               ) : (
                 <div className="flex flex-wrap gap-2">

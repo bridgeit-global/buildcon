@@ -1138,23 +1138,70 @@ export function InquiryPipelinePanel(props: {
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
 
-  const navigateToBooking = useCallback(() => {
+  const navigateToBooking = useCallback(async () => {
     const inqId = String(inquiry?.id || '').trim();
     const pid = String(projectId || '').trim();
     const uid = String(unitId || '').trim();
     const cid = String(customerId || '').trim();
     if (!inqId || !pid || !uid || !cid) return;
-    writeBookingPrefill(
-      buildBookingPrefillFromInquiry({
+
+    setSaving(true);
+    setError('');
+    try {
+      const saveResult = await saveInquiryStageData(supabase, {
         inquiryId: inqId,
-        projectId: pid,
-        customerId: cid,
-        unitId: uid,
-        stageData: stageDataToJson(stageData)
-      })
-    );
-    router.push('/crm/bookings');
-  }, [inquiry?.id, projectId, unitId, customerId, stageData, router]);
+        patch: stageDataToJson(stageData),
+        funnelStage: 'Token' as InquiryFunnelStage,
+        markStagesCompleted: ['Token' as InquiryFunnelStage]
+      });
+      if (!saveResult.ok) throw new Error(saveResult.error ?? 'Could not save token');
+
+      const res = await fetch(
+        `/api/crm/inquiries/${encodeURIComponent(inqId)}/token/complete`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({})
+        }
+      );
+      const json = (await res.json()) as {
+        ok?: boolean;
+        bookingId?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.bookingId) {
+        const msg = json.error ?? 'Could not create booking from token';
+        writeBookingPrefill(
+          buildBookingPrefillFromInquiry({
+            inquiryId: inqId,
+            projectId: pid,
+            customerId: cid,
+            unitId: uid,
+            stageData: stageDataToJson(stageData)
+          })
+        );
+        setError(`${msg} — opened the bookings page with prefilled data.`);
+        router.push('/crm/bookings');
+        return;
+      }
+      onSaved();
+      router.push(`/crm/bookings/${json.bookingId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Booking creation failed');
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    inquiry?.id,
+    projectId,
+    unitId,
+    customerId,
+    stageData,
+    router,
+    supabase,
+    onSaved
+  ]);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
 
@@ -1572,7 +1619,7 @@ export function InquiryPipelinePanel(props: {
                   variant="outline"
                   className="gap-1"
                   disabled={saving}
-                  onClick={navigateToBooking}
+                  onClick={() => void navigateToBooking()}
                 >
                   Create booking
                   <ArrowRight className="size-3.5 opacity-90" />

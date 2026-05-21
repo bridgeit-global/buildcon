@@ -3,12 +3,13 @@ export type NotifyBookingDocumentResponse = {
   docLabel?: string;
   emailSent?: boolean;
   emailSkippedReason?: string;
-  whatsappUrl?: string | null;
+  whatsappSent?: boolean;
   whatsappSkippedReason?: string;
+  whatsappUrl?: string | null;
   error?: string;
 };
 
-/** Calls the CRM notify API (email via Resend + WhatsApp deep link when configured). */
+/** Calls the CRM notify API (Resend email + Meta Cloud WhatsApp, with wa.me fallback). */
 export async function notifyGeneratedBookingDocument(
   bookingId: string,
   generatedDocumentId: string
@@ -46,7 +47,7 @@ export async function notifyGeneratedBookingDocument(
   return notify;
 }
 
-/** Builds user-facing banner text after save + optional notify (opens WhatsApp when URL returned). */
+/** Builds user-facing banner text after save + optional notify. */
 export function formatDocumentDeliveryNotice(
   lead: string,
   notify: NotifyBookingDocumentResponse | undefined,
@@ -57,8 +58,11 @@ export function formatDocumentDeliveryNotice(
 
   if (notify.emailSent) bits.push('Customer email sent.');
   if (notify.emailSkippedReason) bits.push(`Email: ${notify.emailSkippedReason}`);
-  if (notify.whatsappUrl) {
-    if (opts?.openWhatsApp !== false) {
+
+  if (notify.whatsappSent) {
+    bits.push('WhatsApp message sent to the customer.');
+  } else if (notify.whatsappUrl) {
+    if (opts?.openWhatsApp !== false && typeof window !== 'undefined') {
       window.open(notify.whatsappUrl, '_blank', 'noopener,noreferrer');
     }
     bits.push(
