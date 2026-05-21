@@ -47,13 +47,13 @@ export type CrmNavItem = {
 
 export type CrmNavGroup = {
   id:
-    | 'overview'
-    | 'acquire'
-    | 'projectStock'
-    | 'dealDesk'
-    | 'moneyConstruction'
-    | 'more'
-    | 'admin';
+  | 'overview'
+  | 'acquire'
+  | 'projectStock'
+  | 'dealDesk'
+  | 'moneyConstruction'
+  | 'more'
+  | 'admin';
   label: string;
   /** If true, sidebar section starts collapsed until user expands */
   defaultCollapsed?: boolean;
@@ -107,6 +107,25 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
     ]
   },
   {
+    id: 'dealDesk',
+    label: 'Deal desk',
+    items: [
+      {
+        id: 'bookings',
+        label: 'Bookings',
+        href: '/crm/bookings',
+        icon: Home
+      },
+      {
+        id: 'documents',
+        pageTitle: 'Agreements & documents',
+        label: 'Documents',
+        href: '/crm/documents',
+        icon: FileText
+      }
+    ]
+  },
+  {
     id: 'projectStock',
     label: 'Project & stock',
     items: [
@@ -126,32 +145,7 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
       }
     ]
   },
-  {
-    id: 'dealDesk',
-    label: 'Deal desk',
-    items: [
-      {
-        id: 'quotations',
-        pageTitle: 'Quotations',
-        label: 'Quotations',
-        href: '/crm/quotations',
-        icon: FileSpreadsheet
-      },
-      {
-        id: 'bookings',
-        label: 'Bookings',
-        href: '/crm/bookings',
-        icon: Home
-      },
-      {
-        id: 'documents',
-        pageTitle: 'Agreements & documents',
-        label: 'Documents',
-        href: '/crm/documents',
-        icon: FileText
-      }
-    ]
-  },
+
   {
     id: 'moneyConstruction',
     label: 'Money & construction',
@@ -162,33 +156,6 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         label: 'Financials',
         href: '/crm/financials',
         icon: HandCoins
-      },
-      {
-        id: 'possession',
-        pageTitle: 'Possession & handover',
-        label: 'Possession',
-        href: '/crm/possession',
-        icon: KeyRound
-      }
-    ]
-  },
-  {
-    id: 'more',
-    label: 'More',
-    defaultCollapsed: true,
-    items: [
-      {
-        id: 'reports',
-        label: 'Reports',
-        href: '/crm/reports',
-        icon: BarChart3
-      },
-      {
-        id: 'bankloans',
-        pageTitle: 'Bank & loans',
-        label: 'Bank & loans',
-        href: '/crm/bankloans',
-        icon: KeySquare
       }
     ]
   },
