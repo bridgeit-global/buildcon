@@ -32,7 +32,6 @@ export type CrmNavItemId =
   | 'documents'
   | 'possession'
   | 'reports'
-  | 'bankloans'
   | 'approvals'
   | 'users';
 

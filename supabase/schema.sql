@@ -565,35 +565,6 @@ using (public.has_project_access(project_id))
 with check (public.has_project_access(project_id));
 
 -- -----------------------------------------------------------------------------
--- Loans
--- -----------------------------------------------------------------------------
-
-create table if not exists public.loan_cases (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects (id) on delete cascade,
-  booking_id uuid references public.bookings (id) on delete set null,
-  customer_id uuid not null references public.customers (id),
-  bank text,
-  amount numeric,
-  status text not null default 'Application',
-  applied_at date,
-  updated_at timestamptz not null default now()
-);
-
-alter table public.loan_cases enable row level security;
-
-create policy "loan_cases_select_project"
-on public.loan_cases
-for select
-using (public.has_project_access(project_id));
-
-create policy "loan_cases_mutate_project"
-on public.loan_cases
-for all
-using (public.has_project_access(project_id))
-with check (public.has_project_access(project_id));
-
--- -----------------------------------------------------------------------------
 -- Documents (templates + generated docs)
 -- -----------------------------------------------------------------------------
 
