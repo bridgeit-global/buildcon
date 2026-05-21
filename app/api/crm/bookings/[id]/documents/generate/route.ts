@@ -187,16 +187,18 @@ export async function POST(
       : kind === 'registration-deed'
         ? 'REGISTERED'
         : null;
+  let unitStatus: string | null = null;
   if (targetStatus) {
-    const { error: rpcErr } = await admin.rpc('set_unit_status_for_booking', {
+    const { data: statusData, error: rpcErr } = await admin.rpc('set_unit_status_for_booking', {
       p_booking_id: bookingId,
       p_target_status: targetStatus
     });
     if (rpcErr) {
-      // Document is saved; surface the status-update error without blocking.
       console.warn(
         `set_unit_status_for_booking(${bookingId}, ${targetStatus}) failed: ${rpcErr.message}`
       );
+    } else if (typeof statusData === 'string') {
+      unitStatus = statusData;
     }
   }
 
@@ -222,6 +224,7 @@ export async function POST(
     ok: true,
     generatedDocumentId: persisted.id,
     storagePath: persisted.storagePath,
+    unitStatus,
     notify
   });
 }
