@@ -1,11 +1,13 @@
 'use client';
 
 import {
+  funnelStageIndex,
   INQUIRY_PIPELINE_UI_STAGES,
-  pipelineUiStage,
   type InquiryFunnelStage,
   type InquiryPipelineUiStage
 } from './inquiry-funnel-stages';
+
+export { funnelStageIndex };
 import { WizardStepper } from '@/components/ui/wizard-stepper';
 
 export const FUNNEL_STEP_LABELS: Record<InquiryPipelineUiStage, string> = {
@@ -19,12 +21,6 @@ const FUNNEL_STEPS = INQUIRY_PIPELINE_UI_STAGES.map((stage) => ({
   id: stage,
   label: FUNNEL_STEP_LABELS[stage]
 }));
-
-export function funnelStageIndex(stage: string): number {
-  const t = pipelineUiStage(stage);
-  const idx = INQUIRY_PIPELINE_UI_STAGES.indexOf(t);
-  return idx >= 0 ? idx : 0;
-}
 
 type InquiryFunnelStepperProps = {
   currentStage: string;

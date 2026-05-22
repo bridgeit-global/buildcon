@@ -12,6 +12,10 @@ import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-d
 import { cn } from '@/lib/utils';
 import type { InquiryStageData } from '../inquiry/inquiry-types';
 import { isInquiryClosed } from '../inquiry/inquiry-stage-transitions';
+import {
+  followUpDueState,
+  followUpNeedsAttention
+} from '@/lib/inquiry/follow-up-due';
 
 type WorkTab = 'followups' | 'visits' | 'overdue';
 
@@ -23,6 +27,10 @@ type FollowRow = {
   customerName: string;
   funnelStage: string;
   projectName: string;
+  stageKey: string;
+  assignedTo: string | null;
+  assignedToMe: boolean;
+  needsAttention: boolean;
 };
 
 type VisitRow = {
@@ -82,12 +90,18 @@ export default function WorkQueuePage() {
           `
           id,
           funnel_stage,
+          assigned_to,
           stage_data,
           projects ( name ),
           customers ( full_name )
         `
         );
       if (iErr) throw iErr;
+
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      const me = user?.id ?? '';
 
       const follows: FollowRow[] = [];
       const visits: VisitRow[] = [];
@@ -98,6 +112,7 @@ export default function WorkQueuePage() {
         const r = row as {
           id: string;
           funnel_stage: string;
+          assigned_to: string | null;
           stage_data: InquiryStageData | null;
           projects: unknown;
           customers: unknown;
@@ -136,8 +151,20 @@ export default function WorkQueuePage() {
             note: String(sd.qualified?.notes ?? '').trim() || null
           });
         }
+        const siteVisitDue = String(sd.site_visit?.follow_up_date ?? '').trim();
+        if (siteVisitDue) {
+          followCandidates.push({
+            key: 'site_visit',
+            due: siteVisitDue,
+            note: String(sd.site_visit?.notes ?? '').trim() || null
+          });
+        }
+
+        const assignedTo = String(r.assigned_to ?? '').trim() || null;
+        const assignedToMe = Boolean(me && assignedTo && assignedTo === me);
 
         for (const fc of followCandidates) {
+          const needsAttention = followUpNeedsAttention(fc.due);
           follows.push({
             followId: `${inquiryId}:${fc.key}`,
             dueAt: fc.due,
@@ -145,7 +172,11 @@ export default function WorkQueuePage() {
             inquiryId,
             customerName,
             funnelStage,
-            projectName
+            projectName,
+            stageKey: fc.key,
+            assignedTo,
+            assignedToMe,
+            needsAttention
           });
         }
 
@@ -257,13 +288,15 @@ export default function WorkQueuePage() {
       {tab === 'followups' ? (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-700">
-            Follow-up dates from enquiry pipeline (enquiry &amp; qualified stages)
+            Follow-up dates from enquiry pipeline (enquiry, qualified &amp; visit
+            site). Rows highlighted when assigned to you and due today or overdue.
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  {['Due', 'Project', 'Customer', 'Stage', 'Note', ''].map((h) => (
+                  {['Due', 'Project', 'Customer', 'Stage', 'Assignee', 'Note', ''].map(
+                    (h) => (
                     <th key={h} className="border-b px-3 py-2">
                       {h}
                     </th>
@@ -274,17 +307,40 @@ export default function WorkQueuePage() {
                 {followRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-3 py-8 text-center text-slate-500"
                     >
                       {loading ? 'Loading…' : 'No open follow-ups.'}
                     </td>
                   </tr>
                 ) : (
-                  followRows.map((r) => (
-                    <tr key={r.followId} className="border-b border-slate-100">
+                  followRows.map((r) => {
+                    const dueState = followUpDueState(r.dueAt);
+                    const highlight =
+                      r.assignedToMe && r.needsAttention;
+                    return (
+                    <tr
+                      key={r.followId}
+                      className={cn(
+                        'border-b border-slate-100',
+                        highlight &&
+                          'border-l-4 border-l-ds-primary-500 bg-ds-primary-50/80'
+                      )}
+                    >
                       <td className="whitespace-nowrap px-3 py-2 text-xs">
-                        {formatDisplayDateTime(r.dueAt)}
+                        <span
+                          className={cn(
+                            highlight && 'font-semibold text-ds-primary-800',
+                            dueState === 'overdue' && 'text-ds-error-700'
+                          )}
+                        >
+                          {formatDisplayDateTime(r.dueAt)}
+                        </span>
+                        {highlight ? (
+                          <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-ds-primary-700">
+                            Your follow-up
+                          </span>
+                        ) : null}
                       </td>
                       <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
                         {r.projectName}
@@ -293,7 +349,20 @@ export default function WorkQueuePage() {
                         {r.customerName}
                       </td>
                       <td className="px-3 py-2 text-xs text-slate-600">
-                        {r.funnelStage}
+                        {r.stageKey === 'site_visit'
+                          ? 'Visit site'
+                          : r.funnelStage}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">
+                        {r.assignedToMe ? (
+                          <span className="font-semibold text-ds-primary-700">
+                            You
+                          </span>
+                        ) : r.assignedTo ? (
+                          'Assigned'
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="max-w-[280px] px-3 py-2 text-xs text-slate-600">
                         {r.note?.trim() || '—'}
@@ -307,7 +376,8 @@ export default function WorkQueuePage() {
                         </Link>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>

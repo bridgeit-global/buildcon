@@ -8,7 +8,14 @@ import {
   todayIsoDate,
   withDateInputDefault
 } from '@/lib/date-input-value';
-import { negotiationApprovalRequestSchemaWithUnitCap } from '@/lib/inquiry/inquiry-pipeline.schema';
+import { negotiationDiscountApprovalSchemaWithUnitCap } from '@/lib/inquiry/inquiry-pipeline.schema';
+import {
+  negotiationFormLocked,
+  negotiationRequiresApproval,
+  offeredPriceFromNegotiation,
+  resolveNegotiationDiscount,
+  syncNegotiationDiscountFields
+} from '@/lib/inquiry/negotiation-discount';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { useRouter } from 'next/navigation';
@@ -149,12 +156,14 @@ type QualifiedStageData = {
 };
 type SiteVisitStageData = {
   scheduled_at?: string;
+  follow_up_date?: string;
   status?: string;
   outcome?: string;
   notes?: string;
 };
 type NegotiationStageData = {
   offered_price?: string;
+  discount_inr?: string;
   discount_pct?: string;
   counter_offer?: string;
   expected_close?: string;
@@ -625,7 +634,9 @@ function NegotiationForm({
   onApprovedCreateBooking,
   onRejectedClose,
   inquiryBookingLocked,
-  stagesReadOnly
+  stagesReadOnly,
+  customerName,
+  unitCode
 }: {
   data: NegotiationStageData;
   onChange: (d: NegotiationStageData) => void;
@@ -639,32 +650,38 @@ function NegotiationForm({
   onRejectedClose?: (decisionNote?: string) => void | Promise<void>;
   inquiryBookingLocked?: boolean;
   stagesReadOnly?: boolean;
+  customerName?: string;
+  unitCode?: string;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [discountMode, setDiscountMode] = useState<'inr' | 'pct'>('inr');
   const listPrice =
     listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
   const approvalSchema = useMemo(
-    () => negotiationApprovalRequestSchemaWithUnitCap(listPrice),
-    [listPrice]
+    () => negotiationDiscountApprovalSchemaWithUnitCap(listPrice, discountMode),
+    [listPrice, discountMode]
   );
   const approvalValidation = useFieldValidation(approvalSchema, {
-    offeredPrice: data.offered_price ?? '',
+    discountInr: data.discount_inr ?? '',
+    discountPct: data.discount_pct ?? '',
     requestNote: data.notes ?? ''
   });
   const approvalStatus = getNegotiationApprovalStatus(data);
-  const { discountPct, discountInr } = computeNegotiationDiscount(
-    listPrice,
-    data.offered_price
-  );
+  const fieldsLocked = negotiationFormLocked(data);
+  const requiresApproval = negotiationRequiresApproval(listPrice, data);
+  const resolved = resolveNegotiationDiscount(listPrice, {
+    discountInrRaw: data.discount_inr,
+    discountPctRaw: data.discount_pct
+  });
+  const offeredDisplay = offeredPriceFromNegotiation(listPrice, data);
 
-  function applyOfferedPrice(offeredRaw: string) {
-    const { discountPct: pct } = computeNegotiationDiscount(listPrice, offeredRaw);
-    onChange({
+  function applyDiscountPatch(patch: Partial<NegotiationStageData>) {
+    const next = syncNegotiationDiscountFields(listPrice, {
       ...data,
-      offered_price: offeredRaw,
-      discount_pct: pct != null ? String(pct) : ''
-    });
+      ...patch
+    }) as NegotiationStageData;
+    onChange(next);
   }
 
   async function refreshApprovalStatus() {
@@ -706,70 +723,48 @@ function NegotiationForm({
   }
 
   async function sendForApproval() {
-    if (inquiryBookingLocked) return;
-    if (!supabase || !inquiryId || !projectId) return;
+    if (inquiryBookingLocked || fieldsLocked) return;
+    if (!inquiryId || !requiresApproval) return;
     const parsed = approvalValidation.validate();
     if (!parsed.success) {
       pageError('Fix the highlighted fields before sending for approval.');
       return;
     }
-    const offeredRaw = String(parsed.data.offeredPrice).trim();
-    const offered = Number(offeredRaw);
     setSubmitting(true);
-        try {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      const { data: inqRow } = await supabase
-        .from('sales_inquiries')
-        .select('customer_id')
-        .eq('id', inquiryId)
-        .maybeSingle();
-      const customerId = String(
-        (inqRow as { customer_id?: string } | null)?.customer_id || ''
-      ).trim();
-      const discountPct = computeNegotiationDiscount(listPrice, offered).discountPct;
-
-      const { data: approvalRow, error: insErr } = await supabase
-        .from('negotiation_approvals')
-        .insert({
-          sales_inquiry_id: inquiryId,
-          project_id: projectId,
-          unit_id: unitId || null,
-          customer_id: customerId || null,
-          list_price: listPrice,
-          offered_price: offered,
-          discount_pct: discountPct,
-          request_note: data.notes?.trim() || null,
-          requested_by: user?.id ?? null
-        })
-        .select('id')
-        .single();
-      if (insErr) {
-        throw new Error(
-          insErr.message.includes('negotiation_approvals_one_pending')
-            ? 'A pending approval already exists for this enquiry.'
-            : insErr.message
-        );
-      }
-      const approvalId = String(
-        (approvalRow as { id?: string } | null)?.id || ''
+    try {
+      const res = await fetch(
+        `/api/crm/inquiries/${encodeURIComponent(inquiryId)}/negotiation/request-approval`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            listPriceInr: listPrice,
+            discountInr: parsed.data.discountInr,
+            discountPct: parsed.data.discountPct,
+            requestNote: parsed.data.requestNote,
+            unitId: unitId || null
+          })
+        }
       );
-      const persist = await persistNegotiationApprovalRequest(supabase, {
-        inquiryId,
-        approvalId,
-        offeredPrice: offeredRaw,
-        notes: data.notes?.trim() || undefined,
-        funnelStage: 'Negotiation'
-      });
-      if (!persist.ok) {
-        throw new Error(persist.error ?? 'Could not save negotiation stage');
+      const json = (await res.json()) as {
+        error?: string;
+        approvalId?: string;
+        offeredPrice?: string;
+        discountInr?: number;
+        discountPct?: number;
+      };
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Could not submit approval request');
       }
       onChange({
         ...data,
-        offered_price: offeredRaw,
+        offered_price: json.offeredPrice ?? data.offered_price,
+        discount_inr:
+          json.discountInr != null ? String(json.discountInr) : data.discount_inr,
+        discount_pct:
+          json.discountPct != null ? String(json.discountPct) : data.discount_pct,
         approval_status: 'pending',
-        approval_id: approvalId
+        approval_id: json.approvalId
       });
       onApprovalSubmitted?.();
     } catch (e) {
@@ -781,7 +776,8 @@ function NegotiationForm({
     }
   }
 
-  const formDisabled = inquiryBookingLocked || stagesReadOnly;
+  const formDisabled =
+    inquiryBookingLocked || stagesReadOnly || fieldsLocked;
 
   return (
     <div className="grid gap-3">
@@ -796,60 +792,110 @@ function NegotiationForm({
               (₹ {formatInr(listPrice)})
             </span>
           </p>
-          {discountInr != null && discountPct != null ? (
+          {resolved.discountInr != null && resolved.discountPct != null ? (
             <p className="mt-2 text-xs text-ds-gray-700">
-              Discount requested:{' '}
+              Effective price after discount:{' '}
               <span className="font-semibold text-ds-primary-700">
-                ₹ {formatInr(discountInr)} ({discountPct}%)
+                ₹ {formatInr(resolved.offeredPrice ?? 0)} (
+                {resolved.discountPct}% off)
               </span>
             </p>
           ) : (
             <p className="mt-2 text-[11px] text-ds-gray-500">
-              Enter offered price to see discount vs list price.
+              At list price — no admin approval required. Enter a discount to
+              request approval.
             </p>
           )}
         </div>
       ) : (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
-          Unit list price is not set on this inventory row — approval will still
-          record the offered price.
+          Unit list price is not set on this inventory row — enter discount
+          amount or percentage for approval.
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Offered price (₹)</Label>
-          <Input
-            type="number"
-            className="h-8 text-xs"
-            placeholder="75,00,000"
-            max={listPrice ?? undefined}
-            value={data.offered_price ?? ''}
-            onChange={(e) => {
-              applyOfferedPrice(e.target.value);
-              approvalValidation.touch('offeredPrice');
-            }}
-            onBlur={() => approvalValidation.touch('offeredPrice')}
-            aria-invalid={
-              approvalValidation.fieldError('offeredPrice') ? true : undefined
-            }
+      {fieldsLocked ? (
+        <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-800">
+          {approvalStatus === 'approved'
+            ? 'Budget terms are approved and locked. Create a booking to continue.'
+            : 'Discount terms are locked while admin approval is pending.'}
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        {(['inr', 'pct'] as const).map((mode) => (
+          <Button
+            key={mode}
+            type="button"
+            size="sm"
+            variant={discountMode === mode ? 'default' : 'outline'}
+            className={cn(
+              'min-h-9',
+              discountMode === mode && 'bg-teal-600 hover:bg-teal-700'
+            )}
             disabled={formDisabled}
-          />
-          <FormFieldError message={approvalValidation.fieldError('offeredPrice')} />
-          {listPrice ? (
-            <p className="text-[10px] text-ds-gray-500">
-              Must not exceed actual unit cost (₹ {formatInr(listPrice)}).
-            </p>
-          ) : null}
-        </div>
+            onClick={() => setDiscountMode(mode)}
+          >
+            {mode === 'inr' ? 'Discount (₹)' : 'Discount (%)'}
+          </Button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {discountMode === 'inr' ? (
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Discount amount (₹)</Label>
+            <Input
+              type="number"
+              className="h-8 text-xs"
+              placeholder="2,00,000"
+              value={data.discount_inr ?? ''}
+              onChange={(e) => {
+                applyDiscountPatch({ discount_inr: e.target.value, discount_pct: '' });
+                approvalValidation.touch('discountInr');
+              }}
+              onBlur={() => approvalValidation.touch('discountInr')}
+              aria-invalid={
+                approvalValidation.fieldError('discountInr') ? true : undefined
+              }
+              disabled={formDisabled}
+            />
+            <FormFieldError
+              message={approvalValidation.fieldError('discountInr')}
+            />
+          </div>
+        ) : (
+          <div className="grid gap-1.5">
+            <Label className="text-xs">Discount (%)</Label>
+            <Input
+              type="number"
+              className="h-8 text-xs"
+              placeholder="5"
+              step="0.01"
+              value={data.discount_pct ?? ''}
+              onChange={(e) => {
+                applyDiscountPatch({ discount_pct: e.target.value, discount_inr: '' });
+                approvalValidation.touch('discountPct');
+              }}
+              onBlur={() => approvalValidation.touch('discountPct')}
+              aria-invalid={
+                approvalValidation.fieldError('discountPct') ? true : undefined
+              }
+              disabled={formDisabled}
+            />
+            <FormFieldError
+              message={approvalValidation.fieldError('discountPct')}
+            />
+          </div>
+        )}
         <div className="grid gap-1.5">
-          <Label className="text-xs">Discount asked (%)</Label>
+          <Label className="text-xs">Price after discount (₹)</Label>
           <Input
             type="text"
             readOnly
             className="h-8 bg-ds-gray-50 text-xs"
             placeholder="—"
-            value={discountPct != null ? String(discountPct) : ''}
+            value={offeredDisplay}
           />
         </div>
       </div>
@@ -936,7 +982,9 @@ function NegotiationForm({
               Budget rejected — update the offer and send again.
             </p>
           ) : null}
-          {approvalStatus !== 'pending' && approvalStatus !== 'approved' ? (
+          {approvalStatus !== 'pending' &&
+          approvalStatus !== 'approved' &&
+          requiresApproval ? (
             <Button
               type="button"
               variant="outline"
@@ -946,6 +994,12 @@ function NegotiationForm({
             >
               {submitting ? 'Sending…' : 'Send for admin approval'}
             </Button>
+          ) : null}
+          {!requiresApproval && approvalStatus !== 'pending' ? (
+            <p className="text-[11px] text-ds-gray-600">
+              No discount below list price — save and create a booking when
+              ready.
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -1032,7 +1086,8 @@ export function InquiryPipelinePanel(props: {
       return;
     }
     const blockMsg = negotiationApprovalBlockMessage(stageData.negotiation, {
-      funnelStage: negotiateFunnelForBooking
+      funnelStage: negotiateFunnelForBooking,
+      listPriceInr: unitListPriceInr
     });
     if (blockMsg) {
       pageError(blockMsg);
@@ -1060,7 +1115,7 @@ export function InquiryPipelinePanel(props: {
 
   const negotiationBlocksAdvance = tokenStageBlockedByNegotiation(
     stageData.negotiation,
-    { funnelStage: negotiateFunnelForBooking }
+    { funnelStage: negotiateFunnelForBooking, listPriceInr: unitListPriceInr }
   );
 
   useEffect(() => {
@@ -1383,7 +1438,7 @@ export function InquiryPipelinePanel(props: {
                   {getNegotiationApprovalStatus(stageData.negotiation) ===
                   'pending'
                     ? 'Admin approval is pending. Refresh status after decision — create a booking once approved.'
-                    : 'Send the offered price for admin approval before creating a booking.'}
+                    : 'Enter a discount and send for admin approval before creating a booking.'}
                 </p>
               ) : null}
               {activeStage === 'Negotiation' && (
@@ -1397,6 +1452,8 @@ export function InquiryPipelinePanel(props: {
                   unitId={unitId ?? null}
                   listPriceInr={unitListPriceInr}
                   supabase={supabase}
+                  customerName={inquiryContext?.customerName}
+                  unitCode={inquiryContext?.unitCode}
                   onApprovedCreateBooking={() => navigateToBooking()}
                   onRejectedClose={(note) => void closeFromRejectedApproval(note)}
                   inquiryBookingLocked={inquiryBookingLocked}

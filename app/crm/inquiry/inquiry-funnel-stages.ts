@@ -44,6 +44,13 @@ export type InquiryPipelineUiStage =
 /** @deprecated Use INQUIRY_PIPELINE_UI_STAGES — kept for list filters without Token. */
 export const FUNNEL_STAGES = INQUIRY_PIPELINE_UI_STAGES;
 
+/** Index in `INQUIRY_PIPELINE_UI_STAGES` for a funnel stage (unknown → Enquiry). */
+export function funnelStageIndex(stage: string | null | undefined): number {
+  const t = pipelineUiStage(stage);
+  const idx = INQUIRY_PIPELINE_UI_STAGES.indexOf(t);
+  return idx >= 0 ? idx : 0;
+}
+
 export function pipelineUiStage(
   funnelStage: string | null | undefined
 ): InquiryPipelineUiStage {
@@ -55,4 +62,41 @@ export function pipelineUiStage(
     return t as InquiryPipelineUiStage;
   }
   return 'Enquiry';
+}
+
+/**
+ * Highest pipeline stepper index the user may open (0 = Enquiry).
+ * Always allows one step ahead of the saved funnel stage so an Enquiry lead
+ * can open Qualified to pick a unit (matches new-enquiry wizard reachability).
+ */
+export function maxReachablePipelineUiIndex(
+  funnelStage: string | null | undefined,
+  wizardStep = 1
+): number {
+  const dbIdx = funnelStageIndex(funnelStage);
+  const wizardIdx = Math.max(0, wizardStep - 1);
+  const last = INQUIRY_PIPELINE_UI_STAGES.length - 1;
+  const oneAhead = Math.min(dbIdx + 1, last);
+  return Math.min(Math.max(dbIdx, wizardIdx, oneAhead), last);
+}
+
+/**
+ * Maps pipeline UI stage + saved `funnel_stage` to wizard step (1–3).
+ * Step 2 is unit pick; once DB is already Qualified+, show step 3 (site visit).
+ */
+export function inquiryWizardStepForView(
+  viewStage: InquiryPipelineUiStage,
+  persistedFunnelStage: string | null | undefined
+): 1 | 2 | 3 {
+  if (viewStage === 'Enquiry') return 1;
+  if (viewStage === 'Site Visit' || viewStage === 'Negotiation') return 3;
+  const persisted = pipelineUiStage(persistedFunnelStage);
+  if (
+    persisted === 'Qualified' ||
+    persisted === 'Site Visit' ||
+    persisted === 'Negotiation'
+  ) {
+    return 3;
+  }
+  return 2;
 }

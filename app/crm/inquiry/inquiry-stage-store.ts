@@ -191,6 +191,7 @@ export async function persistNegotiationApprovalRequest(
     notes?: string;
     funnelStage?: InquiryFunnelStage;
     siteVisitPatch?: Record<string, unknown>;
+    negotiationPatch?: Record<string, unknown>;
   }
 ): Promise<{ ok: boolean; error?: string }> {
   const patch: Partial<InquiryStageData> = {
@@ -198,7 +199,8 @@ export async function persistNegotiationApprovalRequest(
       offered_price: params.offeredPrice,
       approval_status: 'pending',
       approval_id: params.approvalId,
-      ...(params.notes ? { notes: params.notes } : {})
+      ...(params.notes ? { notes: params.notes } : {}),
+      ...(params.negotiationPatch ?? {})
     }
   };
   if (params.siteVisitPatch) {
@@ -381,6 +383,11 @@ export async function saveInquiryStageData(
         .update({ funnel_stage: nextFunnel })
         .eq('id', id);
       if (error) return { ok: false, error: error.message };
+    } else {
+      return {
+        ok: false,
+        error: `Cannot move enquiry from ${currentFunnel} back to ${nextFunnel}.`
+      };
     }
   }
 

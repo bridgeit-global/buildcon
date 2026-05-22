@@ -77,6 +77,8 @@ import {
 } from '@/lib/inquiry/inquiry-wizard.schema';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
+import { InquiryFollowUpBanner } from './inquiry-follow-up-banner';
+import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
 
 const LEAD_SOURCES = [
   'Direct',
@@ -187,6 +189,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   });
 
   const [createdInquiryId, setCreatedInquiryId] = useState('');
+  const [persistedInquiryProjectId, setPersistedInquiryProjectId] = useState('');
   const [inquiryHeldUnitId, setInquiryHeldUnitId] = useState('');
   const [activelyPursuedUnitIds, setActivelyPursuedUnitIds] = useState<
     Set<string>
@@ -199,8 +202,16 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   const [latestApprovalId, setLatestApprovalId] = useState('');
   const [inquiryClosed, setInquiryClosed] = useState(false);
   const [closedStatus, setClosedStatus] = useState<string | null>(null);
+  const [inquiryAssignedTo, setInquiryAssignedTo] = useState<string | null>(
+    null
+  );
 
   const activeInquiryId = String(inquiryIdProp || createdInquiryId || '').trim();
+  const followUpAssignedToMe = Boolean(
+    userLabel.id &&
+      inquiryAssignedTo &&
+      inquiryAssignedTo === userLabel.id
+  );
 
   const [internalStep, setInternalStep] = useState<StepId>(() =>
     inquiryIdProp ? 3 : 1
@@ -235,8 +246,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         .from('sales_inquiries')
         .select(
           `
+          project_id,
           unit_id,
           funnel_stage,
+          assigned_to,
           stage_data,
           lead_source,
           broker_id,
@@ -249,14 +262,19 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         .maybeSingle();
       if (cancelled || loadErr || !data) return;
       const row = data as {
+        project_id?: string;
         unit_id?: string;
+        assigned_to?: string | null;
         lead_source?: string;
         broker_id?: string | null;
         interested_in?: string | null;
         notes?: string | null;
         customers?: { full_name?: string; phone?: string; email?: string | null } | null;
       };
+      setCreatedInquiryId(id);
+      setPersistedInquiryProjectId(String(row.project_id ?? '').trim());
       const unitId = String(row.unit_id || '').trim();
+      setInquiryAssignedTo(String(row.assigned_to ?? '').trim() || null);
       const cust = row.customers;
       if (unitId) setInquiryHeldUnitId(unitId);
       if (unitId || cust) {
@@ -279,13 +297,25 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           interestedIn: String(row.interested_in ?? '').trim(),
           notes: String(row.notes ?? '').trim()
         }));
-        setCreatedInquiryId(id);
       }
       const stageData = (data as { stage_data?: Record<string, unknown> })
         .stage_data;
       setInquiryClosed(isInquiryClosed(stageData));
       setClosedStatus(getInquiryClosedStatus(stageData));
       const { data: sd } = await loadInquiryStageData(supabase, id);
+      const sv = sd?.site_visit as
+        | { follow_up_date?: string; outcome?: string }
+        | undefined;
+      const siteFollowUp = String(sv?.follow_up_date ?? '').trim();
+      if (siteFollowUp) {
+        setSellerForm((s) => ({ ...s, followUpDate: siteFollowUp }));
+      }
+      const siteOutcome = String(sv?.outcome ?? '').trim();
+      if (siteOutcome === 'Not Interested') {
+        setVisitInterest('Not Interested');
+      } else if (siteOutcome === 'Interested') {
+        setVisitInterest('Interested');
+      }
       const neg = sd?.negotiation as
         | {
           approval_status?: string;
@@ -474,6 +504,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }, [units, sellerForm.selectedUnitId]);
 
   const resolveEnquiryProjectId = useCallback(() => {
+    const fromPersisted = String(persistedInquiryProjectId || '').trim();
+    if (fromPersisted) return fromPersisted;
     const fromUnit = String(selectedUnit?.project_id || '').trim();
     if (fromUnit) return fromUnit;
     const fromFilters = String(unitPickFilters.projectId || '').trim();
@@ -492,6 +524,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (accessibleProjects.length === 1) return accessibleProjects[0].id;
     return '';
   }, [
+    persistedInquiryProjectId,
     selectedUnit?.project_id,
     unitPickFilters.projectId,
     selectableUnits,
@@ -768,6 +801,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       notes: ''
     });
     setCreatedInquiryId('');
+    setPersistedInquiryProjectId('');
     setVisitInterest('');
     setNegotiationOffer('');
     setApprovalStatus('none');
@@ -851,7 +885,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           .insert({
             ...inquiryFields,
             unit_id: null,
-            created_by: userLabel.id
+            created_by: userLabel.id,
+            assigned_to: userLabel.id
           })
           .select('id')
           .single();
@@ -859,6 +894,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         if (!inserted?.id) throw new Error('Inquiry insert returned no id');
         inquiryId = (inserted as { id: string }).id;
         setCreatedInquiryId(inquiryId);
+        setPersistedInquiryProjectId(inquiryProjectId);
+        setInquiryAssignedTo(userLabel.id);
         onCreated?.(inquiryId);
       }
 
@@ -1006,6 +1043,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       }
 
       setCreatedInquiryId(inquiryId);
+      await saveInquiryStageData(supabase, {
+        inquiryId,
+        patch: {
+          site_visit: buildSiteVisitStagePayload()
+        }
+      });
       changeStep(3);
       onFunnelStageChange?.('Qualified');
       toast.success('Unit qualified — record the site visit when ready.');
@@ -1017,6 +1060,16 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function buildSiteVisitStagePayload(
+    extra?: Record<string, unknown>
+  ): InquiryStageData['site_visit'] {
+    return {
+      follow_up_date: sellerForm.followUpDate.trim() || undefined,
+      notes: sellerForm.notes.trim() || undefined,
+      ...extra
+    };
   }
 
   async function persistVisitSiteStage(
@@ -1042,8 +1095,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     return true;
   }
 
-  function requireVisitInterestSelected() {
-    const parsed = visitValidation.validate();
+  function requireVisitInterestSelected(
+    interest: SiteVisitInterest = visitInterest
+  ) {
+    const parsed = inquirySiteVisitSchema.safeParse({
+      visitInterest: interest || ''
+    });
     if (!parsed.success) {
       pageError('Select visit interest before continuing.');
       return false;
@@ -1051,31 +1108,55 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     return true;
   }
 
-  async function handleCloseAsNotInterested() {
-    if (!activeInquiryId) return;
-    if (!requireVisitInterestSelected()) return;
+  async function handleCloseAsNotInterested(
+    interest: SiteVisitInterest = visitInterest
+  ) {
+    if (!activeInquiryId || saving || inquiryClosed) return;
+    if (!requireVisitInterestSelected(interest)) return;
     setSaving(true);
-        try {
-      await persistVisitSiteStage({
-        site_visit: {
-          outcome: 'Not Interested',
-          scheduled_at: sellerForm.followUpDate.trim() || undefined,
-          notes: sellerForm.notes.trim() || undefined
-        }
+    try {
+      const { data: existingStage } = await loadInquiryStageData(
+        supabase,
+        activeInquiryId
+      );
+      const siteVisitPayload = buildSiteVisitStagePayload({
+        outcome: 'Not Interested'
       });
+      await persistVisitSiteStage({ site_visit: siteVisitPayload });
+      const mergedStageData = {
+        ...(existingStage ?? {}),
+        site_visit: siteVisitPayload
+      };
       const result = await closeInquiry(supabase, {
         inquiryId: activeInquiryId,
-        unitId: sellerForm.selectedUnitId || null
+        unitId: sellerForm.selectedUnitId || null,
+        stageData: mergedStageData,
+        closedStatus: 'Not Interested'
       });
       if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
       setInquiryClosed(true);
       setClosedStatus('Not Interested');
-      toast.success('Enquiry closed. Unit released to available.');
+      onFunnelStageChange?.('Enquiry');
+      toast.success('Enquiry closed — lead moved to Enquiry status. Unit released.');
       await onInquirySaved?.();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Close failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleVisitInterestChange(next: SiteVisitInterest) {
+    setVisitInterest(next);
+    visitValidation.touch('visitInterest');
+    if (next === 'Not Interested') {
+      await handleCloseAsNotInterested(next);
+      return;
+    }
+    if (next === 'Interested' && activeInquiryId && !inquiryClosed && !stagesReadOnly) {
+      await persistVisitSiteStage({
+        site_visit: buildSiteVisitStagePayload({ outcome: 'Interested' })
+      });
     }
   }
 
@@ -1140,10 +1221,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       const customerId = await resolveInquiryCustomerId();
       if (!customerId) return;
       await persistVisitSiteStage({
-        site_visit: {
-          outcome: 'Interested',
-          scheduled_at: sellerForm.followUpDate.trim() || undefined
-        }
+        site_visit: buildSiteVisitStagePayload({ outcome: 'Interested' })
       });
       const prefill: BuildBookingPrefillInput = {
         inquiryId: activeInquiryId,
@@ -1270,11 +1348,14 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           saving={saving}
           stagesReadOnly={stagesReadOnly}
           visitFieldError={visitValidation.fieldError('visitInterest')}
-          onVisitInterestChange={(v) => {
-            setVisitInterest(v);
-            visitValidation.touch('visitInterest');
+          followUpAssignedToMe={followUpAssignedToMe}
+          onVisitInterestChange={(v) => void handleVisitInterestChange(v)}
+          onFollowUpBlur={() => {
+            if (!activeInquiryId || inquiryClosed || stagesReadOnly) return;
+            void persistVisitSiteStage({
+              site_visit: buildSiteVisitStagePayload()
+            });
           }}
-          onCloseNotInterested={() => void handleCloseAsNotInterested()}
           onSkipToNegotiation={() => onSkipToStage?.('Negotiation')}
           onCreateBooking={() => void handleCreateBookingFromVisit()}
         />
@@ -1724,13 +1805,14 @@ function StepVisitSite({
   setVisitInterest,
   visitFieldError,
   onVisitInterestChange,
+  followUpAssignedToMe,
+  onFollowUpBlur,
   approvalStatus,
   inquiryClosed,
   closedStatus,
   tokenBlockedByApproval,
   saving,
   stagesReadOnly,
-  onCloseNotInterested,
   onSkipToNegotiation,
   onCreateBooking
 }: {
@@ -1741,13 +1823,14 @@ function StepVisitSite({
   setVisitInterest: (v: SiteVisitInterest) => void;
   visitFieldError?: string;
   onVisitInterestChange?: (v: SiteVisitInterest) => void;
+  followUpAssignedToMe?: boolean;
+  onFollowUpBlur?: () => void;
   approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
   inquiryClosed: boolean;
   closedStatus: string | null;
   tokenBlockedByApproval: boolean;
   saving: boolean;
   stagesReadOnly?: boolean;
-  onCloseNotInterested: () => void;
   onSkipToNegotiation?: () => void;
   onCreateBooking?: () => void;
 }) {
@@ -1778,35 +1861,51 @@ function StepVisitSite({
 
       <SelectedUnitSummaryCard unit={selectedUnit} />
 
+      {sellerForm.followUpDate.trim() && !formDisabled ? (
+        <InquiryFollowUpBanner
+          followUpDate={sellerForm.followUpDate}
+          assignedToMe={followUpAssignedToMe}
+        />
+      ) : null}
+
       <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
         <p className="text-xs font-semibold text-ds-gray-800">Site visit</p>
         <p className="mt-0.5 text-[11px] text-ds-gray-500">
-          Record follow-up and whether the buyer is still interested after the
-          visit.
+          Set a follow-up date for the assigned team member. Choosing{' '}
+          <span className="font-medium">Not interested</span> closes the enquiry
+          and moves the lead back to Enquiry status.
         </p>
         <div className="mt-3 grid gap-3">
           <div>
             <Label className={wizardLabelClass}>Follow-up date</Label>
             <Input
               type="datetime-local"
-              className={wizardFieldClass}
+              className={cn(
+                wizardFieldClass,
+                followUpAssignedToMe &&
+                  followUpNeedsAttention(sellerForm.followUpDate) &&
+                  'border-ds-primary-400 ring-1 ring-ds-primary-200'
+              )}
               value={sellerForm.followUpDate}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
               }
+              onBlur={() => onFollowUpBlur?.()}
               disabled={formDisabled}
             />
+            {followUpAssignedToMe ? (
+              <p className="mt-1 text-[11px] text-ds-primary-700">
+                Shown on your Work queue follow-ups when due.
+              </p>
+            ) : null}
           </div>
           <div>
             <Label className={wizardLabelClass}>After visit</Label>
             <div className="mt-1">
               <InterestToggle
                 value={visitInterest}
-                onChange={(v) => {
-                  setVisitInterest(v);
-                  onVisitInterestChange?.(v);
-                }}
-                disabled={formDisabled}
+                onChange={(v) => onVisitInterestChange?.(v)}
+                disabled={formDisabled || saving}
               />
             </div>
             <FormFieldError message={visitFieldError} />
@@ -1814,24 +1913,8 @@ function StepVisitSite({
         </div>
       </div>
 
-      {visitInterest === 'Not Interested' && !formDisabled ? (
-        <div className="rounded-lg border border-red-200 bg-red-50/60 p-4">
-          <p className="text-xs font-semibold text-ds-gray-800">
-            Close this enquiry
-          </p>
-          <p className="mt-1 text-[11px] text-ds-gray-600">
-            Releases the unit from BLOCKED back to available inventory.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-3 border-red-300 text-red-700 hover:bg-red-50"
-            disabled={saving}
-            onClick={onCloseNotInterested}
-          >
-            Close enquiry
-          </Button>
-        </div>
+      {visitInterest === 'Not Interested' && !formDisabled && saving ? (
+        <p className="text-xs text-ds-gray-600">Closing enquiry…</p>
       ) : null}
 
       {visitInterest === 'Interested' && !formDisabled ? (

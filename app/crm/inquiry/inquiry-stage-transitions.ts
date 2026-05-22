@@ -5,6 +5,7 @@ import {
   normalizeUnitStatusCode
 } from '../inventory/unit-status';
 import type { InquiryStageData } from './inquiry-types';
+import { negotiationRequiresApproval } from '@/lib/inquiry/negotiation-discount';
 import { saveInquiryStageData } from './inquiry-stage-store';
 
 export const SITE_VISIT_OUTCOMES = [
@@ -72,20 +73,18 @@ export function computeNegotiationDiscount(
   return { discountPct, discountInr };
 }
 
-/** True when a negotiation approval flow was started but token is not yet allowed. */
+/** True when discount terms need admin approval and are not yet approved. */
 export function negotiationBlocksTokenAdvance(
-  negotiation: Record<string, unknown> | null | undefined
+  negotiation: Record<string, unknown> | null | undefined,
+  options?: { listPriceInr?: number | null }
 ): boolean {
   if (!negotiation || typeof negotiation !== 'object' || Array.isArray(negotiation)) {
     return false;
   }
-  const status = getNegotiationApprovalStatus(negotiation);
-  const hasFlow =
-    status !== 'none' ||
-    Boolean(String(negotiation.approval_id ?? '').trim()) ||
-    Boolean(String(negotiation.offered_price ?? '').trim());
-  if (!hasFlow) return false;
-  return status !== 'approved';
+  if (!negotiationRequiresApproval(options?.listPriceInr, negotiation)) {
+    return false;
+  }
+  return getNegotiationApprovalStatus(negotiation) !== 'approved';
 }
 
 /**
@@ -94,19 +93,22 @@ export function negotiationBlocksTokenAdvance(
  */
 export function tokenStageBlockedByNegotiation(
   negotiation: Record<string, unknown> | null | undefined,
-  options?: { funnelStage?: string }
+  options?: { funnelStage?: string; listPriceInr?: number | null }
 ): boolean {
   const funnel = String(options?.funnelStage ?? '').trim();
   if (funnel === 'Negotiation') {
+    if (!negotiationRequiresApproval(options?.listPriceInr, negotiation)) {
+      return false;
+    }
     return getNegotiationApprovalStatus(negotiation) !== 'approved';
   }
-  return negotiationBlocksTokenAdvance(negotiation);
+  return negotiationBlocksTokenAdvance(negotiation, options);
 }
 
 /** Same gate as token advance — enquiry must not create a booking until approved. */
 export function bookingBlockedByNegotiationApproval(
   negotiation: Record<string, unknown> | null | undefined,
-  options?: { funnelStage?: string }
+  options?: { funnelStage?: string; listPriceInr?: number | null }
 ): boolean {
   return tokenStageBlockedByNegotiation(negotiation, options);
 }
@@ -114,7 +116,7 @@ export function bookingBlockedByNegotiationApproval(
 /** User-facing message when `bookingBlockedByNegotiationApproval` is true; otherwise null. */
 export function negotiationApprovalBlockMessage(
   negotiation: Record<string, unknown> | null | undefined,
-  options?: { funnelStage?: string }
+  options?: { funnelStage?: string; listPriceInr?: number | null }
 ): string | null {
   if (!bookingBlockedByNegotiationApproval(negotiation, options)) return null;
 
@@ -130,12 +132,34 @@ export function negotiationApprovalBlockMessage(
 
   if (onNegotiateFunnel) {
     if (status === 'rejected') {
-      return 'Budget was rejected. Update the offer and obtain admin approval before creating a booking.';
+      return 'Budget was rejected. Update the discount and send for admin approval again.';
     }
-    return 'Send the offered price for admin approval before creating a booking.';
+    return 'Enter a discount below list price and send for admin approval before creating a booking.';
   }
 
   return 'Complete budget approval in the Negotiate stage before creating a booking.';
+}
+
+/** Persist funnel stage Negotiation after site visit (interested buyer). */
+export async function advanceInquiryToNegotiation(
+  supabase: SupabaseClient,
+  params: {
+    inquiryId: string;
+    siteVisitPatch?: Record<string, unknown>;
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  const patch: Partial<InquiryStageData> = {
+    site_visit: {
+      outcome: 'Interested',
+      ...(params.siteVisitPatch ?? {})
+    }
+  };
+  return saveInquiryStageData(supabase, {
+    inquiryId: params.inquiryId,
+    patch,
+    funnelStage: 'Negotiation',
+    markStagesCompleted: ['Site Visit']
+  });
 }
 
 export function getInquiryClosedStatus(

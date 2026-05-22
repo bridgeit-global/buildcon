@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { pageError } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
@@ -13,21 +14,22 @@ import {
   type InquiryPipelineRow
 } from '../inquiry-pipeline-dialog';
 import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
-import type { InquiryFunnelStage } from '../inquiry-stage-unit-map';
 import {
   INQUIRY_PIPELINE_UI_STAGES,
+  funnelStageRank,
+  inquiryWizardStepForView,
+  maxReachablePipelineUiIndex,
   pipelineUiStage,
+  type InquiryFunnelStage,
   type InquiryPipelineUiStage
 } from '../inquiry-funnel-stages';
-import {
-  InquiryFunnelStepper,
-  funnelStageIndex
-} from '../inquiry-funnel-stepper';
+import { InquiryFunnelStepper } from '../inquiry-funnel-stepper';
 import {
   fetchActiveBookingForInquiry,
   inquiryNegotiationStageLocked,
   inquiryStagesLockedByUnitToken
 } from '../inquiry-booking-guard';
+import { advanceInquiryToNegotiation } from '../inquiry-stage-transitions';
 import {
   loadInquiryStageData,
   stageHasMeaningfulData
@@ -44,18 +46,6 @@ type InquiryFetchRow = {
   units: { unit_code: string; status?: string | null } | null;
 };
 
-function wizardStepForFunnelStage(stage: InquiryFunnelStage): number {
-  switch (stage) {
-    case 'Enquiry':
-      return 1;
-    case 'Qualified':
-      return 2;
-    case 'Site Visit':
-      return 3;
-    default:
-      return 3;
-  }
-}
 
 function NewInquiryPageInner() {
   const router = useRouter();
@@ -119,9 +109,23 @@ function NewInquiryPageInner() {
         assigned_to: row.assigned_to,
         stage_data: stageData
       });
+      const booking = await fetchActiveBookingForInquiry(supabase, id);
+      setLinkedBookingId(booking?.id ?? null);
+      const atOrPastNegotiation =
+        funnelStageRank(fs) >= funnelStageRank('Negotiation');
+      const negotiationLocked = inquiryNegotiationStageLocked(
+        'Negotiation',
+        Boolean(booking?.id)
+      );
+
       setFunnelStage(fs);
-      setViewStage(uiStage);
-      setWizardStep(wizardStepForFunnelStage(uiStage));
+      if (atOrPastNegotiation && !negotiationLocked) {
+        setViewStage('Negotiation');
+        setWizardStep(inquiryWizardStepForView('Negotiation', fs));
+      } else {
+        setViewStage(uiStage);
+        setWizardStep(inquiryWizardStepForView(uiStage, fs));
+      }
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
@@ -138,12 +142,6 @@ function NewInquiryPageInner() {
         filled.add('Negotiation');
       }
       setStagesWithData(filled);
-
-      const booking = await fetchActiveBookingForInquiry(supabase, id);
-      setLinkedBookingId(booking?.id ?? null);
-      if (booking && uiStage === 'Negotiation') {
-        setViewStage('Site Visit');
-      }
 
       return true;
     },
@@ -214,38 +212,51 @@ function NewInquiryPageInner() {
     [loadInquiry]
   );
 
+  const handleSkipToStage = useCallback(
+    async (stage: InquiryFunnelStage) => {
+      const ui = pipelineUiStage(stage);
+      if (inquiryNegotiationStageLocked(ui, Boolean(linkedBookingId))) return;
+      if (ui === 'Negotiation' && inquiryId) {
+        const result = await advanceInquiryToNegotiation(supabase, {
+          inquiryId
+        });
+        if (!result.ok) {
+          pageError(result.error ?? 'Could not open negotiate stage');
+          return;
+        }
+        await loadInquiry(inquiryId);
+        return;
+      }
+      setViewStage(ui);
+      if (ui === 'Negotiation') setFunnelStage('Negotiation');
+    },
+    [linkedBookingId, inquiryId, supabase, loadInquiry]
+  );
+
   const handleStageSelect = useCallback(
     (stage: InquiryPipelineUiStage) => {
       if (!inquiryId && stage !== 'Enquiry' && stage !== 'Qualified') return;
       if (inquiryNegotiationStageLocked(stage, Boolean(linkedBookingId))) return;
-      setViewStage(stage);
       if (stage === 'Negotiation') {
-        setFunnelStage('Negotiation');
+        void handleSkipToStage('Negotiation');
         return;
       }
-      setWizardStep(wizardStepForFunnelStage(stage));
+      setViewStage(stage);
+      setWizardStep(inquiryWizardStepForView(stage, funnelStage));
     },
-    [inquiryId, linkedBookingId]
+    [inquiryId, linkedBookingId, funnelStage, handleSkipToStage]
   );
 
   const handleFunnelStageChange = useCallback((stage: string) => {
     setFunnelStage(stage);
-    setViewStage(pipelineUiStage(stage));
+    const ui = pipelineUiStage(stage);
+    setViewStage(ui);
+    setWizardStep(inquiryWizardStepForView(ui, stage));
   }, []);
 
   const handleStageDataSaved = useCallback(() => {
     if (inquiryId) void loadInquiry(inquiryId);
   }, [inquiryId, loadInquiry]);
-
-  const handleSkipToStage = useCallback(
-    (stage: InquiryFunnelStage) => {
-      const ui = pipelineUiStage(stage);
-      if (inquiryNegotiationStageLocked(ui, Boolean(linkedBookingId))) return;
-      setViewStage(ui);
-      if (ui === 'Negotiation') setFunnelStage('Negotiation');
-    },
-    [linkedBookingId]
-  );
 
   const handlePipelineStageChange = useCallback(
     (stage: InquiryPipelineUiStage) => {
@@ -277,8 +288,8 @@ function NewInquiryPageInner() {
 
   const resuming = Boolean(resumeInquiryId && !resumeReady);
   const maxReachableIndex = inquiryId
-    ? funnelStageIndex(funnelStage)
-    : Math.min(wizardStep - 1, 2);
+    ? maxReachablePipelineUiIndex(funnelStage, wizardStep)
+    : Math.min(wizardStep - 1, INQUIRY_PIPELINE_UI_STAGES.length - 1);
 
   const showPipelinePanel =
     Boolean(inquiryId) && viewStage === 'Negotiation';
