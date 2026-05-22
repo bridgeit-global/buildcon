@@ -102,6 +102,12 @@ export function isUnitBlockedStatus(status: string | null | undefined): boolean 
   return s === 'BLOCKED' || String(status || '').trim() === 'BL';
 }
 
+/** Inventory shows token received — enquiry pipeline stages are view-only. */
+export function isUnitTokenReceivedStatus(status: string | null | undefined): boolean {
+  const s = normalizeUnitStatusCode(status);
+  return s === 'TOKEN' || String(status || '').trim() === 'TOKEN';
+}
+
 export function isUnitBookedOrBeyond(status: string | null | undefined): boolean {
   const s = normalizeUnitStatusCode(status);
   return (

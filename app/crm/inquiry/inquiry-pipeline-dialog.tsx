@@ -35,7 +35,9 @@ import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inqui
 import {
   fetchActiveBookingForInquiry,
   INQUIRY_ACTIVE_BOOKING_MESSAGE,
-  inquiryNegotiationStageLocked
+  INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE,
+  inquiryNegotiationStageLocked,
+  inquiryStagesLockedByUnitToken
 } from './inquiry-booking-guard';
 import {
   INQUIRY_PIPELINE_UI_STAGES,
@@ -225,18 +227,26 @@ function stageDataToJson(data: StageData): InquiryStageData {
 function ToggleGroup<T extends string>({
   options,
   value,
-  onChange
+  onChange,
+  disabled
 }: {
   options: { value: T; label: string }[];
   value: T | undefined | '';
   onChange: (v: T) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex overflow-hidden rounded-md border border-border">
+    <div
+      className={cn(
+        'flex overflow-hidden rounded-md border border-border',
+        disabled && 'pointer-events-none opacity-60'
+      )}
+    >
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
+          disabled={disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
             'flex-1 px-2 py-1.5 text-xs font-medium transition-colors',
@@ -417,10 +427,12 @@ function ActiveStageGuide({ stage }: { stage: string }) {
 
 function EnquiryForm({
   data,
-  onChange
+  onChange,
+  readOnly
 }: {
   data: EnquiryStageData;
   onChange: (d: EnquiryStageData) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="grid gap-3">
@@ -431,6 +443,7 @@ function EnquiryForm({
           className="h-8 text-xs"
           value={data.follow_up_date ?? ''}
           onChange={(e) => onChange({ ...data, follow_up_date: e.target.value })}
+          disabled={readOnly}
         />
       </div>
       <div className="grid gap-1.5">
@@ -442,6 +455,7 @@ function EnquiryForm({
           onChange={(e) =>
             onChange({ ...data, cost_sheet_notes: e.target.value })
           }
+          disabled={readOnly}
         />
       </div>
       <div className="grid gap-1.5">
@@ -451,6 +465,7 @@ function EnquiryForm({
           placeholder="Initial enquiry notes…"
           value={data.notes ?? ''}
           onChange={(e) => onChange({ ...data, notes: e.target.value })}
+          disabled={readOnly}
         />
       </div>
     </div>
@@ -459,10 +474,12 @@ function EnquiryForm({
 
 function QualifiedForm({
   data,
-  onChange
+  onChange,
+  readOnly
 }: {
   data: QualifiedStageData;
   onChange: (d: QualifiedStageData) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="grid gap-3">
@@ -475,6 +492,7 @@ function QualifiedForm({
             placeholder="50,00,000"
             value={data.budget_min ?? ''}
             onChange={(e) => onChange({ ...data, budget_min: e.target.value })}
+            disabled={readOnly}
           />
         </div>
         <div className="grid gap-1.5">
@@ -485,6 +503,7 @@ function QualifiedForm({
             placeholder="80,00,000"
             value={data.budget_max ?? ''}
             onChange={(e) => onChange({ ...data, budget_max: e.target.value })}
+            disabled={readOnly}
           />
         </div>
       </div>
@@ -499,6 +518,7 @@ function QualifiedForm({
           ]}
           value={data.financing ?? ''}
           onChange={(v) => onChange({ ...data, financing: v })}
+          disabled={readOnly}
         />
       </div>
 
@@ -512,6 +532,7 @@ function QualifiedForm({
           ]}
           value={data.temperature ?? ''}
           onChange={(v) => onChange({ ...data, temperature: v })}
+          disabled={readOnly}
         />
       </div>
 
@@ -524,6 +545,7 @@ function QualifiedForm({
           onChange={(e) =>
             onChange({ ...data, follow_up_date: e.target.value })
           }
+          disabled={readOnly}
         />
       </div>
       <div className="grid gap-1.5">
@@ -533,6 +555,7 @@ function QualifiedForm({
           placeholder="Requirements, concerns, pre-approval status…"
           value={data.notes ?? ''}
           onChange={(e) => onChange({ ...data, notes: e.target.value })}
+          disabled={readOnly}
         />
       </div>
     </div>
@@ -563,6 +586,17 @@ function InquiryBookingLockedBanner({
   );
 }
 
+function InquiryUnitTokenLockedBanner() {
+  return (
+    <div
+      role="status"
+      className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+    >
+      <p>{INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE}</p>
+    </div>
+  );
+}
+
 function SiteVisitForm({
   data,
   onChange,
@@ -571,7 +605,8 @@ function SiteVisitForm({
   onCloseEnquiry,
   saving,
   pipelineClosed,
-  inquiryBookingLocked
+  inquiryBookingLocked,
+  stagesReadOnly
 }: {
   data: SiteVisitStageData;
   onChange: (d: SiteVisitStageData) => void;
@@ -581,13 +616,15 @@ function SiteVisitForm({
   saving: boolean;
   pipelineClosed: boolean;
   inquiryBookingLocked?: boolean;
+  stagesReadOnly?: boolean;
 }) {
+  const formDisabled = pipelineClosed || stagesReadOnly;
   const outcome = String(data.outcome || '').trim();
   const visitDone = data.status === 'Done';
   const showLikedActions =
-    visitDone && outcome === 'Liked' && !pipelineClosed;
+    visitDone && outcome === 'Liked' && !formDisabled;
   const showDislikedAction =
-    visitDone && outcome === 'Disliked' && !pipelineClosed;
+    visitDone && outcome === 'Disliked' && !formDisabled;
 
   return (
     <div className="grid gap-3">
@@ -600,6 +637,7 @@ function SiteVisitForm({
           onChange={(e) =>
             onChange({ ...data, scheduled_at: e.target.value })
           }
+          disabled={formDisabled}
         />
       </div>
 
@@ -608,6 +646,7 @@ function SiteVisitForm({
         <Select
           value={data.status ?? ''}
           onValueChange={(v) => onChange({ ...data, status: v })}
+          disabled={formDisabled}
         >
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Select…" />
@@ -638,6 +677,7 @@ function SiteVisitForm({
           }))}
           value={data.outcome ?? ''}
           onChange={(v) => onChange({ ...data, outcome: v })}
+          disabled={formDisabled}
         />
       </div>
 
@@ -648,7 +688,7 @@ function SiteVisitForm({
           placeholder="Site visit feedback, highlights shown…"
           value={data.notes ?? ''}
           onChange={(e) => onChange({ ...data, notes: e.target.value })}
-          disabled={pipelineClosed}
+          disabled={formDisabled}
         />
       </div>
 
@@ -693,7 +733,8 @@ function NegotiationForm({
   onApprovalSubmitted,
   onApprovedCreateBooking,
   onRejectedClose,
-  inquiryBookingLocked
+  inquiryBookingLocked,
+  stagesReadOnly
 }: {
   data: NegotiationStageData;
   onChange: (d: NegotiationStageData) => void;
@@ -706,6 +747,7 @@ function NegotiationForm({
   onApprovedCreateBooking?: () => void | Promise<void>;
   onRejectedClose?: (decisionNote?: string) => void | Promise<void>;
   inquiryBookingLocked?: boolean;
+  stagesReadOnly?: boolean;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -844,7 +886,7 @@ function NegotiationForm({
     }
   }
 
-  const formDisabled = inquiryBookingLocked;
+  const formDisabled = inquiryBookingLocked || stagesReadOnly;
 
   return (
     <div className="grid gap-3">
@@ -1063,6 +1105,8 @@ export function InquiryPipelinePanel(props: {
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
   const inquiryBookingLocked = Boolean(linkedBookingId);
+  const inquiryUnitTokenLocked = inquiryStagesLockedByUnitToken(unitStatus);
+  const stagesReadOnly = inquiryUnitTokenLocked;
   const activeStage = activeStageOverride ?? activeStageInternal;
   const setActiveStage = (stage: FunnelStage) => {
     if (inquiryNegotiationStageLocked(stage, inquiryBookingLocked)) {
@@ -1191,6 +1235,10 @@ export function InquiryPipelinePanel(props: {
 
   async function closeFromRejectedApproval(decisionNote?: string) {
     if (!inquiry) return;
+    if (inquiryUnitTokenLocked) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
     setSaving(true);
         try {
       const result = await closeInquiry(supabase, {
@@ -1218,6 +1266,10 @@ export function InquiryPipelinePanel(props: {
 
   async function save(nextStage?: FunnelStage) {
     if (!inquiry) return;
+    if (inquiryUnitTokenLocked) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
     const targetStage = nextStage ?? activeStage;
     if (inquiryNegotiationStageLocked(targetStage, inquiryBookingLocked)) {
       pageError(INQUIRY_ACTIVE_BOOKING_MESSAGE);
@@ -1262,6 +1314,10 @@ export function InquiryPipelinePanel(props: {
 
   async function handleCloseEnquiry() {
     if (!inquiry) return;
+    if (inquiryUnitTokenLocked) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
     setSaving(true);
         try {
       const result = await closeInquiry(supabase, {
@@ -1375,6 +1431,7 @@ export function InquiryPipelinePanel(props: {
                   This enquiry is closed. The unit has been released to available inventory when applicable.
                 </div>
               ) : null}
+              {inquiryUnitTokenLocked ? <InquiryUnitTokenLockedBanner /> : null}
               {linkedBookingId ? (
                 <InquiryBookingLockedBanner bookingId={linkedBookingId} />
               ) : null}
@@ -1383,12 +1440,14 @@ export function InquiryPipelinePanel(props: {
                 <EnquiryForm
                   data={stageData.enquiry ?? {}}
                   onChange={(d) => setStageData((s) => ({ ...s, enquiry: d }))}
+                  readOnly={stagesReadOnly}
                 />
               )}
               {activeStage === 'Qualified' && (
                 <QualifiedForm
                   data={stageData.qualified ?? {}}
                   onChange={(d) => setStageData((s) => ({ ...s, qualified: d }))}
+                  readOnly={stagesReadOnly}
                 />
               )}
               {activeStage === 'Site Visit' && (
@@ -1403,6 +1462,7 @@ export function InquiryPipelinePanel(props: {
                   saving={saving}
                   pipelineClosed={pipelineClosed}
                   inquiryBookingLocked={inquiryBookingLocked}
+                  stagesReadOnly={stagesReadOnly}
                 />
               )}
               {activeStage === 'Negotiation' && negotiationBlocksAdvance ? (
@@ -1427,6 +1487,7 @@ export function InquiryPipelinePanel(props: {
                   onApprovedCreateBooking={() => navigateToBooking()}
                   onRejectedClose={(note) => void closeFromRejectedApproval(note)}
                   inquiryBookingLocked={inquiryBookingLocked}
+                  stagesReadOnly={stagesReadOnly}
                   onApprovalSubmitted={() => {
                     void (async () => {
                       const { data } = await loadInquiryStageData(
@@ -1459,7 +1520,7 @@ export function InquiryPipelinePanel(props: {
             >
               {macroStep === 'customer' ? 'Continue to unit' : 'Continue to pipeline'}
             </Button>
-          ) : pipelineClosed ? null : (
+          ) : pipelineClosed || inquiryUnitTokenLocked ? null : (
             <>
               {projectId && unitId && customerId ? (
                 <Button

@@ -4,6 +4,8 @@ import {
   type InquiryFunnelStage
 } from './inquiry-funnel-stages';
 import type { InquiryStageData } from './inquiry-types';
+import { isUnitTokenReceivedStatus } from '../inventory/unit-status';
+import { INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE } from './inquiry-booking-guard';
 import {
   inquiryTokenPayloadsEqual,
   isInquiryTokenComplete,
@@ -294,11 +296,23 @@ export async function saveInquiryStageData(
       loadInquiryStageRows(supabase, id),
       supabase
         .from('sales_inquiries')
-        .select('stage_data')
+        .select('stage_data, unit_id')
         .eq('id', id)
         .maybeSingle(),
       inquiryHasConfirmedBooking(supabase, id)
     ]);
+
+  const unitId = String(inquiryRow?.unit_id ?? '').trim();
+  if (unitId) {
+    const { data: unitRow } = await supabase
+      .from('units')
+      .select('status')
+      .eq('id', unitId)
+      .maybeSingle();
+    if (isUnitTokenReceivedStatus(unitRow?.status as string | undefined)) {
+      return { ok: false, error: INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE };
+    }
+  }
 
   const existingStageData = stageDataFromRows(existingRows);
   const closedPayload =

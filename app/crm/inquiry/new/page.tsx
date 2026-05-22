@@ -25,7 +25,8 @@ import {
 } from '../inquiry-funnel-stepper';
 import {
   fetchActiveBookingForInquiry,
-  inquiryNegotiationStageLocked
+  inquiryNegotiationStageLocked,
+  inquiryStagesLockedByUnitToken
 } from '../inquiry-booking-guard';
 import {
   loadInquiryStageData,
@@ -256,6 +257,8 @@ function NewInquiryPageInner() {
     [linkedBookingId]
   );
 
+  const inquiryUnitTokenLocked = inquiryStagesLockedByUnitToken(unitStatus);
+
   const pipelineUnitStageNote = useMemo(
     () =>
       funnelUnitAlignmentMessage(
@@ -365,6 +368,7 @@ function NewInquiryPageInner() {
                   hideStepper
                   inquiryId={inquiryId || undefined}
                   forcedStep={wizardStep as 1 | 2 | 3}
+                  stagesReadOnly={inquiryUnitTokenLocked}
                   onStepChange={setWizardStep}
                   onCreated={(id) => void handleInquiryCreated(id)}
                   onFunnelStageChange={handleFunnelStageChange}

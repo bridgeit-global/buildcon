@@ -27,7 +27,9 @@ import {
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import {
   fetchActiveBookingForInquiry,
-  INQUIRY_ACTIVE_BOOKING_MESSAGE
+  INQUIRY_ACTIVE_BOOKING_MESSAGE,
+  INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE,
+  inquiryStagesLockedByUnitToken
 } from './inquiry-booking-guard';
 import {
   navigateToCreateBookingFromInquiry,
@@ -86,6 +88,9 @@ const STEPS = [
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
 
+const wizardInputClass = 'mt-1 h-11 text-sm';
+const wizardSelectTriggerClass = 'mt-1 h-11 w-full text-sm';
+
 type SiteVisitInterest = 'Interested' | 'Not Interested' | '';
 
 type NewInquiryWizardProps = {
@@ -103,6 +108,8 @@ type NewInquiryWizardProps = {
   onFunnelStageChange?: (stage: string) => void;
   onStageDataSaved?: () => void;
   onSkipToStage?: (stage: InquiryFunnelStage) => void;
+  /** When unit inventory is TOKEN — all wizard stages are view-only. */
+  stagesReadOnly?: boolean;
 };
 
 function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
@@ -125,7 +132,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     forcedStep,
     onFunnelStageChange,
     onStageDataSaved,
-    onSkipToStage
+    onSkipToStage,
+    stagesReadOnly: stagesReadOnlyProp
   } = props;
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -393,6 +401,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     return units.find((u) => u.id === id) ?? null;
   }, [units, sellerForm.selectedUnitId]);
 
+  const stagesReadOnly =
+    stagesReadOnlyProp ?? inquiryStagesLockedByUnitToken(selectedUnit?.status);
+
   useEffect(() => {
     const pid = String(selectedUnit?.project_id || '').trim();
     if (!pid) {
@@ -571,6 +582,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   async function goNext() {
     if (saving) return;
+    if (stagesReadOnly) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
     if (step === 1) {
       const parsed = step1Validation.validate();
       if (!parsed.success) {
@@ -611,6 +626,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   async function gotoStep(target: StepId) {
     if (target === step || saving) return;
+    if (stagesReadOnly && target !== step) return;
     if (target < step) {
       changeStep(target);
       return;
@@ -688,6 +704,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }
 
   async function saveInquiryAndQualify() {
+    if (stagesReadOnly) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     if (!canQualifyUnit || !inquiryProjectId || !userLabel.id) return;
     setSaving(true);
@@ -777,6 +797,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     funnelStage?: InquiryFunnelStage
   ): Promise<boolean> {
     if (!activeInquiryId) return false;
+    if (stagesReadOnly) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return false;
+    }
     const result = await saveInquiryStageData(supabase, {
       inquiryId: activeInquiryId,
       patch,
@@ -853,6 +877,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   async function handleCreateBookingFromVisit() {
     if (!activeInquiryId || saving) return;
+    if (stagesReadOnly) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
     if (!requireVisitInterestSelected()) return;
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     const uid = String(sellerForm.selectedUnitId || '').trim();
@@ -923,13 +951,21 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   return (
     <>
+      {stagesReadOnly ? (
+        <div
+          role="status"
+          className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+        >
+          {INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE}
+        </div>
+      ) : null}
 
       {!hideStepper && (
         <Stepper
           current={step}
           onStepClick={gotoStep}
           valid={stepValid}
-          disabled={saving}
+          disabled={saving || stagesReadOnly}
         />
       )}
 
@@ -941,11 +977,17 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           signedIn={Boolean(userLabel.id)}
           fieldError={step1Validation.fieldError}
           touch={step1Validation.touch}
+          readOnly={stagesReadOnly}
         />
       ) : null}
 
       {step === 2 ? (
-        <div className="space-y-4">
+        <div
+          className={cn(
+            'space-y-4',
+            stagesReadOnly && 'pointer-events-none opacity-60'
+          )}
+        >
           <p className="text-xs text-ds-gray-600">
             Pick an available unit, review the cost sheet, then continue. The
             unit is blocked in inventory when you save.
@@ -956,6 +998,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             selectedUnit={selectedUnit}
             selectedUnitId={sellerForm.selectedUnitId}
             onSelectUnitId={(id, unitType) => {
+              if (stagesReadOnly) return;
               setSellerForm((s) => ({
                 ...s,
                 selectedUnitId: id,
@@ -989,6 +1032,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           closedStatus={closedStatus}
           tokenBlockedByApproval={tokenBlockedByApproval}
           saving={saving}
+          stagesReadOnly={stagesReadOnly}
           visitFieldError={visitValidation.fieldError('visitInterest')}
           onVisitInterestChange={(v) => {
             setVisitInterest(v);
@@ -1005,17 +1049,18 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           <Button
             type="button"
             variant="outline"
-
+            size="lg"
             onClick={goBack}
-            disabled={step === 1 || saving}
+            disabled={step === 1 || saving || stagesReadOnly}
           >
             Back
           </Button>
           <Button
             type="button"
             variant="ghost"
+            size="lg"
             onClick={resetForm}
-            disabled={saving}
+            disabled={saving || stagesReadOnly}
           >
             Reset
           </Button>
@@ -1024,9 +1069,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           {!userLabel.id ? (
             <span className="text-xs text-amber-700">Sign in required.</span>
           ) : null}
-          {step < 3 ? (
+          {step < 3 && !stagesReadOnly ? (
             <Button
               type="button"
+              size="lg"
               className="gap-1.5"
               onClick={() => void goNext()}
               disabled={!stepValid[step] || saving}
@@ -1148,7 +1194,8 @@ function StepEnquiry({
   brokers,
   signedIn,
   fieldError,
-  touch
+  touch,
+  readOnly
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
@@ -1156,9 +1203,15 @@ function StepEnquiry({
   signedIn: boolean;
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
   touch: (field: keyof InquiryWizardStep1Values) => void;
+  readOnly?: boolean;
 }) {
   return (
-    <div className="mt-5 space-y-4">
+    <div
+      className={cn(
+        'mt-5 space-y-4',
+        readOnly && 'pointer-events-none opacity-60'
+      )}
+    >
       {!signedIn ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           Sign in to save and continue.
@@ -1167,9 +1220,9 @@ function StepEnquiry({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <Label className="text-xs">Customer name *</Label>
+          <Label className="text-sm">Customer name *</Label>
           <Input
-            className="mt-1"
+            className={wizardInputClass}
             value={sellerForm.customerName}
             onChange={(e) => {
               setSellerForm((s) => ({ ...s, customerName: e.target.value }));
@@ -1190,6 +1243,7 @@ function StepEnquiry({
           label="Phone *"
           placeholder="10-digit mobile"
           mode="digits10"
+          inputClassName="h-11 text-sm"
           error={fieldError('phone')}
         />
         <EmailInputField
@@ -1198,6 +1252,7 @@ function StepEnquiry({
             setSellerForm((s) => ({ ...s, email: v }));
             touch('email');
           }}
+          inputClassName="h-11 text-sm"
           error={fieldError('email')}
           placeholder="Email (optional)"
         />
@@ -1205,7 +1260,7 @@ function StepEnquiry({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <Label className="text-xs">Lead source *</Label>
+          <Label className="text-sm">Lead source *</Label>
           <Select
             value={sellerForm.leadSource}
             onValueChange={(v) => {
@@ -1218,7 +1273,7 @@ function StepEnquiry({
               touch('leadSource');
             }}
           >
-            <SelectTrigger className="mt-1 w-full">
+            <SelectTrigger className={wizardSelectTriggerClass}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1232,7 +1287,7 @@ function StepEnquiry({
         </div>
 
         <div>
-          <Label className="text-xs">
+          <Label className="text-sm">
             Broker
             {sellerForm.leadSource === 'Broker' ? (
               <span className="ml-1 text-red-500">*</span>
@@ -1250,7 +1305,7 @@ function StepEnquiry({
           >
             <SelectTrigger
               className={cn(
-                'mt-1 w-full',
+                wizardSelectTriggerClass,
                 sellerForm.leadSource !== 'Broker' && 'opacity-50'
               )}
             >
@@ -1284,7 +1339,7 @@ function StepEnquiry({
           <div>
             <Label className="text-xs text-ds-gray-600">Unit type / layout</Label>
             <Input
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               placeholder="e.g. 2 BHK, corner, higher floor"
               value={sellerForm.interestedIn}
               onChange={(e) =>
@@ -1295,7 +1350,7 @@ function StepEnquiry({
           <div>
             <Label className="text-xs text-ds-gray-600">Preferred location / area</Label>
             <Input
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               value={sellerForm.preferredLocation}
               onChange={(e) =>
                 setSellerForm((s) => ({
@@ -1309,7 +1364,7 @@ function StepEnquiry({
             <Label className="text-xs text-ds-gray-600">Budget min (₹)</Label>
             <Input
               type="number"
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               value={sellerForm.budgetMin}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, budgetMin: e.target.value }))
@@ -1320,7 +1375,7 @@ function StepEnquiry({
             <Label className="text-xs text-ds-gray-600">Budget max (₹)</Label>
             <Input
               type="number"
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               value={sellerForm.budgetMax}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, budgetMax: e.target.value }))
@@ -1330,7 +1385,7 @@ function StepEnquiry({
           <div>
             <Label className="text-xs text-ds-gray-600">Preferred wing / tower</Label>
             <Input
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               value={sellerForm.preferredWing}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, preferredWing: e.target.value }))
@@ -1341,7 +1396,7 @@ function StepEnquiry({
             <Label className="text-xs text-ds-gray-600">First follow-up</Label>
             <Input
               type="datetime-local"
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               value={sellerForm.followUpDate}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
@@ -1381,8 +1436,8 @@ function StepEnquiry({
             onChange={(e) =>
               setSellerForm((s) => ({ ...s, notes: e.target.value }))
             }
-            rows={2}
-            className="mt-1 min-h-[60px] resize-y text-xs"
+            rows={3}
+            className="mt-1 min-h-[80px] resize-y text-sm"
           />
         </div>
       </div>
@@ -1407,7 +1462,7 @@ function ParkingYesNoToggle({
           type="button"
           onClick={() => onChange(v)}
           className={cn(
-            'flex-1 px-4 py-2 text-xs font-medium transition-colors',
+            'min-h-11 flex-1 px-4 py-2.5 text-sm font-medium transition-colors',
             value === v
               ? 'bg-primary text-primary-foreground'
               : 'bg-background text-muted-foreground hover:bg-muted'
@@ -1442,7 +1497,7 @@ function ParkingCountToggle({
           type="button"
           onClick={() => onChange(v)}
           className={cn(
-            'flex-1 px-3 py-2 text-xs font-medium transition-colors',
+            'min-h-11 flex-1 px-3 py-2.5 text-sm font-medium transition-colors',
             value === v
               ? 'bg-primary text-primary-foreground'
               : 'bg-background text-muted-foreground hover:bg-muted'
@@ -1457,13 +1512,20 @@ function ParkingCountToggle({
 
 function InterestToggle({
   value,
-  onChange
+  onChange,
+  disabled
 }: {
   value: SiteVisitInterest;
   onChange: (v: SiteVisitInterest) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex overflow-hidden rounded-md border border-border">
+    <div
+      className={cn(
+        'flex overflow-hidden rounded-md border border-border',
+        disabled && 'pointer-events-none opacity-60'
+      )}
+    >
       {(
         [
           { value: 'Interested' as const, label: 'Interested' },
@@ -1473,9 +1535,10 @@ function InterestToggle({
         <button
           key={opt.value}
           type="button"
+          disabled={disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'min-h-11 flex-1 px-3 py-2 text-xs font-medium transition-colors',
+            'min-h-11 flex-1 px-3 py-2.5 text-sm font-medium transition-colors',
             value === opt.value
               ? 'bg-primary text-primary-foreground'
               : 'bg-background text-muted-foreground hover:bg-muted'
@@ -1503,6 +1566,7 @@ function StepVisitSite({
   closedStatus,
   tokenBlockedByApproval,
   saving,
+  stagesReadOnly,
   onCloseNotInterested,
   onSkipToNegotiation,
   onCreateBooking
@@ -1519,10 +1583,12 @@ function StepVisitSite({
   closedStatus: string | null;
   tokenBlockedByApproval: boolean;
   saving: boolean;
+  stagesReadOnly?: boolean;
   onCloseNotInterested: () => void;
   onSkipToNegotiation?: () => void;
   onCreateBooking?: () => void;
 }) {
+  const formDisabled = inquiryClosed || stagesReadOnly;
   if (!selectedUnit) {
     return (
       <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
@@ -1560,11 +1626,12 @@ function StepVisitSite({
             <Label className="text-xs text-ds-gray-600">Follow-up date</Label>
             <Input
               type="datetime-local"
-              className="mt-1 h-9 text-xs"
+              className={wizardInputClass}
               value={sellerForm.followUpDate}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
               }
+              disabled={formDisabled}
             />
           </div>
           <div>
@@ -1576,6 +1643,7 @@ function StepVisitSite({
                   setVisitInterest(v);
                   onVisitInterestChange?.(v);
                 }}
+                disabled={formDisabled}
               />
             </div>
             <FormFieldError message={visitFieldError} />
@@ -1583,7 +1651,7 @@ function StepVisitSite({
         </div>
       </div>
 
-      {visitInterest === 'Not Interested' && !inquiryClosed ? (
+      {visitInterest === 'Not Interested' && !formDisabled ? (
         <div className="rounded-lg border border-red-200 bg-red-50/60 p-4">
           <p className="text-xs font-semibold text-ds-gray-800">
             Close this enquiry
@@ -1594,7 +1662,8 @@ function StepVisitSite({
           <Button
             type="button"
             variant="outline"
-            className="mt-3 min-h-11 border-red-300 text-red-700 hover:bg-red-50"
+            size="lg"
+            className="mt-3 border-red-300 text-red-700 hover:bg-red-50"
             disabled={saving}
             onClick={onCloseNotInterested}
           >
@@ -1603,7 +1672,7 @@ function StepVisitSite({
         </div>
       ) : null}
 
-      {visitInterest === 'Interested' && !inquiryClosed ? (
+      {visitInterest === 'Interested' && !formDisabled ? (
         <div className="space-y-3 rounded-lg border border-ds-primary-200 bg-ds-primary-50/50 p-4">
           <p className="text-xs font-semibold text-ds-gray-800">
             Buyer liked the unit — choose next step
@@ -1624,7 +1693,8 @@ function StepVisitSite({
             <Button
               type="button"
               variant="outline"
-              className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700"
+              size="lg"
+              className="flex-1 border-ds-primary-300 text-ds-primary-700"
               disabled={saving}
               onClick={onSkipToNegotiation}
             >
@@ -1632,7 +1702,8 @@ function StepVisitSite({
             </Button>
             <Button
               type="button"
-              className="min-h-11 flex-1 gap-1 bg-teal-600 hover:bg-teal-700"
+              size="lg"
+              className="flex-1 gap-1 bg-teal-600 hover:bg-teal-700"
               disabled={saving || tokenBlockedByApproval}
               onClick={onCreateBooking}
             >

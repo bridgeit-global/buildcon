@@ -1,7 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isUnitTokenReceivedStatus } from '../inventory/unit-status';
 
 export const INQUIRY_ACTIVE_BOOKING_MESSAGE =
   'A booking already exists for this enquiry. Open the existing booking to continue.';
+
+export const INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE =
+  'This unit has token received in inventory. Enquiry pipeline stages are view-only — continue from the booking.';
 
 export type ActiveInquiryBooking = {
   id: string;
@@ -38,4 +42,11 @@ export function inquiryNegotiationStageLocked(
   hasActiveBooking: boolean
 ): boolean {
   return hasActiveBooking && String(stage || '').trim() === 'Negotiation';
+}
+
+/** All enquiry funnel stages are read-only when inventory is already on token. */
+export function inquiryStagesLockedByUnitToken(
+  unitStatus: string | null | undefined
+): boolean {
+  return isUnitTokenReceivedStatus(unitStatus);
 }
