@@ -50,31 +50,8 @@ export function CrmShell({
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionOpen, setSectionOpen] = useState(getDefaultNavSectionOpen);
-  const [headerClock, setHeaderClock] = useState('');
 
   const flatNav = useMemo(() => flattenCrmNav(), []);
-
-  useEffect(() => {
-    const formatHeaderClock = () => {
-      const d = new Date();
-      const datePart = new Intl.DateTimeFormat('en-GB', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      }).format(d);
-      const timePart = new Intl.DateTimeFormat('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      })
-        .format(d)
-        .replace(':', '.');
-      return `${datePart} · ${timePart}`;
-    };
-    setHeaderClock(formatHeaderClock());
-    const id = window.setInterval(() => setHeaderClock(formatHeaderClock()), 60_000);
-    return () => window.clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const stored = readNavSectionOpenFromStorage();
@@ -312,21 +289,9 @@ export function CrmShell({
                   </>
                 ) : null}
               </nav>
-              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <div className="min-w-0">
-                  <h1 className="text-base font-bold leading-snug text-[#101828] sm:text-lg">
-                    {pageHeading}
-                  </h1>
-                </div>
-                {headerClock ? (
-                  <p
-                    className="shrink-0 text-[11px] tabular-nums text-[#6C757D] sm:pt-0.5 sm:text-right"
-                    aria-live="polite"
-                  >
-                    {headerClock}
-                  </p>
-                ) : null}
-              </div>
+              <h1 className="mb-3 text-base font-bold leading-snug text-[#101828] sm:text-lg">
+                {pageHeading}
+              </h1>
               {children}
             </div>
           </main>

@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
 import { FUNNEL_STAGES } from './inquiry-pipeline-dialog';
 import {
@@ -198,9 +199,7 @@ export function InquiryListTable({
               {inquiryReference(row.original.id)}
             </div>
             <div className="text-[10px] text-muted-foreground tabular-nums">
-              {row.original.created_at
-                ? new Date(row.original.created_at).toLocaleString()
-                : '—'}
+              {formatDisplayDateTime(row.original.created_at)}
             </div>
           </div>
         ),

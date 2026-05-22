@@ -1,4 +1,5 @@
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
+import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type BookingSalesDocPrintBase = {
   bookingId: string;
@@ -44,11 +45,7 @@ export function formatInr(amount: number | null | undefined): string {
 }
 
 export function formatPrintDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+  return formatDisplayDate(d);
 }
 
 function formatDate(d: Date): string {
