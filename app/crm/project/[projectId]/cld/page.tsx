@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
@@ -16,22 +17,20 @@ export default function ProjectCldPage() {
 
   const [projectName, setProjectName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
-    setError('');
     const { data, error: qErr } = await supabase
       .from('projects')
       .select('id,name')
       .eq('id', projectId)
       .maybeSingle();
     if (qErr) {
-      setError(qErr.message);
+      pageError(qErr.message);
       setProjectName(null);
     } else if (!data) {
-      setError('Project not found');
+      pageError('Project not found');
       setProjectName(null);
     } else {
       setProjectName(data.name as string);
@@ -66,15 +65,10 @@ export default function ProjectCldPage() {
             </p>
           </div>
         </div>
-        {error ? (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
       </Card>
 
-      {!error && projectId ? (
-        <ProjectCldManage projectId={projectId} projectName={projectName ?? undefined} />
+      {projectId && projectName ? (
+        <ProjectCldManage projectId={projectId} projectName={projectName} />
       ) : null}
     </div>
   );

@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { pageError } from '@/lib/toast';
 import { Check, ChevronDown, Search, Sparkles, UserPlus, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -364,7 +365,6 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [bookings, setBookings] = useState<BookingListRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const [unitId, setUnitId] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -413,7 +413,7 @@ export default function BookingsPage() {
       )
       .eq('id', projectId)
       .maybeSingle();
-    if (projErr) setError(projErr.message);
+    if (projErr) pageError(projErr.message);
     setProjectParking(
       projData
         ? {
@@ -437,8 +437,7 @@ export default function BookingsPage() {
 
   async function load() {
     setLoading(true);
-    setError('');
-    setPrefillCustomerMissing(false);
+        setPrefillCustomerMissing(false);
 
     const [
       { data: uData, error: uErr },
@@ -486,9 +485,9 @@ export default function BookingsPage() {
         .limit(200)
     ]);
 
-    if (uErr) setError(uErr.message);
-    if (cErr) setError(cErr.message);
-    if (bkErr) setError(bkErr.message);
+    if (uErr) pageError(uErr.message);
+    if (cErr) pageError(cErr.message);
+    if (bkErr) pageError(bkErr.message);
 
     const unitsList = (uData ?? []) as UnitOption[];
     let customerList = (cData ?? []) as CustomerOption[];
@@ -665,15 +664,15 @@ export default function BookingsPage() {
       .filter((id): id is string => Boolean(id));
     const primaryCust = customers.find((c) => c.id === customerId);
     if (!primaryCust) {
-      setError('Choose a customer.');
+      pageError('Choose a customer.');
       return;
     }
     if (!String(primaryCust.full_name ?? '').trim()) {
-      setError('Customer name is required.');
+      pageError('Customer name is required.');
       return;
     }
     if (normalizePhoneDigits(primaryCust.phone).length !== 10) {
-      setError(
+      pageError(
         'Customer phone number is required (10 digits). Update the customer record before booking.'
       );
       return;
@@ -685,12 +684,12 @@ export default function BookingsPage() {
       if (!co) continue;
       const ph = normalizePhoneDigits(co.phone);
       if (ph && primaryPhone && ph === primaryPhone) {
-        setError('A co-buyer cannot share the primary customer phone number.');
+        pageError('A co-buyer cannot share the primary customer phone number.');
         return;
       }
       if (ph) {
         if (seenCoPhones.has(ph)) {
-          setError('Co-buyers cannot share the same phone number.');
+          pageError('Co-buyers cannot share the same phone number.');
           return;
         }
         seenCoPhones.add(ph);
@@ -701,26 +700,25 @@ export default function BookingsPage() {
       paymentModeNeedsLoanBank(paymentMode) &&
       !String(loanBank || '').trim()
     ) {
-      setError('Select the loan or sanctioning bank.');
+      pageError('Select the loan or sanctioning bank.');
       return;
     }
 
     if (paymentMode === 'UPI' && !String(upiUtr || '').trim()) {
-      setError('Enter UPI UTR.');
+      pageError('Enter UPI UTR.');
       return;
     }
     if (paymentMode === 'Cheque' && !String(chequeNo || '').trim()) {
-      setError('Enter cheque number.');
+      pageError('Enter cheque number.');
       return;
     }
     if (paymentMode === 'NEFT/RTGS' && !String(neftRef || '').trim()) {
-      setError('Enter NEFT / RTGS reference.');
+      pageError('Enter NEFT / RTGS reference.');
       return;
     }
 
     setCreating(true);
-    setError('');
-    setCreatedBookingId(null);
+        setCreatedBookingId(null);
     try {
       const res = await fetch('/api/crm/bookings', {
         method: 'POST',
@@ -769,7 +767,7 @@ export default function BookingsPage() {
       setUnitFromInquiryUnavailable(false);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create booking');
+      pageError(e instanceof Error ? e.message : 'Failed to create booking');
     } finally {
       setCreating(false);
     }
@@ -778,17 +776,16 @@ export default function BookingsPage() {
   async function submitNewCustomer() {
     const full_name = newCustomerDraft.full_name.trim();
     if (!full_name) {
-      setError('Customer name is required.');
+      pageError('Customer name is required.');
       return;
     }
     const digits = normalizePhoneDigits(newCustomerDraft.phone);
     if (digits.length !== 10) {
-      setError('Enter a 10-digit phone number.');
+      pageError('Enter a 10-digit phone number.');
       return;
     }
     setSavingCustomer(true);
-    setError('');
-    try {
+        try {
       const { data, error: insErr } = await supabase
         .from('customers')
         .insert({
@@ -815,7 +812,7 @@ export default function BookingsPage() {
       setAddCustomerCoSlotKey(null);
       setNewCustomerDraft({ full_name: '', phone: '', email: '' });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create customer');
+      pageError(e instanceof Error ? e.message : 'Failed to create customer');
     } finally {
       setSavingCustomer(false);
     }
@@ -1146,14 +1143,6 @@ export default function BookingsPage() {
                 </Button>
               </div>
             ) : null}
-          </div>
-        ) : null}
-
-
-
-        {error ? (
-          <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
           </div>
         ) : null}
 

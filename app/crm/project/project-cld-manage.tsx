@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,6 @@ export function ProjectCldManage({
   const [stages, setStages] = useState<StageRow[]>([]);
   const [completions, setCompletions] = useState<CompletionRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'percent' | 'fixed'>('percent');
   const [value, setValue] = useState('5');
@@ -47,8 +47,7 @@ export function ProjectCldManage({
   const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
-    setError('');
-    const [sRes, cRes] = await Promise.all([
+        const [sRes, cRes] = await Promise.all([
       supabase
         .from('project_cld_stages')
         .select('id,project_id,sort_order,name,demand_kind,demand_value,slab_label')
@@ -61,8 +60,8 @@ export function ProjectCldManage({
         .order('completed_on', { ascending: false })
         .limit(100)
     ]);
-    if (sRes.error) setError(sRes.error.message);
-    if (cRes.error) setError(cRes.error.message);
+    if (sRes.error) pageError(sRes.error.message);
+    if (cRes.error) pageError(cRes.error.message);
     setStages((sRes.data ?? []) as StageRow[]);
     setCompletions((cRes.data ?? []) as CompletionRow[]);
     setLoading(false);
@@ -75,8 +74,7 @@ export function ProjectCldManage({
   async function addStage() {
     if (!projectId || !name.trim()) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const nextOrder =
         stages.reduce((m, s) => Math.max(m, s.sort_order), -1) + 1;
       const { error: e } = await supabase.from('project_cld_stages').insert({
@@ -112,7 +110,7 @@ export function ProjectCldManage({
       }
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save stage');
+      pageError(e instanceof Error ? e.message : 'Failed to save stage');
     } finally {
       setSaving(false);
     }
@@ -120,8 +118,7 @@ export function ProjectCldManage({
 
   async function logCompletion(stage: StageRow) {
     setSaving(true);
-    setError('');
-    setSuccess('');
+        setSuccess('');
     try {
       const res = await fetch(
         `/api/crm/projects/${encodeURIComponent(stage.project_id)}/cld/completions`,
@@ -160,7 +157,7 @@ export function ProjectCldManage({
       );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to log completion');
+      pageError(e instanceof Error ? e.message : 'Failed to log completion');
     } finally {
       setSaving(false);
     }
@@ -174,11 +171,6 @@ export function ProjectCldManage({
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
       {success ? (
         <div className="rounded-md border border-ds-primary-200 bg-ds-primary-50 p-3 text-sm text-ds-primary-800">
           {success}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -27,12 +28,10 @@ export default function PortalHomePage() {
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-    try {
+        try {
       const {
         data: { user }
       } = await supabase.auth.getUser();
@@ -87,7 +86,7 @@ export default function PortalHomePage() {
       if (bErr) throw bErr;
       setBookings((bRows ?? []) as BookingRow[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load portal');
+      pageError(e instanceof Error ? e.message : 'Failed to load portal');
     } finally {
       setLoading(false);
     }
@@ -126,11 +125,6 @@ export default function PortalHomePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
 
       <Card className="p-4">
         <div className="text-sm font-semibold text-slate-900">Your bookings</div>

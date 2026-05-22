@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import {
   flexRender,
   getCoreRowModel,
@@ -149,7 +150,6 @@ export default function ApprovalsPage() {
 
   const [rows, setRows] = useState<ApprovalRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState('');
@@ -189,8 +189,7 @@ export default function ApprovalsPage() {
 
   const loadRows = useCallback(async () => {
     setLoading(true);
-    setError('');
-    const { data, error: readErr } = await supabase
+        const { data, error: readErr } = await supabase
       .from('negotiation_approvals')
       .select(
         `
@@ -217,7 +216,7 @@ export default function ApprovalsPage() {
       .order('requested_at', { ascending: false })
       .limit(500);
     if (readErr) {
-      setError(readErr.message);
+      pageError(readErr.message);
       setRows([]);
       setLoading(false);
       return;
@@ -237,7 +236,7 @@ export default function ApprovalsPage() {
         .select('id, name')
         .in('id', requesterIds);
       if (profileErr) {
-        setError(profileErr.message);
+        pageError(profileErr.message);
         setRows([]);
         setLoading(false);
         return;
@@ -290,8 +289,7 @@ export default function ApprovalsPage() {
     async (decision: 'approve' | 'reject') => {
       if (!activeRow) return;
       setDeciding(true);
-      setError('');
-      try {
+            try {
         const { error: rpcErr } = await supabase.rpc(
           'decide_negotiation_approval',
           {
@@ -305,7 +303,7 @@ export default function ApprovalsPage() {
         setDecisionNote('');
         await loadRows();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Decision failed');
+        pageError(e instanceof Error ? e.message : 'Decision failed');
       } finally {
         setDeciding(false);
       }
@@ -492,12 +490,6 @@ export default function ApprovalsPage() {
           Admins can approve or reject.
         </p>
       </div>
-
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
 
       {isSuperAdmin === false ? (
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">

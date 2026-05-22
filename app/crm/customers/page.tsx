@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -238,7 +239,6 @@ export default function CustomersPage() {
   const [listNextOffset, setListNextOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
   const listScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
 
@@ -291,7 +291,6 @@ export default function CustomersPage() {
   const [loadingExtras, setLoadingExtras] = useState(false);
 
   const [extrasSaving, setExtrasSaving] = useState(false);
-  const [extrasError, setExtrasError] = useState('');
 
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -323,7 +322,6 @@ export default function CustomersPage() {
   const [kycFormOpen, setKycFormOpen] = useState(false);
   const [kycDocType, setKycDocType] = useState('aadhaar');
   const kycFileRef = useRef<HTMLInputElement>(null);
-  const [kycAlert, setKycAlert] = useState('');
   const [kycPanInput, setKycPanInput] = useState('');
   const [kycAadhaarInput, setKycAadhaarInput] = useState('');
   const [identityPan, setIdentityPan] = useState('');
@@ -340,8 +338,7 @@ export default function CustomersPage() {
         if (!listHasMore || loadingMore) return;
         setLoadingMore(true);
       }
-      setError('');
-      try {
+            try {
         const params = new URLSearchParams({
           limit: String(LIST_PAGE_SIZE),
           offset: String(offset)
@@ -370,7 +367,7 @@ export default function CustomersPage() {
           });
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load customers');
+        pageError(e instanceof Error ? e.message : 'Failed to load customers');
         if (opts.reset) {
           setCustomers([]);
           setListTotal(null);
@@ -570,14 +567,13 @@ export default function CustomersPage() {
     const fieldErrors = validateCustomerForm(draft);
     setDraftFieldErrors(fieldErrors);
     if (hasCustomerFormErrors(fieldErrors)) {
-      setError('Fix the highlighted fields before saving.');
+      pageError('Fix the highlighted fields before saving.');
       return;
     }
     const full_name = draft.full_name.trim();
     const phoneDigits = normalizePhoneDigits(draft.phone);
     setSaving(true);
-    setError('');
-    try {
+        try {
       const { data, error: insErr } = await supabase
         .from('customers')
         .insert({
@@ -615,7 +611,7 @@ export default function CustomersPage() {
         office_name_address: ''
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create customer');
+      pageError(e instanceof Error ? e.message : 'Failed to create customer');
     } finally {
       setSaving(false);
     }
@@ -626,14 +622,13 @@ export default function CustomersPage() {
     const fieldErrors = validateCustomerForm(editDraft);
     setEditFieldErrors(fieldErrors);
     if (hasCustomerFormErrors(fieldErrors)) {
-      setError('Fix the highlighted fields before saving.');
+      pageError('Fix the highlighted fields before saving.');
       return;
     }
     const full_name = editDraft.full_name.trim();
     const phoneDigits = normalizePhoneDigits(editDraft.phone);
     setSaving(true);
-    setError('');
-    try {
+        try {
       const { data, error: upErr } = await supabase
         .from('customers')
         .update({
@@ -661,7 +656,7 @@ export default function CustomersPage() {
       setEditFieldErrors({});
       setEditOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update customer');
+      pageError(e instanceof Error ? e.message : 'Failed to update customer');
     } finally {
       setSaving(false);
     }
@@ -669,8 +664,7 @@ export default function CustomersPage() {
 
   function openEditDialog() {
     if (!selected) return;
-    setError('');
-    setEditFieldErrors({});
+        setEditFieldErrors({});
     setEditDraft({
       full_name: selected.full_name,
       phone: selected.phone ?? '',
@@ -690,8 +684,7 @@ export default function CustomersPage() {
   }
 
   function openAddressCreate() {
-    setExtrasError('');
-    setEditingAddressId(null);
+        setEditingAddressId(null);
     setAddressForm({
       kind: 'current',
       address_line1: '',
@@ -703,8 +696,7 @@ export default function CustomersPage() {
   }
 
   function openAddressEdit(row: AddressRow) {
-    setExtrasError('');
-    setEditingAddressId(row.id);
+        setEditingAddressId(row.id);
     setAddressForm({
       kind: row.kind === 'permanent' ? 'permanent' : 'current',
       address_line1: row.address_line1 ?? '',
@@ -719,12 +711,11 @@ export default function CustomersPage() {
     if (!selectedId) return;
     const line = addressForm.address_line1.trim();
     if (!line) {
-      setExtrasError('Address line is required.');
+      pageError('Address line is required.');
       return;
     }
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       const payload = {
         kind: addressForm.kind,
         address_line1: line,
@@ -757,7 +748,7 @@ export default function CustomersPage() {
       }
       setAddressFormOpen(false);
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to save address'
       );
     } finally {
@@ -769,8 +760,7 @@ export default function CustomersPage() {
     if (!selectedId) return;
     if (!window.confirm('Remove this address?')) return;
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       const { error: delErr } = await supabase
         .from('customer_addresses')
         .delete()
@@ -779,7 +769,7 @@ export default function CustomersPage() {
       if (delErr) throw delErr;
       setAddresses((prev) => prev.filter((a) => a.id !== id));
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to remove address'
       );
     } finally {
@@ -788,8 +778,7 @@ export default function CustomersPage() {
   }
 
   function openNomineeCreate() {
-    setExtrasError('');
-    setEditingNomineeId(null);
+        setEditingNomineeId(null);
     setNomineeForm({
       nominee_name: '',
       relationship: '',
@@ -799,8 +788,7 @@ export default function CustomersPage() {
   }
 
   function openNomineeEdit(row: NomineeRow) {
-    setExtrasError('');
-    setEditingNomineeId(row.id);
+        setEditingNomineeId(row.id);
     setNomineeForm({
       nominee_name: row.nominee_name ?? '',
       relationship: row.relationship ?? '',
@@ -815,12 +803,11 @@ export default function CustomersPage() {
     if (!selectedId) return;
     const name = nomineeForm.nominee_name.trim();
     if (!name) {
-      setExtrasError('Nominee name is required.');
+      pageError('Nominee name is required.');
       return;
     }
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       const payload = {
         nominee_name: name,
         relationship: nomineeForm.relationship.trim() || null,
@@ -851,7 +838,7 @@ export default function CustomersPage() {
       }
       setNomineeFormOpen(false);
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to save nominee'
       );
     } finally {
@@ -863,8 +850,7 @@ export default function CustomersPage() {
     if (!selectedId) return;
     if (!window.confirm('Remove this nominee?')) return;
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       const { error: delErr } = await supabase
         .from('customer_nominees')
         .delete()
@@ -873,7 +859,7 @@ export default function CustomersPage() {
       if (delErr) throw delErr;
       setNominees((prev) => prev.filter((n) => n.id !== id));
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to remove nominee'
       );
     } finally {
@@ -882,8 +868,7 @@ export default function CustomersPage() {
   }
 
   function openBankCreate() {
-    setExtrasError('');
-    setEditingBankId(null);
+        setEditingBankId(null);
     setBankForm({
       bank_name: '',
       account_no: '',
@@ -894,8 +879,7 @@ export default function CustomersPage() {
   }
 
   function openBankEdit(row: BankRow) {
-    setExtrasError('');
-    setEditingBankId(row.id);
+        setEditingBankId(row.id);
     setBankForm({
       bank_name: row.bank_name ?? '',
       account_no: row.account_no ?? '',
@@ -909,12 +893,11 @@ export default function CustomersPage() {
     if (!selectedId) return;
     const bankName = bankForm.bank_name.trim();
     if (!bankName) {
-      setExtrasError('Bank name is required.');
+      pageError('Bank name is required.');
       return;
     }
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       const payload = {
         bank_name: bankName,
         account_no: bankForm.account_no.trim() || null,
@@ -946,7 +929,7 @@ export default function CustomersPage() {
       }
       setBankFormOpen(false);
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to save bank details'
       );
     } finally {
@@ -958,8 +941,7 @@ export default function CustomersPage() {
     if (!selectedId) return;
     if (!window.confirm('Remove this bank record?')) return;
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       const { error: delErr } = await supabase
         .from('customer_bank_details')
         .delete()
@@ -968,7 +950,7 @@ export default function CustomersPage() {
       if (delErr) throw delErr;
       setBankRows((prev) => prev.filter((b) => b.id !== id));
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to remove bank record'
       );
     } finally {
@@ -977,9 +959,7 @@ export default function CustomersPage() {
   }
 
   function openKycUpload() {
-    setExtrasError('');
-    setKycAlert('');
-    setKycDocType('aadhaar');
+            setKycDocType('aadhaar');
     setKycPanInput(selected?.pan_number ?? '');
     setKycAadhaarInput(selected?.aadhaar_last4 ?? '');
     if (kycFileRef.current) kycFileRef.current.value = '';
@@ -1013,11 +993,10 @@ export default function CustomersPage() {
 
   async function saveKycIdentityDetails() {
     setExtrasSaving(true);
-    setExtrasError('');
-    try {
+        try {
       await persistCustomerIdentifiers(identityPan, identityAadhaar);
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to save PAN / Aadhaar'
       );
     } finally {
@@ -1029,19 +1008,17 @@ export default function CustomersPage() {
     if (!selectedId) return;
     const file = kycFileRef.current?.files?.[0];
     if (!file) {
-      setExtrasError('Choose a file to upload.');
+      pageError('Choose a file to upload.');
       return;
     }
     const maxBytes = 50 * 1024 * 1024;
     if (file.size > maxBytes) {
-      setExtrasError('File is too large (max 50 MB).');
+      pageError('File is too large (max 50 MB).');
       return;
     }
 
     setExtrasSaving(true);
-    setExtrasError('');
-    setKycAlert('');
-
+        
     const ext = extensionFromFile(file);
     const path = `customer/${selectedId}/${kycDocType}/${crypto.randomUUID()}${ext}`;
 
@@ -1089,7 +1066,7 @@ export default function CustomersPage() {
         try {
           await persistCustomerIdentifiers(panToSave, aadhaarToSave);
         } catch (e) {
-          setExtrasError(
+          pageError(
             e instanceof Error
               ? e.message
               : 'Document uploaded but failed to save PAN / Aadhaar on customer'
@@ -1100,7 +1077,7 @@ export default function CustomersPage() {
       setKycFormOpen(false);
       if (kycFileRef.current) kycFileRef.current.value = '';
     } catch (e) {
-      setExtrasError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to upload document'
       );
     } finally {
@@ -1109,8 +1086,7 @@ export default function CustomersPage() {
   }
 
   async function openKycFile(doc: KycDocRow) {
-    setKycAlert('');
-    try {
+        try {
       const { data, error: urlErr } = await supabase.storage
         .from(KYC_BUCKET)
         .createSignedUrl(doc.storage_path, 3600);
@@ -1119,7 +1095,7 @@ export default function CustomersPage() {
       }
       window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
     } catch (e) {
-      setKycAlert(
+      pageError(
         e instanceof Error ? e.message : 'Could not open the file'
       );
     }
@@ -1135,8 +1111,7 @@ export default function CustomersPage() {
       return;
     }
     setExtrasSaving(true);
-    setKycAlert('');
-    try {
+        try {
       const { error: delErr } = await supabase
         .from('customer_kyc_documents')
         .delete()
@@ -1146,7 +1121,7 @@ export default function CustomersPage() {
       await supabase.storage.from(KYC_BUCKET).remove([doc.storage_path]);
       setKycDocs((prev) => prev.filter((d) => d.id !== doc.id));
     } catch (e) {
-      setKycAlert(
+      pageError(
         e instanceof Error ? e.message : 'Failed to remove document'
       );
     } finally {
@@ -1179,8 +1154,7 @@ export default function CustomersPage() {
             onOpenChange={(next) => {
               setOpen(next);
               if (!next) {
-                setError('');
-                setDraftFieldErrors({});
+                                setDraftFieldErrors({});
               }
             }}
           >
@@ -1191,12 +1165,6 @@ export default function CustomersPage() {
               <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
                 <DialogTitle>Add customer</DialogTitle>
               </DialogHeader>
-
-              {open && error ? (
-                <div className="mx-6 mt-4 shrink-0 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : null}
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1416,12 +1384,6 @@ export default function CustomersPage() {
       </Card>
 
       <Card className="p-5">
-        {error && !open && !editOpen && !extrasDialogOpen ? (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
         {selected ? (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start gap-4 border-b border-gray-100 pb-4">
@@ -1463,8 +1425,7 @@ export default function CustomersPage() {
                   onOpenChange={(next) => {
                     setEditOpen(next);
                     if (!next) {
-                      setError('');
-                      setEditFieldErrors({});
+                                            setEditFieldErrors({});
                     }
                   }}
                 >
@@ -1481,12 +1442,6 @@ export default function CustomersPage() {
                     <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
                       <DialogTitle>Edit customer</DialogTitle>
                     </DialogHeader>
-
-                    {editOpen && error ? (
-                      <div className="mx-6 mt-4 shrink-0 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        {error}
-                      </div>
-                    ) : null}
 
                     <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1953,12 +1908,6 @@ export default function CustomersPage() {
                   </Button>
                 </div>
 
-                {kycAlert ? (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {kycAlert}
-                  </div>
-                ) : null}
-
                 <div className="rounded-lg border bg-white">
                   {loadingExtras ? (
                     <div className="p-6 text-center text-sm text-gray-500">
@@ -2034,19 +1983,12 @@ export default function CustomersPage() {
                   open={kycFormOpen}
                   onOpenChange={(next) => {
                     setKycFormOpen(next);
-                    if (!next) setExtrasError('');
                   }}
                 >
                   <DialogContent className="max-w-xl">
                     <DialogHeader>
                       <DialogTitle>Upload KYC document</DialogTitle>
                     </DialogHeader>
-
-                    {kycFormOpen && extrasError ? (
-                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        {extrasError}
-                      </div>
-                    ) : null}
 
                     <div className="grid gap-4">
                       <div>
@@ -2216,7 +2158,6 @@ export default function CustomersPage() {
                   open={addressFormOpen}
                   onOpenChange={(next) => {
                     setAddressFormOpen(next);
-                    if (!next) setExtrasError('');
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -2225,12 +2166,6 @@ export default function CustomersPage() {
                         {editingAddressId ? 'Edit address' : 'Add address'}
                       </DialogTitle>
                     </DialogHeader>
-
-                    {addressFormOpen && extrasError ? (
-                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        {extrasError}
-                      </div>
-                    ) : null}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
@@ -2400,7 +2335,6 @@ export default function CustomersPage() {
                   open={nomineeFormOpen}
                   onOpenChange={(next) => {
                     setNomineeFormOpen(next);
-                    if (!next) setExtrasError('');
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -2409,12 +2343,6 @@ export default function CustomersPage() {
                         {editingNomineeId ? 'Edit nominee' : 'Add nominee'}
                       </DialogTitle>
                     </DialogHeader>
-
-                    {nomineeFormOpen && extrasError ? (
-                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        {extrasError}
-                      </div>
-                    ) : null}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
@@ -2552,7 +2480,6 @@ export default function CustomersPage() {
                   open={bankFormOpen}
                   onOpenChange={(next) => {
                     setBankFormOpen(next);
-                    if (!next) setExtrasError('');
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -2561,12 +2488,6 @@ export default function CustomersPage() {
                         {editingBankId ? 'Edit bank details' : 'Add bank details'}
                       </DialogTitle>
                     </DialogHeader>
-
-                    {bankFormOpen && extrasError ? (
-                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        {extrasError}
-                      </div>
-                    ) : null}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">

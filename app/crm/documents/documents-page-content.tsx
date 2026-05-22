@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -52,7 +53,6 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
 
   const [generated, setGenerated] = useState<GeneratedDocRow[]>([]);
   const [loadingGenerated, setLoadingGenerated] = useState(false);
-  const [error, setError] = useState('');
 
   const [bookingRows, setBookingRows] = useState<BookingPickRow[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
@@ -80,8 +80,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       return;
     }
     setLoadingBookings(true);
-    setError('');
-    const { data, error: bErr } = await supabase
+        const { data, error: bErr } = await supabase
       .from('bookings')
       .select('id,workflow_stage,customers(full_name),units(unit_code),projects(name)')
       .in('project_id', projectIds)
@@ -89,7 +88,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       .neq('status', 'cancelled')
       .order('updated_at', { ascending: false })
       .limit(300);
-    if (bErr) setError(bErr.message);
+    if (bErr) pageError(bErr.message);
     setBookingRows((data ?? []) as BookingPickRow[]);
     setLoadingBookings(false);
   }, [projectIds, supabase]);
@@ -106,14 +105,13 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         return;
       }
       setLoadingGenerated(true);
-      setError('');
-      const { data, error: gErr } = await supabase
+            const { data, error: gErr } = await supabase
         .from('generated_documents')
         .select(GENERATED_DOCUMENTS_LIST_SELECT)
         .eq('booking_id', bookingId)
         .order('generated_at', { ascending: false })
         .limit(200);
-      if (gErr) setError(gErr.message);
+      if (gErr) pageError(gErr.message);
       setGenerated((data ?? []) as GeneratedDocRow[]);
       setLoadingGenerated(false);
     },
@@ -167,10 +165,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       return;
     }
     setLoadingPack(true);
-    setError('');
-    const res = await loadBookingPrintPack(supabase, selectedBookingId);
+        const res = await loadBookingPrintPack(supabase, selectedBookingId);
     if (!res.ok) {
-      setError(res.error);
+      pageError(res.error);
       setPrintPack(null);
     } else {
       setPrintPack(res.pack);
@@ -191,8 +188,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     async (kind: BookingDocumentPrintKind) => {
       if (!printPack) return;
       setGeneratingKind(kind);
-      setError('');
-      setDeliveryBanner('');
+            setDeliveryBanner('');
       try {
         const r = await generateAndNotifyBookingDocument({
           supabase,
@@ -201,7 +197,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           kind
         });
         if (!r.ok) {
-          setError(r.error);
+          pageError(r.error);
           return;
         }
         setDeliveryBanner(
@@ -209,7 +205,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         );
         await refreshGenerated();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Generate failed');
+        pageError(e instanceof Error ? e.message : 'Generate failed');
       } finally {
         setGeneratingKind(null);
       }
@@ -233,11 +229,6 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <div className="rounded-lg border border-ds-error-200 bg-ds-error-50 px-3 py-2 text-sm text-ds-error-800">
-          {error}
-        </div>
-      ) : null}
 
       <Card className="space-y-4 p-4">
         <div>

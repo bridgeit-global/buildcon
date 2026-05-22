@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError } from '@/lib/toast';
 import { useCallback, useMemo, useState } from 'react';
 import {
   flexRender,
@@ -162,17 +163,15 @@ export function GeneratedDocumentsTable({
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [globalFilter, setGlobalFilter] = useState('');
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState('');
 
   const downloadRow = useCallback(
     async (row: GeneratedDocRow) => {
       const bucket = storageBucketForGeneratedPath(row.storage_path);
       if (!bucket) {
-        setDownloadError('This row is a print log only; there is no file in storage yet.');
+        pageError('This row is a print log only; there is no file in storage yet.');
         return;
       }
-      setDownloadError('');
-      setDownloadBusyId(row.id);
+            setDownloadBusyId(row.id);
       try {
         const { data, error: urlErr } = await supabase.storage
           .from(bucket)
@@ -182,7 +181,7 @@ export function GeneratedDocumentsTable({
         }
         window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
       } catch (e) {
-        setDownloadError(e instanceof Error ? e.message : 'Download failed');
+        pageError(e instanceof Error ? e.message : 'Download failed');
       } finally {
         setDownloadBusyId(null);
       }
@@ -359,10 +358,6 @@ export function GeneratedDocumentsTable({
           </Select>
         </div>
       </div>
-
-      {downloadError ? (
-        <p className="text-sm text-ds-error-700">{downloadError}</p>
-      ) : null}
 
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
         <table

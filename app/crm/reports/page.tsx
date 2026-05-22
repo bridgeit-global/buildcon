@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,6 @@ export default function ReportsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const [unitCounts, setUnitCounts] = useState<Record<string, number>>({});
   const [totalSchedules, setTotalSchedules] = useState(0);
@@ -23,14 +23,13 @@ export default function ReportsPage() {
 
   async function load() {
     setLoading(true);
-    setError('');
-
+    
     // Inventory counts
     const { data: unitStatusRows, error: unitErr } = await supabase
       .from('units')
       .select('status')
       .limit(10000);
-    if (unitErr) setError(unitErr.message);
+    if (unitErr) pageError(unitErr.message);
     const counts: Record<string, number> = {};
     (unitStatusRows ?? []).forEach((r) => {
       const s = (r as { status: string }).status;
@@ -44,7 +43,7 @@ export default function ReportsPage() {
       .select('id')
       .order('created_at', { ascending: false })
       .limit(1000);
-    if (bErr) setError(bErr.message);
+    if (bErr) pageError(bErr.message);
 
     const ids = (bookingIds ?? []) as BookingIdRow[];
     const bookingIdList = ids.map((b) => b.id);
@@ -70,8 +69,8 @@ export default function ReportsPage() {
           .limit(10000)
       ]);
 
-    if (sErr) setError(sErr.message);
-    if (cErr) setError(cErr.message);
+    if (sErr) pageError(sErr.message);
+    if (cErr) pageError(cErr.message);
 
     const schedTotal = (scheduleRows ?? []).reduce(
       (sum, r) => sum + Number((r as ScheduleSumRow).amount || 0),
@@ -110,12 +109,6 @@ export default function ReportsPage() {
           {loading ? 'Loading…' : 'Refresh'}
         </Button>
       </Card>
-
-      {error ? (
-        <Card className="p-4 border-red-200 bg-red-50 text-sm text-red-700">
-          {error}
-        </Card>
-      ) : null}
 
       <div className="grid grid-cols-4 gap-3">
         {[

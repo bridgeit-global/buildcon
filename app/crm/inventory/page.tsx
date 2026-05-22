@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError, toast } from '@/lib/toast';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -1008,7 +1009,6 @@ function InventoryPageContent() {
   const [wingNames, setWingNames] = useState<string[]>([]);
   const [unitTypeNames, setUnitTypeNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const [structFilter, setStructFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('all');
@@ -1032,7 +1032,6 @@ function InventoryPageContent() {
 
   const [bulkCsv, setBulkCsv] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkMsg, setBulkMsg] = useState('');
 
   useEffect(() => {
     const id = searchParams.get('projectId');
@@ -1043,8 +1042,7 @@ function InventoryPageContent() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-
+    
     if (isAllProjects) {
       const { data, error: unitsErr } = await supabase
         .from('units')
@@ -1053,7 +1051,7 @@ function InventoryPageContent() {
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true });
 
-      if (unitsErr) setError(unitsErr.message);
+      if (unitsErr) pageError(unitsErr.message);
       setUnits((data ?? []) as UnitRow[]);
       setProject(null);
       setWingNames([]);
@@ -1089,7 +1087,7 @@ function InventoryPageContent() {
         .order('sort_order', { ascending: true })
     ]);
 
-    if (unitsRes.error) setError(unitsRes.error.message);
+    if (unitsRes.error) pageError(unitsRes.error.message);
     setUnits((unitsRes.data ?? []) as UnitRow[]);
 
     if (projRes.data) setProject(projRes.data as ProjectRow);
@@ -1109,10 +1107,9 @@ function InventoryPageContent() {
   const runBulkImport = useCallback(async () => {
     if (isAllProjects || !singleProjectId || !bulkCsv.trim()) return;
     setBulkBusy(true);
-    setBulkMsg('');
     const rows = parseCsvRows(bulkCsv);
     if (!rows.length) {
-      setBulkMsg('Add a header row and at least one data row.');
+      toast.warning('Add a header row and at least one data row.');
       setBulkBusy(false);
       return;
     }
@@ -1124,7 +1121,7 @@ function InventoryPageContent() {
       else skipped++;
     }
     if (!payloads.length) {
-      setBulkMsg('No valid rows (each row needs unit_code).');
+      toast.warning('No valid rows (each row needs unit_code).');
       setBulkBusy(false);
       return;
     }
@@ -1136,13 +1133,13 @@ function InventoryPageContent() {
           .from('units')
           .upsert(chunk, { onConflict: 'project_id,unit_code' });
         if (error) {
-          setBulkMsg(error.message);
+          pageError(error.message);
           return;
         }
       }
-      setBulkMsg(
+      toast.success(
         `Upserted ${payloads.length} unit(s).` +
-        (skipped ? ` Skipped ${skipped} row(s) without unit_code.` : '')
+          (skipped ? ` Skipped ${skipped} row(s) without unit_code.` : '')
       );
       setBulkCsv('');
       await load();
@@ -1370,8 +1367,7 @@ function InventoryPageContent() {
   async function blockSelected() {
     if (!blockUnitId || !blockReason) return;
     setBlocking(true);
-    setError('');
-    const today = new Date().toISOString().slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
     const { error } = await supabase
       .from('units')
       .update({
@@ -1382,7 +1378,7 @@ function InventoryPageContent() {
       .eq('id', blockUnitId)
       .eq('status', 'AVAILABLE');
 
-    if (error) setError(error.message);
+    if (error) pageError(error.message);
     setBlockUnitId('');
     setBlockReason('');
     setShowBlockForm(false);
@@ -1391,8 +1387,7 @@ function InventoryPageContent() {
   }
 
   async function unblock(unitId: string) {
-    setError('');
-    const { error } = await supabase
+        const { error } = await supabase
       .from('units')
       .update({
         status: 'AVAILABLE',
@@ -1401,7 +1396,7 @@ function InventoryPageContent() {
       })
       .eq('id', unitId)
       .eq('status', 'BLOCKED');
-    if (error) setError(error.message);
+    if (error) pageError(error.message);
     await load();
   }
 
@@ -1474,12 +1469,6 @@ function InventoryPageContent() {
           </button>
         ))}
       </div>
-
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
 
       {tab === 'Inventory Info' && (
         <div className="flex flex-col gap-3.5">
@@ -1627,9 +1616,6 @@ function InventoryPageContent() {
                 {bulkBusy ? 'Importing…' : 'Import / upsert'}
               </Button>
             </div>
-            {bulkMsg ? (
-              <p className="mt-2 text-[11px] text-slate-700">{bulkMsg}</p>
-            ) : null}
           </div>
             </>
           )}

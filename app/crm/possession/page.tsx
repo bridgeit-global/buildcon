@@ -9,6 +9,7 @@ import {
   mergePossessionChecklist,
   type PossessionWorkflowStage
 } from '@/lib/possession/possession-trackers';
+import { toast } from '@/lib/toast';
 import { normalizeUnitStatusCode } from '../inventory/unit-status';
 import { PossessionListTable, type PossessionListRow } from './possession-list-table';
 import { PossessionCaseDialog } from './possession-case-dialog';
@@ -53,7 +54,6 @@ export default function PossessionHandoverPage() {
 
   const [rows, setRows] = useState<PossessionListRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [activeRow, setActiveRow] = useState<PossessionListRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -63,7 +63,6 @@ export default function PossessionHandoverPage() {
       return;
     }
     setLoading(true);
-    setError('');
 
     const { data: units, error: uErr } = await supabase
       .from('units')
@@ -73,7 +72,7 @@ export default function PossessionHandoverPage() {
       .order('unit_code', { ascending: true });
 
     if (uErr) {
-      setError(uErr.message);
+      toast.error({ title: 'Could not load units', description: uErr.message });
       setLoading(false);
       return;
     }
@@ -95,7 +94,7 @@ export default function PossessionHandoverPage() {
       .in('unit_id', unitIds);
 
     if (cErr) {
-      setError(cErr.message);
+      toast.error({ title: 'Could not load possession cases', description: cErr.message });
       setLoading(false);
       return;
     }
@@ -137,7 +136,7 @@ export default function PossessionHandoverPage() {
         );
 
       if (insErr) {
-        setError(insErr.message);
+        toast.error({ title: 'Could not create possession cases', description: insErr.message });
         setLoading(false);
         return;
       }
@@ -256,12 +255,6 @@ export default function PossessionHandoverPage() {
           </div>
         </Card>
       </div>
-
-      {error ? (
-        <p className="rounded-lg border border-ds-error-200 bg-ds-error-50 px-3 py-2 text-sm text-ds-error-700">
-          {error}
-        </p>
-      ) : null}
 
       <Card className="border-ds-gray-200 p-4 sm:p-5">
         <PossessionListTable

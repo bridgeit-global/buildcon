@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,7 +51,6 @@ export default function UsersPage() {
     []
   );
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const [openInvite, setOpenInvite] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -72,14 +72,13 @@ export default function UsersPage() {
 
   async function load() {
     setLoading(true);
-    setError('');
-
+    
     const {
       data: { user },
       error: userErr
     } = await supabase.auth.getUser();
 
-    if (userErr) setError(userErr.message);
+    if (userErr) pageError(userErr.message);
     let myProfileRole: string | null = null;
     if (user) {
       const { data: myProf, error } = await supabase
@@ -87,7 +86,7 @@ export default function UsersPage() {
         .select('id,name,role,linked_customer_id,linked_broker_id')
         .eq('id', user.id)
         .maybeSingle();
-      if (error) setError(error.message);
+      if (error) pageError(error.message);
       setProfile((myProf ?? null) as ProfileRow | null);
       myProfileRole = (myProf?.role ?? null) as string | null;
     }
@@ -97,7 +96,7 @@ export default function UsersPage() {
       .select('id,name')
       .order('created_at', { ascending: false })
       .limit(200);
-    if (projErr) setError(projErr.message);
+    if (projErr) pageError(projErr.message);
     setProjects((projData ?? []) as Array<{ id: string; name: string }>);
 
     if (myProfileRole === 'Super Admin') {
@@ -106,7 +105,7 @@ export default function UsersPage() {
         .select('id,name,role,linked_customer_id,linked_broker_id')
         .order('name', { ascending: true })
         .limit(500);
-      if (dirErr) setError(dirErr.message);
+      if (dirErr) pageError(dirErr.message);
       setPortalDirectory((dir ?? []) as ProfileRow[]);
     } else {
       setPortalDirectory([]);
@@ -116,7 +115,7 @@ export default function UsersPage() {
       .from('project_members')
       .select('project_id,user_id,role,status,created_at')
       .order('created_at', { ascending: true });
-    if (error) setError(error.message);
+    if (error) pageError(error.message);
     setMembers((memberData ?? []) as MemberRow[]);
 
     const isManagerOnAnyProject = user
@@ -136,7 +135,7 @@ export default function UsersPage() {
         .select('id,name,role,linked_customer_id,linked_broker_id')
         .order('created_at', { ascending: false })
         .limit(500);
-      if (staffErr) setError(staffErr.message);
+      if (staffErr) pageError(staffErr.message);
       setProfiles((staffData ?? []) as ProfileRow[]);
     } else {
       setProfiles([]);
@@ -179,8 +178,7 @@ export default function UsersPage() {
 
   async function inviteUser() {
     setInviting(true);
-    setError('');
-    try {
+        try {
       const res = await fetch('/api/crm/admin/users', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -204,7 +202,7 @@ export default function UsersPage() {
       });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invite failed');
+      pageError(e instanceof Error ? e.message : 'Invite failed');
     } finally {
       setInviting(false);
     }
@@ -238,22 +236,20 @@ export default function UsersPage() {
     status: string
   ) {
     if (!canManageProject(projectId)) return;
-    setError('');
-    const res = await fetch('/api/crm/admin/project-members', {
+        const res = await fetch('/api/crm/admin/project-members', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ projectId, userId, role, status })
     });
     const json = (await res.json()) as { error?: string };
-    if (!res.ok) setError(json.error || 'Failed to update member');
+    if (!res.ok) pageError(json.error || 'Failed to update member');
     await load();
   }
 
   async function savePortalLinks() {
     if (!portalUserId.trim()) return;
     setSavingPortal(true);
-    setError('');
-    try {
+        try {
       const cust = portalCustomerId.trim() || null;
       const brok = portalBrokerId.trim() || null;
       const { error: uErr } = await supabase
@@ -266,7 +262,7 @@ export default function UsersPage() {
       if (uErr) throw uErr;
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save portal links');
+      pageError(e instanceof Error ? e.message : 'Failed to save portal links');
     } finally {
       setSavingPortal(false);
     }
@@ -274,14 +270,13 @@ export default function UsersPage() {
 
   async function removeMember(projectId: string, userId: string) {
     if (!canManageProject(projectId)) return;
-    setError('');
-    const res = await fetch('/api/crm/admin/project-members', {
+        const res = await fetch('/api/crm/admin/project-members', {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ projectId, userId })
     });
     const json = (await res.json()) as { error?: string };
-    if (!res.ok) setError(json.error || 'Failed to remove member');
+    if (!res.ok) pageError(json.error || 'Failed to remove member');
     await load();
   }
 
@@ -300,12 +295,6 @@ export default function UsersPage() {
           {loading ? 'Loading…' : 'Refresh'}
         </Button>
       </Card>
-
-      {error ? (
-        <Card className="p-4 border-red-200 bg-red-50 text-sm text-red-700">
-          {error}
-        </Card>
-      ) : null}
 
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">

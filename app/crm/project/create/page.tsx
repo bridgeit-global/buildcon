@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
@@ -61,7 +62,6 @@ export default function CreateProjectPage() {
   const [draft, setDraft] = useState<CreateProjectDraft>(() =>
     createInitialDraft()
   );
-  const [error, setError] = useState('');
 
   const canCreateProject = myProfile?.role === 'Super Admin';
   const lastWizardStep = WIZARD_STEPS.length - 1;
@@ -128,11 +128,10 @@ export default function CreateProjectPage() {
 
   async function createProject() {
     setCreating(true);
-    setError('');
-    try {
+        try {
       const validationErr = validateCreateDraft(draft);
       if (validationErr) {
-        setError(validationErr);
+        pageError(validationErr);
         return;
       }
 
@@ -191,7 +190,7 @@ export default function CreateProjectPage() {
 
       router.push('/crm/project');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create project');
+      pageError(e instanceof Error ? e.message : 'Failed to create project');
     } finally {
       setCreating(false);
     }
@@ -200,11 +199,10 @@ export default function CreateProjectPage() {
   function goNext() {
     const err = validateCreateStep(createStep, draft);
     if (err) {
-      setError(err);
+      pageError(err);
       return;
     }
-    setError('');
-    if (createStep === 1) {
+        if (createStep === 1) {
       setDraft((d) => {
         const defaultUnitType = firstUnitTypeFromCsv(d.unitTypesCsv);
         const provisions =
@@ -230,8 +228,7 @@ export default function CreateProjectPage() {
   }
 
   function goBack() {
-    setError('');
-    setCreateStep((s) => Math.max(0, s - 1));
+        setCreateStep((s) => Math.max(0, s - 1));
   }
 
   const mergedUnitTypes = useMemo(
@@ -315,8 +312,7 @@ export default function CreateProjectPage() {
                 type="button"
                 onClick={() => {
                   if (i <= createStep) {
-                    setError('');
-                    setCreateStep(i);
+                                        setCreateStep(i);
                   }
                 }}
                 disabled={i > createStep}
@@ -355,11 +351,6 @@ export default function CreateProjectPage() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {error ? (
-            <div className="mb-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
 
           {createStep === 0 ? (
             <div className="grid grid-cols-2 gap-4">

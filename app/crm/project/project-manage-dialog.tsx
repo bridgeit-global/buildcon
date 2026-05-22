@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrmProjectListItem } from '../_components/types';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,6 @@ export function ProjectManageDialog({
   onUpdated: () => void;
 }) {
   const [tab, setTab] = useState<ManageTab>('details');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -97,7 +97,7 @@ export function ProjectManageDialog({
       .eq('project_id', project.id)
       .order('created_at', { ascending: true });
     if (memberErr) {
-      setError(memberErr.message);
+      pageError(memberErr.message);
       return;
     }
     setMembers((data ?? []) as ProjectMemberRow[]);
@@ -123,7 +123,7 @@ export function ProjectManageDialog({
       .select('id,name,role')
       .order('created_at', { ascending: false })
       .limit(500);
-    if (profErr) setError(profErr.message);
+    if (profErr) pageError(profErr.message);
     setProfiles((data ?? []) as ProfileRow[]);
   }, [isSuperAdmin, myProjectRole, supabase]);
 
@@ -137,7 +137,7 @@ export function ProjectManageDialog({
       )
       .eq('id', project.id)
       .maybeSingle();
-    if (priceErr) setError(priceErr.message);
+    if (priceErr) pageError(priceErr.message);
     const row = data as Record<string, unknown> | null;
     if (row) {
       setPricingGstReg(Boolean(row.pricing_gst_registered));
@@ -150,8 +150,7 @@ export function ProjectManageDialog({
 
   useEffect(() => {
     if (!open || !project) return;
-    setError('');
-    setTab('details');
+        setTab('details');
     resetFromProject(project);
     setLoading(true);
     void (async () => {
@@ -169,8 +168,7 @@ export function ProjectManageDialog({
   async function saveDetails() {
     if (!project || !canEditDetails) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const { error: updateErr } = await supabase
         .from('projects')
         .update({
@@ -186,7 +184,7 @@ export function ProjectManageDialog({
       if (updateErr) throw updateErr;
       onUpdated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save project');
+      pageError(e instanceof Error ? e.message : 'Failed to save project');
     } finally {
       setSaving(false);
     }
@@ -195,8 +193,7 @@ export function ProjectManageDialog({
   async function savePricing() {
     if (!project || !canEditPricing) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const { error: updateErr } = await supabase
         .from('projects')
         .update({
@@ -208,7 +205,7 @@ export function ProjectManageDialog({
         .eq('id', project.id);
       if (updateErr) throw updateErr;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save pricing');
+      pageError(e instanceof Error ? e.message : 'Failed to save pricing');
     } finally {
       setSaving(false);
     }
@@ -216,8 +213,7 @@ export function ProjectManageDialog({
 
   async function upsertMember(userId: string, role: string, memberStatus: string) {
     if (!project) return;
-    setError('');
-    const res = await fetch('/api/crm/admin/project-members', {
+        const res = await fetch('/api/crm/admin/project-members', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -228,21 +224,20 @@ export function ProjectManageDialog({
       })
     });
     const json = (await res.json()) as { error?: string };
-    if (!res.ok) setError(json.error || 'Failed to update member');
+    if (!res.ok) pageError(json.error || 'Failed to update member');
     await loadMembers();
     onUpdated();
   }
 
   async function removeMember(userId: string) {
     if (!project) return;
-    setError('');
-    const res = await fetch('/api/crm/admin/project-members', {
+        const res = await fetch('/api/crm/admin/project-members', {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ projectId: project.id, userId })
     });
     const json = (await res.json()) as { error?: string };
-    if (!res.ok) setError(json.error || 'Failed to remove member');
+    if (!res.ok) pageError(json.error || 'Failed to remove member');
     await loadMembers();
     onUpdated();
   }
@@ -275,11 +270,6 @@ export function ProjectManageDialog({
         <ManageTabs tabs={tabs} active={tab} onChange={setTab} />
 
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-          {error ? (
-            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
 
           {loading ? <p className="text-sm text-ds-gray-500">Loading…</p> : null}
 

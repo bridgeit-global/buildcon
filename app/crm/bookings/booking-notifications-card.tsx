@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError, toast } from '@/lib/toast';
 import { Loader2, RefreshCw, Send } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -29,14 +30,11 @@ export function BookingNotificationsCard({ bookingId }: Props) {
   const [rows, setRows] = useState<OutboundRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [retryBusy, setRetryBusy] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
     if (!bookingId) return;
     setLoading(true);
-    setError('');
-    const { data, error: e } = await supabase
+        const { data, error: e } = await supabase
       .from('outbound_notifications')
       .select(
         'id,generated_document_id,channel,provider,status,template_name,recipient,error,attempts,processed_at,created_at'
@@ -44,7 +42,7 @@ export function BookingNotificationsCard({ bookingId }: Props) {
       .eq('booking_id', bookingId)
       .order('created_at', { ascending: false })
       .limit(100);
-    if (e) setError(e.message);
+    if (e) pageError(e.message);
     setRows((data ?? []) as OutboundRow[]);
     setLoading(false);
   }, [bookingId, supabase]);
@@ -55,12 +53,10 @@ export function BookingNotificationsCard({ bookingId }: Props) {
 
   const retryDispatch = async (row: OutboundRow) => {
     if (!row.generated_document_id) {
-      setError('This row has no linked document to retry.');
+      pageError('This row has no linked document to retry.');
       return;
     }
     setRetryBusy(row.id);
-    setError('');
-    setNotice('');
     try {
       const res = await fetch(
         `/api/crm/bookings/${encodeURIComponent(bookingId)}/documents/notify`,
@@ -75,10 +71,10 @@ export function BookingNotificationsCard({ bookingId }: Props) {
       if (!res.ok || !json.ok) {
         throw new Error(json.error ?? 'Retry failed');
       }
-      setNotice('Notification dispatched.');
+      toast.success('Notification dispatched.');
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Retry failed');
+      pageError(e instanceof Error ? e.message : 'Retry failed');
     } finally {
       setRetryBusy(null);
     }
@@ -98,12 +94,6 @@ export function BookingNotificationsCard({ bookingId }: Props) {
           Refresh
         </Button>
       </div>
-
-      {error ? (
-        <p className="text-sm text-ds-error-700">{error}</p>
-      ) : null}
-      {notice ? <p className="text-sm text-ds-primary-700">{notice}</p> : null}
-
       {loading ? (
         <p className="text-sm text-ds-gray-500">Loading…</p>
       ) : rows.length === 0 ? (

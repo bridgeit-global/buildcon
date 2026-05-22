@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -70,7 +71,6 @@ export default function DashboardPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [buckets, setBuckets] = useState<InventoryBuckets>({
     available: 0,
     booked: 0,
@@ -88,8 +88,7 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-
+    
     try {
       const monthKeys = recentMonthKeys(12);
 
@@ -180,7 +179,7 @@ export default function DashboardPage() {
       setMonthlyCollections(seriesFromMonthMap(monthKeys, collByMonth));
       setSalesVsCollections(salesVsCollectionsSeries(monthKeys, salesByMonth, collByMonth));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard');
+      pageError(e instanceof Error ? e.message : 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
@@ -198,11 +197,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <div className="rounded-xl border border-ds-error-200 bg-ds-error-50 p-3 text-sm text-ds-error-700">
-          {error}
-        </div>
-      ) : null}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard

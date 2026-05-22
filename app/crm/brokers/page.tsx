@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,7 +60,6 @@ export default function BrokersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const [open, setOpen] = useState(false);
   /** When set, dialog is editing this broker; otherwise add flow. */
@@ -69,15 +69,14 @@ export default function BrokersPage() {
 
   async function load() {
     setLoading(true);
-    setError('');
-    const { data, error: qErr } = await supabase
+        const { data, error: qErr } = await supabase
       .from('brokers')
       .select(
         'id,full_name,phone,email,license_no,status,notes,created_at'
       )
       .order('created_at', { ascending: false })
       .limit(300);
-    if (qErr) setError(qErr.message);
+    if (qErr) pageError(qErr.message);
     const rows = (data ?? []) as BrokerRow[];
     setBrokers(rows);
     setSelectedId((prev) => prev ?? rows[0]?.id ?? null);
@@ -120,8 +119,7 @@ export default function BrokersPage() {
 
   async function saveBroker() {
     setSaving(true);
-    setError('');
-    try {
+        try {
       const payload = {
         full_name: draft.full_name.trim(),
         phone: draft.phone.trim() || null,
@@ -166,7 +164,7 @@ export default function BrokersPage() {
       setEditingId(null);
       setDraft(EMPTY_DRAFT);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save broker');
+      pageError(e instanceof Error ? e.message : 'Failed to save broker');
     } finally {
       setSaving(false);
     }
@@ -196,8 +194,7 @@ export default function BrokersPage() {
             <Button
               size="sm"
               onClick={() => {
-                setError('');
-                setEditingId(null);
+                                setEditingId(null);
                 setDraft(EMPTY_DRAFT);
                 setOpen(true);
               }}
@@ -210,12 +207,6 @@ export default function BrokersPage() {
                   {editingId ? 'Edit broker' : 'Add broker'}
                 </DialogTitle>
               </DialogHeader>
-
-              {error ? (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : null}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
@@ -351,12 +342,6 @@ export default function BrokersPage() {
       </Card>
 
       <Card className="p-5">
-        {error && !open ? (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
         {selected ? (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -371,8 +356,7 @@ export default function BrokersPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    setError('');
-                    setEditingId(selected.id);
+                                        setEditingId(selected.id);
                     setDraft(rowToDraft(selected));
                     setOpen(true);
                   }}

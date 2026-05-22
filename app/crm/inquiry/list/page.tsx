@@ -14,7 +14,6 @@ export default function InquiryListPage() {
     loadingInquiries,
     loadInquiries,
     units,
-    error,
     navigateToBookingFromInquiry
   } = useInquiryListResources();
 
@@ -28,12 +27,6 @@ export default function InquiryListPage() {
           </Link>
         </Button>
       </div>
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
       <Suspense
         fallback={
           <Card className="p-4 text-sm text-muted-foreground">

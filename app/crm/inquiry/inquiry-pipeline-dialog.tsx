@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError, toast } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -680,7 +681,6 @@ function NegotiationForm({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [approvalError, setApprovalError] = useState('');
   const approvalStatus = getNegotiationApprovalStatus(data);
   const listPrice =
     listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
@@ -701,8 +701,7 @@ function NegotiationForm({
   async function refreshApprovalStatus() {
     if (!supabase || !inquiryId) return;
     setRefreshing(true);
-    setApprovalError('');
-    try {
+        try {
       const { data: loaded } = await loadInquiryStageData(supabase, inquiryId);
       const enriched = await enrichNegotiationFromApprovals(
         supabase,
@@ -729,7 +728,7 @@ function NegotiationForm({
 
       onApprovalSubmitted?.();
     } catch (e) {
-      setApprovalError(
+      pageError(
         e instanceof Error ? e.message : 'Could not refresh approval status'
       );
     } finally {
@@ -741,17 +740,16 @@ function NegotiationForm({
     if (!supabase || !inquiryId || !projectId) return;
     const offeredRaw = String(data.offered_price ?? '').trim();
     if (!offeredRaw) {
-      setApprovalError('Enter an offered price before sending for approval.');
+      pageError('Enter an offered price before sending for approval.');
       return;
     }
     const offered = Number(offeredRaw);
     if (!Number.isFinite(offered) || offered <= 0) {
-      setApprovalError('Offered price must be a positive number.');
+      pageError('Offered price must be a positive number.');
       return;
     }
     setSubmitting(true);
-    setApprovalError('');
-    try {
+        try {
       const {
         data: { user }
       } = await supabase.auth.getUser();
@@ -808,7 +806,7 @@ function NegotiationForm({
       });
       onApprovalSubmitted?.();
     } catch (e) {
-      setApprovalError(
+      pageError(
         e instanceof Error ? e.message : 'Could not submit approval request'
       );
     } finally {
@@ -949,9 +947,6 @@ function NegotiationForm({
             <p className="text-[11px] text-red-900">
               Budget rejected — update the offer and send again.
             </p>
-          ) : null}
-          {approvalError ? (
-            <p className="text-[11px] text-red-700">{approvalError}</p>
           ) : null}
           {approvalStatus !== 'pending' && approvalStatus !== 'approved' ? (
             <Button
@@ -1133,7 +1128,6 @@ export function InquiryPipelinePanel(props: {
   const [macroStep, setMacroStep] = useState<PipelineMacroStep>('enquiry');
   const [stageData, setStageData] = useState<StageData>(emptyStageData());
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
@@ -1146,8 +1140,7 @@ export function InquiryPipelinePanel(props: {
     if (!inqId || !pid || !uid || !cid) return;
 
     setSaving(true);
-    setError('');
-    try {
+        try {
       const saveResult = await saveInquiryStageData(supabase, {
         inquiryId: inqId,
         patch: stageDataToJson(stageData),
@@ -1181,14 +1174,14 @@ export function InquiryPipelinePanel(props: {
             stageData: stageDataToJson(stageData)
           })
         );
-        setError(`${msg} — opened the bookings page with prefilled data.`);
+        toast.info(`${msg} — opened the bookings page with prefilled data.`);
         router.push('/crm/bookings');
         return;
       }
       onSaved();
       router.push(`/crm/bookings/${json.bookingId}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Booking creation failed');
+      pageError(e instanceof Error ? e.message : 'Booking creation failed');
     } finally {
       setSaving(false);
     }
@@ -1278,8 +1271,7 @@ export function InquiryPipelinePanel(props: {
       } else {
         setStageData(mergeStageDataFromJson(data));
       }
-      setError('');
-      setSaved(false);
+            setSaved(false);
     })();
     return () => {
       cancelled = true;
@@ -1315,8 +1307,7 @@ export function InquiryPipelinePanel(props: {
   async function closeFromRejectedApproval(decisionNote?: string) {
     if (!inquiry) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const result = await closeInquiry(supabase, {
         inquiryId: inquiry.id,
         unitId: unitId ?? null,
@@ -1334,7 +1325,7 @@ export function InquiryPipelinePanel(props: {
       setSaved(true);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Close failed');
+      pageError(e instanceof Error ? e.message : 'Close failed');
     } finally {
       setSaving(false);
     }
@@ -1343,8 +1334,7 @@ export function InquiryPipelinePanel(props: {
   async function save(nextStage?: FunnelStage) {
     if (!inquiry) return;
     setSaving(true);
-    setError('');
-    setSaved(false);
+        setSaved(false);
     try {
       const targetStage = nextStage ?? activeStage;
       assertCanAdvanceToToken(targetStage);
@@ -1370,7 +1360,7 @@ export function InquiryPipelinePanel(props: {
       setSaved(true);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      pageError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -1386,8 +1376,7 @@ export function InquiryPipelinePanel(props: {
   async function handleCloseEnquiry() {
     if (!inquiry) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const result = await closeInquiry(supabase, {
         inquiryId: inquiry.id,
         unitId: unitId ?? null,
@@ -1397,7 +1386,7 @@ export function InquiryPipelinePanel(props: {
       setSaved(true);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Close failed');
+      pageError(e instanceof Error ? e.message : 'Close failed');
     } finally {
       setSaving(false);
     }
@@ -1506,15 +1495,6 @@ export function InquiryPipelinePanel(props: {
                 </div>
               ) : null}
               <ActiveStageGuide stage={activeStage} />
-              {error ? (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {error}
-                </div>
-              ) : saved ? (
-                <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs text-teal-700">
-                  Saved.
-                </div>
-              ) : null}
               {activeStage === 'Enquiry' && (
                 <EnquiryForm
                   data={stageData.enquiry ?? {}}

@@ -25,6 +25,7 @@ import {
   type PossessionSnagItem,
   type PossessionTrackerId
 } from '@/lib/possession/possession-trackers';
+import { toast } from '@/lib/toast';
 import { normalizeUnitStatusCode, statusLabelForUnit } from '../inventory/unit-status';
 import type { PossessionListRow } from './possession-list-table';
 
@@ -47,13 +48,11 @@ export function PossessionCaseDialog({
   const [newSnag, setNewSnag] = useState('');
   const [saving, setSaving] = useState(false);
   const [handingKeys, setHandingKeys] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!row || !open) return;
     setChecklist(mergePossessionChecklist(row.checklist));
     setNewSnag('');
-    setError('');
     void (async () => {
       const { createSupabaseBrowserClient } = await import('@/lib/supabase/client');
       const supabase = createSupabaseBrowserClient();
@@ -63,7 +62,7 @@ export function PossessionCaseDialog({
         .eq('id', row.caseId)
         .maybeSingle();
       if (loadErr) {
-        setError(loadErr.message);
+        toast.error({ title: 'Could not load case', description: loadErr.message });
         return;
       }
       if (data) {
@@ -82,7 +81,6 @@ export function PossessionCaseDialog({
     }) => {
       if (!row) return false;
       setSaving(true);
-      setError('');
       const res = await fetch(`/api/crm/possession/${row.caseId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -91,7 +89,7 @@ export function PossessionCaseDialog({
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       setSaving(false);
       if (!res.ok) {
-        setError(json.error ?? 'Save failed');
+        toast.error({ title: 'Save failed', description: json.error });
         return false;
       }
       onSaved();
@@ -103,7 +101,6 @@ export function PossessionCaseDialog({
   const recordKeyHandover = useCallback(async () => {
     if (!row) return false;
     setHandingKeys(true);
-    setError('');
     const res = await fetch(`/api/crm/possession/${row.caseId}/stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -112,9 +109,13 @@ export function PossessionCaseDialog({
     const json = (await res.json().catch(() => ({}))) as { error?: string };
     setHandingKeys(false);
     if (!res.ok) {
-      setError(json.error ?? 'Could not record key handover');
+      toast.error({
+        title: 'Could not record key handover',
+        description: json.error
+      });
       return false;
     }
+    toast.success('Keys handed over — unit marked as Possession given');
     onSaved();
     return true;
   }, [row, onSaved]);
@@ -187,12 +188,6 @@ export function PossessionCaseDialog({
             {row ? statusLabelForUnit(row.unitStatus) : '—'}
           </DialogDescription>
         </DialogHeader>
-
-        {error ? (
-          <p className="rounded-lg border border-ds-error-200 bg-ds-error-50 px-3 py-2 text-sm text-ds-error-700">
-            {error}
-          </p>
-        ) : null}
 
         <div className="space-y-5">
           <section>

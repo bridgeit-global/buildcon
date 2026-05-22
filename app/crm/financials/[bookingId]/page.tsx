@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
@@ -66,14 +67,12 @@ export default function FinancialsBookingPage() {
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [collections, setCollections] = useState<CollectionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [entryScheduleId, setEntryScheduleId] = useState('');
   const [entryAmount, setEntryAmount] = useState('');
   const [entryDate, setEntryDate] = useState('');
   const [entryMode, setEntryMode] = useState('NEFT');
   const [entryRef, setEntryRef] = useState('');
   const [saving, setSaving] = useState(false);
-  const [docNotice, setDocNotice] = useState('');
   const [generatingDemandFor, setGeneratingDemandFor] = useState<string | null>(null);
 
   async function syncScheduleIfNeeded() {
@@ -90,8 +89,7 @@ export default function FinancialsBookingPage() {
   async function loadFinancials() {
     if (!bookingId) return;
     setLoading(true);
-    setError('');
-
+    
     await syncScheduleIfNeeded();
 
     const { data: booking, error: bErr } = await supabase
@@ -101,7 +99,7 @@ export default function FinancialsBookingPage() {
       .maybeSingle();
 
     if (bErr || !booking) {
-      setError(bErr?.message ?? 'Booking not found');
+      pageError(bErr?.message ?? 'Booking not found');
       setLoading(false);
       return;
     }
@@ -135,8 +133,8 @@ export default function FinancialsBookingPage() {
     setUnitCode((unit?.unit_code as string) ?? '—');
     setCustomerName((customer?.full_name as string) ?? '—');
 
-    if (schedRes.error) setError(schedRes.error.message);
-    if (collRes.error) setError(collRes.error.message);
+    if (schedRes.error) pageError(schedRes.error.message);
+    if (collRes.error) pageError(collRes.error.message);
     setSchedules((schedRes.data ?? []) as ScheduleRow[]);
     setCollections((collRes.data ?? []) as CollectionRow[]);
     setEntryScheduleId('');
@@ -201,8 +199,6 @@ export default function FinancialsBookingPage() {
   async function addCollection() {
     if (!bookingId || !entryAmount) return;
     setSaving(true);
-    setError('');
-    setDocNotice('');
     try {
       const { data: inserted, error: insErr } = await supabase
         .from('collections')
@@ -228,14 +224,14 @@ export default function FinancialsBookingPage() {
           instalmentLabel: instalmentLabelForSchedule(entryScheduleId || null)
         });
         if (receiptRes.ok) {
-          setDocNotice(
+          toast.success(
             `${formatDocumentDeliveryNotice(
               'Collection saved. Payment receipt PDF stored in Documents.',
               receiptRes.notify
             )} View all files in Unit documents.`
           );
         } else {
-          setDocNotice(`Collection saved; receipt PDF failed: ${receiptRes.error}`);
+          toast.warning(`Collection saved; receipt PDF failed: ${receiptRes.error}`);
         }
       }
       setEntryAmount('');
@@ -243,7 +239,7 @@ export default function FinancialsBookingPage() {
       setEntryRef('');
       await loadFinancials();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save collection');
+      pageError(e instanceof Error ? e.message : 'Failed to save collection');
     } finally {
       setSaving(false);
     }
@@ -252,8 +248,6 @@ export default function FinancialsBookingPage() {
   async function generateDemandForSchedule(schedule: ScheduleRow) {
     if (!bookingId) return;
     setGeneratingDemandFor(schedule.id);
-    setError('');
-    setDocNotice('');
     try {
       const received = receivedBySchedule[schedule.id] || 0;
       const pending = Math.max(0, (schedule.amount || 0) - received);
@@ -268,14 +262,14 @@ export default function FinancialsBookingPage() {
         notify: true
       });
       if (!persisted.ok) throw new Error(persisted.error);
-      setDocNotice(
+      toast.success(
         formatDocumentDeliveryNotice(
           `Demand letter PDF for instalment ${schedule.instalment_no} saved.`,
           persisted.notify
         )
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Demand letter failed');
+      pageError(e instanceof Error ? e.message : 'Demand letter failed');
     } finally {
       setGeneratingDemandFor(null);
     }
@@ -283,8 +277,6 @@ export default function FinancialsBookingPage() {
 
   async function generateReceiptForCollection(c: CollectionRow) {
     setSaving(true);
-    setError('');
-    setDocNotice('');
     try {
       const { data: existing } = await supabase
         .from('generated_documents')
@@ -297,7 +289,7 @@ export default function FinancialsBookingPage() {
           c.id
         )
       ) {
-        setDocNotice('Receipt for this collection is already in Documents.');
+        toast.info('Receipt for this collection is already in Documents.');
         return;
       }
       const receiptRes = await persistCollectionReceipt(supabase, bookingId, {
@@ -309,14 +301,14 @@ export default function FinancialsBookingPage() {
         instalmentLabel: instalmentLabelForSchedule(c.schedule_id)
       });
       if (!receiptRes.ok) throw new Error(receiptRes.error);
-      setDocNotice(
+      toast.success(
         formatDocumentDeliveryNotice(
           'Payment receipt saved to Documents for this unit.',
           receiptRes.notify
         )
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Receipt failed');
+      pageError(e instanceof Error ? e.message : 'Receipt failed');
     } finally {
       setSaving(false);
     }
@@ -371,17 +363,6 @@ export default function FinancialsBookingPage() {
             </div>
           ))}
         </div>
-
-        {error ? (
-          <div className="mt-3 rounded-md border border-ds-error-200 bg-ds-error-25 p-3 text-sm text-ds-error-700">
-            {error}
-          </div>
-        ) : null}
-        {docNotice ? (
-          <div className="mt-3 rounded-md border border-ds-primary-200 bg-ds-primary-50/70 p-3 text-sm text-ds-primary-900">
-            {docNotice}
-          </div>
-        ) : null}
       </Card>
 
       <Card className="p-4 sm:p-6">

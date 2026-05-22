@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { DM_Sans } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { AppProviders } from '@/components/app-providers';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -22,7 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} font-sans antialiased`}>
-        {children}
+        <AppProviders>{children}</AppProviders>
         <SpeedInsights />
       </body>
     </html>

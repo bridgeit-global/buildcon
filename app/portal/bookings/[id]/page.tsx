@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -33,18 +34,18 @@ export default function PortalBookingDetailPage() {
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [collections, setCollections] = useState<CollectionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
     setLoading(true);
-    setError('');
+    setReady(false);
     try {
       const {
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) {
-        setError('Not signed in');
+        pageError('Not signed in');
         setLoading(false);
         return;
       }
@@ -65,13 +66,13 @@ export default function PortalBookingDetailPage() {
         .maybeSingle();
       if (bErr) throw bErr;
       if (!b) {
-        setError('Booking not found');
+        pageError('Booking not found');
         setLoading(false);
         return;
       }
       const bcid = (b as { customer_id: string }).customer_id;
       if (!cid || cid !== bcid) {
-        setError('You do not have access to this booking.');
+        pageError('You do not have access to this booking.');
         setLoading(false);
         return;
       }
@@ -93,8 +94,9 @@ export default function PortalBookingDetailPage() {
       if (cErr) throw cErr;
       setSchedules((sData ?? []) as ScheduleRow[]);
       setCollections((cData ?? []) as CollectionRow[]);
+      setReady(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
+      pageError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
       setLoading(false);
     }
@@ -119,10 +121,12 @@ export default function PortalBookingDetailPage() {
     );
   }
 
-  if (error || !linkedCustomerId) {
+  if (!ready) {
     return (
       <Card className="p-4">
-        <p className="text-sm text-red-700">{error || 'Access denied'}</p>
+        <p className="text-sm text-red-700">
+          {!linkedCustomerId ? 'Access denied' : 'Could not load this booking'}
+        </p>
         <Link href="/portal" className="mt-2 inline-block text-sm underline">
           Back to portal
         </Link>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -17,11 +18,9 @@ export function LoginClient() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>('');
 
   async function submit() {
     setBusy(true);
-    setError('');
     try {
       if (mode === 'sign_in') {
         const { error } = await supabase.auth.signInWithPassword({
@@ -39,7 +38,7 @@ export function LoginClient() {
       router.replace(redirectTo);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed');
+      pageError(e instanceof Error ? e.message : 'Login failed');
     } finally {
       setBusy(false);
     }
@@ -88,12 +87,6 @@ export function LoginClient() {
               }
             />
           </label>
-
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
 
           <Button
             onClick={submit}

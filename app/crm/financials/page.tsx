@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
@@ -73,7 +74,6 @@ export default function FinancialsPage() {
 
   const [exportProjectId, setExportProjectId] = useState<string>('all');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [exporting, setExporting] = useState<null | 'ledger' | 'receipts'>(null);
 
   const [totalDemand, setTotalDemand] = useState(0);
@@ -98,8 +98,7 @@ export default function FinancialsPage() {
 
   async function load() {
     setLoading(true);
-    setError('');
-
+    
     const { data: bData, error: bErr } = await supabase
       .from('bookings')
       .select('id,project_id,unit_id,customer_id,created_at,status')
@@ -108,7 +107,7 @@ export default function FinancialsPage() {
       .limit(500);
 
     if (bErr) {
-      setError(bErr.message);
+      pageError(bErr.message);
       setLoading(false);
       return;
     }
@@ -152,10 +151,10 @@ export default function FinancialsPage() {
         .in('booking_id', bookingIds)
     ]);
 
-    if (unitsRes.error) setError(unitsRes.error.message);
-    if (custRes.error) setError(custRes.error.message);
-    if (ledgerRes.error) setError(ledgerRes.error.message);
-    if (collRes.error) setError(collRes.error.message);
+    if (unitsRes.error) pageError(unitsRes.error.message);
+    if (custRes.error) pageError(custRes.error.message);
+    if (ledgerRes.error) pageError(ledgerRes.error.message);
+    if (collRes.error) pageError(collRes.error.message);
 
     const unitById = new Map(
       (unitsRes.data ?? []).map((u) => [
@@ -234,8 +233,7 @@ export default function FinancialsPage() {
 
   async function downloadFinancialsExport(kind: 'ledger' | 'receipts') {
     setExporting(kind);
-    setError('');
-    try {
+        try {
       const projectQ =
         exportProjectId !== 'all'
           ? `&projectId=${encodeURIComponent(exportProjectId)}`
@@ -260,7 +258,7 @@ export default function FinancialsPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Export failed');
+      pageError(e instanceof Error ? e.message : 'Export failed');
     } finally {
       setExporting(null);
     }
@@ -314,12 +312,6 @@ export default function FinancialsPage() {
             tone="destructive"
           />
         </section>
-
-        {error ? (
-          <div className="mt-3 rounded-md border border-ds-error-200 bg-ds-error-25 p-3 text-sm text-ds-error-700">
-            {error}
-          </div>
-        ) : null}
       </Card>
 
       <Card className="p-4 sm:p-6">

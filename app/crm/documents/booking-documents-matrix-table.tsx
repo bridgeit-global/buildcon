@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import {
   flexRender,
   getCoreRowModel,
@@ -141,7 +142,6 @@ export function BookingDocumentsMatrixTable({
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState('');
 
   const presentKinds = useMemo(() => {
     const set = new Set<BookingDocumentPrintKind>();
@@ -155,11 +155,10 @@ export function BookingDocumentsMatrixTable({
     async (row: GeneratedDocRow) => {
       const bucket = storageBucketForGeneratedPath(row.storage_path);
       if (!bucket) {
-        setDownloadError('No file in storage for this row.');
+        pageError('No file in storage for this row.');
         return;
       }
-      setDownloadError('');
-      setDownloadBusyId(row.id);
+            setDownloadBusyId(row.id);
       try {
         const { data, error: urlErr } = await supabase.storage
           .from(bucket)
@@ -169,7 +168,7 @@ export function BookingDocumentsMatrixTable({
         }
         window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
       } catch (e) {
-        setDownloadError(e instanceof Error ? e.message : 'Download failed');
+        pageError(e instanceof Error ? e.message : 'Download failed');
       } finally {
         setDownloadBusyId(null);
       }
@@ -302,9 +301,6 @@ export function BookingDocumentsMatrixTable({
 
   return (
     <div className="space-y-2">
-      {downloadError ? (
-        <p className="text-sm text-ds-error-700">{downloadError}</p>
-      ) : null}
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
         <table className="w-full min-w-xl caption-bottom text-sm">
           <thead>

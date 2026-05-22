@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
@@ -80,13 +81,11 @@ export default function UnitDetailPage() {
   const [collections, setCollections] = useState<BookingLedgerCollectionInput[]>([]);
   const [notifications, setNotifications] = useState<OutboundNotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     if (!unitId) return;
     setLoading(true);
-    setError('');
-
+    
     const { data: unitData, error: uErr } = await supabase
       .from('units')
       .select(
@@ -95,12 +94,12 @@ export default function UnitDetailPage() {
       .eq('id', unitId)
       .maybeSingle();
     if (uErr) {
-      setError(uErr.message);
+      pageError(uErr.message);
       setLoading(false);
       return;
     }
     if (!unitData) {
-      setError('Unit not found.');
+      pageError('Unit not found.');
       setLoading(false);
       return;
     }
@@ -112,7 +111,7 @@ export default function UnitDetailPage() {
       .eq('unit_id', unitId)
       .order('created_at', { ascending: false })
       .limit(50);
-    if (bErr) setError(bErr.message);
+    if (bErr) pageError(bErr.message);
     const rows = (bookingRows ?? []) as BookingForUnit[];
     setBookings(rows);
 
@@ -148,16 +147,16 @@ export default function UnitDetailPage() {
           .limit(200)
       ]);
 
-      if (docsRes.error) setError(docsRes.error.message);
+      if (docsRes.error) pageError(docsRes.error.message);
       setGenerated((docsRes.data ?? []) as GeneratedDocRow[]);
 
-      if (schRes.error) setError(schRes.error.message);
+      if (schRes.error) pageError(schRes.error.message);
       setSchedules((schRes.data ?? []) as BookingLedgerScheduleInput[]);
 
-      if (colRes.error) setError(colRes.error.message);
+      if (colRes.error) pageError(colRes.error.message);
       setCollections((colRes.data ?? []) as BookingLedgerCollectionInput[]);
 
-      if (notifyRes.error) setError(notifyRes.error.message);
+      if (notifyRes.error) pageError(notifyRes.error.message);
       setNotifications((notifyRes.data ?? []) as OutboundNotificationRow[]);
     } else {
       setGenerated([]);
@@ -337,8 +336,6 @@ export default function UnitDetailPage() {
           </button>
         ))}
       </div>
-
-      {error ? <p className="text-sm text-ds-error-700">{error}</p> : null}
 
       {tab === 'overview' ? (
         <Card className="space-y-3 p-4 text-sm">

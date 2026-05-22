@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -70,12 +71,10 @@ export default function WorkQueuePage() {
   const [visitRows, setVisitRows] = useState<VisitRow[]>([]);
   const [overdueRows, setOverdueRows] = useState<OverdueRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError('');
-    try {
+        try {
       const { data: inquiryRows, error: iErr } = await supabase
         .from('sales_inquiries')
         .select(
@@ -197,7 +196,7 @@ export default function WorkQueuePage() {
         })
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load work queue');
+      pageError(e instanceof Error ? e.message : 'Failed to load work queue');
       setFollowRows([]);
       setVisitRows([]);
       setOverdueRows([]);
@@ -218,11 +217,6 @@ export default function WorkQueuePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
 
       <div
         className={cn(

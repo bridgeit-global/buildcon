@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowRight } from 'lucide-react';
+import { pageError, toast } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
@@ -112,8 +113,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [saveMsg, setSaveMsg] = useState('');
-  const [error, setError] = useState('');
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -384,7 +383,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
     if (!userLabel.id) {
-      setError('Sign in required to save customer details.');
+      pageError('Sign in required to save customer details.');
       return null;
     }
     const digits = normalizePhone(sellerForm.phone);
@@ -421,7 +420,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       }
       return customerId;
     } catch (e) {
-      setError(
+      pageError(
         e instanceof Error ? e.message : 'Failed to save customer details'
       );
       return null;
@@ -438,8 +437,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     if (!canQualifyUnit || !inquiryProjectId || !selectedUnit) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const customerId = await persistCustomerToDb();
       if (!customerId) return;
       writeBookingPrefill({
@@ -455,7 +453,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       });
       router.push('/crm/bookings');
     } catch (e) {
-      setError(
+      pageError(
         e instanceof Error ? e.message : 'Could not continue to booking'
       );
     } finally {
@@ -477,13 +475,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (!stepValid[step] || saving) return;
     if (step === 1) {
       setSaving(true);
-      setError('');
-      try {
+            try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
         changeStep(2);
-        setSaveMsg('Customer saved.');
-        window.setTimeout(() => setSaveMsg(''), 2000);
+        toast.success('Customer saved.');
       } finally {
         setSaving(false);
       }
@@ -511,12 +507,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         return;
       }
       setSaving(true);
-      setError('');
-      try {
+            try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
-        setSaveMsg('Customer saved.');
-        window.setTimeout(() => setSaveMsg(''), 2000);
+        toast.success('Customer saved.');
       } finally {
         setSaving(false);
       }
@@ -582,8 +576,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     if (!canQualifyUnit || !inquiryProjectId || !userLabel.id) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const customerId = await persistCustomerToDb();
       if (!customerId) return;
 
@@ -654,12 +647,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       setCreatedInquiryId(inquiryId);
       changeStep(3);
       onFunnelStageChange?.('Site Visit');
-      setSaveMsg('Unit qualified — continue with site visit.');
-      window.setTimeout(() => setSaveMsg(''), 2500);
+      toast.success('Unit qualified — continue with site visit.');
       onCreated?.(inquiryId);
       await onInquirySaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save inquiry');
+      pageError(e instanceof Error ? e.message : 'Failed to save inquiry');
     } finally {
       setSaving(false);
     }
@@ -676,7 +668,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       funnelStage
     });
     if (!result.ok) {
-      setError(result.error ?? 'Save failed');
+      pageError(result.error ?? 'Save failed');
       return false;
     }
     if (funnelStage) onFunnelStageChange?.(funnelStage);
@@ -687,8 +679,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   async function handleCloseAsNotInterested() {
     if (!activeInquiryId) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       await persistVisitSiteStage({
         site_visit: {
           outcome: 'Not Interested',
@@ -703,11 +694,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
       setInquiryClosed(true);
       setClosedStatus('Not Interested');
-      setSaveMsg('Enquiry closed. Unit released to available.');
-      window.setTimeout(() => setSaveMsg(''), 2500);
+      toast.success('Enquiry closed. Unit released to available.');
       await onInquirySaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Close failed');
+      pageError(e instanceof Error ? e.message : 'Close failed');
     } finally {
       setSaving(false);
     }
@@ -743,8 +733,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       if (unitResult.error) throw new Error(unitResult.error);
     }
     onSkipToStage?.('Token');
-    setSaveMsg('Token recorded. Unit marked TOKEN in inventory.');
-    window.setTimeout(() => setSaveMsg(''), 2500);
+    toast.success('Token recorded. Unit marked TOKEN in inventory.');
     await onInquirySaved?.();
     return true;
   }
@@ -752,7 +741,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   async function handleCustomerGaveToken() {
     if (!activeInquiryId || saving) return;
     if (!canProceedToToken()) {
-      setError(
+      pageError(
         approvalStatus === 'pending'
           ? 'Budget approval is pending in the Negotiate stage. Check status there before token.'
           : 'Complete budget approval in the Negotiate stage before token.'
@@ -760,11 +749,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       return;
     }
     setSaving(true);
-    setError('');
-    try {
+        try {
       await applyTokenStage();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
+      pageError(e instanceof Error ? e.message : 'Update failed');
     } finally {
       setSaving(false);
     }
@@ -778,11 +766,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   return (
     <>
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
 
       {!hideStepper && (
         <Stepper
@@ -874,11 +857,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         <div className="flex flex-wrap items-center justify-end gap-2">
           {!userLabel.id ? (
             <span className="text-xs text-amber-700">Sign in required.</span>
-          ) : null}
-          {saveMsg ? (
-            <span className="text-xs font-semibold text-green-700">
-              {saveMsg}
-            </span>
           ) : null}
           {step < 3 ? (
             <Button

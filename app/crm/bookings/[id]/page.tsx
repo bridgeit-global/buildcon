@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, FileText, Upload } from 'lucide-react';
@@ -86,7 +87,6 @@ export default function BookingDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [booking, setBooking] = useState<BookingDetailRow | null>(null);
   const [stageData, setStageData] = useState<BookingStageData>({});
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -128,15 +128,13 @@ export default function BookingDetailPage() {
   const [confirmationDocsLoading, setConfirmationDocsLoading] = useState(false);
   const [confirmationGenerated, setConfirmationGenerated] = useState<GeneratedDocRow[]>([]);
   const [generatingDocKind, setGeneratingDocKind] = useState<BookingDocumentPrintKind | null>(null);
-  const [docDeliveryBanner, setDocDeliveryBanner] = useState('');
   const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
     useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
     setLoading(true);
-    setError('');
-    const { data, error: qErr } = await supabase
+        const { data, error: qErr } = await supabase
       .from('bookings')
       .select(
         `
@@ -151,12 +149,12 @@ export default function BookingDetailPage() {
       .maybeSingle();
 
     if (qErr) {
-      setError(qErr.message);
+      pageError(qErr.message);
       setLoading(false);
       return;
     }
     if (!data) {
-      setError('Booking not found');
+      pageError('Booking not found');
       setLoading(false);
       return;
     }
@@ -320,7 +318,7 @@ export default function BookingDetailPage() {
       .order('generated_at', { ascending: false })
       .limit(200);
     if (gErr) {
-      setError(gErr.message);
+      pageError(gErr.message);
     } else {
       setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
     }
@@ -332,7 +330,6 @@ export default function BookingDetailPage() {
       setConfirmationPrintPack(null);
       setConfirmationGenerated([]);
       setConfirmationDocsLoading(false);
-      setDocDeliveryBanner('');
       return;
     }
     let ignore = false;
@@ -350,7 +347,7 @@ export default function BookingDetailPage() {
       if (ignore) return;
       if (packRes.ok) setConfirmationPrintPack(packRes.pack);
       else setConfirmationPrintPack(null);
-      if (genRes.error) setError(genRes.error.message);
+      if (genRes.error) pageError(genRes.error.message);
       else setConfirmationGenerated((genRes.data ?? []) as GeneratedDocRow[]);
       setConfirmationDocsLoading(false);
     })();
@@ -393,7 +390,6 @@ export default function BookingDetailPage() {
     async (kind: BookingDocumentPrintKind) => {
       if (!confirmationPrintPack) return;
       setGeneratingDocKind(kind);
-      setDocDeliveryBanner('');
       try {
         const r = await generateAndNotifyBookingDocument({
           supabase,
@@ -402,15 +398,15 @@ export default function BookingDetailPage() {
           kind
         });
         if (!r.ok) {
-          setError(r.error);
+          pageError(r.error);
           return;
         }
-        setDocDeliveryBanner(
+        toast.success(
           formatDocumentDeliveryNotice('Document generated and saved.', r.notify)
         );
         await refreshConfirmationGenerated();
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Generate failed');
+        pageError(e instanceof Error ? e.message : 'Generate failed');
       } finally {
         setGeneratingDocKind(null);
       }
@@ -450,8 +446,7 @@ export default function BookingDetailPage() {
   async function saveStagePatch(patch: Record<string, unknown>) {
     if (!booking || cancelled) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -461,7 +456,7 @@ export default function BookingDetailPage() {
       if (!res.ok) throw new Error(json.error || 'Save failed');
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      pageError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -497,12 +492,11 @@ export default function BookingDetailPage() {
     const merged = { ...stageData, [workflowStage]: { ...stageData[workflowStage], ...stagePatchForAdvance() } };
     const check = canAdvanceWorkflowStage(workflowStage, merged, { kycComplete });
     if (!check.ok) {
-      setError(check.reason ?? 'Cannot advance');
+      pageError(check.reason ?? 'Cannot advance');
       return;
     }
     setSaving(true);
-    setError('');
-    try {
+        try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -524,15 +518,15 @@ export default function BookingDetailPage() {
       if (json.confirmationDocs) {
         const cd = json.confirmationDocs;
         if (cd.seedError) {
-          setDocDeliveryBanner(
+          toast.warning(
             `Booking confirmed. Token receipt PDF could not be saved: ${cd.seedError}`
           );
         } else if (cd.tokenReceiptCreated) {
-          setDocDeliveryBanner(
+          toast.success(
             'Booking confirmed. Token posted to the ledger; token receipt PDF saved under Documents below.'
           );
         } else {
-          setDocDeliveryBanner(
+          toast.success(
             'Booking confirmed. Payment schedule and ledger are ready — generate or review documents below.'
           );
         }
@@ -547,7 +541,7 @@ export default function BookingDetailPage() {
         });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Advance failed');
+      pageError(e instanceof Error ? e.message : 'Advance failed');
     } finally {
       setSaving(false);
     }
@@ -556,8 +550,7 @@ export default function BookingDetailPage() {
   async function saveBuyerIdentifiers(b: BuyerKyc) {
     if (!booking) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const res = await fetch(`/api/crm/bookings/${booking.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -571,7 +564,7 @@ export default function BookingDetailPage() {
       if (!res.ok) throw new Error(json.error || 'Update failed');
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed');
+      pageError(e instanceof Error ? e.message : 'Update failed');
     } finally {
       setSaving(false);
     }
@@ -581,8 +574,7 @@ export default function BookingDetailPage() {
     const file = kycFileRef.current?.files?.[0];
     if (!file || !kycUploadCustomerId) return;
     setSaving(true);
-    setError('');
-    const ext = extensionFromFile(file);
+        const ext = extensionFromFile(file);
     const path = `customer/${kycUploadCustomerId}/${kycDocType}/${crypto.randomUUID()}${ext}`;
     try {
       const {
@@ -606,7 +598,7 @@ export default function BookingDetailPage() {
       if (kycFileRef.current) kycFileRef.current.value = '';
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
+      pageError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
       setSaving(false);
     }
@@ -615,8 +607,7 @@ export default function BookingDetailPage() {
   async function submitCancellation() {
     if (!booking) return;
     setSaving(true);
-    setError('');
-    try {
+        try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/cancel`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -639,7 +630,7 @@ export default function BookingDetailPage() {
       setCancelOpen(false);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Cancellation failed');
+      pageError(e instanceof Error ? e.message : 'Cancellation failed');
     } finally {
       setSaving(false);
     }
@@ -681,12 +672,6 @@ export default function BookingDetailPage() {
           </Button>
         ) : null}
       </div>
-
-      {error ? (
-        <div className="rounded-lg border border-ds-error-200 bg-ds-error-50 px-3 py-2 text-sm text-ds-error-800">
-          {error}
-        </div>
-      ) : null}
 
       {refundPreview ? (
         <Card className="border-ds-warning-200 bg-ds-warning-50/50 p-4">
@@ -1151,11 +1136,6 @@ export default function BookingDetailPage() {
                         API is configured, or a prefilled share link otherwise).
                       </p>
                     </div>
-                    {docDeliveryBanner ? (
-                      <div className="rounded-lg border border-ds-primary-200 bg-ds-primary-50/70 px-3 py-2 text-sm text-ds-primary-900">
-                        {docDeliveryBanner}
-                      </div>
-                    ) : null}
                     {confirmationDocsLoading ? (
                       <p className="text-sm text-ds-gray-500">Loading document tools…</p>
                     ) : confirmationPrintPack ? (

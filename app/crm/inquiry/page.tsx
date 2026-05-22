@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -57,13 +58,11 @@ function InquiryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [error, setError] = useState('');
   const [inquiries, setInquiries] = useState<InquiryRowDb[]>([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
 
   const loadInquiries = useCallback(async () => {
     setLoadingInquiries(true);
-    setError('');
     const { data, error: qErr } = await supabase
       .from('sales_inquiries')
       .select(
@@ -91,7 +90,7 @@ function InquiryPageContent() {
       .limit(500);
 
     if (qErr) {
-      setError(qErr.message);
+      pageError(qErr.message);
       setInquiries([]);
     } else {
       setInquiries((data ?? []) as unknown as InquiryRowDb[]);
@@ -163,11 +162,6 @@ function InquiryPageContent() {
 
   return (
     <div className="flex flex-col gap-4">
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-foreground">

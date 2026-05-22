@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ProjectListTable } from './project-list-table';
 import { ProjectManageDialog } from './project-manage-dialog';
+import { pageError } from '@/lib/toast';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 
@@ -18,7 +19,6 @@ export default function ProjectPage() {
 
   const [listItems, setListItems] = useState<CrmProjectListItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
-  const [listError, setListError] = useState('');
   const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
 
   const [manageOpen, setManageOpen] = useState(false);
@@ -28,7 +28,6 @@ export default function ProjectPage() {
 
   const loadProjectsList = useCallback(async () => {
     setListLoading(true);
-    setListError('');
     try {
       const res = await fetch('/api/crm/projects', { method: 'GET' });
       const json = (await res.json()) as {
@@ -42,7 +41,7 @@ export default function ProjectPage() {
         prev ? projects.find((p) => p.id === prev.id) ?? prev : null
       );
     } catch (e) {
-      setListError(e instanceof Error ? e.message : 'Failed to load projects');
+      pageError(e instanceof Error ? e.message : 'Failed to load projects');
     } finally {
       setListLoading(false);
     }
@@ -94,11 +93,6 @@ export default function ProjectPage() {
           }}
         />
 
-        {listError ? (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {listError}
-          </div>
-        ) : null}
       </Card>
 
       <ProjectListTable

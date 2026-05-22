@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { writeBookingPrefill } from '../booking-prefill-storage';
@@ -50,11 +51,9 @@ export function useInquiryListResources() {
   const [inquiries, setInquiries] = useState<InquiryRowDb[]>([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
   const [units, setUnits] = useState<UnitLabelRow[]>([]);
-  const [error, setError] = useState('');
 
   const loadInquiries = useCallback(async () => {
     setLoadingInquiries(true);
-    setError('');
     const { data, error: qErr } = await supabase
       .from('sales_inquiries')
       .select(INQUIRY_SELECT)
@@ -62,7 +61,7 @@ export function useInquiryListResources() {
       .limit(500);
 
     if (qErr) {
-      setError(qErr.message);
+      pageError(qErr.message);
       setInquiries([]);
     } else {
       setInquiries((data ?? []) as unknown as InquiryRowDb[]);
@@ -120,7 +119,6 @@ export function useInquiryListResources() {
     loadingInquiries,
     loadInquiries,
     units,
-    error,
     navigateToBookingFromInquiry
   };
 }
