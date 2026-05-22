@@ -176,6 +176,153 @@ function hasCustomerFormErrors(errors: CustomerFormFieldErrors) {
   return Object.keys(errors).length > 0;
 }
 
+type AddressFormShape = {
+  kind: 'current' | 'permanent';
+  address_line1: string;
+  city: string;
+  state: string;
+  pin: string;
+};
+
+type AddressFormFieldErrors = {
+  address_line1?: string;
+  pin?: string;
+};
+
+type NomineeFormShape = {
+  nominee_name: string;
+  relationship: string;
+  nominee_dob: string;
+};
+
+type NomineeFormFieldErrors = {
+  nominee_name?: string;
+};
+
+type BankFormShape = {
+  bank_name: string;
+  account_no: string;
+  ifsc: string;
+  branch: string;
+};
+
+type BankFormFieldErrors = {
+  bank_name?: string;
+  ifsc?: string;
+};
+
+type KycIdentityFieldErrors = {
+  pan_number?: string;
+  aadhaar_last4?: string;
+};
+
+type KycUploadFieldErrors = {
+  pan_number?: string;
+  aadhaar_last4?: string;
+  file?: string;
+};
+
+function isValidPin(pin: string) {
+  const t = pin.trim();
+  if (!t) return true;
+  return /^\d{6}$/.test(t);
+}
+
+function isValidIfsc(ifsc: string) {
+  const t = ifsc.trim().toUpperCase();
+  if (!t) return true;
+  return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(t);
+}
+
+function validateAddressForm(form: AddressFormShape): AddressFormFieldErrors {
+  const errors: AddressFormFieldErrors = {};
+  if (!form.address_line1.trim()) {
+    errors.address_line1 = 'Address line is required.';
+  }
+  if (!isValidPin(form.pin)) {
+    errors.pin = 'Enter a 6-digit PIN code.';
+  }
+  return errors;
+}
+
+function validateNomineeForm(form: NomineeFormShape): NomineeFormFieldErrors {
+  const errors: NomineeFormFieldErrors = {};
+  if (!form.nominee_name.trim()) {
+    errors.nominee_name = 'Nominee name is required.';
+  }
+  return errors;
+}
+
+function validateBankForm(form: BankFormShape): BankFormFieldErrors {
+  const errors: BankFormFieldErrors = {};
+  if (!form.bank_name.trim()) {
+    errors.bank_name = 'Bank name is required.';
+  }
+  const ifscNorm = form.ifsc.trim().toUpperCase();
+  if (ifscNorm && !isValidIfsc(ifscNorm)) {
+    errors.ifsc = 'Enter a valid IFSC (e.g. HDFC0001234).';
+  }
+  return errors;
+}
+
+function validateKycIdentity(
+  pan: string,
+  aadhaarLast4: string
+): KycIdentityFieldErrors {
+  const errors: KycIdentityFieldErrors = {};
+  const panNorm = normalizePan(pan);
+  if (panNorm && !isPanValid(panNorm)) {
+    errors.pan_number = 'Enter a valid PAN (e.g. ABCDE1234F).';
+  }
+  const a4Raw = String(aadhaarLast4 ?? '').trim();
+  if (a4Raw && !isAadhaarLast4Valid(a4Raw)) {
+    errors.aadhaar_last4 = 'Enter the last 4 digits of Aadhaar.';
+  }
+  return errors;
+}
+
+function validateKycUpload(
+  docType: string,
+  pan: string,
+  aadhaarLast4: string,
+  hasFile: boolean
+): KycUploadFieldErrors {
+  const errors: KycUploadFieldErrors = {};
+  if (docType === 'pan') {
+    const panNorm = normalizePan(pan);
+    if (!panNorm) {
+      errors.pan_number = 'PAN number is required for this upload.';
+    } else if (!isPanValid(panNorm)) {
+      errors.pan_number = 'Enter a valid PAN (e.g. ABCDE1234F).';
+    }
+  }
+  if (docType === 'aadhaar') {
+    if (!isAadhaarLast4Valid(aadhaarLast4)) {
+      errors.aadhaar_last4 = 'Enter the last 4 digits of Aadhaar.';
+    }
+  }
+  if (!hasFile) {
+    errors.file = 'Choose a file to upload.';
+  }
+  return errors;
+}
+
+function hasFormFieldErrors(errors: object) {
+  return Object.keys(errors).length > 0;
+}
+
+function visibleFieldError(
+  touched: Partial<Record<string, boolean>>,
+  showAll: boolean,
+  field: string,
+  errors: Record<string, string | undefined>
+): string | undefined {
+  const message = errors[field];
+  if (!message) return undefined;
+  if (showAll || touched[field]) return message;
+  return undefined;
+}
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="mt-1 text-xs text-red-600">{message}</p>;
@@ -275,9 +422,17 @@ export default function CustomersPage() {
   const [draftFieldErrors, setDraftFieldErrors] = useState<CustomerFormFieldErrors>(
     {}
   );
+  const [draftFieldTouched, setDraftFieldTouched] = useState<
+    Partial<Record<keyof CustomerFormFieldErrors, boolean>>
+  >({});
+  const [draftShowAllErrors, setDraftShowAllErrors] = useState(false);
   const [editFieldErrors, setEditFieldErrors] = useState<CustomerFormFieldErrors>(
     {}
   );
+  const [editFieldTouched, setEditFieldTouched] = useState<
+    Partial<Record<keyof CustomerFormFieldErrors, boolean>>
+  >({});
+  const [editShowAllErrors, setEditShowAllErrors] = useState(false);
 
   const [customerInquiries, setCustomerInquiries] = useState<
     CustomerInquiryRow[]
@@ -295,30 +450,47 @@ export default function CustomersPage() {
 
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [addressForm, setAddressForm] = useState({
-    kind: 'current' as 'current' | 'permanent',
+  const [addressForm, setAddressForm] = useState<AddressFormShape>({
+    kind: 'current',
     address_line1: '',
     city: '',
     state: '',
     pin: ''
   });
+  const [addressFieldErrors, setAddressFieldErrors] =
+    useState<AddressFormFieldErrors>({});
+  const [addressFieldTouched, setAddressFieldTouched] = useState<
+    Partial<Record<keyof AddressFormFieldErrors, boolean>>
+  >({});
+  const [addressShowAllErrors, setAddressShowAllErrors] = useState(false);
 
   const [nomineeFormOpen, setNomineeFormOpen] = useState(false);
   const [editingNomineeId, setEditingNomineeId] = useState<string | null>(null);
-  const [nomineeForm, setNomineeForm] = useState({
+  const [nomineeForm, setNomineeForm] = useState<NomineeFormShape>({
     nominee_name: '',
     relationship: '',
     nominee_dob: ''
   });
+  const [nomineeFieldErrors, setNomineeFieldErrors] =
+    useState<NomineeFormFieldErrors>({});
+  const [nomineeFieldTouched, setNomineeFieldTouched] = useState<
+    Partial<Record<keyof NomineeFormFieldErrors, boolean>>
+  >({});
+  const [nomineeShowAllErrors, setNomineeShowAllErrors] = useState(false);
 
   const [bankFormOpen, setBankFormOpen] = useState(false);
   const [editingBankId, setEditingBankId] = useState<string | null>(null);
-  const [bankForm, setBankForm] = useState({
+  const [bankForm, setBankForm] = useState<BankFormShape>({
     bank_name: '',
     account_no: '',
     ifsc: '',
     branch: ''
   });
+  const [bankFieldErrors, setBankFieldErrors] = useState<BankFormFieldErrors>({});
+  const [bankFieldTouched, setBankFieldTouched] = useState<
+    Partial<Record<keyof BankFormFieldErrors, boolean>>
+  >({});
+  const [bankShowAllErrors, setBankShowAllErrors] = useState(false);
 
   const [kycFormOpen, setKycFormOpen] = useState(false);
   const [kycDocType, setKycDocType] = useState('aadhaar');
@@ -327,6 +499,18 @@ export default function CustomersPage() {
   const [kycAadhaarInput, setKycAadhaarInput] = useState('');
   const [identityPan, setIdentityPan] = useState('');
   const [identityAadhaar, setIdentityAadhaar] = useState('');
+  const [identityFieldErrors, setIdentityFieldErrors] =
+    useState<KycIdentityFieldErrors>({});
+  const [identityFieldTouched, setIdentityFieldTouched] = useState<
+    Partial<Record<keyof KycIdentityFieldErrors, boolean>>
+  >({});
+  const [identityShowAllErrors, setIdentityShowAllErrors] = useState(false);
+  const [kycUploadFieldErrors, setKycUploadFieldErrors] =
+    useState<KycUploadFieldErrors>({});
+  const [kycUploadFieldTouched, setKycUploadFieldTouched] = useState<
+    Partial<Record<keyof KycUploadFieldErrors, boolean>>
+  >({});
+  const [kycUploadShowAllErrors, setKycUploadShowAllErrors] = useState(false);
 
   const fetchCustomerList = useCallback(
     async (opts: { reset: boolean }) => {
@@ -562,11 +746,15 @@ export default function CustomersPage() {
     if (!selected) return;
     setIdentityPan(selected.pan_number ?? '');
     setIdentityAadhaar(selected.aadhaar_last4 ?? '');
+    setIdentityFieldErrors({});
+    setIdentityFieldTouched({});
+    setIdentityShowAllErrors(false);
   }, [selected?.id, selected?.pan_number, selected?.aadhaar_last4]);
 
   async function createCustomer() {
     const fieldErrors = validateCustomerForm(draft);
     setDraftFieldErrors(fieldErrors);
+    setDraftShowAllErrors(true);
     if (hasCustomerFormErrors(fieldErrors)) {
       pageError('Fix the highlighted fields before saving.');
       return;
@@ -599,6 +787,8 @@ export default function CustomersPage() {
       selectCustomer(row);
       setOpen(false);
       setDraftFieldErrors({});
+      setDraftFieldTouched({});
+      setDraftShowAllErrors(false);
       setDraft({
         full_name: '',
         phone: '',
@@ -622,6 +812,7 @@ export default function CustomersPage() {
     if (!selectedId) return;
     const fieldErrors = validateCustomerForm(editDraft);
     setEditFieldErrors(fieldErrors);
+    setEditShowAllErrors(true);
     if (hasCustomerFormErrors(fieldErrors)) {
       pageError('Fix the highlighted fields before saving.');
       return;
@@ -655,6 +846,8 @@ export default function CustomersPage() {
       setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
       setPinnedCustomer((p) => (p?.id === row.id ? row : p));
       setEditFieldErrors({});
+      setEditFieldTouched({});
+      setEditShowAllErrors(false);
       setEditOpen(false);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to update customer');
@@ -665,7 +858,9 @@ export default function CustomersPage() {
 
   function openEditDialog() {
     if (!selected) return;
-        setEditFieldErrors({});
+    setEditFieldErrors({});
+    setEditFieldTouched({});
+    setEditShowAllErrors(false);
     setEditDraft({
       full_name: selected.full_name,
       phone: selected.phone ?? '',
@@ -685,7 +880,10 @@ export default function CustomersPage() {
   }
 
   function openAddressCreate() {
-        setEditingAddressId(null);
+    setEditingAddressId(null);
+    setAddressFieldErrors({});
+    setAddressFieldTouched({});
+    setAddressShowAllErrors(false);
     setAddressForm({
       kind: 'current',
       address_line1: '',
@@ -697,7 +895,10 @@ export default function CustomersPage() {
   }
 
   function openAddressEdit(row: AddressRow) {
-        setEditingAddressId(row.id);
+    setEditingAddressId(row.id);
+    setAddressFieldErrors({});
+    setAddressFieldTouched({});
+    setAddressShowAllErrors(false);
     setAddressForm({
       kind: row.kind === 'permanent' ? 'permanent' : 'current',
       address_line1: row.address_line1 ?? '',
@@ -710,11 +911,14 @@ export default function CustomersPage() {
 
   async function saveAddress() {
     if (!selectedId) return;
-    const line = addressForm.address_line1.trim();
-    if (!line) {
-      pageError('Address line is required.');
+    const fieldErrors = validateAddressForm(addressForm);
+    setAddressFieldErrors(fieldErrors);
+    setAddressShowAllErrors(true);
+    if (hasFormFieldErrors(fieldErrors)) {
+      pageError('Fix the highlighted fields before saving.');
       return;
     }
+    const line = addressForm.address_line1.trim();
     setExtrasSaving(true);
         try {
       const payload = {
@@ -748,6 +952,9 @@ export default function CustomersPage() {
         setAddresses((prev) => [...prev, row]);
       }
       setAddressFormOpen(false);
+      setAddressFieldErrors({});
+      setAddressFieldTouched({});
+      setAddressShowAllErrors(false);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save address'
@@ -779,7 +986,10 @@ export default function CustomersPage() {
   }
 
   function openNomineeCreate() {
-        setEditingNomineeId(null);
+    setEditingNomineeId(null);
+    setNomineeFieldErrors({});
+    setNomineeFieldTouched({});
+    setNomineeShowAllErrors(false);
     setNomineeForm({
       nominee_name: '',
       relationship: '',
@@ -789,7 +999,10 @@ export default function CustomersPage() {
   }
 
   function openNomineeEdit(row: NomineeRow) {
-        setEditingNomineeId(row.id);
+    setEditingNomineeId(row.id);
+    setNomineeFieldErrors({});
+    setNomineeFieldTouched({});
+    setNomineeShowAllErrors(false);
     setNomineeForm({
       nominee_name: row.nominee_name ?? '',
       relationship: row.relationship ?? '',
@@ -802,11 +1015,14 @@ export default function CustomersPage() {
 
   async function saveNominee() {
     if (!selectedId) return;
-    const name = nomineeForm.nominee_name.trim();
-    if (!name) {
-      pageError('Nominee name is required.');
+    const fieldErrors = validateNomineeForm(nomineeForm);
+    setNomineeFieldErrors(fieldErrors);
+    setNomineeShowAllErrors(true);
+    if (hasFormFieldErrors(fieldErrors)) {
+      pageError('Fix the highlighted fields before saving.');
       return;
     }
+    const name = nomineeForm.nominee_name.trim();
     setExtrasSaving(true);
         try {
       const payload = {
@@ -838,6 +1054,9 @@ export default function CustomersPage() {
         setNominees((prev) => [row, ...prev]);
       }
       setNomineeFormOpen(false);
+      setNomineeFieldErrors({});
+      setNomineeFieldTouched({});
+      setNomineeShowAllErrors(false);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save nominee'
@@ -869,7 +1088,10 @@ export default function CustomersPage() {
   }
 
   function openBankCreate() {
-        setEditingBankId(null);
+    setEditingBankId(null);
+    setBankFieldErrors({});
+    setBankFieldTouched({});
+    setBankShowAllErrors(false);
     setBankForm({
       bank_name: '',
       account_no: '',
@@ -880,7 +1102,10 @@ export default function CustomersPage() {
   }
 
   function openBankEdit(row: BankRow) {
-        setEditingBankId(row.id);
+    setEditingBankId(row.id);
+    setBankFieldErrors({});
+    setBankFieldTouched({});
+    setBankShowAllErrors(false);
     setBankForm({
       bank_name: row.bank_name ?? '',
       account_no: row.account_no ?? '',
@@ -892,11 +1117,14 @@ export default function CustomersPage() {
 
   async function saveBank() {
     if (!selectedId) return;
-    const bankName = bankForm.bank_name.trim();
-    if (!bankName) {
-      pageError('Bank name is required.');
+    const fieldErrors = validateBankForm(bankForm);
+    setBankFieldErrors(fieldErrors);
+    setBankShowAllErrors(true);
+    if (hasFormFieldErrors(fieldErrors)) {
+      pageError('Fix the highlighted fields before saving.');
       return;
     }
+    const bankName = bankForm.bank_name.trim();
     setExtrasSaving(true);
         try {
       const payload = {
@@ -929,6 +1157,9 @@ export default function CustomersPage() {
         setBankRows((prev) => [row, ...prev]);
       }
       setBankFormOpen(false);
+      setBankFieldErrors({});
+      setBankFieldTouched({});
+      setBankShowAllErrors(false);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save bank details'
@@ -960,9 +1191,12 @@ export default function CustomersPage() {
   }
 
   function openKycUpload() {
-            setKycDocType('aadhaar');
+    setKycDocType('aadhaar');
     setKycPanInput(selected?.pan_number ?? '');
     setKycAadhaarInput(selected?.aadhaar_last4 ?? '');
+    setKycUploadFieldErrors({});
+    setKycUploadFieldTouched({});
+    setKycUploadShowAllErrors(false);
     if (kycFileRef.current) kycFileRef.current.value = '';
     setKycFormOpen(true);
   }
@@ -993,8 +1227,15 @@ export default function CustomersPage() {
   }
 
   async function saveKycIdentityDetails() {
+    const fieldErrors = validateKycIdentity(identityPan, identityAadhaar);
+    setIdentityFieldErrors(fieldErrors);
+    setIdentityShowAllErrors(true);
+    if (hasFormFieldErrors(fieldErrors)) {
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
     setExtrasSaving(true);
-        try {
+    try {
       await persistCustomerIdentifiers(identityPan, identityAadhaar);
     } catch (e) {
       pageError(
@@ -1008,10 +1249,19 @@ export default function CustomersPage() {
   async function uploadKycDocument() {
     if (!selectedId) return;
     const file = kycFileRef.current?.files?.[0];
-    if (!file) {
-      pageError('Choose a file to upload.');
+    const fieldErrors = validateKycUpload(
+      kycDocType,
+      kycPanInput,
+      kycAadhaarInput,
+      Boolean(file)
+    );
+    setKycUploadFieldErrors(fieldErrors);
+    setKycUploadShowAllErrors(true);
+    if (hasFormFieldErrors(fieldErrors)) {
+      pageError('Fix the highlighted fields before uploading.');
       return;
     }
+    if (!file) return;
     const maxBytes = 50 * 1024 * 1024;
     if (file.size > maxBytes) {
       pageError('File is too large (max 50 MB).');
@@ -1155,7 +1405,9 @@ export default function CustomersPage() {
             onOpenChange={(next) => {
               setOpen(next);
               if (!next) {
-                                setDraftFieldErrors({});
+                setDraftFieldErrors({});
+                setDraftFieldTouched({});
+                setDraftShowAllErrors(false);
               }
             }}
           >
@@ -1173,47 +1425,71 @@ export default function CustomersPage() {
                   <Label>Full name *</Label>
                   <Input
                     value={draft.full_name}
-                    aria-invalid={draftFieldErrors.full_name ? true : undefined}
+                    aria-invalid={
+                      visibleFieldError(
+                        draftFieldTouched,
+                        draftShowAllErrors,
+                        'full_name',
+                        draftFieldErrors
+                      )
+                        ? true
+                        : undefined
+                    }
                     onChange={(e) => {
-                      setDraft((d) => ({ ...d, full_name: e.target.value }));
-                      if (draftFieldErrors.full_name) {
-                        setDraftFieldErrors((fe) => {
-                          const { full_name: _, ...rest } = fe;
-                          return rest;
-                        });
-                      }
+                      const full_name = e.target.value;
+                      setDraftFieldTouched((t) => ({ ...t, full_name: true }));
+                      setDraft((d) => {
+                        const next = { ...d, full_name };
+                        setDraftFieldErrors(validateCustomerForm(next));
+                        return next;
+                      });
                     }}
                     placeholder="e.g. Mr. Amit Deshmukh"
                   />
-                  <FieldError message={draftFieldErrors.full_name} />
+                  <FieldError
+                    message={visibleFieldError(
+                      draftFieldTouched,
+                      draftShowAllErrors,
+                      'full_name',
+                      draftFieldErrors
+                    )}
+                  />
                 </div>
                 <PhoneInputField
                   value={draft.phone}
                   onChange={(v) => {
-                    setDraft((d) => ({ ...d, phone: v }));
-                    if (draftFieldErrors.phone) {
-                      setDraftFieldErrors((fe) => {
-                        const { phone: _, ...rest } = fe;
-                        return rest;
-                      });
-                    }
+                    setDraftFieldTouched((t) => ({ ...t, phone: true }));
+                    setDraft((d) => {
+                      const next = { ...d, phone: v };
+                      setDraftFieldErrors(validateCustomerForm(next));
+                      return next;
+                    });
                   }}
                   label="Phone *"
-                  error={draftFieldErrors.phone}
+                  error={visibleFieldError(
+                    draftFieldTouched,
+                    draftShowAllErrors,
+                    'phone',
+                    draftFieldErrors
+                  )}
                 />
                 <EmailInputField
                   value={draft.email}
                   onChange={(v) => {
-                    setDraft((d) => ({ ...d, email: v }));
-                    if (draftFieldErrors.email) {
-                      setDraftFieldErrors((fe) => {
-                        const { email: _, ...rest } = fe;
-                        return rest;
-                      });
-                    }
+                    setDraftFieldTouched((t) => ({ ...t, email: true }));
+                    setDraft((d) => {
+                      const next = { ...d, email: v };
+                      setDraftFieldErrors(validateCustomerForm(next));
+                      return next;
+                    });
                   }}
                   placeholder="name@email.com"
-                  error={draftFieldErrors.email}
+                  error={visibleFieldError(
+                    draftFieldTouched,
+                    draftShowAllErrors,
+                    'email',
+                    draftFieldErrors
+                  )}
                 />
                 <div>
                   <Label>Date of birth</Label>
@@ -1426,7 +1702,9 @@ export default function CustomersPage() {
                   onOpenChange={(next) => {
                     setEditOpen(next);
                     if (!next) {
-                                            setEditFieldErrors({});
+                      setEditFieldErrors({});
+                      setEditFieldTouched({});
+                      setEditShowAllErrors(false);
                     }
                   }}
                 >
@@ -1451,51 +1729,70 @@ export default function CustomersPage() {
                         <Input
                           value={editDraft.full_name}
                           aria-invalid={
-                            editFieldErrors.full_name ? true : undefined
+                            visibleFieldError(
+                              editFieldTouched,
+                              editShowAllErrors,
+                              'full_name',
+                              editFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
                           onChange={(e) => {
-                            setEditDraft((d) => ({
-                              ...d,
-                              full_name: e.target.value
-                            }));
-                            if (editFieldErrors.full_name) {
-                              setEditFieldErrors((fe) => {
-                                const { full_name: _, ...rest } = fe;
-                                return rest;
-                              });
-                            }
+                            const full_name = e.target.value;
+                            setEditFieldTouched((t) => ({ ...t, full_name: true }));
+                            setEditDraft((d) => {
+                              const next = { ...d, full_name };
+                              setEditFieldErrors(validateCustomerForm(next));
+                              return next;
+                            });
                           }}
                           placeholder="e.g. Mr. Amit Deshmukh"
                         />
-                        <FieldError message={editFieldErrors.full_name} />
+                        <FieldError
+                          message={visibleFieldError(
+                            editFieldTouched,
+                            editShowAllErrors,
+                            'full_name',
+                            editFieldErrors
+                          )}
+                        />
                       </div>
                       <PhoneInputField
                         value={editDraft.phone}
                         onChange={(v) => {
-                          setEditDraft((d) => ({ ...d, phone: v }));
-                          if (editFieldErrors.phone) {
-                            setEditFieldErrors((fe) => {
-                              const { phone: _, ...rest } = fe;
-                              return rest;
-                            });
-                          }
+                          setEditFieldTouched((t) => ({ ...t, phone: true }));
+                          setEditDraft((d) => {
+                            const next = { ...d, phone: v };
+                            setEditFieldErrors(validateCustomerForm(next));
+                            return next;
+                          });
                         }}
                         label="Phone *"
-                        error={editFieldErrors.phone}
+                        error={visibleFieldError(
+                          editFieldTouched,
+                          editShowAllErrors,
+                          'phone',
+                          editFieldErrors
+                        )}
                       />
                       <EmailInputField
                         value={editDraft.email}
                         onChange={(v) => {
-                          setEditDraft((d) => ({ ...d, email: v }));
-                          if (editFieldErrors.email) {
-                            setEditFieldErrors((fe) => {
-                              const { email: _, ...rest } = fe;
-                              return rest;
-                            });
-                          }
+                          setEditFieldTouched((t) => ({ ...t, email: true }));
+                          setEditDraft((d) => {
+                            const next = { ...d, email: v };
+                            setEditFieldErrors(validateCustomerForm(next));
+                            return next;
+                          });
                         }}
                         placeholder="name@email.com"
-                        error={editFieldErrors.email}
+                        error={visibleFieldError(
+                          editFieldTouched,
+                          editShowAllErrors,
+                          'email',
+                          editFieldErrors
+                        )}
                       />
                       <div>
                         <Label>Date of birth</Label>
@@ -1615,24 +1912,35 @@ export default function CustomersPage() {
                         <Input
                           value={editDraft.pan_number}
                           aria-invalid={
-                            editFieldErrors.pan_number ? true : undefined
+                            visibleFieldError(
+                              editFieldTouched,
+                              editShowAllErrors,
+                              'pan_number',
+                              editFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
                           onChange={(e) => {
-                            setEditDraft((d) => ({
-                              ...d,
-                              pan_number: e.target.value.toUpperCase()
-                            }));
-                            if (editFieldErrors.pan_number) {
-                              setEditFieldErrors((fe) => {
-                                const { pan_number: _, ...rest } = fe;
-                                return rest;
-                              });
-                            }
+                            const pan_number = e.target.value.toUpperCase();
+                            setEditFieldTouched((t) => ({ ...t, pan_number: true }));
+                            setEditDraft((d) => {
+                              const next = { ...d, pan_number };
+                              setEditFieldErrors(validateCustomerForm(next));
+                              return next;
+                            });
                           }}
                           placeholder="ABCDE1234F"
                           className="mt-1 uppercase"
                         />
-                        <FieldError message={editFieldErrors.pan_number} />
+                        <FieldError
+                          message={visibleFieldError(
+                            editFieldTouched,
+                            editShowAllErrors,
+                            'pan_number',
+                            editFieldErrors
+                          )}
+                        />
                       </div>
                       <div>
                         <Label>Aadhaar (last 4)</Label>
@@ -1640,26 +1948,40 @@ export default function CustomersPage() {
                           value={editDraft.aadhaar_last4}
                           maxLength={4}
                           aria-invalid={
-                            editFieldErrors.aadhaar_last4 ? true : undefined
+                            visibleFieldError(
+                              editFieldTouched,
+                              editShowAllErrors,
+                              'aadhaar_last4',
+                              editFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
                           onChange={(e) => {
-                            setEditDraft((d) => ({
-                              ...d,
-                              aadhaar_last4: e.target.value
-                                .replace(/\D/g, '')
-                                .slice(0, 4)
+                            const aadhaar_last4 = e.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, 4);
+                            setEditFieldTouched((t) => ({
+                              ...t,
+                              aadhaar_last4: true
                             }));
-                            if (editFieldErrors.aadhaar_last4) {
-                              setEditFieldErrors((fe) => {
-                                const { aadhaar_last4: _, ...rest } = fe;
-                                return rest;
-                              });
-                            }
+                            setEditDraft((d) => {
+                              const next = { ...d, aadhaar_last4 };
+                              setEditFieldErrors(validateCustomerForm(next));
+                              return next;
+                            });
                           }}
                           placeholder="1234"
                           className="mt-1"
                         />
-                        <FieldError message={editFieldErrors.aadhaar_last4} />
+                        <FieldError
+                          message={visibleFieldError(
+                            editFieldTouched,
+                            editShowAllErrors,
+                            'aadhaar_last4',
+                            editFieldErrors
+                          )}
+                        />
                       </div>
                     </div>
                     </div>
@@ -1862,11 +2184,37 @@ export default function CustomersPage() {
                       <Label>PAN</Label>
                       <Input
                         value={identityPan}
-                        onChange={(e) =>
-                          setIdentityPan(e.target.value.toUpperCase())
+                        aria-invalid={
+                          visibleFieldError(
+                            identityFieldTouched,
+                            identityShowAllErrors,
+                            'pan_number',
+                            identityFieldErrors
+                          )
+                            ? true
+                            : undefined
                         }
+                        onChange={(e) => {
+                          const pan = e.target.value.toUpperCase();
+                          setIdentityFieldTouched((t) => ({
+                            ...t,
+                            pan_number: true
+                          }));
+                          setIdentityPan(pan);
+                          setIdentityFieldErrors(
+                            validateKycIdentity(pan, identityAadhaar)
+                          );
+                        }}
                         placeholder="ABCDE1234F"
                         className="mt-1 uppercase"
+                      />
+                      <FieldError
+                        message={visibleFieldError(
+                          identityFieldTouched,
+                          identityShowAllErrors,
+                          'pan_number',
+                          identityFieldErrors
+                        )}
                       />
                     </div>
                     <div>
@@ -1874,13 +2222,39 @@ export default function CustomersPage() {
                       <Input
                         value={identityAadhaar}
                         maxLength={4}
-                        onChange={(e) =>
-                          setIdentityAadhaar(
-                            e.target.value.replace(/\D/g, '').slice(0, 4)
+                        aria-invalid={
+                          visibleFieldError(
+                            identityFieldTouched,
+                            identityShowAllErrors,
+                            'aadhaar_last4',
+                            identityFieldErrors
                           )
+                            ? true
+                            : undefined
                         }
+                        onChange={(e) => {
+                          const aadhaar = e.target.value
+                            .replace(/\D/g, '')
+                            .slice(0, 4);
+                          setIdentityFieldTouched((t) => ({
+                            ...t,
+                            aadhaar_last4: true
+                          }));
+                          setIdentityAadhaar(aadhaar);
+                          setIdentityFieldErrors(
+                            validateKycIdentity(identityPan, aadhaar)
+                          );
+                        }}
                         placeholder="1234"
                         className="mt-1"
+                      />
+                      <FieldError
+                        message={visibleFieldError(
+                          identityFieldTouched,
+                          identityShowAllErrors,
+                          'aadhaar_last4',
+                          identityFieldErrors
+                        )}
                       />
                     </div>
                   </div>
@@ -1984,6 +2358,11 @@ export default function CustomersPage() {
                   open={kycFormOpen}
                   onOpenChange={(next) => {
                     setKycFormOpen(next);
+                    if (!next) {
+                      setKycUploadFieldErrors({});
+                      setKycUploadFieldTouched({});
+                      setKycUploadShowAllErrors(false);
+                    }
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -1997,10 +2376,25 @@ export default function CustomersPage() {
                         <Select
                           value={kycDocType}
                           onValueChange={(v) => {
+                            const pan =
+                              v === 'pan'
+                                ? selected?.pan_number ?? ''
+                                : kycPanInput;
+                            const aadhaar =
+                              v === 'aadhaar'
+                                ? selected?.aadhaar_last4 ?? ''
+                                : kycAadhaarInput;
                             setKycDocType(v);
-                            if (v === 'pan') setKycPanInput(selected?.pan_number ?? '');
-                            if (v === 'aadhaar')
-                              setKycAadhaarInput(selected?.aadhaar_last4 ?? '');
+                            if (v === 'pan') setKycPanInput(pan);
+                            if (v === 'aadhaar') setKycAadhaarInput(aadhaar);
+                            setKycUploadFieldErrors(
+                              validateKycUpload(
+                                v,
+                                pan,
+                                aadhaar,
+                                Boolean(kycFileRef.current?.files?.[0])
+                              )
+                            );
                           }}
                         >
                           <SelectTrigger className="mt-1 w-full">
@@ -2020,11 +2414,42 @@ export default function CustomersPage() {
                           <Label>PAN number</Label>
                           <Input
                             value={kycPanInput}
-                            onChange={(e) =>
-                              setKycPanInput(e.target.value.toUpperCase())
+                            aria-invalid={
+                              visibleFieldError(
+                                kycUploadFieldTouched,
+                                kycUploadShowAllErrors,
+                                'pan_number',
+                                kycUploadFieldErrors
+                              )
+                                ? true
+                                : undefined
                             }
+                            onChange={(e) => {
+                              const pan = e.target.value.toUpperCase();
+                              setKycUploadFieldTouched((t) => ({
+                                ...t,
+                                pan_number: true
+                              }));
+                              setKycPanInput(pan);
+                              setKycUploadFieldErrors(
+                                validateKycUpload(
+                                  kycDocType,
+                                  pan,
+                                  kycAadhaarInput,
+                                  Boolean(kycFileRef.current?.files?.[0])
+                                )
+                              );
+                            }}
                             placeholder="ABCDE1234F"
                             className="mt-1 uppercase"
+                          />
+                          <FieldError
+                            message={visibleFieldError(
+                              kycUploadFieldTouched,
+                              kycUploadShowAllErrors,
+                              'pan_number',
+                              kycUploadFieldErrors
+                            )}
                           />
                           <p className="mt-1 text-xs text-gray-500">
                             Stored on the customer profile when you upload.
@@ -2037,13 +2462,44 @@ export default function CustomersPage() {
                           <Input
                             value={kycAadhaarInput}
                             maxLength={4}
-                            onChange={(e) =>
-                              setKycAadhaarInput(
-                                e.target.value.replace(/\D/g, '').slice(0, 4)
+                            aria-invalid={
+                              visibleFieldError(
+                                kycUploadFieldTouched,
+                                kycUploadShowAllErrors,
+                                'aadhaar_last4',
+                                kycUploadFieldErrors
                               )
+                                ? true
+                                : undefined
                             }
+                            onChange={(e) => {
+                              const aadhaar = e.target.value
+                                .replace(/\D/g, '')
+                                .slice(0, 4);
+                              setKycUploadFieldTouched((t) => ({
+                                ...t,
+                                aadhaar_last4: true
+                              }));
+                              setKycAadhaarInput(aadhaar);
+                              setKycUploadFieldErrors(
+                                validateKycUpload(
+                                  kycDocType,
+                                  kycPanInput,
+                                  aadhaar,
+                                  Boolean(kycFileRef.current?.files?.[0])
+                                )
+                              );
+                            }}
                             placeholder="1234"
                             className="mt-1"
+                          />
+                          <FieldError
+                            message={visibleFieldError(
+                              kycUploadFieldTouched,
+                              kycUploadShowAllErrors,
+                              'aadhaar_last4',
+                              kycUploadFieldErrors
+                            )}
                           />
                         </div>
                       ) : null}
@@ -2053,7 +2509,36 @@ export default function CustomersPage() {
                           ref={kycFileRef}
                           type="file"
                           accept="application/pdf,image/jpeg,image/png,image/webp"
+                          aria-invalid={
+                            visibleFieldError(
+                              kycUploadFieldTouched,
+                              kycUploadShowAllErrors,
+                              'file',
+                              kycUploadFieldErrors
+                            )
+                              ? true
+                              : undefined
+                          }
+                          onChange={() => {
+                            setKycUploadFieldTouched((t) => ({ ...t, file: true }));
+                            setKycUploadFieldErrors(
+                              validateKycUpload(
+                                kycDocType,
+                                kycPanInput,
+                                kycAadhaarInput,
+                                Boolean(kycFileRef.current?.files?.[0])
+                              )
+                            );
+                          }}
                           className="mt-1 block h-auto py-1.5 text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                        />
+                        <FieldError
+                          message={visibleFieldError(
+                            kycUploadFieldTouched,
+                            kycUploadShowAllErrors,
+                            'file',
+                            kycUploadFieldErrors
+                          )}
                         />
                         <p className="mt-1 text-xs text-gray-500">
                           Path:{' '}
@@ -2159,6 +2644,11 @@ export default function CustomersPage() {
                   open={addressFormOpen}
                   onOpenChange={(next) => {
                     setAddressFormOpen(next);
+                    if (!next) {
+                      setAddressFieldErrors({});
+                      setAddressFieldTouched({});
+                      setAddressShowAllErrors(false);
+                    }
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -2193,15 +2683,39 @@ export default function CustomersPage() {
                         <Label>Address line</Label>
                         <Textarea
                           value={addressForm.address_line1}
-                          onChange={(e) =>
-                            setAddressForm((f) => ({
-                              ...f,
-                              address_line1: e.target.value
-                            }))
+                          aria-invalid={
+                            visibleFieldError(
+                              addressFieldTouched,
+                              addressShowAllErrors,
+                              'address_line1',
+                              addressFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
+                          onChange={(e) => {
+                            const address_line1 = e.target.value;
+                            setAddressFieldTouched((t) => ({
+                              ...t,
+                              address_line1: true
+                            }));
+                            setAddressForm((f) => {
+                              const next = { ...f, address_line1 };
+                              setAddressFieldErrors(validateAddressForm(next));
+                              return next;
+                            });
+                          }}
                           rows={2}
                           placeholder="Street, building, landmark…"
                           className="mt-1"
+                        />
+                        <FieldError
+                          message={visibleFieldError(
+                            addressFieldTouched,
+                            addressShowAllErrors,
+                            'address_line1',
+                            addressFieldErrors
+                          )}
                         />
                       </div>
                       <div>
@@ -2232,13 +2746,36 @@ export default function CustomersPage() {
                         <Label>PIN</Label>
                         <Input
                           value={addressForm.pin}
-                          onChange={(e) =>
-                            setAddressForm((f) => ({
-                              ...f,
-                              pin: e.target.value
-                            }))
+                          aria-invalid={
+                            visibleFieldError(
+                              addressFieldTouched,
+                              addressShowAllErrors,
+                              'pin',
+                              addressFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
+                          onChange={(e) => {
+                            const pin = e.target.value.replace(/\D/g, '').slice(0, 6);
+                            setAddressFieldTouched((t) => ({ ...t, pin: true }));
+                            setAddressForm((f) => {
+                              const next = { ...f, pin };
+                              setAddressFieldErrors(validateAddressForm(next));
+                              return next;
+                            });
+                          }}
                           placeholder="e.g. 400001"
+                          inputMode="numeric"
+                          maxLength={6}
+                        />
+                        <FieldError
+                          message={visibleFieldError(
+                            addressFieldTouched,
+                            addressShowAllErrors,
+                            'pin',
+                            addressFieldErrors
+                          )}
                         />
                       </div>
                     </div>
@@ -2336,6 +2873,11 @@ export default function CustomersPage() {
                   open={nomineeFormOpen}
                   onOpenChange={(next) => {
                     setNomineeFormOpen(next);
+                    if (!next) {
+                      setNomineeFieldErrors({});
+                      setNomineeFieldTouched({});
+                      setNomineeShowAllErrors(false);
+                    }
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -2350,13 +2892,37 @@ export default function CustomersPage() {
                         <Label>Full name</Label>
                         <Input
                           value={nomineeForm.nominee_name}
-                          onChange={(e) =>
-                            setNomineeForm((f) => ({
-                              ...f,
-                              nominee_name: e.target.value
-                            }))
+                          aria-invalid={
+                            visibleFieldError(
+                              nomineeFieldTouched,
+                              nomineeShowAllErrors,
+                              'nominee_name',
+                              nomineeFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
+                          onChange={(e) => {
+                            const nominee_name = e.target.value;
+                            setNomineeFieldTouched((t) => ({
+                              ...t,
+                              nominee_name: true
+                            }));
+                            setNomineeForm((f) => {
+                              const next = { ...f, nominee_name };
+                              setNomineeFieldErrors(validateNomineeForm(next));
+                              return next;
+                            });
+                          }}
                           placeholder="Nominee name"
+                        />
+                        <FieldError
+                          message={visibleFieldError(
+                            nomineeFieldTouched,
+                            nomineeShowAllErrors,
+                            'nominee_name',
+                            nomineeFieldErrors
+                          )}
                         />
                       </div>
                       <div className="col-span-2">
@@ -2481,6 +3047,11 @@ export default function CustomersPage() {
                   open={bankFormOpen}
                   onOpenChange={(next) => {
                     setBankFormOpen(next);
+                    if (!next) {
+                      setBankFieldErrors({});
+                      setBankFieldTouched({});
+                      setBankShowAllErrors(false);
+                    }
                   }}
                 >
                   <DialogContent className="max-w-xl">
@@ -2495,13 +3066,34 @@ export default function CustomersPage() {
                         <Label>Bank name</Label>
                         <Input
                           value={bankForm.bank_name}
-                          onChange={(e) =>
-                            setBankForm((f) => ({
-                              ...f,
-                              bank_name: e.target.value
-                            }))
+                          aria-invalid={
+                            visibleFieldError(
+                              bankFieldTouched,
+                              bankShowAllErrors,
+                              'bank_name',
+                              bankFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
+                          onChange={(e) => {
+                            const bank_name = e.target.value;
+                            setBankFieldTouched((t) => ({ ...t, bank_name: true }));
+                            setBankForm((f) => {
+                              const next = { ...f, bank_name };
+                              setBankFieldErrors(validateBankForm(next));
+                              return next;
+                            });
+                          }}
                           placeholder="Bank name"
+                        />
+                        <FieldError
+                          message={visibleFieldError(
+                            bankFieldTouched,
+                            bankShowAllErrors,
+                            'bank_name',
+                            bankFieldErrors
+                          )}
                         />
                       </div>
                       <div className="col-span-2">
@@ -2520,13 +3112,35 @@ export default function CustomersPage() {
                         <Label>IFSC</Label>
                         <Input
                           value={bankForm.ifsc}
-                          onChange={(e) =>
-                            setBankForm((f) => ({
-                              ...f,
-                              ifsc: e.target.value
-                            }))
+                          aria-invalid={
+                            visibleFieldError(
+                              bankFieldTouched,
+                              bankShowAllErrors,
+                              'ifsc',
+                              bankFieldErrors
+                            )
+                              ? true
+                              : undefined
                           }
+                          onChange={(e) => {
+                            const ifsc = e.target.value.toUpperCase();
+                            setBankFieldTouched((t) => ({ ...t, ifsc: true }));
+                            setBankForm((f) => {
+                              const next = { ...f, ifsc };
+                              setBankFieldErrors(validateBankForm(next));
+                              return next;
+                            });
+                          }}
                           placeholder="IFSC code"
+                          className="uppercase"
+                        />
+                        <FieldError
+                          message={visibleFieldError(
+                            bankFieldTouched,
+                            bankShowAllErrors,
+                            'ifsc',
+                            bankFieldErrors
+                          )}
                         />
                       </div>
                       <div>
