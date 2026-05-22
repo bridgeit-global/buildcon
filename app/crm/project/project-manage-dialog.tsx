@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
+import {
+  projectDetailsSchema,
+  projectPricingSchema
+} from '@/lib/project/project-manage.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrmProjectListItem } from '../_components/types';
 import { Button } from '@/components/ui/button';
@@ -78,6 +84,22 @@ export function ProjectManageDialog({
   const canManageMembers = isSuperAdmin || myProjectRole === 'Manager';
   const canEditDetails = isSuperAdmin;
   const canEditPricing = isSuperAdmin;
+
+  const detailsValidation = useFieldValidation(projectDetailsSchema, {
+    name,
+    location,
+    type,
+    status,
+    fy,
+    rera_no: reraNo,
+    base_rate: baseRate
+  });
+
+  const pricingValidation = useFieldValidation(projectPricingSchema, {
+    gstPct: pricingGstPct,
+    stampPct: pricingStampPct,
+    regFee: pricingRegFee
+  });
 
   const resetFromProject = useCallback((p: CrmProjectListItem) => {
     setName(p.name);
@@ -167,12 +189,17 @@ export function ProjectManageDialog({
 
   async function saveDetails() {
     if (!project || !canEditDetails) return;
+    const parsed = detailsValidation.validate();
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
     setSaving(true);
         try {
       const { error: updateErr } = await supabase
         .from('projects')
         .update({
-          name: name.trim(),
+          name: parsed.data.name.trim(),
           location: location.trim() || null,
           type,
           status,
@@ -192,6 +219,11 @@ export function ProjectManageDialog({
 
   async function savePricing() {
     if (!project || !canEditPricing) return;
+    const parsed = pricingValidation.validate();
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
     setSaving(true);
         try {
       const { error: updateErr } = await supabase
@@ -279,9 +311,17 @@ export function ProjectManageDialog({
                 <Label className="text-xs text-ds-gray-500">Project name</Label>
                 <Input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    detailsValidation.touch('name');
+                  }}
+                  onBlur={() => detailsValidation.touch('name')}
+                  aria-invalid={
+                    detailsValidation.fieldError('name') ? true : undefined
+                  }
                   disabled={!canEditDetails}
                 />
+                <FormFieldError message={detailsValidation.fieldError('name')} />
               </div>
               <div className="grid gap-1 sm:col-span-2">
                 <Label className="text-xs text-ds-gray-500">Location</Label>

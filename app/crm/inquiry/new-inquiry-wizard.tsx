@@ -57,6 +57,14 @@ import {
   type UnitPickFilters,
   unitPickFiltersFromSellerPreferences
 } from './inquiry-unit-picker';
+import {
+  inquirySiteVisitSchema,
+  inquiryWizardStep1Schema,
+  inquiryWizardStep2Schema,
+  type InquiryWizardStep1Values
+} from '@/lib/inquiry/inquiry-wizard.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 
 const LEAD_SOURCES = [
   'Direct',
@@ -197,13 +205,51 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     void (async () => {
       const { data, error: loadErr } = await supabase
         .from('sales_inquiries')
-        .select('unit_id, funnel_stage, stage_data')
+        .select(
+          `
+          unit_id,
+          funnel_stage,
+          stage_data,
+          lead_source,
+          broker_id,
+          interested_in,
+          notes,
+          customers ( full_name, phone, email )
+        `
+        )
         .eq('id', id)
         .maybeSingle();
       if (cancelled || loadErr || !data) return;
-      const unitId = String((data as { unit_id?: string }).unit_id || '').trim();
-      if (unitId) {
-        setSellerForm((s) => ({ ...s, selectedUnitId: unitId }));
+      const row = data as {
+        unit_id?: string;
+        lead_source?: string;
+        broker_id?: string | null;
+        interested_in?: string | null;
+        notes?: string | null;
+        customers?: { full_name?: string; phone?: string; email?: string | null } | null;
+      };
+      const unitId = String(row.unit_id || '').trim();
+      const cust = row.customers;
+      if (unitId || cust) {
+        setSellerForm((s) => ({
+          ...s,
+          ...(unitId ? { selectedUnitId: unitId } : {}),
+          ...(cust
+            ? {
+                customerName: String(cust.full_name ?? '').trim(),
+                phone: String(cust.phone ?? '').trim(),
+                email: String(cust.email ?? '').trim()
+              }
+            : {}),
+          leadSource: (LEAD_SOURCES as readonly string[]).includes(
+            String(row.lead_source || '')
+          )
+            ? (row.lead_source as (typeof LEAD_SOURCES)[number])
+            : s.leadSource,
+          brokerId: String(row.broker_id ?? '').trim(),
+          interestedIn: String(row.interested_in ?? '').trim(),
+          notes: String(row.notes ?? '').trim()
+        }));
         setCreatedInquiryId(id);
       }
       const stageData = (data as { stage_data?: Record<string, unknown> })
@@ -393,21 +439,45 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     };
   }, [selectedUnit?.project_id, supabase]);
 
+  const step1Values = useMemo(
+    () => ({
+      customerName: sellerForm.customerName,
+      phone: sellerForm.phone,
+      email: sellerForm.email,
+      leadSource: sellerForm.leadSource,
+      brokerId: sellerForm.brokerId
+    }),
+    [
+      sellerForm.customerName,
+      sellerForm.phone,
+      sellerForm.email,
+      sellerForm.leadSource,
+      sellerForm.brokerId
+    ]
+  );
+
+  const step1Validation = useFieldValidation(inquiryWizardStep1Schema, step1Values);
+  const step2Validation = useFieldValidation(inquiryWizardStep2Schema, {
+    selectedUnitId: sellerForm.selectedUnitId
+  });
+  const visitValidation = useFieldValidation(inquirySiteVisitSchema, {
+    visitInterest: visitInterest || ''
+  });
+
   const stepValid = useMemo(() => {
-    const customerOk =
-      String(sellerForm.customerName || '').trim().length >= 2 &&
-      normalizePhone(sellerForm.phone).length === 10 &&
+    const step1Ok =
+      inquiryWizardStep1Schema.safeParse(step1Values).success &&
       Boolean(userLabel.id);
-    const leadOk =
-      sellerForm.leadSource !== 'Broker' ||
-      Boolean(String(sellerForm.brokerId || '').trim());
-    const unitOk = String(sellerForm.selectedUnitId || '').trim().length > 0;
+    const step2Ok =
+      step1Ok && inquiryWizardStep2Schema.safeParse({
+        selectedUnitId: sellerForm.selectedUnitId
+      }).success;
     return {
-      1: customerOk && leadOk,
-      2: unitOk && customerOk && leadOk,
+      1: step1Ok,
+      2: step2Ok,
       3: Boolean(activeInquiryId)
     } as Record<StepId, boolean>;
-  }, [sellerForm, userLabel.id, activeInquiryId]);
+  }, [step1Values, sellerForm.selectedUnitId, userLabel.id, activeInquiryId]);
 
   const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
     if (!userLabel.id) {
@@ -500,7 +570,22 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   ]);
 
   async function goNext() {
-    if (!stepValid[step] || saving) return;
+    if (saving) return;
+    if (step === 1) {
+      const parsed = step1Validation.validate();
+      if (!parsed.success) {
+        pageError('Fix the highlighted fields before continuing.');
+        return;
+      }
+    }
+    if (step === 2) {
+      const parsed = step2Validation.validate();
+      if (!parsed.success) {
+        pageError('Select a unit before continuing.');
+        return;
+      }
+    }
+    if (!stepValid[step]) return;
     if (step === 1) {
       setSaving(true);
             try {
@@ -733,6 +818,29 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
   }
 
+  async function resolveInquiryCustomerId(): Promise<string | null> {
+    if (!activeInquiryId) return null;
+    const { data, error } = await supabase
+      .from('sales_inquiries')
+      .select('customer_id')
+      .eq('id', activeInquiryId)
+      .maybeSingle();
+    if (error) {
+      pageError(error.message);
+      return null;
+    }
+    const id = String(
+      (data as { customer_id?: string } | null)?.customer_id || ''
+    ).trim();
+    if (!id) {
+      pageError(
+        'This enquiry has no linked customer. Save customer details in the enquiry step first.'
+      );
+      return null;
+    }
+    return id;
+  }
+
   async function handleCreateBookingFromVisit() {
     if (!activeInquiryId || saving) return;
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
@@ -763,7 +871,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
     setSaving(true);
         try {
-      const customerId = await persistCustomerToDb();
+      const customerId = await resolveInquiryCustomerId();
       if (!customerId) return;
       await persistVisitSiteStage({
         site_visit: {
@@ -820,6 +928,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           setSellerForm={setSellerForm}
           brokers={brokers}
           signedIn={Boolean(userLabel.id)}
+          fieldError={step1Validation.fieldError}
+          touch={step1Validation.touch}
         />
       ) : null}
 
@@ -834,7 +944,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             loadingUnits={loadingUnits}
             selectedUnit={selectedUnit}
             selectedUnitId={sellerForm.selectedUnitId}
-            onSelectUnitId={(id, unitType) =>
+            onSelectUnitId={(id, unitType) => {
               setSellerForm((s) => ({
                 ...s,
                 selectedUnitId: id,
@@ -842,8 +952,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
                   id && !s.interestedIn.trim()
                     ? String(unitType || '').trim()
                     : s.interestedIn
-              }))
-            }
+              }));
+              step2Validation.touch('selectedUnitId');
+            }}
             filters={unitPickFilters}
             setFilters={setUnitPickFilters}
             projectParking={projectParking}
@@ -851,6 +962,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             parkingRequired={sellerForm.parkingRequired}
             parkingCount={sellerForm.parkingCount}
           />
+          <FormFieldError message={step2Validation.fieldError('selectedUnitId')} />
         </div>
       ) : null}
 
@@ -1018,12 +1130,16 @@ function StepEnquiry({
   sellerForm,
   setSellerForm,
   brokers,
-  signedIn
+  signedIn,
+  fieldError,
+  touch
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   brokers: { id: string; full_name: string }[];
   signedIn: boolean;
+  fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
+  touch: (field: keyof InquiryWizardStep1Values) => void;
 }) {
   return (
     <div className="mt-5 space-y-4">
@@ -1039,22 +1155,34 @@ function StepEnquiry({
           <Input
             className="mt-1"
             value={sellerForm.customerName}
-            onChange={(e) =>
-              setSellerForm((s) => ({ ...s, customerName: e.target.value }))
-            }
+            onChange={(e) => {
+              setSellerForm((s) => ({ ...s, customerName: e.target.value }));
+              touch('customerName');
+            }}
+            onBlur={() => touch('customerName')}
+            aria-invalid={fieldError('customerName') ? true : undefined}
             placeholder="Full name"
           />
+          <FormFieldError message={fieldError('customerName')} />
         </div>
         <PhoneInputField
           value={sellerForm.phone}
-          onChange={(v) => setSellerForm((s) => ({ ...s, phone: v }))}
+          onChange={(v) => {
+            setSellerForm((s) => ({ ...s, phone: v }));
+            touch('phone');
+          }}
           label="Phone *"
           placeholder="10-digit mobile"
           mode="digits10"
+          error={fieldError('phone')}
         />
         <EmailInputField
           value={sellerForm.email}
-          onChange={(v) => setSellerForm((s) => ({ ...s, email: v }))}
+          onChange={(v) => {
+            setSellerForm((s) => ({ ...s, email: v }));
+            touch('email');
+          }}
+          error={fieldError('email')}
           placeholder="Email (optional)"
         />
       </div>
@@ -1071,6 +1199,7 @@ function StepEnquiry({
                 leadSource: nv,
                 brokerId: nv === 'Broker' ? s.brokerId : ''
               }));
+              touch('leadSource');
             }}
           >
             <SelectTrigger className="mt-1 w-full">
@@ -1097,9 +1226,10 @@ function StepEnquiry({
             value={
               sellerForm.brokerId === '' ? undefined : sellerForm.brokerId
             }
-            onValueChange={(v) =>
-              setSellerForm((s) => ({ ...s, brokerId: v }))
-            }
+            onValueChange={(v) => {
+              setSellerForm((s) => ({ ...s, brokerId: v }));
+              touch('brokerId');
+            }}
             disabled={sellerForm.leadSource !== 'Broker'}
           >
             <SelectTrigger
@@ -1123,6 +1253,7 @@ function StepEnquiry({
               No active brokers — add one under CRM → Brokers.
             </p>
           ) : null}
+          <FormFieldError message={fieldError('brokerId')} />
         </div>
       </div>
 

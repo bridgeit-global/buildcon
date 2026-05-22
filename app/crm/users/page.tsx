@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
+import {
+  portalLinksSchema,
+  userInviteSchema
+} from '@/lib/admin/user-invite.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,6 +75,32 @@ export default function UsersPage() {
   const [portalCustomerId, setPortalCustomerId] = useState('');
   const [portalBrokerId, setPortalBrokerId] = useState('');
   const [savingPortal, setSavingPortal] = useState(false);
+
+  const inviteValidation = useFieldValidation(
+    userInviteSchema,
+    useMemo(
+      () => ({
+        email: invite.email,
+        name: invite.name,
+        profileRole: invite.profileRole,
+        projectMemberRole: invite.projectMemberRole,
+        projectIds: invite.projectIds
+      }),
+      [invite]
+    )
+  );
+
+  const portalValidation = useFieldValidation(
+    portalLinksSchema,
+    useMemo(
+      () => ({
+        portalUserId,
+        portalCustomerId,
+        portalBrokerId
+      }),
+      [portalUserId, portalCustomerId, portalBrokerId]
+    )
+  );
 
   async function load() {
     setLoading(true);
@@ -177,6 +209,11 @@ export default function UsersPage() {
   };
 
   async function inviteUser() {
+    const parsed = inviteValidation.validate();
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before inviting.');
+      return;
+    }
     setInviting(true);
         try {
       const res = await fetch('/api/crm/admin/users', {
@@ -200,6 +237,7 @@ export default function UsersPage() {
         projectMemberRole: 'Member',
         projectIds: []
       });
+      inviteValidation.resetValidation();
       await load();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Invite failed');
@@ -247,7 +285,11 @@ export default function UsersPage() {
   }
 
   async function savePortalLinks() {
-    if (!portalUserId.trim()) return;
+    const parsed = portalValidation.validate();
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
     setSavingPortal(true);
         try {
       const cust = portalCustomerId.trim() || null;
@@ -316,7 +358,13 @@ export default function UsersPage() {
 
           {profile?.role === 'Super Admin' ? (
             <div className="mt-4">
-              <Dialog open={openInvite} onOpenChange={setOpenInvite}>
+              <Dialog
+                open={openInvite}
+                onOpenChange={(next) => {
+                  setOpenInvite(next);
+                  if (!next) inviteValidation.resetValidation();
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button>Invite / Add user</Button>
                 </DialogTrigger>
@@ -329,9 +377,11 @@ export default function UsersPage() {
                     <div className="col-span-2">
                       <EmailInputField
                         value={invite.email}
-                        onChange={(v) =>
-                          setInvite((s) => ({ ...s, email: v }))
-                        }
+                        onChange={(v) => {
+                          setInvite((s) => ({ ...s, email: v }));
+                          inviteValidation.touch('email');
+                        }}
+                        error={inviteValidation.fieldError('email')}
                         placeholder="user@company.com"
                       />
                     </div>
@@ -508,6 +558,11 @@ export default function UsersPage() {
                         <span className="font-mono">profiles</span> and{' '}
                         <span className="font-mono">project_members</span>.
                       </div>
+                      {inviteValidation.fieldError('projectIds') ? (
+                        <p className="mt-2 text-xs text-red-600">
+                          {inviteValidation.fieldError('projectIds')}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -520,8 +575,8 @@ export default function UsersPage() {
                       Cancel
                     </Button>
                     <Button
-                      onClick={inviteUser}
-                      disabled={inviting || !invite.email}
+                      onClick={() => void inviteUser()}
+                      disabled={inviting}
                     >
                       {inviting ? 'Inviting…' : 'Invite'}
                     </Button>
@@ -708,12 +763,17 @@ export default function UsersPage() {
                 value={portalUserId || undefined}
                 onValueChange={(id) => {
                   setPortalUserId(id);
+                  portalValidation.touch('portalUserId');
                   const row = portalDirectory.find((p) => p.id === id);
                   setPortalCustomerId(row?.linked_customer_id ?? '');
                   setPortalBrokerId(row?.linked_broker_id ?? '');
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  aria-invalid={
+                    portalValidation.fieldError('portalUserId') ? true : undefined
+                  }
+                >
                   <SelectValue placeholder="Select user…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -724,30 +784,49 @@ export default function UsersPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <FormFieldError message={portalValidation.fieldError('portalUserId')} />
             </div>
             <div className="grid gap-1">
               <Label className="text-xs">Linked customer id (UUID)</Label>
               <Input
                 value={portalCustomerId}
-                onChange={(e) => setPortalCustomerId(e.target.value)}
+                onChange={(e) => {
+                  setPortalCustomerId(e.target.value);
+                  portalValidation.touch('portalCustomerId');
+                }}
+                onBlur={() => portalValidation.touch('portalCustomerId')}
+                aria-invalid={
+                  portalValidation.fieldError('portalCustomerId') ? true : undefined
+                }
                 placeholder="00000000-0000-0000-0000-000000000000"
                 className="font-mono text-xs"
+              />
+              <FormFieldError
+                message={portalValidation.fieldError('portalCustomerId')}
               />
             </div>
             <div className="grid gap-1 sm:col-span-2">
               <Label className="text-xs">Linked broker id (UUID, optional)</Label>
               <Input
                 value={portalBrokerId}
-                onChange={(e) => setPortalBrokerId(e.target.value)}
+                onChange={(e) => {
+                  setPortalBrokerId(e.target.value);
+                  portalValidation.touch('portalBrokerId');
+                }}
+                onBlur={() => portalValidation.touch('portalBrokerId')}
+                aria-invalid={
+                  portalValidation.fieldError('portalBrokerId') ? true : undefined
+                }
                 placeholder="Optional"
                 className="font-mono text-xs"
               />
+              <FormFieldError message={portalValidation.fieldError('portalBrokerId')} />
             </div>
           </div>
           <Button
             className="mt-3"
             type="button"
-            disabled={savingPortal || !portalUserId.trim()}
+            disabled={savingPortal}
             onClick={() => void savePortalLinks()}
           >
             {savingPortal ? 'Saving…' : 'Save portal links'}

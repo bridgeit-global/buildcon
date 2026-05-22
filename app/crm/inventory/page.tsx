@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
+import { unitBlockSchema, unitEditSchema } from '@/lib/inventory/unit-edit.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -616,8 +619,21 @@ function UnitEditDialog({
     });
   }, [unit, open]);
 
+  const editValidation = useFieldValidation(unitEditSchema, {
+    unit_code: form.unit_code,
+    area: form.area,
+    rate: form.rate,
+    status: form.status,
+    blocked_reason: form.blocked_reason
+  });
+
   async function save() {
     if (!unit) return;
+    const parsed = editValidation.validate();
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
     setSaving(true);
     const payload: Record<string, unknown> = {
       unit_code: form.unit_code.trim() || unit.unit_code,
@@ -677,11 +693,17 @@ function UnitEditDialog({
             <Label className="text-[10px] text-slate-500">Unit code</Label>
             <Input
               value={form.unit_code}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, unit_code: e.target.value }))
+              onChange={(e) => {
+                setForm((f) => ({ ...f, unit_code: e.target.value }));
+                editValidation.touch('unit_code');
+              }}
+              onBlur={() => editValidation.touch('unit_code')}
+              aria-invalid={
+                editValidation.fieldError('unit_code') ? true : undefined
               }
               className="h-9 text-xs"
             />
+            <FormFieldError message={editValidation.fieldError('unit_code')} />
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Type</Label>
@@ -1026,6 +1048,11 @@ function InventoryPageContent() {
   const [blocking, setBlocking] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
 
+  const blockValidation = useFieldValidation(unitBlockSchema, {
+    blockUnitId,
+    blockReason
+  });
+
   const [floorPlanWing, setFloorPlanWing] = useState<string>('');
   const [floorPlanFloor, setFloorPlanFloor] = useState<number | null>(null);
 
@@ -1364,7 +1391,11 @@ function InventoryPageContent() {
   }, [effectiveFloorPlanWing]);
 
   async function blockSelected() {
-    if (!blockUnitId || !blockReason) return;
+    const parsed = blockValidation.validate();
+    if (!parsed.success) {
+      pageError('Select a unit and reason before blocking.');
+      return;
+    }
     setBlocking(true);
         const today = new Date().toISOString().slice(0, 10);
     const { error } = await supabase
@@ -2360,7 +2391,10 @@ function InventoryPageContent() {
                   <Label className="text-[10px] text-orange-900">Unit</Label>
                   <Select
                     value={blockUnitId === '' ? undefined : blockUnitId}
-                    onValueChange={setBlockUnitId}
+                    onValueChange={(v) => {
+                      setBlockUnitId(v);
+                      blockValidation.touch('blockUnitId');
+                    }}
                   >
                     <SelectTrigger className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none">
                       <SelectValue placeholder="Select available unit…" />
@@ -2380,7 +2414,10 @@ function InventoryPageContent() {
                   <Label className="text-[10px] text-orange-900">Reason</Label>
                   <Select
                     value={blockReason === '' ? undefined : blockReason}
-                    onValueChange={setBlockReason}
+                    onValueChange={(v) => {
+                      setBlockReason(v);
+                      blockValidation.touch('blockReason');
+                    }}
                   >
                     <SelectTrigger className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none">
                       <SelectValue placeholder="Select reason…" />

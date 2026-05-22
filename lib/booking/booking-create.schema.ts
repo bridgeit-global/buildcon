@@ -1,23 +1,14 @@
 import { z } from 'zod';
-import { normalizePhoneDigits } from '@/lib/customer/customer-forms.schema';
 import { paymentModeNeedsLoanBank } from '@/lib/booking/booking-payment';
+import {
+  normalizePhoneDigits,
+  optionalEmail,
+  positiveNumberString
+} from '@/lib/form/common-fields';
 
-const optionalEmail = z.string().refine(
-  (v) => {
-    const t = v.trim();
-    if (!t) return true;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
-  },
-  { message: 'Enter a valid email address.' }
-);
+export { zodFieldErrors } from '@/lib/form/zod-field-errors';
 
-const positiveInrAmount = z.string().refine(
-  (v) => {
-    const n = Number(String(v).replace(/,/g, '').trim());
-    return Number.isFinite(n) && n > 0;
-  },
-  { message: 'Enter a positive booking amount.' }
-);
+const positiveInrAmount = positiveNumberString('booking amount');
 
 /** Inline “add customer” on the bookings page */
 export const bookingQuickCustomerSchema = z.object({
@@ -75,17 +66,3 @@ export const bookingCreateSchema = z
   });
 
 export type BookingCreateFormValues = z.infer<typeof bookingCreateSchema>;
-
-export function zodFieldErrors<T extends string>(
-  result: z.ZodSafeParseResult<unknown>
-): Partial<Record<T, string>> {
-  if (result.success) return {};
-  const out: Partial<Record<T, string>> = {};
-  for (const issue of result.error.issues) {
-    const key = issue.path[0];
-    if (typeof key === 'string' && !(key in out)) {
-      out[key as T] = issue.message;
-    }
-  }
-  return out;
-}

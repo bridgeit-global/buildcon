@@ -39,9 +39,7 @@ import {
   isTokenStageLocked
 } from '../booking-stage-transitions';
 import {
-  isAadhaarValid,
   isCustomerKycComplete,
-  isPanValid,
   normalizeAadhaar,
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
@@ -57,6 +55,13 @@ import {
 } from '@/app/crm/documents/booking-documents-matrix-table';
 import { BookingNotificationsCard } from '@/app/crm/bookings/booking-notifications-card';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import {
+  bookingAllotmentSchema,
+  bookingApplicationSchema,
+  bookingCancelSchema,
+  bookingTokenStageSchema
+} from '@/lib/booking/booking-workflow.schema';
+import { kycIdentitySchema } from '@/lib/customer/customer-forms.schema';
 import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
@@ -503,7 +508,38 @@ export default function BookingDetailPage() {
 
   async function advanceStage() {
     if (!booking || cancelled) return;
-    const merged = { ...stageData, [workflowStage]: { ...stageData[workflowStage], ...stagePatchForAdvance() } };
+    const patch = stagePatchForAdvance();
+    if (workflowStage === 'token') {
+      const tokenParsed = bookingTokenStageSchema.safeParse({
+        amount: String(patch.amount ?? ''),
+        date: String(patch.date ?? ''),
+        mode: String(patch.mode ?? '')
+      });
+      if (!tokenParsed.success) {
+        pageError(tokenParsed.error.issues[0]?.message ?? 'Complete token details.');
+        return;
+      }
+    }
+    if (workflowStage === 'application') {
+      const appParsed = bookingApplicationSchema.safeParse({
+        occupation: stageData.application?.occupation ?? '',
+        address_line1: String(patch.address_line1 ?? '')
+      });
+      if (!appParsed.success) {
+        pageError(appParsed.error.issues[0]?.message ?? 'Complete application details.');
+        return;
+      }
+    }
+    if (workflowStage === 'allotment') {
+      const alParsed = bookingAllotmentSchema.safeParse({
+        allotment_date: String(patch.allotment_date ?? '')
+      });
+      if (!alParsed.success) {
+        pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date.');
+        return;
+      }
+    }
+    const merged = { ...stageData, [workflowStage]: { ...stageData[workflowStage], ...patch } };
     const check = canAdvanceWorkflowStage(workflowStage, merged, { kycComplete });
     if (!check.ok) {
       pageError(check.reason ?? 'Cannot advance');
@@ -563,16 +599,17 @@ export default function BookingDetailPage() {
 
   async function saveBuyerIdentifiers(b: BuyerKyc) {
     if (!booking) return;
-    const panNorm = normalizePan(b.pan);
-    const aadhaarNorm = normalizeAadhaar(b.aadhaarLast4);
-    const fieldErrors: { pan?: string; aadhaar?: string } = {};
-    if (panNorm && !isPanValid(panNorm)) {
-      fieldErrors.pan = 'Enter a valid PAN (e.g. ABCDE1234F).';
-    }
-    if (aadhaarNorm && !isAadhaarValid(aadhaarNorm)) {
-      fieldErrors.aadhaar = 'Enter a valid 12-digit Aadhaar number.';
-    }
-    if (Object.keys(fieldErrors).length > 0) {
+    const parsed = kycIdentitySchema.safeParse({
+      pan_number: b.pan,
+      aadhaar_last4: b.aadhaarLast4
+    });
+    if (!parsed.success) {
+      const fieldErrors: { pan?: string; aadhaar?: string } = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0];
+        if (key === 'pan_number') fieldErrors.pan = issue.message;
+        if (key === 'aadhaar_last4') fieldErrors.aadhaar = issue.message;
+      }
       setBuyerKycFieldErrors((prev) => ({
         ...prev,
         [b.customerId]: fieldErrors
@@ -580,6 +617,8 @@ export default function BookingDetailPage() {
       pageError('Fix the highlighted fields before saving.');
       return;
     }
+    const panNorm = normalizePan(b.pan);
+    const aadhaarNorm = normalizeAadhaar(b.aadhaarLast4);
     setBuyerKycFieldErrors((prev) => {
       const next = { ...prev };
       delete next[b.customerId];
@@ -642,6 +681,11 @@ export default function BookingDetailPage() {
 
   async function submitCancellation() {
     if (!booking) return;
+    const parsed = bookingCancelSchema.safeParse({ cancelReason });
+    if (!parsed.success) {
+      pageError(parsed.error.issues[0]?.message ?? 'Select a cancellation reason.');
+      return;
+    }
     setSaving(true);
         try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/cancel`, {
@@ -1313,7 +1357,11 @@ export default function BookingDetailPage() {
           <div className="grid gap-3">
             <div className="space-y-1.5">
               <Label>Reason *</Label>
-              <Select value={cancelReason} onValueChange={setCancelReason}>
+              <Select
+                value={cancelReason}
+                onValueChange={setCancelReason}
+                aria-invalid={!cancelReason ? true : undefined}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select reason" />
                 </SelectTrigger>

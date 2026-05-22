@@ -72,12 +72,22 @@ export function isUnitBookableForWorkflow(status: string | null | undefined): bo
   );
 }
 
-/** Inquiry → booking prefill — same statuses as {@link isUnitBookableForWorkflow}. */
+/** Inquiry → booking prefill — unit must still be blocked for this lead. */
 export function isUnitPrefillableFromInquiry(
   status: string | null | undefined
 ): boolean {
-  return isUnitBookableForWorkflow(status);
+  return isUnitBlockedStatus(status);
 }
+
+/** Create-booking picker and POST — only inventory held (blocked) for a lead. */
+export function isUnitSelectableForBookingCreate(
+  status: string | null | undefined
+): boolean {
+  return isUnitBlockedStatus(status);
+}
+
+/** DB `in` filter for listing units on the create-booking form. */
+export const BOOKING_CREATE_UNIT_STATUS_FILTER = ['BLOCKED', 'BL'] as const;
 
 /** Inquiry / sales flow: show units that can still be pitched. */
 export function isUnitSelectableForInquiry(status: string | null | undefined): boolean {

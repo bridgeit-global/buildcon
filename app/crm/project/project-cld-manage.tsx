@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
+import { cldStageSchema } from '@/lib/project/cld-stage.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +47,8 @@ export function ProjectCldManage({
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
 
+  const stageValidation = useFieldValidation(cldStageSchema, { name });
+
   const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
@@ -72,7 +77,12 @@ export function ProjectCldManage({
   }, [load]);
 
   async function addStage() {
-    if (!projectId || !name.trim()) return;
+    if (!projectId) return;
+    const parsed = stageValidation.validate();
+    if (!parsed.success) {
+      pageError('Enter a stage name before saving.');
+      return;
+    }
     setSaving(true);
         try {
       const nextOrder =
@@ -192,7 +202,16 @@ export function ProjectCldManage({
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1 sm:col-span-2">
             <Label className="text-xs text-ds-gray-500">Stage name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                stageValidation.touch('name');
+              }}
+              onBlur={() => stageValidation.touch('name')}
+              aria-invalid={stageValidation.fieldError('name') ? true : undefined}
+            />
+            <FormFieldError message={stageValidation.fieldError('name')} />
           </div>
           <div className="grid gap-1">
             <Label className="text-xs text-ds-gray-500">Kind</Label>

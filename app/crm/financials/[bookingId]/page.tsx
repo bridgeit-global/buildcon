@@ -36,6 +36,7 @@ import {
   type CollectionEntryValues
 } from '@/lib/financials/collection-entry.schema';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { zodFieldErrors } from '@/lib/form/zod-field-errors';
 
 const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
 
@@ -87,23 +88,18 @@ export default function FinancialsBookingPage() {
   >({});
   const [collectionSubmitAttempted, setCollectionSubmitAttempted] = useState(false);
 
-  const collectionErrors = useMemo(() => {
-    const parsed = collectionEntrySchema.safeParse({
-      entryAmount,
-      entryDate,
-      entryMode,
-      entryRef
-    });
-    if (parsed.success) return {};
-    const out: Partial<Record<keyof CollectionEntryValues, string>> = {};
-    for (const issue of parsed.error.issues) {
-      const key = issue.path[0];
-      if (typeof key === 'string' && !(key in out)) {
-        out[key as keyof CollectionEntryValues] = issue.message;
-      }
-    }
-    return out;
-  }, [entryAmount, entryDate, entryMode, entryRef]);
+  const collectionErrors = useMemo(
+    () =>
+      zodFieldErrors<keyof CollectionEntryValues>(
+        collectionEntrySchema.safeParse({
+          entryAmount,
+          entryDate,
+          entryMode,
+          entryRef
+        })
+      ),
+    [entryAmount, entryDate, entryMode, entryRef]
+  );
 
   function collectionFieldError(field: keyof CollectionEntryValues) {
     if (!collectionSubmitAttempted && !collectionTouched[field]) return undefined;

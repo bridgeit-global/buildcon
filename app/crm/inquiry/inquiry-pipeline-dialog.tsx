@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { pageError } from '@/lib/toast';
+import { negotiationApprovalRequestSchema } from '@/lib/inquiry/inquiry-pipeline.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -706,6 +709,10 @@ function NegotiationForm({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const approvalValidation = useFieldValidation(negotiationApprovalRequestSchema, {
+    offeredPrice: data.offered_price ?? '',
+    requestNote: data.notes ?? ''
+  });
   const approvalStatus = getNegotiationApprovalStatus(data);
   const listPrice =
     listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
@@ -764,16 +771,13 @@ function NegotiationForm({
   async function sendForApproval() {
     if (inquiryBookingLocked) return;
     if (!supabase || !inquiryId || !projectId) return;
-    const offeredRaw = String(data.offered_price ?? '').trim();
-    if (!offeredRaw) {
-      pageError('Enter an offered price before sending for approval.');
+    const parsed = approvalValidation.validate();
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before sending for approval.');
       return;
     }
+    const offeredRaw = String(parsed.data.offeredPrice).trim();
     const offered = Number(offeredRaw);
-    if (!Number.isFinite(offered) || offered <= 0) {
-      pageError('Offered price must be a positive number.');
-      return;
-    }
     setSubmitting(true);
         try {
       const {
@@ -883,9 +887,17 @@ function NegotiationForm({
             className="h-8 text-xs"
             placeholder="75,00,000"
             value={data.offered_price ?? ''}
-            onChange={(e) => applyOfferedPrice(e.target.value)}
+            onChange={(e) => {
+              applyOfferedPrice(e.target.value);
+              approvalValidation.touch('offeredPrice');
+            }}
+            onBlur={() => approvalValidation.touch('offeredPrice')}
+            aria-invalid={
+              approvalValidation.fieldError('offeredPrice') ? true : undefined
+            }
             disabled={formDisabled}
           />
+          <FormFieldError message={approvalValidation.fieldError('offeredPrice')} />
         </div>
         <div className="grid gap-1.5">
           <Label className="text-xs">Discount asked (%)</Label>
@@ -986,11 +998,7 @@ function NegotiationForm({
               type="button"
               variant="outline"
               className="min-h-11"
-              disabled={
-                submitting ||
-                formDisabled ||
-                !String(data.offered_price ?? '').trim()
-              }
+              disabled={submitting || formDisabled}
               onClick={() => void sendForApproval()}
             >
               {submitting ? 'Sending…' : 'Send for admin approval'}

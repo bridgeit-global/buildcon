@@ -25,7 +25,10 @@ import {
   type PossessionSnagItem,
   type PossessionTrackerId
 } from '@/lib/possession/possession-trackers';
-import { toast } from '@/lib/toast';
+import { pageError, toast } from '@/lib/toast';
+import { possessionSnagSchema } from '@/lib/possession/possession-case.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { normalizeUnitStatusCode, statusLabelForUnit } from '../inventory/unit-status';
 import type { PossessionListRow } from './possession-list-table';
 
@@ -48,6 +51,10 @@ export function PossessionCaseDialog({
   const [newSnag, setNewSnag] = useState('');
   const [saving, setSaving] = useState(false);
   const [handingKeys, setHandingKeys] = useState(false);
+
+  const snagValidation = useFieldValidation(possessionSnagSchema, {
+    description: newSnag
+  });
 
   useEffect(() => {
     if (!row || !open) return;
@@ -138,8 +145,12 @@ export function PossessionCaseDialog({
   };
 
   const onAddSnag = async () => {
-    const description = newSnag.trim();
-    if (!description) return;
+    const parsed = snagValidation.validate();
+    if (!parsed.success) {
+      pageError('Enter a snag description.');
+      return;
+    }
+    const description = parsed.data.description.trim();
     const next: PossessionSnagItem[] = [
       ...snags,
       {
@@ -265,7 +276,14 @@ export function PossessionCaseDialog({
               <Input
                 placeholder="Add snag item…"
                 value={newSnag}
-                onChange={(e) => setNewSnag(e.target.value)}
+                onChange={(e) => {
+                  setNewSnag(e.target.value);
+                  snagValidation.touch('description');
+                }}
+                onBlur={() => snagValidation.touch('description')}
+                aria-invalid={
+                  snagValidation.fieldError('description') ? true : undefined
+                }
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -274,6 +292,7 @@ export function PossessionCaseDialog({
                 }}
                 disabled={saving}
               />
+              <FormFieldError message={snagValidation.fieldError('description')} />
               <Button
                 type="button"
                 variant="outline"

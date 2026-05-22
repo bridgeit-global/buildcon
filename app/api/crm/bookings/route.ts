@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { resolveCoBuyers } from '@/lib/booking/co-buyers';
 import { insertDefaultPaymentSchedule } from '@/lib/booking/booking-schedule';
-import { isUnitBookableForWorkflow } from '@/app/crm/inventory/unit-status';
+import { isUnitSelectableForBookingCreate } from '@/app/crm/inventory/unit-status';
 import {
   isTokenStageComplete,
   mergeStageData
@@ -152,8 +152,11 @@ export async function POST(request: Request) {
   if (!unitRow) {
     return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
   }
-  if (!isUnitBookableForWorkflow(unitRow.status as string)) {
-    return NextResponse.json({ error: 'Unit is not available for booking' }, { status: 409 });
+  if (!isUnitSelectableForBookingCreate(unitRow.status as string)) {
+    return NextResponse.json(
+      { error: 'Unit must be blocked for a lead before booking' },
+      { status: 409 }
+    );
   }
 
   const salesInquiryId = body.salesInquiryId?.trim() || null;

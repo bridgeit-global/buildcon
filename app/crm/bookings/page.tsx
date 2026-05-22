@@ -18,9 +18,10 @@ import {
   type PaymentCostOverviewMode
 } from '../_components/payment-cost-overview';
 import {
-  isUnitAvailableForBooking,
+  BOOKING_CREATE_UNIT_STATUS_FILTER,
   isUnitPrefillableFromInquiry,
-  normalizeUnitStatusCode
+  isUnitSelectableForBookingCreate,
+  statusLabelForUnit
 } from '../inventory/unit-status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,10 @@ import {
   fetchActiveBookingForInquiry,
   INQUIRY_ACTIVE_BOOKING_MESSAGE
 } from '../inquiry/inquiry-booking-guard';
+import {
+  inquiryUnitHiddenFromBookingPicker,
+  unitIdsHiddenByNegotiationApproval
+} from '../inquiry/booking-unit-picker-filter';
 import { negotiationApprovalBlockMessage } from '../inquiry/inquiry-stage-transitions';
 import { BookingListTable } from './booking-list-table';
 import type { BookingListRow } from './booking-types';
@@ -80,10 +85,10 @@ import {
 import {
   bookingCreateSchema,
   bookingQuickCustomerSchema,
-  zodFieldErrors,
   type BookingCreateFormValues,
   type BookingQuickCustomerValues
 } from '@/lib/booking/booking-create.schema';
+import { zodFieldErrors } from '@/lib/form/zod-field-errors';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 
 type UnitOption = {
@@ -511,7 +516,7 @@ export default function BookingsPage() {
         .select(
           'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
         )
-        .in('status', ['AVAILABLE', 'A', 'TOKEN'])
+        .in('status', [...BOOKING_CREATE_UNIT_STATUS_FILTER])
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true })
@@ -551,7 +556,16 @@ export default function BookingsPage() {
     if (cErr) pageError(cErr.message);
     if (bkErr) pageError(bkErr.message);
 
-    let unitsList = (uData ?? []) as UnitOption[];
+    let unitsList = ((uData ?? []) as UnitOption[]).filter((u) =>
+      isUnitSelectableForBookingCreate(u.status)
+    );
+
+    const hiddenByNegotiation = await unitIdsHiddenByNegotiationApproval(
+      supabase,
+      unitsList.map((u) => u.id)
+    );
+    unitsList = unitsList.filter((u) => !hiddenByNegotiation.has(u.id));
+
     let customerList = (cData ?? []) as CustomerOption[];
 
     const p = readConsumeBookingPrefill();
@@ -581,6 +595,10 @@ export default function BookingsPage() {
       const unitSelect =
         'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id';
 
+      const prefillHiddenByApproval = p.inquiryId
+        ? await inquiryUnitHiddenFromBookingPicker(supabase, p.inquiryId)
+        : false;
+
       let prefillUnit = unitsList.find((u) => u.id === p.unitId);
       if (!prefillUnit && p.unitId) {
         const { data: urow } = await supabase
@@ -591,8 +609,10 @@ export default function BookingsPage() {
         if (urow) {
           const row = urow as UnitOption;
           if (isUnitPrefillableFromInquiry(row.status)) {
-            unitsList = [row, ...unitsList];
             prefillUnit = row;
+            if (!prefillHiddenByApproval && !hiddenByNegotiation.has(row.id)) {
+              unitsList = [row, ...unitsList];
+            }
           } else {
             setBreakdownUnit(row);
             if (row.project_id) void loadProjectPricing(row.project_id);
@@ -601,7 +621,9 @@ export default function BookingsPage() {
       }
 
       const prefillSelectable =
-        prefillUnit && isUnitPrefillableFromInquiry(prefillUnit.status);
+        prefillUnit &&
+        isUnitPrefillableFromInquiry(prefillUnit.status) &&
+        !prefillHiddenByApproval;
 
       if (prefillSelectable) {
         setUnitId(p.unitId);
@@ -1165,7 +1187,8 @@ export default function BookingsPage() {
               Create booking
             </div>
             <div className="text-xs text-gray-500">
-              Select an available unit, primary customer, and optional co-buyers.
+              Select a blocked unit (held for a lead), primary customer, and optional
+              co-buyers.
             </div>
           </div>
           <Button variant="outline" onClick={load} disabled={loading}>
@@ -1217,17 +1240,36 @@ export default function BookingsPage() {
             </div>
             {unitFromInquiryUnavailable ? (
               <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950">
-                {normalizeUnitStatusCode(breakdownUnit?.status) === 'TOKEN' ? (
-                  <>
-                    This unit is on token — pick it from the list below if it does
-                    not appear selected. Token amount and payment details were
-                    prefilled when available.
-                  </>
+                {inquiryBookingBlockMessage ? (
+                  <span>{inquiryBookingBlockMessage}</span>
                 ) : (
                   <>
-                    This inquiry&apos;s unit is not in the available list (it may be
-                    booked). Pick another unit below. The cost overview still shows
-                    the inquiry unit until you choose one.
+                    This inquiry&apos;s unit
+                    {breakdownUnit?.unit_code ? (
+                      <>
+                        {' '}
+                        (
+                        <span className="font-semibold">
+                          {breakdownUnit.unit_code}
+                        </span>
+                        {breakdownUnit.status ? (
+                          <>
+                            {' '}
+                            — {statusLabelForUnit(breakdownUnit.status)}
+                          </>
+                        ) : null}
+                        )
+                      </>
+                    ) : null}{' '}
+                    is not available for booking here. Pick another blocked unit
+                    below, or return to the inquiry pipeline.
+                    {breakdownUnit ? (
+                      <>
+                        {' '}
+                        The cost overview still shows the inquiry unit until you
+                        choose one.
+                      </>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -1271,14 +1313,14 @@ export default function BookingsPage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <SearchablePicker<UnitOption>
-              label="Available units"
+              label="Blocked units"
               itemCount={units.length}
               items={units}
               selectedId={unitId}
               onSelect={setUnitId}
-              emptyMessage="No units match your search."
+              emptyMessage="No blocked units match your search."
               searchPlaceholder="Search by code, wing, floor, type…"
-              triggerPlaceholder="Choose an available unit…"
+              triggerPlaceholder="Choose a blocked unit…"
               matchItem={matchUnit}
               renderTriggerSummary={(u) => (
                 <span className="block truncate">

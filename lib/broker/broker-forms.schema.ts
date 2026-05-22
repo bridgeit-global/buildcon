@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { normalizePhoneDigits } from '@/lib/customer/customer-forms.schema';
+import { normalizePhoneDigits } from '@/lib/form/common-fields';
 
 const optionalEmail = z.string().refine(
   (v) => {
