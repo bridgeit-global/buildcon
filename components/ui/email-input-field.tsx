@@ -9,6 +9,7 @@ export type EmailInputFieldProps = {
   placeholder?: string;
   id?: string;
   inputClassName?: string;
+  error?: string;
 };
 
 export function EmailInputField({
@@ -17,7 +18,8 @@ export function EmailInputField({
   label = 'Email',
   placeholder,
   id,
-  inputClassName
+  inputClassName,
+  error
 }: EmailInputFieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -26,11 +28,13 @@ export function EmailInputField({
         id={id}
         type="email"
         className={cn(inputClassName)}
+        aria-invalid={error ? true : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete="email"
       />
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );
 }

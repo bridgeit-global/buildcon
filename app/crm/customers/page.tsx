@@ -26,7 +26,9 @@ import {
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
 import {
+  isAadhaarLast4Valid,
   isCustomerKycComplete,
+  isPanValid,
   maskAadhaarLast4,
   normalizeAadhaarLast4,
   normalizePan
@@ -121,6 +123,62 @@ function normalizePhoneDigits(p: string | null | undefined) {
   return String(p ?? '').replace(/\D/g, '');
 }
 
+type CustomerFormDraft = {
+  full_name: string;
+  phone: string;
+  email: string;
+  pan_number?: string;
+  aadhaar_last4?: string;
+};
+
+type CustomerFormFieldErrors = {
+  full_name?: string;
+  phone?: string;
+  email?: string;
+  pan_number?: string;
+  aadhaar_last4?: string;
+};
+
+const CUSTOMER_FORM_DIALOG_CLASS =
+  'flex max-h-[min(90vh,720px)] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
+
+function isValidEmail(email: string) {
+  const t = email.trim();
+  if (!t) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
+}
+
+function validateCustomerForm(draft: CustomerFormDraft): CustomerFormFieldErrors {
+  const errors: CustomerFormFieldErrors = {};
+  if (!draft.full_name.trim()) {
+    errors.full_name = 'Customer name is required.';
+  }
+  if (normalizePhoneDigits(draft.phone).length !== 10) {
+    errors.phone = 'Enter a 10-digit phone number.';
+  }
+  if (!isValidEmail(draft.email)) {
+    errors.email = 'Enter a valid email address.';
+  }
+  const panNorm = normalizePan(draft.pan_number ?? '');
+  if (panNorm && !isPanValid(panNorm)) {
+    errors.pan_number = 'Enter a valid PAN (e.g. ABCDE1234F).';
+  }
+  const a4Raw = String(draft.aadhaar_last4 ?? '').trim();
+  if (a4Raw && !isAadhaarLast4Valid(a4Raw)) {
+    errors.aadhaar_last4 = 'Enter the last 4 digits of Aadhaar.';
+  }
+  return errors;
+}
+
+function hasCustomerFormErrors(errors: CustomerFormFieldErrors) {
+  return Object.keys(errors).length > 0;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-3 border-b border-gray-100 py-2.5 last:border-b-0">
@@ -213,6 +271,12 @@ export default function CustomersPage() {
     passport_number: '',
     office_name_address: ''
   });
+  const [draftFieldErrors, setDraftFieldErrors] = useState<CustomerFormFieldErrors>(
+    {}
+  );
+  const [editFieldErrors, setEditFieldErrors] = useState<CustomerFormFieldErrors>(
+    {}
+  );
 
   const [customerInquiries, setCustomerInquiries] = useState<
     CustomerInquiryRow[]
@@ -503,16 +567,14 @@ export default function CustomersPage() {
   }, [selected?.id, selected?.pan_number, selected?.aadhaar_last4]);
 
   async function createCustomer() {
+    const fieldErrors = validateCustomerForm(draft);
+    setDraftFieldErrors(fieldErrors);
+    if (hasCustomerFormErrors(fieldErrors)) {
+      setError('Fix the highlighted fields before saving.');
+      return;
+    }
     const full_name = draft.full_name.trim();
-    if (!full_name) {
-      setError('Customer name is required.');
-      return;
-    }
     const phoneDigits = normalizePhoneDigits(draft.phone);
-    if (phoneDigits.length !== 10) {
-      setError('Enter a 10-digit phone number.');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -521,7 +583,7 @@ export default function CustomersPage() {
         .insert({
           full_name,
           phone: phoneDigits,
-          email: draft.email || null,
+          email: draft.email.trim() || null,
           dob: draft.dob || null,
           occupation: draft.occupation || null,
           nationality: draft.nationality || null,
@@ -539,6 +601,7 @@ export default function CustomersPage() {
       setListTotal((t) => (t != null ? t + 1 : t));
       selectCustomer(row);
       setOpen(false);
+      setDraftFieldErrors({});
       setDraft({
         full_name: '',
         phone: '',
@@ -560,16 +623,14 @@ export default function CustomersPage() {
 
   async function updateCustomer() {
     if (!selectedId) return;
+    const fieldErrors = validateCustomerForm(editDraft);
+    setEditFieldErrors(fieldErrors);
+    if (hasCustomerFormErrors(fieldErrors)) {
+      setError('Fix the highlighted fields before saving.');
+      return;
+    }
     const full_name = editDraft.full_name.trim();
-    if (!full_name) {
-      setError('Customer name is required.');
-      return;
-    }
     const phoneDigits = normalizePhoneDigits(editDraft.phone);
-    if (phoneDigits.length !== 10) {
-      setError('Enter a 10-digit phone number.');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
@@ -578,7 +639,7 @@ export default function CustomersPage() {
         .update({
           full_name,
           phone: phoneDigits,
-          email: editDraft.email || null,
+          email: editDraft.email.trim() || null,
           dob: editDraft.dob || null,
           occupation: editDraft.occupation || null,
           nationality: editDraft.nationality || null,
@@ -597,6 +658,7 @@ export default function CustomersPage() {
       const row = data as CustomerRow;
       setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
       setPinnedCustomer((p) => (p?.id === row.id ? row : p));
+      setEditFieldErrors({});
       setEditOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update customer');
@@ -608,6 +670,7 @@ export default function CustomersPage() {
   function openEditDialog() {
     if (!selected) return;
     setError('');
+    setEditFieldErrors({});
     setEditDraft({
       full_name: selected.full_name,
       phone: selected.phone ?? '',
@@ -1111,45 +1174,77 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog
+            open={open}
+            onOpenChange={(next) => {
+              setOpen(next);
+              if (!next) {
+                setError('');
+                setDraftFieldErrors({});
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm">Add</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-xl">
-              <DialogHeader>
+            <DialogContent className={CUSTOMER_FORM_DIALOG_CLASS}>
+              <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
                 <DialogTitle>Add customer</DialogTitle>
               </DialogHeader>
 
               {open && error ? (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <div className="mx-6 mt-4 shrink-0 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {error}
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
                   <Label>Full name *</Label>
                   <Input
                     value={draft.full_name}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, full_name: e.target.value }))
-                    }
+                    aria-invalid={draftFieldErrors.full_name ? true : undefined}
+                    onChange={(e) => {
+                      setDraft((d) => ({ ...d, full_name: e.target.value }));
+                      if (draftFieldErrors.full_name) {
+                        setDraftFieldErrors((fe) => {
+                          const { full_name: _, ...rest } = fe;
+                          return rest;
+                        });
+                      }
+                    }}
                     placeholder="e.g. Mr. Amit Deshmukh"
                   />
+                  <FieldError message={draftFieldErrors.full_name} />
                 </div>
                 <PhoneInputField
                   value={draft.phone}
-                  onChange={(v) =>
-                    setDraft((d) => ({ ...d, phone: v }))
-                  }
+                  onChange={(v) => {
+                    setDraft((d) => ({ ...d, phone: v }));
+                    if (draftFieldErrors.phone) {
+                      setDraftFieldErrors((fe) => {
+                        const { phone: _, ...rest } = fe;
+                        return rest;
+                      });
+                    }
+                  }}
                   label="Phone *"
+                  error={draftFieldErrors.phone}
                 />
                 <EmailInputField
                   value={draft.email}
-                  onChange={(v) =>
-                    setDraft((d) => ({ ...d, email: v }))
-                  }
+                  onChange={(v) => {
+                    setDraft((d) => ({ ...d, email: v }));
+                    if (draftFieldErrors.email) {
+                      setDraftFieldErrors((fe) => {
+                        const { email: _, ...rest } = fe;
+                        return rest;
+                      });
+                    }
+                  }}
                   placeholder="name@email.com"
+                  error={draftFieldErrors.email}
                 />
                 <div>
                   <Label>Date of birth</Label>
@@ -1171,7 +1266,7 @@ export default function CustomersPage() {
                     placeholder="Salaried / Business…"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Label>Nationality</Label>
                   <Select
                     value={draft.nationality}
@@ -1191,7 +1286,7 @@ export default function CustomersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Label>Father&apos;s / mother&apos;s / spouse&apos;s name</Label>
                   <Input
                     value={draft.guardian_name}
@@ -1202,7 +1297,7 @@ export default function CustomersPage() {
                     className="mt-1"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Label>Residential status</Label>
                   <Select
                     value={draft.residential_status}
@@ -1232,7 +1327,7 @@ export default function CustomersPage() {
                     className="mt-1"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Label>Office name &amp; address</Label>
                   <Textarea
                     value={draft.office_name_address}
@@ -1247,8 +1342,9 @@ export default function CustomersPage() {
                   />
                 </div>
               </div>
+              </div>
 
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
                 <Button
                   variant="outline"
                   onClick={() => setOpen(false)}
@@ -1256,14 +1352,7 @@ export default function CustomersPage() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  onClick={createCustomer}
-                  disabled={
-                    saving ||
-                    !draft.full_name.trim() ||
-                    normalizePhoneDigits(draft.phone).length !== 10
-                  }
-                >
+                <Button onClick={() => void createCustomer()} disabled={saving}>
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
               </div>
@@ -1373,7 +1462,10 @@ export default function CustomersPage() {
                   open={editOpen}
                   onOpenChange={(next) => {
                     setEditOpen(next);
-                    if (!next) setError('');
+                    if (!next) {
+                      setError('');
+                      setEditFieldErrors({});
+                    }
                   }}
                 >
                   <Button
@@ -1385,44 +1477,69 @@ export default function CustomersPage() {
                   >
                     Edit
                   </Button>
-                  <DialogContent className="max-w-xl">
-                    <DialogHeader>
+                  <DialogContent className={CUSTOMER_FORM_DIALOG_CLASS}>
+                    <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
                       <DialogTitle>Edit customer</DialogTitle>
                     </DialogHeader>
 
                     {editOpen && error ? (
-                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <div className="mx-6 mt-4 shrink-0 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                         {error}
                       </div>
                     ) : null}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
+                    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
                         <Label>Full name *</Label>
                         <Input
                           value={editDraft.full_name}
-                          onChange={(e) =>
+                          aria-invalid={
+                            editFieldErrors.full_name ? true : undefined
+                          }
+                          onChange={(e) => {
                             setEditDraft((d) => ({
                               ...d,
                               full_name: e.target.value
-                            }))
-                          }
+                            }));
+                            if (editFieldErrors.full_name) {
+                              setEditFieldErrors((fe) => {
+                                const { full_name: _, ...rest } = fe;
+                                return rest;
+                              });
+                            }
+                          }}
                           placeholder="e.g. Mr. Amit Deshmukh"
                         />
+                        <FieldError message={editFieldErrors.full_name} />
                       </div>
                       <PhoneInputField
                         value={editDraft.phone}
-                        onChange={(v) =>
-                          setEditDraft((d) => ({ ...d, phone: v }))
-                        }
+                        onChange={(v) => {
+                          setEditDraft((d) => ({ ...d, phone: v }));
+                          if (editFieldErrors.phone) {
+                            setEditFieldErrors((fe) => {
+                              const { phone: _, ...rest } = fe;
+                              return rest;
+                            });
+                          }
+                        }}
                         label="Phone *"
+                        error={editFieldErrors.phone}
                       />
                       <EmailInputField
                         value={editDraft.email}
-                        onChange={(v) =>
-                          setEditDraft((d) => ({ ...d, email: v }))
-                        }
+                        onChange={(v) => {
+                          setEditDraft((d) => ({ ...d, email: v }));
+                          if (editFieldErrors.email) {
+                            setEditFieldErrors((fe) => {
+                              const { email: _, ...rest } = fe;
+                              return rest;
+                            });
+                          }
+                        }}
                         placeholder="name@email.com"
+                        error={editFieldErrors.email}
                       />
                       <div>
                         <Label>Date of birth</Label>
@@ -1450,7 +1567,7 @@ export default function CustomersPage() {
                           placeholder="Salaried / Business…"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <Label>Nationality</Label>
                         <Select
                           value={editDraft.nationality}
@@ -1473,7 +1590,7 @@ export default function CustomersPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <Label>Father&apos;s / mother&apos;s / spouse&apos;s name</Label>
                         <Input
                           value={editDraft.guardian_name}
@@ -1487,7 +1604,7 @@ export default function CustomersPage() {
                           className="mt-1"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <Label>Residential status</Label>
                         <Select
                           value={editDraft.residential_status}
@@ -1523,7 +1640,7 @@ export default function CustomersPage() {
                           className="mt-1"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <Label>Office name &amp; address</Label>
                         <Textarea
                           value={editDraft.office_name_address}
@@ -1541,51 +1658,67 @@ export default function CustomersPage() {
                         <Label>PAN</Label>
                         <Input
                           value={editDraft.pan_number}
-                          onChange={(e) =>
+                          aria-invalid={
+                            editFieldErrors.pan_number ? true : undefined
+                          }
+                          onChange={(e) => {
                             setEditDraft((d) => ({
                               ...d,
                               pan_number: e.target.value.toUpperCase()
-                            }))
-                          }
+                            }));
+                            if (editFieldErrors.pan_number) {
+                              setEditFieldErrors((fe) => {
+                                const { pan_number: _, ...rest } = fe;
+                                return rest;
+                              });
+                            }
+                          }}
                           placeholder="ABCDE1234F"
                           className="mt-1 uppercase"
                         />
+                        <FieldError message={editFieldErrors.pan_number} />
                       </div>
                       <div>
                         <Label>Aadhaar (last 4)</Label>
                         <Input
                           value={editDraft.aadhaar_last4}
                           maxLength={4}
-                          onChange={(e) =>
+                          aria-invalid={
+                            editFieldErrors.aadhaar_last4 ? true : undefined
+                          }
+                          onChange={(e) => {
                             setEditDraft((d) => ({
                               ...d,
                               aadhaar_last4: e.target.value
                                 .replace(/\D/g, '')
                                 .slice(0, 4)
-                            }))
-                          }
+                            }));
+                            if (editFieldErrors.aadhaar_last4) {
+                              setEditFieldErrors((fe) => {
+                                const { aadhaar_last4: _, ...rest } = fe;
+                                return rest;
+                              });
+                            }
+                          }}
                           placeholder="1234"
                           className="mt-1"
                         />
+                        <FieldError message={editFieldErrors.aadhaar_last4} />
                       </div>
                     </div>
+                    </div>
 
-                    <div className="mt-4 flex justify-end gap-2">
+                    <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
                       <Button
                         variant="outline"
                         onClick={() => setEditOpen(false)}
-
                         disabled={saving}
                       >
                         Cancel
                       </Button>
                       <Button
                         onClick={() => void updateCustomer()}
-                        disabled={
-                          saving ||
-                          !editDraft.full_name.trim() ||
-                          normalizePhoneDigits(editDraft.phone).length !== 10
-                        }
+                        disabled={saving}
                       >
                         {saving ? 'Saving…' : 'Save'}
                       </Button>

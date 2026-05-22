@@ -11,6 +11,7 @@ export type PhoneInputFieldProps = {
   /** `digits10` keeps up to 10 numeric digits (Indian mobile). Default allows any text. */
   mode?: 'free' | 'digits10';
   inputClassName?: string;
+  error?: string;
 };
 
 export function PhoneInputField({
@@ -20,7 +21,8 @@ export function PhoneInputField({
   placeholder = 'Enter Phone number',
   id,
   mode = 'digits10',
-  inputClassName
+  inputClassName,
+  error
 }: PhoneInputFieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -28,6 +30,7 @@ export function PhoneInputField({
       <Input
         id={id}
         className={cn(inputClassName)}
+        aria-invalid={error ? true : undefined}
         value={value}
         onChange={(e) => {
           if (mode === 'digits10') {
@@ -45,6 +48,7 @@ export function PhoneInputField({
         maxLength={mode === 'digits10' ? 10 : undefined}
         autoComplete="tel"
       />
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );
 }
