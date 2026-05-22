@@ -42,6 +42,7 @@ import {
 import {
   formatFloorLabel,
   isUnitAvailableForBooking,
+  isUnitBlockedStatus,
   statusLabelForUnit
 } from '../inventory/inventory-utils';
 import { unitStatusInquiryStageHint } from './inquiry-stage-unit-map';
@@ -55,11 +56,16 @@ import {
 } from './inquiry-stage-transitions';
 import type { InquiryStageData } from './inquiry-types';
 import { loadInquiryStageData, saveInquiryStageData } from './inquiry-stage-store';
-import type { InquiryFunnelStage } from './inquiry-funnel-stages';
+import {
+  funnelStageRank,
+  type InquiryFunnelStage
+} from './inquiry-funnel-stages';
 import type { UnitRow } from './inquiry-types';
 import {
+  buildProjectFilterOptions,
   DEFAULT_UNIT_PICK_FILTERS,
   InquiryUnitPicker,
+  isUnitSelectableForQualifyPick,
   type UnitPickFilters,
   unitPickFiltersFromSellerPreferences
 } from './inquiry-unit-picker';
@@ -154,6 +160,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   });
 
   const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>([]);
+  const [accessibleProjects, setAccessibleProjects] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [projectParking, setProjectParking] =
     useState<ProjectParkingMeta | null>(null);
   const [projectPricing, setProjectPricing] =
@@ -178,6 +187,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   });
 
   const [createdInquiryId, setCreatedInquiryId] = useState('');
+  const [inquiryHeldUnitId, setInquiryHeldUnitId] = useState('');
+  const [activelyPursuedUnitIds, setActivelyPursuedUnitIds] = useState<
+    Set<string>
+  >(() => new Set());
   const [visitInterest, setVisitInterest] = useState<SiteVisitInterest>('');
   const [negotiationOffer, setNegotiationOffer] = useState('');
   const [approvalStatus, setApprovalStatus] = useState<
@@ -245,6 +258,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       };
       const unitId = String(row.unit_id || '').trim();
       const cust = row.customers;
+      if (unitId) setInquiryHeldUnitId(unitId);
       if (unitId || cust) {
         setSellerForm((s) => ({
           ...s,
@@ -341,6 +355,52 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select('id, name')
+        .order('name', { ascending: true });
+      if (!cancelled) {
+        setAccessibleProjects(
+          ((data ?? []) as { id: string; name: string }[]).map((p) => ({
+            id: String(p.id || '').trim(),
+            name: String(p.name || '').trim() || 'Untitled project'
+          }))
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('sales_inquiries')
+        .select('unit_id, stage_data')
+        .not('unit_id', 'is', null);
+      if (cancelled || error) return;
+      const ids = new Set<string>();
+      for (const row of data ?? []) {
+        const r = row as {
+          unit_id?: string | null;
+          stage_data?: InquiryStageData | Record<string, unknown> | null;
+        };
+        const uid = String(r.unit_id ?? '').trim();
+        if (!uid || isInquiryClosed(r.stage_data)) continue;
+        ids.add(uid);
+      }
+      setActivelyPursuedUnitIds(ids);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
       setLoadingUnits(true);
       const unitsRes = await supabase
         .from('units')
@@ -379,8 +439,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }, [sellerForm, userLabel.id]);
 
   const selectableUnits = useMemo(
-    () => (units || []).filter((u) => isUnitAvailableForBooking(u.status)),
-    [units]
+    () =>
+      (units || []).filter(
+        (u) =>
+          isUnitAvailableForBooking(u.status) ||
+          (isUnitBlockedStatus(u.status) && activelyPursuedUnitIds.has(u.id))
+      ),
+    [units, activelyPursuedUnitIds]
   );
 
   const applySellerPrefsToUnitFilters = useCallback(() => {
@@ -407,6 +472,37 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (!id) return null;
     return units.find((u) => u.id === id) ?? null;
   }, [units, sellerForm.selectedUnitId]);
+
+  const resolveEnquiryProjectId = useCallback(() => {
+    const fromUnit = String(selectedUnit?.project_id || '').trim();
+    if (fromUnit) return fromUnit;
+    const fromFilters = String(unitPickFilters.projectId || '').trim();
+    if (fromFilters) return fromFilters;
+    const prefFilters = unitPickFiltersFromSellerPreferences(selectableUnits, {
+      interestedIn: sellerForm.interestedIn,
+      preferredLocation: sellerForm.preferredLocation,
+      preferredWing: sellerForm.preferredWing,
+      budgetMin: sellerForm.budgetMin,
+      budgetMax: sellerForm.budgetMax
+    });
+    const fromPrefs = String(prefFilters.projectId || '').trim();
+    if (fromPrefs) return fromPrefs;
+    const unitProjects = buildProjectFilterOptions(units);
+    if (unitProjects.length === 1) return unitProjects[0][0];
+    if (accessibleProjects.length === 1) return accessibleProjects[0].id;
+    return '';
+  }, [
+    selectedUnit?.project_id,
+    unitPickFilters.projectId,
+    selectableUnits,
+    sellerForm.interestedIn,
+    sellerForm.preferredLocation,
+    sellerForm.preferredWing,
+    sellerForm.budgetMin,
+    sellerForm.budgetMax,
+    units,
+    accessibleProjects
+  ]);
 
   const stagesReadOnly =
     stagesReadOnlyProp ?? inquiryStagesLockedByUnitToken(selectedUnit?.status);
@@ -486,16 +582,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const step1Ok =
       inquiryWizardStep1Schema.safeParse(step1Values).success &&
       Boolean(userLabel.id);
-    const step2Ok =
-      step1Ok && inquiryWizardStep2Schema.safeParse({
-        selectedUnitId: sellerForm.selectedUnitId
-      }).success;
     return {
       1: step1Ok,
-      2: step2Ok,
+      2: step1Ok,
       3: Boolean(activeInquiryId)
     } as Record<StepId, boolean>;
-  }, [step1Values, sellerForm.selectedUnitId, userLabel.id, activeInquiryId]);
+  }, [step1Values, userLabel.id, activeInquiryId]);
 
   const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
     if (!userLabel.id) {
@@ -600,13 +692,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         return;
       }
     }
-    if (step === 2) {
-      const parsed = step2Validation.validate();
-      if (!parsed.success) {
-        pageError('Select a unit before continuing.');
-        return;
-      }
-    }
     if (!stepValid[step]) return;
     if (step === 1) {
       setSaving(true);
@@ -614,15 +699,16 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
         applySellerPrefsToUnitFilters();
+        const saved = await saveEnquiryRecord();
+        if (!saved) return;
         changeStep(2);
-        toast.success('Customer saved.');
       } finally {
         setSaving(false);
       }
       return;
     }
     if (step === 2) {
-      await saveInquiryAndQualify();
+      await saveInquiryStep2();
       return;
     }
   }
@@ -648,7 +734,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
         applySellerPrefsToUnitFilters();
-        toast.success('Customer saved.');
+        const saved = await saveEnquiryRecord();
+        if (!saved) return;
       } finally {
         setSaving(false);
       }
@@ -700,7 +787,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         ? `Wing: ${sellerForm.preferredWing.trim()}`
         : '',
       sellerForm.parkingRequired === 'Yes'
-        ? `Parking: ${sellerForm.parkingCount} extra slot(s)`
+        ? `Parking: ${sellerForm.parkingCount} slot(s)`
         : 'Parking: included only'
     ].filter(Boolean);
     return {
@@ -710,13 +797,124 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     };
   }
 
-  async function saveInquiryAndQualify() {
+  async function saveEnquiryRecord(): Promise<boolean> {
+    if (!userLabel.id) {
+      pageError('Sign in required to save enquiry.');
+      return false;
+    }
+    const inquiryProjectId = resolveEnquiryProjectId();
+    if (!inquiryProjectId) {
+      pageError(
+        'Could not determine project. Enter a preferred location matching a project name, or pick a unit on the next step.'
+      );
+      return false;
+    }
+    const customerId = await persistCustomerToDb();
+    if (!customerId) return false;
+
+    const brokerId =
+      sellerForm.leadSource === 'Broker' &&
+        String(sellerForm.brokerId || '').trim()
+        ? sellerForm.brokerId.trim()
+        : null;
+
+    const enquiryPayload = buildEnquiryStagePayload();
+    const inquiryFields = {
+      project_id: inquiryProjectId,
+      customer_id: customerId,
+      lead_source: sellerForm.leadSource,
+      broker_id: brokerId,
+      interested_in: sellerForm.interestedIn.trim() || null,
+      notes: sellerForm.notes.trim() || null
+    };
+
+    try {
+      let inquiryId = activeInquiryId;
+      let persistedFunnelStage = 'Enquiry';
+      if (inquiryId) {
+        const { data: existing } = await supabase
+          .from('sales_inquiries')
+          .select('funnel_stage')
+          .eq('id', inquiryId)
+          .maybeSingle();
+        persistedFunnelStage = String(
+          existing?.funnel_stage ?? 'Enquiry'
+        ).trim() || 'Enquiry';
+        const { error: upErr } = await supabase
+          .from('sales_inquiries')
+          .update(inquiryFields)
+          .eq('id', inquiryId);
+        if (upErr) throw upErr;
+      } else {
+        const { data: inserted, error: inqErr } = await supabase
+          .from('sales_inquiries')
+          .insert({
+            ...inquiryFields,
+            unit_id: null,
+            created_by: userLabel.id
+          })
+          .select('id')
+          .single();
+        if (inqErr) throw inqErr;
+        if (!inserted?.id) throw new Error('Inquiry insert returned no id');
+        inquiryId = (inserted as { id: string }).id;
+        setCreatedInquiryId(inquiryId);
+        onCreated?.(inquiryId);
+      }
+
+      const stageResult = await saveInquiryStageData(supabase, {
+        inquiryId,
+        patch: { enquiry: enquiryPayload },
+        funnelStage: 'Enquiry',
+        markStagesCompleted: ['Enquiry']
+      });
+      if (!stageResult.ok) {
+        throw new Error(stageResult.error ?? 'Failed to save enquiry stage');
+      }
+
+      const notifyStage =
+        funnelStageRank(persistedFunnelStage) > funnelStageRank('Enquiry')
+          ? persistedFunnelStage
+          : 'Enquiry';
+      onFunnelStageChange?.(notifyStage);
+      toast.success('Enquiry saved.');
+      onStageDataSaved?.();
+      await onInquirySaved?.();
+      return true;
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Failed to save enquiry');
+      return false;
+    }
+  }
+
+  async function saveInquiryStep2() {
     if (stagesReadOnly) {
       pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
       return;
     }
-    const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
-    if (!canQualifyUnit || !inquiryProjectId || !userLabel.id) return;
+    if (!userLabel.id) return;
+
+    const unitId = String(sellerForm.selectedUnitId || '').trim();
+    const inquiryProjectId =
+      String(selectedUnit?.project_id || '').trim() || resolveEnquiryProjectId();
+    if (!inquiryProjectId) {
+      pageError(
+        'Could not determine project. Pick a unit or enter a preferred location matching a project name.'
+      );
+      return;
+    }
+
+    if (
+      unitId &&
+      (!selectedUnit ||
+        !isUnitSelectableForQualifyPick(selectedUnit, inquiryHeldUnitId))
+    ) {
+      pageError(
+        'Selected unit is not available — it may be held by another enquiry.'
+      );
+      return;
+    }
+
     setSaving(true);
         try {
       const customerId = await persistCustomerToDb();
@@ -728,25 +926,57 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           ? sellerForm.brokerId.trim()
           : null;
 
-      const { data: inserted, error: inqErr } = await supabase
-        .from('sales_inquiries')
-        .insert({
-          project_id: inquiryProjectId,
-          customer_id: customerId,
-          unit_id: sellerForm.selectedUnitId,
-          lead_source: sellerForm.leadSource,
-          broker_id: brokerId,
-          interested_in: sellerForm.interestedIn.trim() || null,
-          notes: sellerForm.notes.trim() || null,
-          created_by: userLabel.id
-        })
-        .select('id')
-        .single();
+      const rowFields = {
+        project_id: inquiryProjectId,
+        customer_id: customerId,
+        unit_id: unitId || null,
+        lead_source: sellerForm.leadSource,
+        broker_id: brokerId,
+        interested_in: sellerForm.interestedIn.trim() || null,
+        notes: sellerForm.notes.trim() || null
+      };
 
-      if (inqErr) throw inqErr;
-      if (!inserted?.id) throw new Error('Inquiry insert returned no id');
+      let inquiryId = activeInquiryId;
+      if (inquiryId) {
+        const { error: upErr } = await supabase
+          .from('sales_inquiries')
+          .update(rowFields)
+          .eq('id', inquiryId);
+        if (upErr) throw upErr;
+      } else {
+        const saved = await saveEnquiryRecord();
+        if (!saved) return;
+        inquiryId = String(createdInquiryId || activeInquiryId || '').trim();
+        if (!inquiryId) return;
+        if (unitId) {
+          const { error: linkErr } = await supabase
+            .from('sales_inquiries')
+            .update({ unit_id: unitId })
+            .eq('id', inquiryId);
+          if (linkErr) throw linkErr;
+        }
+      }
 
-      const inquiryId = (inserted as { id: string }).id;
+      const enquiryPayload = buildEnquiryStagePayload();
+
+      if (!unitId) {
+        const stageResult = await saveInquiryStageData(supabase, {
+          inquiryId,
+          patch: { enquiry: enquiryPayload },
+          funnelStage: 'Enquiry',
+          markStagesCompleted: ['Enquiry'],
+          allowFunnelDowngrade: true
+        });
+        if (!stageResult.ok) {
+          throw new Error(stageResult.error ?? 'Failed to save enquiry');
+        }
+        changeStep(3);
+        onFunnelStageChange?.('Enquiry');
+        toast.success('Enquiry saved — add a unit later to qualify.');
+        onStageDataSaved?.();
+        await onInquirySaved?.();
+        return;
+      }
 
       const qualifiedNotes = [
         sellerForm.interestedIn.trim()
@@ -760,11 +990,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         .filter(Boolean)
         .join('\n');
 
-      const enquiryPayload = buildEnquiryStagePayload();
-
       const qualResult = await qualifyInquiryWithUnit(supabase, {
         inquiryId,
-        unitId: sellerForm.selectedUnitId,
+        unitId,
         qualifiedPayload: {
           budget_min: sellerForm.budgetMin.trim() || undefined,
           budget_max: sellerForm.budgetMax.trim() || undefined,
@@ -777,19 +1005,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         throw new Error(qualResult.error ?? 'Failed to qualify enquiry');
       }
 
-      const siteResult = await saveInquiryStageData(supabase, {
-        inquiryId,
-        patch: {},
-        funnelStage: 'Site Visit'
-      });
-      if (!siteResult.ok) {
-        throw new Error(siteResult.error ?? 'Failed to advance to site visit');
-      }
-
       setCreatedInquiryId(inquiryId);
       changeStep(3);
-      onFunnelStageChange?.('Site Visit');
-      toast.success('Unit qualified — continue with site visit.');
+      onFunnelStageChange?.('Qualified');
+      toast.success('Unit qualified — record the site visit when ready.');
+      onStageDataSaved?.();
       onCreated?.(inquiryId);
       await onInquirySaved?.();
     } catch (e) {
@@ -1003,11 +1223,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           )}
         >
           <p className="text-xs text-ds-gray-600">
-            Pick an available unit, review the cost sheet, then continue. The
-            unit is blocked in inventory when you save.
+            Pick an available unit from the inventory grid, or continue without
+            a unit. Blocked units with an active enquiry are shown for context.
+            Selecting a unit qualifies the lead and blocks inventory.
           </p>
           <InquiryUnitPicker
             selectableUnits={selectableUnits}
+            inquiryHeldUnitId={inquiryHeldUnitId || null}
             loadingUnits={loadingUnits}
             selectedUnit={selectedUnit}
             selectedUnitId={sellerForm.selectedUnitId}
@@ -1088,12 +1310,14 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
               onClick={() => void goNext()}
               disabled={!stepValid[step] || saving}
             >
-              {saving && step === 1
+              {saving && (step === 1 || step === 2)
                 ? 'Saving…'
                 : step === 1
                   ? 'Save & next'
                   : step === 2
-                    ? 'Save unit & continue'
+                    ? sellerForm.selectedUnitId.trim()
+                      ? 'Save unit & continue'
+                      : 'Save & continue'
                     : 'Next'}
             </Button>
           ) : null}
@@ -1342,21 +1566,10 @@ function StepEnquiry({
               }
             />
           </div>
-          <div>
-            <Label className={wizardLabelClass}>First follow-up</Label>
-            <Input
-              type="datetime-local"
-              className={wizardFieldClass}
-              value={sellerForm.followUpDate}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
-              }
-            />
-          </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <Label className={wizardLabelClass}>Extra parking?</Label>
+            <Label className={wizardLabelClass}>Parking?</Label>
             <div className="mt-1">
               <ParkingYesNoToggle
                 value={sellerForm.parkingRequired}

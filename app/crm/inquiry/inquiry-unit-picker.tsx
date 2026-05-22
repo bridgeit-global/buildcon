@@ -40,13 +40,18 @@ import { UnitCostSheet } from '../_components/unit-cost-sheet';
 import {
   formatInrCompactLacCr,
   formatUnitAgreementValueCompact,
-  unitAgreementTotalInr
+  unitAgreementTotalInr,
+  unitBillableAreaSqft
 } from '../inr-format';
 import {
+  formatFloorChipLabel,
   formatFloorLabel,
+  isUnitAvailableForBooking,
+  isUnitBlockedStatus,
   normalizeUnitStatusCode,
   STATUS_COLOR,
-  statusLabelForUnit
+  statusLabelForUnit,
+  unitStatusGridAbbrev
 } from '../inventory/inventory-utils';
 import { unitStatusInquiryStageHint } from './inquiry-stage-unit-map';
 import type { UnitRow } from './inquiry-types';
@@ -264,10 +269,11 @@ function unitMatchesSearch(u: UnitRow, q: string): boolean {
   return hay.includes(q);
 }
 
-export function filterAndSortUnits(
-  units: UnitRow[],
+/** Whether a unit matches the current picker filters (excluding sort). */
+export function unitMatchesPickFilters(
+  unit: UnitRow,
   filters: UnitPickFilters
-): UnitRow[] {
+): boolean {
   const pid = String(filters.projectId || '').trim();
   const wantType = String(filters.unitType || '').trim();
   const wantFloor = String(filters.floor || '').trim();
@@ -276,41 +282,47 @@ export function filterAndSortUnits(
   const q = String(filters.search || '').trim().toLowerCase();
   const minCarpet = parseOptionalNumber(filters.minCarpetSqft);
   const maxCarpet = parseOptionalNumber(filters.maxCarpetSqft);
-  const minRate = parseOptionalNumber(filters.minRate);
-  const maxRate = parseOptionalNumber(filters.maxRate);
   const minBudget = parseOptionalNumber(filters.minBudget);
   const maxBudget = parseOptionalNumber(filters.maxBudget);
 
-  let list = units.filter((u) => {
-    if (pid && u.project_id !== pid) return false;
-    if (wantType && String(u.unit_type || '').trim() !== wantType) return false;
-    if (wantFloor && String(u.floor) !== wantFloor) return false;
-    if (wantStructure && String(u.wing_name || '').trim() !== wantStructure)
-      return false;
-    if (wantUnitNo && String(u.unit_no) !== wantUnitNo) return false;
-    if (!unitMatchesSearch(u, q)) return false;
+  if (pid && unit.project_id !== pid) return false;
+  if (wantType && String(unit.unit_type || '').trim() !== wantType) return false;
+  if (wantFloor && String(unit.floor) !== wantFloor) return false;
+  if (wantStructure && String(unit.wing_name || '').trim() !== wantStructure)
+    return false;
+  if (wantUnitNo && String(unit.unit_no) !== wantUnitNo) return false;
+  if (!unitMatchesSearch(unit, q)) return false;
 
-    const carpet = Number(u.carpet_area);
-    if (minCarpet != null && (!Number.isFinite(carpet) || carpet < minCarpet))
-      return false;
-    if (maxCarpet != null && (!Number.isFinite(carpet) || carpet > maxCarpet))
-      return false;
+  const carpet = Number(unit.carpet_area);
+  if (minCarpet != null && (!Number.isFinite(carpet) || carpet < minCarpet))
+    return false;
+  if (maxCarpet != null && (!Number.isFinite(carpet) || carpet > maxCarpet))
+    return false;
 
-    const rate = Number(u.rate);
-    if (minRate != null && (!Number.isFinite(rate) || rate < minRate))
-      return false;
-    if (maxRate != null && (!Number.isFinite(rate) || rate > maxRate))
-      return false;
+  if (minBudget != null || maxBudget != null) {
+    const agreement = unitAgreementTotalInr(unit);
+    if (agreement <= 0) return false;
+    if (minBudget != null && agreement < minBudget) return false;
+    if (maxBudget != null && agreement > maxBudget) return false;
+  }
 
-    if (minBudget != null || maxBudget != null) {
-      const agreement = unitAgreementTotalInr(u);
-      if (agreement <= 0) return false;
-      if (minBudget != null && agreement < minBudget) return false;
-      if (maxBudget != null && agreement > maxBudget) return false;
-    }
+  return true;
+}
 
-    return true;
-  });
+export function isUnitSelectableForQualifyPick(
+  unit: UnitRow,
+  inquiryHeldUnitId: string | null | undefined
+): boolean {
+  if (isUnitAvailableForBooking(unit.status)) return true;
+  const held = String(inquiryHeldUnitId || '').trim();
+  return Boolean(held && unit.id === held && isUnitBlockedStatus(unit.status));
+}
+
+export function filterAndSortUnits(
+  units: UnitRow[],
+  filters: UnitPickFilters
+): UnitRow[] {
+  let list = units.filter((u) => unitMatchesPickFilters(u, filters));
 
   const sortBy = filters.sortBy;
   list = [...list].sort((a, b) => {
@@ -351,11 +363,8 @@ export function countActiveUnitFilters(filters: UnitPickFilters): number {
   if (filters.unitNo.trim()) n++;
   if (filters.minCarpetSqft.trim()) n++;
   if (filters.maxCarpetSqft.trim()) n++;
-  if (filters.minRate.trim()) n++;
-  if (filters.maxRate.trim()) n++;
   if (filters.minBudget.trim()) n++;
   if (filters.maxBudget.trim()) n++;
-  if (filters.sortBy !== 'code_asc') n++;
   return n;
 }
 
@@ -463,6 +472,8 @@ type InquiryUnitPickerProps = {
   parkingSection?: ReactNode;
   parkingRequired?: 'Yes' | 'No';
   parkingCount?: string;
+  /** Unit already linked to this enquiry — blocked units may be re-selected. */
+  inquiryHeldUnitId?: string | null;
 };
 
 export function InquiryUnitPicker({
@@ -480,7 +491,8 @@ export function InquiryUnitPicker({
   projectParking = null,
   projectPricing = null,
   parkingRequired = 'No',
-  parkingCount = '1'
+  parkingCount = '1',
+  inquiryHeldUnitId = null
 }: InquiryUnitPickerProps) {
   const [previewUnit, setPreviewUnit] = useState<UnitRow | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -508,14 +520,25 @@ export function InquiryUnitPicker({
   );
 
   const activeFilterCount = countActiveUnitFilters(filters);
+  const hasActivePickFilters = activeFilterCount > 0;
 
-  const unitNoOptions = useMemo(() => {
-    const set = new Set<number>();
-    for (const u of unitsAfterProject) {
-      if (Number.isFinite(u.unit_no)) set.add(u.unit_no);
-    }
-    return [...set].sort((a, b) => a - b);
-  }, [unitsAfterProject]);
+  const gridProjectId = useMemo(() => {
+    const fromFilter = String(filters.projectId || '').trim();
+    if (fromFilter) return fromFilter;
+    const projects = buildProjectFilterOptions(selectableUnits);
+    if (projects.length === 1) return projects[0][0];
+    return '';
+  }, [filters.projectId, selectableUnits]);
+
+  const gridUnits = useMemo(() => {
+    if (!gridProjectId) return [];
+    return selectableUnits.filter((u) => u.project_id === gridProjectId);
+  }, [selectableUnits, gridProjectId]);
+
+  const matchingUnitIds = useMemo(
+    () => new Set(filteredUnits.map((u) => u.id)),
+    [filteredUnits]
+  );
 
   function clearAllFilters() {
     setFilters(DEFAULT_UNIT_PICK_FILTERS);
@@ -524,8 +547,13 @@ export function InquiryUnitPicker({
 
   function confirmPreviewSelection() {
     if (!previewUnit) return;
+    if (!isUnitSelectableForQualifyPick(previewUnit, inquiryHeldUnitId)) return;
     onSelectUnitId(previewUnit.id, previewUnit.unit_type);
     setPreviewUnit(null);
+  }
+
+  function openUnitPreview(unit: UnitRow) {
+    setPreviewUnit(unit);
   }
 
   function clearSelection() {
@@ -587,6 +615,14 @@ export function InquiryUnitPicker({
                   type="button"
                   className="w-full gap-1.5 sm:w-auto"
                   onClick={confirmPreviewSelection}
+                  disabled={
+                    previewUnit
+                      ? !isUnitSelectableForQualifyPick(
+                          previewUnit,
+                          inquiryHeldUnitId
+                        )
+                      : true
+                  }
                 >
                   Select this unit
                   <ArrowRight className="size-4" aria-hidden />
@@ -715,75 +751,28 @@ export function InquiryUnitPicker({
 
         {advancedOpen ? (
           <div className="mt-3 space-y-3 border-t border-ds-gray-100 pt-3">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <FilterSelect
-                label="Unit slot on floor"
-                value={
-                  filters.unitNo === '' ? UNIT_FILTER_ALL : filters.unitNo
-                }
-                onValueChange={(v) =>
-                  setFilters((f) => ({
-                    ...f,
-                    unitNo: v === UNIT_FILTER_ALL ? '' : v
-                  }))
-                }
-                allLabel="Any slot"
-                options={unitNoOptions.map((n) => ({
-                  value: String(n),
-                  label: `Slot ${n}`
-                }))}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <RangeNumberFilter
+                label="Budget (₹)"
+                minValue={filters.minBudget}
+                maxValue={filters.maxBudget}
+                minPlaceholder="Min"
+                maxPlaceholder="Max"
+                onMinChange={(v) => setFilters((f) => ({ ...f, minBudget: v }))}
+                onMaxChange={(v) => setFilters((f) => ({ ...f, maxBudget: v }))}
               />
-              <FilterSelect
-                label="Sort by"
-                value={filters.sortBy}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, sortBy: v as UnitPickSort }))
-                }
-                allLabel=""
-                hideAll
-                options={[
-                  { value: 'code_asc', label: 'Unit code (A–Z)' },
-                  { value: 'floor_desc', label: 'Floor (high → low)' },
-                  { value: 'floor_asc', label: 'Floor (low → high)' },
-                  { value: 'agreement_desc', label: 'Agreement (high → low)' },
-                  { value: 'agreement_asc', label: 'Agreement (low → high)' }
-                ]}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              <NumberFilter
-                label="Min budget (₹)"
-                value={filters.minBudget}
-                onChange={(v) => setFilters((f) => ({ ...f, minBudget: v }))}
-              />
-              <NumberFilter
-                label="Max budget (₹)"
-                value={filters.maxBudget}
-                onChange={(v) => setFilters((f) => ({ ...f, maxBudget: v }))}
-              />
-              <NumberFilter
-                label="Min carpet (sq.ft)"
-                value={filters.minCarpetSqft}
-                onChange={(v) =>
+              <RangeNumberFilter
+                label="Carpet area (sq.ft)"
+                minValue={filters.minCarpetSqft}
+                maxValue={filters.maxCarpetSqft}
+                minPlaceholder="Min"
+                maxPlaceholder="Max"
+                onMinChange={(v) =>
                   setFilters((f) => ({ ...f, minCarpetSqft: v }))
                 }
-              />
-              <NumberFilter
-                label="Max carpet (sq.ft)"
-                value={filters.maxCarpetSqft}
-                onChange={(v) =>
+                onMaxChange={(v) =>
                   setFilters((f) => ({ ...f, maxCarpetSqft: v }))
                 }
-              />
-              <NumberFilter
-                label="Min rate (₹/sq.ft)"
-                value={filters.minRate}
-                onChange={(v) => setFilters((f) => ({ ...f, minRate: v }))}
-              />
-              <NumberFilter
-                label="Max rate (₹/sq.ft)"
-                value={filters.maxRate}
-                onChange={(v) => setFilters((f) => ({ ...f, maxRate: v }))}
               />
             </div>
             <p className="text-[10px] leading-snug text-ds-gray-500">
@@ -844,24 +833,38 @@ export function InquiryUnitPicker({
       {/* Results */}
       <div>
         <p className="mb-2 text-[11px] text-ds-gray-500">
-          Tap a unit to preview full details, then confirm your choice.
+          {viewMode === 'grid'
+            ? hasActivePickFilters
+              ? 'Inventory grid — units that do not match your filters are greyed out. Tap a unit to preview.'
+              : 'Inventory grid by wing and floor. Tap a unit to preview, then confirm your choice.'
+            : 'Tap a unit to preview full details, then confirm your choice.'}
         </p>
         <div className="max-h-[min(400px,52vh)] overflow-y-auto rounded-xl border border-ds-gray-200 bg-ds-gray-50/40 p-2">
-          {filteredUnits.length === 0 ? (
+          {viewMode === 'grid' ? (
+            !gridProjectId ? (
+              <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-4 text-xs text-ds-gray-600">
+                Select a project (or narrow to a single project) to show the
+                inventory grid.
+              </div>
+            ) : gridUnits.length === 0 ? (
+              <div className="rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-4 text-xs text-ds-warning-900">
+                No units in this project — adjust filters or check inventory
+                status.
+              </div>
+            ) : (
+              <InquiryUnitInventoryGrid
+                units={gridUnits}
+                matchingUnitIds={matchingUnitIds}
+                dimNonMatching={hasActivePickFilters}
+                selectedUnitId={selectedUnitId}
+                inquiryHeldUnitId={inquiryHeldUnitId}
+                onUnitClick={openUnitPreview}
+              />
+            )
+          ) : filteredUnits.length === 0 ? (
             <div className="rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-4 text-xs text-ds-warning-900">
               No units match — adjust search or filters, or check inventory
               status.
-            </div>
-          ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredUnits.map((u) => (
-                <UnitResultCard
-                  key={u.id}
-                  unit={u}
-                  active={selectedUnitId === u.id}
-                  onClick={() => setPreviewUnit(u)}
-                />
-              ))}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -870,7 +873,11 @@ export function InquiryUnitPicker({
                   key={u.id}
                   unit={u}
                   active={selectedUnitId === u.id}
-                  onClick={() => setPreviewUnit(u)}
+                  selectable={isUnitSelectableForQualifyPick(
+                    u,
+                    inquiryHeldUnitId
+                  )}
+                  onClick={() => openUnitPreview(u)}
                 />
               ))}
             </div>
@@ -966,71 +973,239 @@ function FilterSelect({
   );
 }
 
-function NumberFilter({
+function RangeNumberFilter({
   label,
-  value,
-  onChange
+  minValue,
+  maxValue,
+  minPlaceholder,
+  maxPlaceholder,
+  onMinChange,
+  onMaxChange
 }: {
   label: string;
-  value: string;
-  onChange: (v: string) => void;
+  minValue: string;
+  maxValue: string;
+  minPlaceholder: string;
+  maxPlaceholder: string;
+  onMinChange: (v: string) => void;
+  onMaxChange: (v: string) => void;
 }) {
   return (
     <div>
       <Label className="text-sm text-ds-gray-600">{label}</Label>
-      <Input
-        type="number"
-        inputMode="decimal"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Any"
-        className={cn(formControlFieldGapClass, 'text-sm')}
-      />
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <Input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={minValue}
+          onChange={(e) => onMinChange(e.target.value)}
+          placeholder={minPlaceholder}
+          className={cn(formControlFieldGapClass, 'text-sm')}
+          aria-label={`${label} minimum`}
+        />
+        <Input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={maxValue}
+          onChange={(e) => onMaxChange(e.target.value)}
+          placeholder={maxPlaceholder}
+          className={cn(formControlFieldGapClass, 'text-sm')}
+          aria-label={`${label} maximum`}
+        />
+      </div>
     </div>
   );
 }
 
-function UnitResultCard({
+function InquiryUnitInventoryGrid({
+  units,
+  matchingUnitIds,
+  dimNonMatching,
+  selectedUnitId,
+  inquiryHeldUnitId,
+  onUnitClick
+}: {
+  units: UnitRow[];
+  matchingUnitIds: Set<string>;
+  dimNonMatching: boolean;
+  selectedUnitId: string;
+  inquiryHeldUnitId: string | null;
+  onUnitClick: (unit: UnitRow) => void;
+}) {
+  const uniqueWings = useMemo(
+    () => [...new Set(units.map((u) => u.wing_name))].sort(),
+    [units]
+  );
+
+  const unitsByWingFloor = useMemo(() => {
+    const map: Record<string, UnitRow[]> = {};
+    for (const u of units) {
+      const key = `${u.wing_name}||${u.floor}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(u);
+    }
+    return map;
+  }, [units]);
+
+  return (
+    <div className="space-y-4">
+      {uniqueWings.map((wing) => {
+        const wingUnits = units.filter((u) => u.wing_name === wing);
+        const wingFloors = [
+          ...new Set(wingUnits.map((u) => u.floor))
+        ].sort((a, b) => Number(b) - Number(a));
+        const wingMaxUnitsPerFloor = Math.max(
+          1,
+          ...wingFloors.map((floor) => {
+            const flUnits = wingUnits.filter((u) => u.floor === floor);
+            return Math.max(
+              ...flUnits.map((u) => Number(u.unit_no) || 0),
+              flUnits.length || 0,
+              1
+            );
+          })
+        );
+
+        return (
+          <div key={wing}>
+            <div className="mb-2 inline-block rounded-md bg-ds-primary-50 px-2.5 py-1 text-[11px] font-bold text-ds-primary-700">
+              {wing}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="border-collapse">
+                <thead>
+                  <tr>
+                    <th className="w-14 px-2 py-0.5 text-left text-[9px] font-semibold text-ds-gray-400">
+                      Floor
+                    </th>
+                    {[...Array(wingMaxUnitsPerFloor)].map((_, i) => (
+                      <th
+                        key={i}
+                        className="px-1 py-0.5 text-center text-[9px] font-semibold text-ds-gray-400"
+                      >
+                        Unit {i + 1}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {wingFloors.map((floor) => {
+                    const key = `${wing}||${floor}`;
+                    const flUnits = (unitsByWingFloor[key] || [])
+                      .slice()
+                      .sort(
+                        (a, b) =>
+                          (Number(a.unit_no) || 0) - (Number(b.unit_no) || 0)
+                      );
+                    return (
+                      <tr key={String(floor)}>
+                        <td className="px-2 py-1 align-middle text-[10px] font-medium text-ds-gray-500">
+                          {formatFloorChipLabel(floor, undefined)}
+                        </td>
+                        {Array.from(
+                          { length: wingMaxUnitsPerFloor },
+                          (_, col) => {
+                            const slot = col + 1;
+                            const unit = flUnits.find(
+                              (u) => Number(u.unit_no) === slot
+                            );
+                            return (
+                              <td
+                                key={slot}
+                                className="px-0.5 py-0.5 text-center align-middle"
+                              >
+                                {unit ? (
+                                  <InquiryUnitGridCell
+                                    unit={unit}
+                                    active={selectedUnitId === unit.id}
+                                    dimmed={
+                                      dimNonMatching &&
+                                      !matchingUnitIds.has(unit.id)
+                                    }
+                                    selectable={isUnitSelectableForQualifyPick(
+                                      unit,
+                                      inquiryHeldUnitId
+                                    )}
+                                    onClick={() => onUnitClick(unit)}
+                                  />
+                                ) : (
+                                  <div
+                                    className="inline-flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-lg border border-dashed border-ds-gray-200 bg-ds-gray-50/80"
+                                    aria-hidden
+                                  />
+                                )}
+                              </td>
+                            );
+                          }
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function InquiryUnitGridCell({
   unit,
   active,
+  dimmed,
+  selectable,
   onClick
 }: {
   unit: UnitRow;
   active: boolean;
+  dimmed: boolean;
+  selectable: boolean;
   onClick: () => void;
 }) {
-  const projectLabel = unit.project_name?.trim() || 'Project';
+  const raw = String(unit.status || '').trim();
+  const code = normalizeUnitStatusCode(unit.status);
+  const bg = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? '#94A3B8';
+  const total = unitAgreementTotalInr(unit);
+  const bill = unitBillableAreaSqft(unit);
+  const title = `${unit.unit_code} · ${statusLabelForUnit(unit.status)} · ${formatInrCompactLacCr(total)}`;
+
   return (
     <button
       type="button"
+      title={title}
+      aria-label={title}
       onClick={onClick}
       className={cn(
-        'min-h-[88px] w-full rounded-lg border p-3 text-left transition-colors',
-        active
-          ? 'border-ds-primary-500 bg-ds-primary-50 shadow-sm ring-1 ring-ds-primary-200'
-          : 'border-ds-gray-200 bg-white hover:border-ds-primary-200 hover:bg-ds-gray-50'
+        'flex h-[76px] w-[76px] shrink-0 cursor-pointer flex-col items-stretch justify-between rounded-lg border-2 bg-white px-1 py-1 text-left shadow-sm transition',
+        active && 'ring-2 ring-ds-primary-400 ring-offset-1',
+        dimmed && 'opacity-35 grayscale',
+        !dimmed && selectable && 'hover:-translate-y-0.5 hover:shadow-md',
+        !selectable && !dimmed && 'opacity-70'
       )}
+      style={{ borderColor: active ? 'var(--primary)' : bg }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-[10px] font-medium text-ds-gray-500">
-          {projectLabel}
-        </span>
-        <UnitStatusPill status={unit.status} />
+      <div className="truncate text-[8px] font-bold leading-tight text-ds-gray-800">
+        {unit.unit_code}
       </div>
-      <div className="mt-1 text-sm font-bold text-ds-gray-900">{unit.unit_code}</div>
-      <p className="mt-0.5 text-[11px] text-ds-gray-600">
-        {unit.wing_name || '—'} · {unit.unit_type ?? '—'} ·{' '}
-        {formatFloorLabel(unit.floor, unit.unit_type)}
-      </p>
-      <p className="mt-2 text-xs font-semibold text-ds-primary-600">
-        {formatUnitAgreementValueCompact(unit)}
-      </p>
-      {unit.carpet_area != null && Number(unit.carpet_area) > 0 ? (
-        <p className="mt-0.5 text-[10px] text-ds-gray-500">
-          Carpet {unit.carpet_area} sq.ft
-        </p>
-      ) : null}
+      <div
+        className="self-center text-[11px] font-black leading-none"
+        style={{ color: bg }}
+      >
+        {unitStatusGridAbbrev(unit.status)}
+      </div>
+      <div className="truncate text-[8px] font-semibold leading-tight text-ds-gray-600">
+        {formatInrCompactLacCr(total)}
+      </div>
+      <div
+        className="rounded px-0.5 py-px text-center text-[7px] font-bold text-white"
+        style={{ background: bg }}
+      >
+        {bill > 0 ? `${bill}` : `${Number(unit.area) || '—'}`} sf
+      </div>
     </button>
   );
 }
@@ -1038,10 +1213,12 @@ function UnitResultCard({
 function UnitResultRow({
   unit,
   active,
+  selectable,
   onClick
 }: {
   unit: UnitRow;
   active: boolean;
+  selectable: boolean;
   onClick: () => void;
 }) {
   return (
@@ -1052,7 +1229,8 @@ function UnitResultRow({
         'flex w-full min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-xs transition-colors',
         active
           ? 'border-ds-primary-500 bg-ds-primary-50'
-          : 'border-ds-gray-200 bg-white hover:bg-ds-gray-50'
+          : 'border-ds-gray-200 bg-white hover:bg-ds-gray-50',
+        !selectable && 'opacity-60'
       )}
     >
       <div className="min-w-0 flex-1">

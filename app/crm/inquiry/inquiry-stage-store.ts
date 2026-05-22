@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   INQUIRY_FUNNEL_STAGE_ORDER,
+  isFunnelStageRegression,
   type InquiryFunnelStage
 } from './inquiry-funnel-stages';
 import type { InquiryStageData } from './inquiry-types';
@@ -284,6 +285,8 @@ export async function saveInquiryStageData(
     patch: Partial<InquiryStageData>;
     funnelStage?: InquiryFunnelStage | string;
     markStagesCompleted?: InquiryFunnelStage[];
+    /** When false (default), do not move `funnel_stage` backward (e.g. Enquiry save on a Qualified lead). */
+    allowFunnelDowngrade?: boolean;
   }
 ): Promise<{ ok: boolean; error?: string }> {
   const id = String(params.inquiryId || '').trim();
@@ -296,7 +299,7 @@ export async function saveInquiryStageData(
       loadInquiryStageRows(supabase, id),
       supabase
         .from('sales_inquiries')
-        .select('stage_data, unit_id')
+        .select('stage_data, unit_id, funnel_stage')
         .eq('id', id)
         .maybeSingle(),
       inquiryHasConfirmedBooking(supabase, id)
@@ -369,11 +372,16 @@ export async function saveInquiryStageData(
   }
 
   if (params.funnelStage) {
-    const { error } = await supabase
-      .from('sales_inquiries')
-      .update({ funnel_stage: params.funnelStage })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
+    const currentFunnel = String(inquiryRow?.funnel_stage ?? 'Enquiry').trim();
+    const nextFunnel = String(params.funnelStage).trim();
+    const regressing = isFunnelStageRegression(currentFunnel, nextFunnel);
+    if (!regressing || params.allowFunnelDowngrade) {
+      const { error } = await supabase
+        .from('sales_inquiries')
+        .update({ funnel_stage: nextFunnel })
+        .eq('id', id);
+      if (error) return { ok: false, error: error.message };
+    }
   }
 
   return { ok: true };

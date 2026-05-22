@@ -9,6 +9,27 @@ export const INQUIRY_FUNNEL_STAGE_ORDER = [
 
 export type InquiryFunnelStage = (typeof INQUIRY_FUNNEL_STAGE_ORDER)[number];
 
+const FUNNEL_STAGE_RANK = new Map<string, number>(
+  INQUIRY_FUNNEL_STAGE_ORDER.map((stage, index) => [stage, index])
+);
+
+/** Index in pipeline order; unknown stages return -1. */
+export function funnelStageRank(stage: string | null | undefined): number {
+  const t = String(stage ?? '').trim();
+  return FUNNEL_STAGE_RANK.get(t) ?? -1;
+}
+
+/** True when `next` is earlier in the pipeline than `current`. */
+export function isFunnelStageRegression(
+  current: string | null | undefined,
+  next: string | null | undefined
+): boolean {
+  const cur = funnelStageRank(current);
+  const nxt = funnelStageRank(next);
+  if (cur < 0 || nxt < 0) return false;
+  return nxt < cur;
+}
+
 /** Leads & pipeline stepper — token is captured on the bookings create form. */
 export const INQUIRY_PIPELINE_UI_STAGES = [
   'Enquiry',

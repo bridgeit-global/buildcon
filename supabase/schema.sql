@@ -512,7 +512,7 @@ create table if not exists public.sales_inquiries (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects (id) on delete cascade,
   customer_id uuid not null references public.customers (id) on delete cascade,
-  unit_id uuid not null references public.units (id) on delete restrict,
+  unit_id uuid references public.units (id) on delete set null,
   lead_source text not null default 'Direct',
   broker_id uuid references public.brokers (id) on delete set null,
   interested_in text,

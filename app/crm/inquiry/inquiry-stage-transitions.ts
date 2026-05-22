@@ -279,6 +279,12 @@ export async function qualifyInquiryWithUnit(
 ): Promise<{ ok: boolean; error?: string }> {
   const { inquiryId, unitId, qualifiedPayload, enquiryPayload } = params;
 
+  const { error: linkUnitErr } = await supabase
+    .from('sales_inquiries')
+    .update({ unit_id: unitId })
+    .eq('id', inquiryId);
+  if (linkUnitErr) return { ok: false, error: linkUnitErr.message };
+
   const unitResult = await applyUnitStatusForFunnelStage(
     supabase,
     unitId,

@@ -210,8 +210,6 @@ function NewInquiryPageInner() {
     async (id: string) => {
       setInquiryId(id);
       await loadInquiry(id);
-      setWizardStep(3);
-      setViewStage('Site Visit');
     },
     [loadInquiry]
   );

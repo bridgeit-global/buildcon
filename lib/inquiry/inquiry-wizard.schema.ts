@@ -24,7 +24,7 @@ export const inquiryWizardStep1Schema = z
   });
 
 export const inquiryWizardStep2Schema = z.object({
-  selectedUnitId: z.string().trim().min(1, 'Select a unit to qualify this enquiry.')
+  selectedUnitId: z.string().trim()
 });
 
 export type InquiryWizardStep1Values = z.infer<typeof inquiryWizardStep1Schema>;
