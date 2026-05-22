@@ -180,13 +180,15 @@ export async function POST(
     return NextResponse.json({ error: persisted.error }, { status: 500 });
   }
 
-  // Governed unit-status transition for sale/registration milestones.
-  const targetStatus: 'AGREEMENT' | 'REGISTERED' | null =
+  // Governed unit-status transition for sale / registration / possession milestones.
+  const targetStatus: 'AGREEMENT' | 'REGISTERED' | 'PRE_POSSESSION' | null =
     kind === 'agreement'
       ? 'AGREEMENT'
       : kind === 'registration-deed'
         ? 'REGISTERED'
-        : null;
+        : kind === 'possession-letter'
+          ? 'PRE_POSSESSION'
+          : null;
   let unitStatus: string | null = null;
   if (targetStatus) {
     const { data: statusData, error: rpcErr } = await admin.rpc('set_unit_status_for_booking', {

@@ -121,6 +121,13 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         label: 'Documents',
         href: '/crm/documents',
         icon: FileText
+      },
+      {
+        id: 'possession',
+        pageTitle: 'Possession & handover',
+        label: 'Possession & handover',
+        href: '/crm/possession',
+        icon: KeyRound
       }
     ]
   },

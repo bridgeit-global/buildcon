@@ -1,0 +1,345 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type FilterFn
+} from '@tanstack/react-table';
+import { ChevronLeft, ChevronRight, KeyRound, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import {
+  countChecklistDone,
+  POSSESSION_WORKFLOW_LABELS,
+  type PossessionChecklistItem,
+  type PossessionWorkflowStage
+} from '@/lib/possession/possession-trackers';
+import {
+  normalizeUnitStatusCode,
+  statusLabelForUnit
+} from '../inventory/unit-status';
+
+export type PossessionListRow = {
+  caseId: string;
+  unitId: string;
+  unitCode: string;
+  projectName: string;
+  customerName: string;
+  unitStatus: string;
+  workflowStage: PossessionWorkflowStage;
+  checklist: PossessionChecklistItem[];
+  keysHandedOverAt: string | null;
+  bookingId: string | null;
+};
+
+const globalPossessionFilter: FilterFn<PossessionListRow> = (row, _columnId, raw) => {
+  const q = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (!q) return true;
+  const r = row.original;
+  const hay = [
+    r.projectName,
+    r.unitCode,
+    r.customerName,
+    statusLabelForUnit(r.unitStatus),
+    POSSESSION_WORKFLOW_LABELS[r.workflowStage]
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+};
+
+type PossessionListTableProps = {
+  rows: PossessionListRow[];
+  loading: boolean;
+  onManage: (row: PossessionListRow) => void;
+};
+
+export function PossessionListTable({
+  rows,
+  loading,
+  onManage
+}: PossessionListTableProps) {
+  const [globalFilter, setGlobalFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'given'>('all');
+
+  const filteredRows = useMemo(() => {
+    if (statusFilter === 'all') return rows;
+    if (statusFilter === 'ready') {
+      return rows.filter((r) => normalizeUnitStatusCode(r.unitStatus) === 'PRE_POSSESSION');
+    }
+    return rows.filter((r) => normalizeUnitStatusCode(r.unitStatus) === 'POSSESSED');
+  }, [rows, statusFilter]);
+
+  const columns = useMemo<ColumnDef<PossessionListRow, unknown>[]>(
+    () => [
+      {
+        id: 'project',
+        header: 'Project',
+        accessorKey: 'projectName',
+        cell: ({ row }) => (
+          <span className="text-ds-gray-700">{row.original.projectName}</span>
+        )
+      },
+      {
+        id: 'unit',
+        header: 'Unit',
+        accessorKey: 'unitCode',
+        cell: ({ row }) => (
+          <span className="font-semibold text-ds-gray-900">{row.original.unitCode}</span>
+        )
+      },
+      {
+        id: 'customer',
+        header: 'Customer',
+        accessorKey: 'customerName',
+        cell: ({ row }) => (
+          <span className="text-ds-gray-700">{row.original.customerName}</span>
+        )
+      },
+      {
+        id: 'unitStatus',
+        header: 'Unit status',
+        accessorFn: (row) => statusLabelForUnit(row.unitStatus),
+        cell: ({ row }) => {
+          const s = normalizeUnitStatusCode(row.original.unitStatus);
+          return (
+            <span
+              className={cn(
+                'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold',
+                s === 'POSSESSED'
+                  ? 'bg-ds-primary-100 text-ds-primary-700'
+                  : 'bg-teal-50 text-teal-800'
+              )}
+            >
+              {statusLabelForUnit(row.original.unitStatus)}
+            </span>
+          );
+        }
+      },
+      {
+        id: 'progress',
+        header: 'Trackers',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const { done, total } = countChecklistDone(row.original.checklist);
+          return (
+            <span className="text-ds-gray-700">
+              {done}/{total} complete
+            </span>
+          );
+        }
+      },
+      {
+        id: 'workflow',
+        header: 'Workflow',
+        accessorFn: (row) => POSSESSION_WORKFLOW_LABELS[row.workflowStage],
+        cell: ({ row }) => (
+          <span className="text-ds-gray-600 text-xs">
+            {POSSESSION_WORKFLOW_LABELS[row.original.workflowStage]}
+          </span>
+        )
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableGlobalFilter: false,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-9 gap-1.5"
+            onClick={() => onManage(row.original)}
+          >
+            <KeyRound className="size-3.5" aria-hidden />
+            Manage
+          </Button>
+        )
+      }
+    ],
+    [onManage]
+  );
+
+  const table = useReactTable({
+    data: filteredRows,
+    columns,
+    state: { globalFilter },
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: globalPossessionFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 15 } }
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="relative min-w-0 flex-1 sm:max-w-xs">
+            <Label htmlFor="possession-search" className="sr-only">
+              Search
+            </Label>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ds-gray-400"
+              aria-hidden
+            />
+            <Input
+              id="possession-search"
+              placeholder="Search unit, customer, project…"
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="w-full sm:w-44">
+            <Label htmlFor="possession-status-filter" className="sr-only">
+              Unit status filter
+            </Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) =>
+                setStatusFilter(v as 'all' | 'ready' | 'given')
+              }
+            >
+              <SelectTrigger id="possession-status-filter" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All handover units</SelectItem>
+                <SelectItem value="ready">Possession ready only</SelectItem>
+                <SelectItem value="given">Possession given only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <p className="text-xs text-ds-gray-500">
+          {table.getFilteredRowModel().rows.length} unit
+          {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
+        </p>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-ds-gray-200 bg-white">
+        <table className="w-full min-w-[56rem] caption-bottom text-sm">
+          <thead>
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+                {hg.headers.map((h) => (
+                  <th
+                    key={h.id}
+                    className="h-10 px-3 text-left text-xs font-semibold text-ds-gray-600"
+                  >
+                    {flexRender(h.column.columnDef.header, h.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-3 py-10 text-center text-ds-gray-500"
+                >
+                  Loading possession cases…
+                </td>
+              </tr>
+            ) : table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-3 py-10 text-center text-ds-gray-500"
+                >
+                  No units in possession-ready or possession-given status for your
+                  projects. Mark a registered unit as &quot;Possession ready&quot; in
+                  Inventory to start handover tracking.
+                </td>
+              </tr>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-ds-gray-100 last:border-0 hover:bg-ds-gray-50/50"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-3 py-3 align-middle">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-ds-gray-600">
+          <span>Rows per page</span>
+          <Select
+            value={String(table.getState().pagination.pageSize)}
+            onValueChange={(v) => table.setPageSize(Number(v))}
+          >
+            <SelectTrigger className="h-8 w-[4.5rem]" aria-label="Page size">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[10, 15, 25, 50].map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-9"
+            disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+            Prev
+          </Button>
+          <span className="text-xs text-ds-gray-600">
+            Page {table.getState().pagination.pageIndex + 1} of{' '}
+            {Math.max(table.getPageCount(), 1)}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-9"
+            disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
+          >
+            Next
+            <ChevronRight className="size-4" aria-hidden />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
