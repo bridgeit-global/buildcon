@@ -9,6 +9,7 @@ import {
   mergeStageData
 } from '@/app/crm/bookings/booking-stage-transitions';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
+import { INQUIRY_ACTIVE_BOOKING_MESSAGE } from '@/app/crm/inquiry/inquiry-booking-guard';
 import { negotiationApprovalBlockMessage } from '@/app/crm/inquiry/inquiry-stage-transitions';
 import { enrichNegotiationFromApprovals } from '@/app/crm/inquiry/inquiry-stage-store';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
@@ -144,6 +145,27 @@ export async function POST(request: Request) {
 
   const salesInquiryId = body.salesInquiryId?.trim() || null;
   if (salesInquiryId) {
+    const { data: existingBooking, error: dupErr } = await admin
+      .from('bookings')
+      .select('id')
+      .eq('sales_inquiry_id', salesInquiryId)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (dupErr) {
+      return NextResponse.json({ error: dupErr.message }, { status: 500 });
+    }
+    if (existingBooking?.id) {
+      return NextResponse.json(
+        {
+          error: INQUIRY_ACTIVE_BOOKING_MESSAGE,
+          bookingId: existingBooking.id as string
+        },
+        { status: 409 }
+      );
+    }
+
     const { data: inqRow, error: inqErr } = await admin
       .from('sales_inquiries')
       .select('funnel_stage, stage_data')
@@ -193,11 +215,8 @@ export async function POST(request: Request) {
   });
 
   const tokenRecorded = isTokenStageComplete(stageData);
-  const initialWorkflowStage = confirmNow
-    ? 'confirmation'
-    : tokenRecorded
-      ? 'application'
-      : 'token';
+  /** Record token & continue: stay on token until user advances on the booking detail page. */
+  const initialWorkflowStage = confirmNow ? 'confirmation' : 'token';
 
   const unitStatusBefore = String(unitRow.status || '').trim().toUpperCase();
   const lockStatus = confirmNow ? 'BOOKED' : 'TOKEN';
@@ -242,6 +261,16 @@ export async function POST(request: Request) {
   }
 
   const bookingId = bookingRow.id as string;
+
+  if (salesInquiryId) {
+    await admin
+      .from('sales_inquiries')
+      .update({
+        funnel_stage: 'Token',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', salesInquiryId);
+  }
 
   const shouldSeedSchedule = confirmNow || tokenRecorded;
   if (shouldSeedSchedule) {

@@ -26,6 +26,10 @@ import {
 } from '../booking-cost-utils';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import {
+  fetchActiveBookingForInquiry,
+  INQUIRY_ACTIVE_BOOKING_MESSAGE
+} from './inquiry-booking-guard';
+import {
   navigateToCreateBookingFromInquiry,
   type BuildBookingPrefillInput
 } from './booking-prefill-from-inquiry';
@@ -734,6 +738,15 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     const uid = String(sellerForm.selectedUnitId || '').trim();
     if (!inquiryProjectId || !uid) return;
+    const existingBooking = await fetchActiveBookingForInquiry(
+      supabase,
+      activeInquiryId
+    );
+    if (existingBooking) {
+      pageError(INQUIRY_ACTIVE_BOOKING_MESSAGE);
+      router.push(`/crm/bookings/${existingBooking.id}`);
+      return;
+    }
     if (
       negotiationBlocksTokenAdvance({
         approval_status: approvalStatus,

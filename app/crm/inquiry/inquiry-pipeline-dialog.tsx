@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
@@ -28,6 +29,11 @@ import {
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
 import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inquiry';
+import {
+  fetchActiveBookingForInquiry,
+  INQUIRY_ACTIVE_BOOKING_MESSAGE,
+  inquiryNegotiationStageLocked
+} from './inquiry-booking-guard';
 import {
   INQUIRY_PIPELINE_UI_STAGES,
   pipelineUiStage,
@@ -530,6 +536,30 @@ function QualifiedForm({
   );
 }
 
+function InquiryBookingLockedBanner({
+  bookingId
+}: {
+  bookingId: string;
+}) {
+  return (
+    <div
+      role="status"
+      className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950"
+    >
+      <p>{INQUIRY_ACTIVE_BOOKING_MESSAGE}</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-2 min-h-9 border-teal-300 text-teal-800"
+        asChild
+      >
+        <Link href={`/crm/bookings/${bookingId}`}>Open booking</Link>
+      </Button>
+    </div>
+  );
+}
+
 function SiteVisitForm({
   data,
   onChange,
@@ -537,7 +567,8 @@ function SiteVisitForm({
   onCreateBooking,
   onCloseEnquiry,
   saving,
-  pipelineClosed
+  pipelineClosed,
+  inquiryBookingLocked
 }: {
   data: SiteVisitStageData;
   onChange: (d: SiteVisitStageData) => void;
@@ -546,6 +577,7 @@ function SiteVisitForm({
   onCloseEnquiry: () => void;
   saving: boolean;
   pipelineClosed: boolean;
+  inquiryBookingLocked?: boolean;
 }) {
   const outcome = String(data.outcome || '').trim();
   const visitDone = data.status === 'Done';
@@ -626,8 +658,8 @@ function SiteVisitForm({
           <p className="text-xs font-semibold text-ds-gray-800">Buyer liked the unit — choose next step</p>
           <p className="mt-1 text-[11px] text-ds-gray-600">Start negotiation if price discussion is needed, or create a booking when they are ready to commit.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <Button type="button" variant="outline" className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700" disabled={saving} onClick={() => onAdvance('Negotiation')}>Negotiation</Button>
-            <Button type="button" className="min-h-11 flex-1 gap-1 bg-teal-600 hover:bg-teal-700" disabled={saving} onClick={onCreateBooking}>
+            <Button type="button" variant="outline" className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700" disabled={saving || inquiryBookingLocked} onClick={() => onAdvance('Negotiation')}>Negotiation</Button>
+            <Button type="button" className="min-h-11 flex-1 gap-1 bg-teal-600 hover:bg-teal-700" disabled={saving || inquiryBookingLocked} onClick={onCreateBooking}>
               Create booking
               <ArrowRight className="size-3.5 opacity-90" />
             </Button>
@@ -657,7 +689,8 @@ function NegotiationForm({
   supabase,
   onApprovalSubmitted,
   onApprovedCreateBooking,
-  onRejectedClose
+  onRejectedClose,
+  inquiryBookingLocked
 }: {
   data: NegotiationStageData;
   onChange: (d: NegotiationStageData) => void;
@@ -669,6 +702,7 @@ function NegotiationForm({
   onApprovalSubmitted?: () => void;
   onApprovedCreateBooking?: () => void | Promise<void>;
   onRejectedClose?: (decisionNote?: string) => void | Promise<void>;
+  inquiryBookingLocked?: boolean;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -728,6 +762,7 @@ function NegotiationForm({
   }
 
   async function sendForApproval() {
+    if (inquiryBookingLocked) return;
     if (!supabase || !inquiryId || !projectId) return;
     const offeredRaw = String(data.offered_price ?? '').trim();
     if (!offeredRaw) {
@@ -805,6 +840,8 @@ function NegotiationForm({
     }
   }
 
+  const formDisabled = inquiryBookingLocked;
+
   return (
     <div className="grid gap-3">
       {listPrice ? (
@@ -847,6 +884,7 @@ function NegotiationForm({
             placeholder="75,00,000"
             value={data.offered_price ?? ''}
             onChange={(e) => applyOfferedPrice(e.target.value)}
+            disabled={formDisabled}
           />
         </div>
         <div className="grid gap-1.5">
@@ -871,6 +909,7 @@ function NegotiationForm({
             onChange={(e) =>
               onChange({ ...data, counter_offer: e.target.value })
             }
+            disabled={formDisabled}
           />
         </div>
         <div className="grid gap-1.5">
@@ -882,6 +921,7 @@ function NegotiationForm({
             onChange={(e) =>
               onChange({ ...data, expected_close: e.target.value })
             }
+            disabled={formDisabled}
           />
         </div>
       </div>
@@ -892,10 +932,11 @@ function NegotiationForm({
           placeholder="Terms discussed, concerns, agreement points…"
           value={data.notes ?? ''}
           onChange={(e) => onChange({ ...data, notes: e.target.value })}
+          disabled={formDisabled}
         />
       </div>
 
-      {inquiryId && projectId && supabase ? (
+      {inquiryId && projectId && supabase && !formDisabled ? (
         <div className="space-y-2 rounded-lg border border-ds-primary-200 bg-ds-primary-50/40 p-3">
           <p className="text-xs font-semibold text-ds-gray-800">
             Admin budget approval
@@ -926,7 +967,7 @@ function NegotiationForm({
                 <Button
                   type="button"
                   className="min-h-11 gap-1 bg-teal-600 hover:bg-teal-700"
-                  disabled={submitting || refreshing}
+                  disabled={submitting || refreshing || formDisabled}
                   onClick={() => void onApprovedCreateBooking()}
                 >
                   Create booking
@@ -945,7 +986,11 @@ function NegotiationForm({
               type="button"
               variant="outline"
               className="min-h-11"
-              disabled={submitting || !String(data.offered_price ?? '').trim()}
+              disabled={
+                submitting ||
+                formDisabled ||
+                !String(data.offered_price ?? '').trim()
+              }
               onClick={() => void sendForApproval()}
             >
               {submitting ? 'Sending…' : 'Send for admin approval'}
@@ -1003,16 +1048,22 @@ export function InquiryPipelinePanel(props: {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [activeStageInternal, setActiveStageInternal] = useState<FunnelStage>('Enquiry');
-  const activeStage = activeStageOverride ?? activeStageInternal;
-  const setActiveStage = (stage: FunnelStage) => {
-    if (activeStageOverride === undefined) setActiveStageInternal(stage);
-    onActiveStageChange?.(stage);
-  };
   const [macroStep, setMacroStep] = useState<PipelineMacroStep>('enquiry');
   const [stageData, setStageData] = useState<StageData>(emptyStageData());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
+  const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
+  const inquiryBookingLocked = Boolean(linkedBookingId);
+  const activeStage = activeStageOverride ?? activeStageInternal;
+  const setActiveStage = (stage: FunnelStage) => {
+    if (inquiryNegotiationStageLocked(stage, inquiryBookingLocked)) {
+      pageError(INQUIRY_ACTIVE_BOOKING_MESSAGE);
+      return;
+    }
+    if (activeStageOverride === undefined) setActiveStageInternal(stage);
+    onActiveStageChange?.(stage);
+  };
   const negotiateFunnelForBooking =
     activeStage === 'Negotiation' ? 'Negotiation' : inquiry?.funnel_stage;
 
@@ -1022,6 +1073,11 @@ export function InquiryPipelinePanel(props: {
     const uid = String(unitId || '').trim();
     const cid = String(customerId || '').trim();
     if (!inqId || !pid || !uid || !cid) return;
+    if (linkedBookingId) {
+      pageError(INQUIRY_ACTIVE_BOOKING_MESSAGE);
+      router.push(`/crm/bookings/${linkedBookingId}`);
+      return;
+    }
     const blockMsg = negotiationApprovalBlockMessage(stageData.negotiation, {
       funnelStage: negotiateFunnelForBooking
     });
@@ -1043,7 +1099,8 @@ export function InquiryPipelinePanel(props: {
     customerId,
     stageData,
     router,
-    negotiateFunnelForBooking
+    negotiateFunnelForBooking,
+    linkedBookingId
   ]);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
@@ -1081,6 +1138,22 @@ export function InquiryPipelinePanel(props: {
       cancelled = true;
     };
   }, [supabase, unitId]);
+
+  useEffect(() => {
+    const inqId = String(inquiry?.id || '').trim();
+    if (!inqId) {
+      setLinkedBookingId(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const booking = await fetchActiveBookingForInquiry(supabase, inqId);
+      if (!cancelled) setLinkedBookingId(booking?.id ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [inquiry?.id, supabase, saved]);
 
   useEffect(() => {
     if (!inquiry) return;
@@ -1137,10 +1210,14 @@ export function InquiryPipelinePanel(props: {
 
   async function save(nextStage?: FunnelStage) {
     if (!inquiry) return;
+    const targetStage = nextStage ?? activeStage;
+    if (inquiryNegotiationStageLocked(targetStage, inquiryBookingLocked)) {
+      pageError(INQUIRY_ACTIVE_BOOKING_MESSAGE);
+      return;
+    }
     setSaving(true);
         setSaved(false);
     try {
-      const targetStage = nextStage ?? activeStage;
       const uid = String(unitId || '').trim();
       if (uid) {
         const unitResult = await applyUnitStatusForFunnelStage(
@@ -1279,7 +1356,9 @@ export function InquiryPipelinePanel(props: {
               <VerticalEnquiryStageStepper
                 current={activeStage}
                 onSelect={(stage) => setActiveStage(stage)}
-                canSelectStage={() => true}
+                canSelectStage={(stage) =>
+                  !inquiryNegotiationStageLocked(stage, inquiryBookingLocked)
+                }
               />
             ) : null}
             <div className="min-w-0 flex-1 space-y-3">
@@ -1287,6 +1366,9 @@ export function InquiryPipelinePanel(props: {
                 <div role="status" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
                   This enquiry is closed. The unit has been released to available inventory when applicable.
                 </div>
+              ) : null}
+              {linkedBookingId ? (
+                <InquiryBookingLockedBanner bookingId={linkedBookingId} />
               ) : null}
               <ActiveStageGuide stage={activeStage} />
               {activeStage === 'Enquiry' && (
@@ -1312,6 +1394,7 @@ export function InquiryPipelinePanel(props: {
                   onCloseEnquiry={() => void handleCloseEnquiry()}
                   saving={saving}
                   pipelineClosed={pipelineClosed}
+                  inquiryBookingLocked={inquiryBookingLocked}
                 />
               )}
               {activeStage === 'Negotiation' && negotiationBlocksAdvance ? (
@@ -1335,6 +1418,7 @@ export function InquiryPipelinePanel(props: {
                   supabase={supabase}
                   onApprovedCreateBooking={() => navigateToBooking()}
                   onRejectedClose={(note) => void closeFromRejectedApproval(note)}
+                  inquiryBookingLocked={inquiryBookingLocked}
                   onApprovalSubmitted={() => {
                     void (async () => {
                       const { data } = await loadInquiryStageData(
@@ -1374,7 +1458,9 @@ export function InquiryPipelinePanel(props: {
                   type="button"
                   variant="outline"
                   className="gap-1"
-                  disabled={saving || negotiationBlocksAdvance}
+                  disabled={
+                    saving || negotiationBlocksAdvance || inquiryBookingLocked
+                  }
                   onClick={() => navigateToBooking()}
                 >
                   Create booking

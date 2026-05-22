@@ -66,6 +66,10 @@ import {
   type BookingPrefillV1
 } from '../booking-prefill-storage';
 import { loadInquiryStageData } from '../inquiry/inquiry-stage-store';
+import {
+  fetchActiveBookingForInquiry,
+  INQUIRY_ACTIVE_BOOKING_MESSAGE
+} from '../inquiry/inquiry-booking-guard';
 import { negotiationApprovalBlockMessage } from '../inquiry/inquiry-stage-transitions';
 import { BookingListTable } from './booking-list-table';
 import type { BookingListRow } from './booking-types';
@@ -676,10 +680,17 @@ export default function BookingsPage() {
       if (cancelled) return;
       const { data: stageData } = await loadInquiryStageData(supabase, inquiryId);
       if (cancelled) return;
+      const existingBooking = await fetchActiveBookingForInquiry(
+        supabase,
+        inquiryId
+      );
+      if (cancelled) return;
       setInquiryBookingBlockMessage(
-        negotiationApprovalBlockMessage(stageData.negotiation, {
-          funnelStage: String(inq?.funnel_stage ?? '')
-        })
+        existingBooking
+          ? INQUIRY_ACTIVE_BOOKING_MESSAGE
+          : negotiationApprovalBlockMessage(stageData.negotiation, {
+              funnelStage: String(inq?.funnel_stage ?? '')
+            })
       );
       if (
         !(
