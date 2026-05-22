@@ -269,18 +269,19 @@ export function CustomerProfileFields<T extends FieldValues>({
             name={'aadhaar_last4' as FieldPath<T>}
             render={({ field, fieldState }) => (
               <div>
-                <Label>Aadhaar (last 4)</Label>
+                <Label>Aadhaar number</Label>
                 <Input
                   value={field.value ?? ''}
                   onChange={(e) =>
                     field.onChange(
-                      e.target.value.replace(/\D/g, '').slice(0, 4)
+                      e.target.value.replace(/\D/g, '').slice(0, 12)
                     )
                   }
                   onBlur={field.onBlur}
-                  maxLength={4}
+                  maxLength={12}
+                  inputMode="numeric"
                   aria-invalid={fieldState.error ? true : undefined}
-                  placeholder="1234"
+                  placeholder="123456789012"
                   className="mt-1"
                 />
                 <FormFieldError message={fieldState.error?.message} />

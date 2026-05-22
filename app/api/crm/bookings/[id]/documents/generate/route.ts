@@ -105,7 +105,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            'KYC is incomplete. Upload PAN and Aadhaar for the primary buyer and each co-applicant before generating this document.',
+            'KYC is incomplete. Complete PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads for the primary buyer and each co-applicant.',
           missing: kycRes.report.missing
         },
         { status: 409 }

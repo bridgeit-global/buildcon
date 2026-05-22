@@ -106,7 +106,7 @@ function generateDisabledReason(
   }
 ): string | null {
   if (!ctx.kycComplete && KIND_REQUIRES_KYC.has(kind)) {
-    return 'Complete KYC (PAN + Aadhaar for primary buyer and each co-applicant) before generating this document.';
+    return 'Complete KYC (PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads for each applicant) before generating this document.';
   }
   const preds = KIND_PREDECESSORS[kind];
   if (preds) {

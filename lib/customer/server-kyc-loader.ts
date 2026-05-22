@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isCustomerKycComplete } from './kyc-identifiers';
+import { isAadhaarValid, isCustomerKycComplete, isPanValid } from './kyc-identifiers';
 import type { CoBuyerStored } from '@/app/crm/bookings/booking-types';
 
 export type BookingKycReport = {
@@ -82,10 +82,11 @@ export async function loadBookingKycReport(
     if (!complete) {
       kycComplete = false;
       const needs: string[] = [];
-      if (!cust.pan || cust.pan.length < 10) needs.push('PAN number');
-      if (!cust.aadhaar || cust.aadhaar.length !== 4) needs.push('Aadhaar last 4');
+      if (!isPanValid(cust.pan)) needs.push('PAN number');
+      if (!isAadhaarValid(cust.aadhaar)) needs.push('12-digit Aadhaar number');
       if (!docTypes.has('pan')) needs.push('PAN document upload');
       if (!docTypes.has('aadhaar')) needs.push('Aadhaar document upload');
+      if (!docTypes.has('photo')) needs.push('Photo upload');
       missing.push({ customerId: b.customerId, label: b.label, needs });
     }
   }

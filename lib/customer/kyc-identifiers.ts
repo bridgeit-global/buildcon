@@ -7,46 +7,60 @@ export function normalizePan(value: string): string {
     .slice(0, 10);
 }
 
-/** Last 4 digits of Aadhaar only. */
-export function normalizeAadhaarLast4(value: string): string {
+/** Aadhaar: digits only, max 12 (stored in `customers.aadhaar_last4`). */
+export function normalizeAadhaar(value: string): string {
   return String(value ?? '')
     .replace(/\D/g, '')
-    .slice(-4);
+    .slice(0, 12);
 }
+
+/** @deprecated Use {@link normalizeAadhaar}. */
+export const normalizeAadhaarLast4 = normalizeAadhaar;
 
 export function isPanValid(pan: string): boolean {
   const p = normalizePan(pan);
   return p.length >= 10 && /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(p);
 }
 
-export function isAadhaarLast4Valid(last4: string): boolean {
-  return normalizeAadhaarLast4(last4).length === 4;
+export function isAadhaarValid(aadhaar: string): boolean {
+  return normalizeAadhaar(aadhaar).length === 12;
 }
+
+/** @deprecated Use {@link isAadhaarValid}. */
+export const isAadhaarLast4Valid = isAadhaarValid;
 
 export function customerHasKycDocs(docTypes: Iterable<string>): {
   hasPanDoc: boolean;
   hasAadhaarDoc: boolean;
+  hasPhotoDoc: boolean;
 } {
-  const set = new Set(docTypes);
-  return { hasPanDoc: set.has('pan'), hasAadhaarDoc: set.has('aadhaar') };
+  const set = new Set(
+    [...docTypes].map((t) => String(t).trim().toLowerCase())
+  );
+  return {
+    hasPanDoc: set.has('pan'),
+    hasAadhaarDoc: set.has('aadhaar'),
+    hasPhotoDoc: set.has('photo')
+  };
 }
 
-/** PAN + Aadhaar last-4 on file and both document types uploaded. */
+/** Valid PAN & 12-digit Aadhaar on profile; PAN, Aadhaar, and photo documents uploaded. */
 export function isCustomerKycComplete(
   pan: string | null | undefined,
-  aadhaarLast4: string | null | undefined,
+  aadhaar: string | null | undefined,
   docTypes: Iterable<string>
 ): boolean {
-  const { hasPanDoc, hasAadhaarDoc } = customerHasKycDocs(docTypes);
+  const { hasPanDoc, hasAadhaarDoc, hasPhotoDoc } = customerHasKycDocs(docTypes);
   return (
     isPanValid(pan ?? '') &&
-    isAadhaarLast4Valid(aadhaarLast4 ?? '') &&
+    isAadhaarValid(aadhaar ?? '') &&
     hasPanDoc &&
-    hasAadhaarDoc
+    hasAadhaarDoc &&
+    hasPhotoDoc
   );
 }
 
-export function maskAadhaarLast4(last4: string | null | undefined): string {
-  const d = normalizeAadhaarLast4(last4 ?? '');
-  return d.length === 4 ? `XXXX-XXXX-${d}` : '—';
+export function maskAadhaarLast4(value: string | null | undefined): string {
+  const d = normalizeAadhaar(value ?? '');
+  return d.length === 12 ? `XXXX-XXXX-${d.slice(-4)}` : '—';
 }

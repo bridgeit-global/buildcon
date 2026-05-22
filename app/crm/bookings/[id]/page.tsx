@@ -78,6 +78,7 @@ type BuyerKyc = {
   aadhaarLast4: string;
   hasPanDoc: boolean;
   hasAadhaarDoc: boolean;
+  hasPhotoDoc: boolean;
 };
 
 export default function BookingDetailPage() {
@@ -243,7 +244,8 @@ export default function BookingDetailPage() {
           pan: String(c?.pan_number ?? ''),
           aadhaarLast4: String(c?.aadhaar_last4 ?? ''),
           hasPanDoc: docs.has('pan'),
-          hasAadhaarDoc: docs.has('aadhaar')
+          hasAadhaarDoc: docs.has('aadhaar'),
+          hasPhotoDoc: docs.has('photo')
         };
       })
     );
@@ -425,7 +427,8 @@ export default function BookingDetailPage() {
       buyerKyc.every((b) =>
         isCustomerKycComplete(b.pan, b.aadhaarLast4, [
           ...(b.hasPanDoc ? ['pan'] : []),
-          ...(b.hasAadhaarDoc ? ['aadhaar'] : [])
+          ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
+          ...(b.hasPhotoDoc ? ['photo'] : [])
         ])
       ),
     [buyerKyc]
@@ -437,7 +440,8 @@ export default function BookingDetailPage() {
         (b) =>
           !isCustomerKycComplete(b.pan, b.aadhaarLast4, [
             ...(b.hasPanDoc ? ['pan'] : []),
-            ...(b.hasAadhaarDoc ? ['aadhaar'] : [])
+            ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
+            ...(b.hasPhotoDoc ? ['photo'] : [])
           ])
       ),
     [buyerKyc]
@@ -813,8 +817,9 @@ export default function BookingDetailPage() {
             <Card className="space-y-4 p-4">
               <h2 className="font-semibold text-ds-gray-900">Application form</h2>
               <p className="text-sm text-ds-gray-600">
-                PAN and Aadhaar are loaded from each customer&apos;s profile (complete KYC on
-                Customers first). Upload documents here; generate the printable application form
+                PAN and 12-digit Aadhaar are loaded from each customer&apos;s profile (complete
+                KYC — PAN, Aadhaar, and photo — on Customers first). Upload documents here;
+                generate the printable application form
                 from{' '}
                 <Link
                   className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
@@ -875,27 +880,30 @@ export default function BookingDetailPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Aadhaar (last 4)</Label>
+                      <Label className="text-xs">Aadhaar number</Label>
                       <Input
                         value={b.aadhaarLast4}
-                        maxLength={4}
+                        maxLength={12}
+                        inputMode="numeric"
                         onChange={(e) =>
                           setBuyerKyc((rows) =>
                             rows.map((r) =>
                               r.customerId === b.customerId
                                 ? {
                                   ...r,
-                                  aadhaarLast4: e.target.value.replace(/\D/g, '').slice(0, 4)
+                                  aadhaarLast4: e.target.value.replace(/\D/g, '').slice(0, 12)
                                 }
                                 : r
                             )
                           )
                         }
+                        placeholder="123456789012"
                       />
                     </div>
                   </div>
                   <p className="text-xs text-ds-gray-500">
-                    Docs: PAN {b.hasPanDoc ? '✓' : '—'} · Aadhaar {b.hasAadhaarDoc ? '✓' : '—'}
+                    Docs: PAN {b.hasPanDoc ? '✓' : '—'} · Aadhaar{' '}
+                    {b.hasAadhaarDoc ? '✓' : '—'} · Photo {b.hasPhotoDoc ? '✓' : '—'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import {
-  isAadhaarLast4Valid,
+  isAadhaarValid,
   isPanValid,
-  normalizeAadhaarLast4,
+  normalizeAadhaar,
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
 
@@ -33,12 +33,12 @@ const optionalPan = z.string().refine(
   { message: 'Enter a valid PAN (e.g. ABCDE1234F).' }
 );
 
-const optionalAadhaarLast4 = z.string().refine(
+const optionalAadhaar = z.string().refine(
   (v) => {
-    const a4Raw = String(v ?? '').trim();
-    return !a4Raw || isAadhaarLast4Valid(a4Raw);
+    const raw = String(v ?? '').trim();
+    return !raw || isAadhaarValid(raw);
   },
-  { message: 'Enter the last 4 digits of Aadhaar.' }
+  { message: 'Enter a valid 12-digit Aadhaar number.' }
 );
 
 const pinOptional = z.string().refine(
@@ -78,13 +78,13 @@ export const customerCreateSchema = z.object({
 /** Edit-customer dialog (includes KYC identifiers on profile) */
 export const customerEditSchema = customerCreateSchema.extend({
   pan_number: optionalPan,
-  aadhaar_last4: optionalAadhaarLast4
+  aadhaar_last4: optionalAadhaar
 });
 
 /** KYC tab — PAN & Aadhaar only */
 export const kycIdentitySchema = z.object({
   pan_number: optionalPan,
-  aadhaar_last4: optionalAadhaarLast4
+  aadhaar_last4: optionalAadhaar
 });
 
 /** Address dialog */
@@ -136,11 +136,11 @@ export const kycUploadSchema = z
         });
       }
     }
-    if (data.docType === 'aadhaar' && !isAadhaarLast4Valid(data.aadhaar_last4)) {
+    if (data.docType === 'aadhaar' && !isAadhaarValid(data.aadhaar_last4)) {
       ctx.addIssue({
         code: 'custom',
         path: ['aadhaar_last4'],
-        message: 'Enter the last 4 digits of Aadhaar.'
+        message: 'Enter a valid 12-digit Aadhaar number.'
       });
     }
     if (!data.hasFile) {
@@ -296,6 +296,6 @@ export function customerEditPayload(values: CustomerEditFormValues) {
   return {
     ...customerCreatePayload(values),
     pan_number: normalizePan(values.pan_number) || null,
-    aadhaar_last4: normalizeAadhaarLast4(values.aadhaar_last4) || null
+    aadhaar_last4: normalizeAadhaar(values.aadhaar_last4) || null
   };
 }

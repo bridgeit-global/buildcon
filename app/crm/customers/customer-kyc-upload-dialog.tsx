@@ -184,7 +184,7 @@ export function CustomerKycUploadDialog({
 
             {docType === 'aadhaar' ? (
               <div>
-                <Label>Aadhaar (last 4 digits)</Label>
+                <Label>Aadhaar number</Label>
                 <Controller
                   control={control}
                   name="aadhaar_last4"
@@ -194,12 +194,13 @@ export function CustomerKycUploadDialog({
                         value={field.value}
                         onChange={(e) =>
                           field.onChange(
-                            e.target.value.replace(/\D/g, '').slice(0, 4)
+                            e.target.value.replace(/\D/g, '').slice(0, 12)
                           )
                         }
                         onBlur={field.onBlur}
-                        maxLength={4}
-                        placeholder="1234"
+                        maxLength={12}
+                        inputMode="numeric"
+                        placeholder="123456789012"
                         className="mt-1"
                         aria-invalid={fieldState.error ? true : undefined}
                       />

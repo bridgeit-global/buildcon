@@ -35,7 +35,7 @@ import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-d
 import {
   isCustomerKycComplete,
   maskAadhaarLast4,
-  normalizeAadhaarLast4,
+  normalizeAadhaar,
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
 
@@ -730,7 +730,7 @@ export default function CustomersPage() {
   ): Promise<CustomerRow | null> {
     if (!selectedId) return null;
     const panNorm = normalizePan(pan);
-    const a4 = normalizeAadhaarLast4(aadhaarLast4);
+    const a4 = normalizeAadhaar(aadhaarLast4);
     const { data, error: upErr } = await supabase
       .from('customers')
       .update({
@@ -1189,8 +1189,9 @@ export default function CustomersPage() {
                         PAN &amp; Aadhaar
                       </div>
                       <p className="mt-0.5 text-xs text-gray-500">
-                        Saved on the customer record when KYC is completed. Used on
-                        booking application forms.
+                        Saved on the customer record when KYC is complete (12-digit Aadhaar,
+                        PAN, and uploaded PAN, Aadhaar, and photo). Used on booking application
+                        forms.
                       </p>
                     </div>
                     {customerKycComplete ? (

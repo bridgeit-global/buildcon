@@ -40,7 +40,8 @@ export function canAdvanceWorkflowStage(
       if (options?.kycComplete === false) {
         return {
           ok: false,
-          reason: 'Upload PAN and Aadhaar for the primary buyer and each co-applicant.'
+          reason:
+            'Complete KYC (PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads) for the primary buyer and each co-applicant.'
         };
       }
       return { ok: true };

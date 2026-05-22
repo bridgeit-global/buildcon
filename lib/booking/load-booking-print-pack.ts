@@ -35,6 +35,7 @@ export type PrintPackBuyerKyc = {
   aadhaarLast4: string;
   hasPanDoc: boolean;
   hasAadhaarDoc: boolean;
+  hasPhotoDoc: boolean;
 };
 
 export type BookingPrintPack = {
@@ -178,14 +179,16 @@ export async function loadBookingPrintPack(
       pan: String(c?.pan_number ?? ''),
       aadhaarLast4: String(c?.aadhaar_last4 ?? ''),
       hasPanDoc: docs.has('pan'),
-      hasAadhaarDoc: docs.has('aadhaar')
+      hasAadhaarDoc: docs.has('aadhaar'),
+      hasPhotoDoc: docs.has('photo')
     };
   });
 
   const kycComplete = buyerKyc.every((b) =>
     isCustomerKycComplete(b.pan, b.aadhaarLast4, [
       ...(b.hasPanDoc ? ['pan'] : []),
-      ...(b.hasAadhaarDoc ? ['aadhaar'] : [])
+      ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
+      ...(b.hasPhotoDoc ? ['photo'] : [])
     ])
   );
 
@@ -268,7 +271,7 @@ export function printAgreementFromPack(pack: BookingPrintPack): void {
 export function printApplicationFormFromPack(pack: BookingPrintPack): void {
   if (!pack.kycComplete) {
     throw new Error(
-      'Complete KYC for all applicants (PAN, Aadhaar, and document uploads) on the Customers page before generating the application form.'
+      'Complete KYC for all applicants (PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads) on the Customers page before generating the application form.'
     );
   }
   const booking = pack.booking;

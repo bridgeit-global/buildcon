@@ -113,8 +113,8 @@ export async function PATCH(
       custPatch.pan_number = String(body.panNumber).trim().toUpperCase() || null;
     }
     if (body.aadhaarLast4 !== undefined) {
-      const last4 = String(body.aadhaarLast4).replace(/\D/g, '').slice(-4);
-      custPatch.aadhaar_last4 = last4 || null;
+      const aadhaar = String(body.aadhaarLast4).replace(/\D/g, '').slice(0, 12);
+      custPatch.aadhaar_last4 = aadhaar || null;
     }
     await admin.from('customers').update(custPatch).eq('id', custId);
   }

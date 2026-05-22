@@ -222,7 +222,8 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         (b) =>
           !isCustomerKycComplete(b.pan, b.aadhaarLast4, [
             ...(b.hasPanDoc ? ['pan'] : []),
-            ...(b.hasAadhaarDoc ? ['aadhaar'] : [])
+            ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
+            ...(b.hasPhotoDoc ? ['photo'] : [])
           ])
       )
     : [];
