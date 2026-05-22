@@ -119,12 +119,17 @@ function NewInquiryPageInner() {
       );
 
       setFunnelStage(fs);
+      const nextWizardStep =
+        atOrPastNegotiation && !negotiationLocked
+          ? inquiryWizardStepForView('Negotiation', fs)
+          : inquiryWizardStepForView(uiStage, fs);
       if (atOrPastNegotiation && !negotiationLocked) {
         setViewStage('Negotiation');
-        setWizardStep(inquiryWizardStepForView('Negotiation', fs));
+        setWizardStep((prev) => Math.max(prev, nextWizardStep));
       } else {
         setViewStage(uiStage);
-        setWizardStep(inquiryWizardStepForView(uiStage, fs));
+        // Do not downgrade wizard step on refresh (e.g. after Save & next on Enquiry).
+        setWizardStep((prev) => Math.max(prev, nextWizardStep));
       }
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
@@ -248,10 +253,11 @@ function NewInquiryPageInner() {
   );
 
   const handleFunnelStageChange = useCallback((stage: string) => {
-    setFunnelStage(stage);
     const ui = pipelineUiStage(stage);
+    const nextWizardStep = inquiryWizardStepForView(ui, stage);
+    setFunnelStage(stage);
     setViewStage(ui);
-    setWizardStep(inquiryWizardStepForView(ui, stage));
+    setWizardStep((prev) => Math.max(prev, nextWizardStep));
   }, []);
 
   const handleStageDataSaved = useCallback(() => {
