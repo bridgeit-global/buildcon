@@ -38,6 +38,10 @@ import {
   normalizeAadhaar,
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
+import {
+  isKycFileAllowed,
+  kycFileRejectMessage
+} from '@/lib/customer/kyc-file';
 
 const CUSTOMER_SELECT =
   'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
@@ -772,6 +776,10 @@ export default function CustomersPage() {
     const maxBytes = 50 * 1024 * 1024;
     if (file.size > maxBytes) {
       pageError('File is too large (max 50 MB).');
+      return;
+    }
+    if (!isKycFileAllowed(file, kycDocType)) {
+      pageError(kycFileRejectMessage(kycDocType));
       return;
     }
 

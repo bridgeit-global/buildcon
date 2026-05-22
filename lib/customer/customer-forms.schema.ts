@@ -81,10 +81,34 @@ export const customerEditSchema = customerCreateSchema.extend({
   aadhaar_last4: optionalAadhaar
 });
 
-/** KYC tab — PAN & Aadhaar only */
+const requiredPan = z.string().superRefine((v, ctx) => {
+  const panNorm = normalizePan(v);
+  if (!panNorm) {
+    ctx.addIssue({ code: 'custom', message: 'PAN is required.' });
+  } else if (!isPanValid(panNorm)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Enter a valid PAN (e.g. ABCDE1234F).'
+    });
+  }
+});
+
+const requiredAadhaar = z.string().superRefine((v, ctx) => {
+  const raw = String(v ?? '').trim();
+  if (!raw) {
+    ctx.addIssue({ code: 'custom', message: 'Aadhaar number is required.' });
+  } else if (!isAadhaarValid(raw)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Enter a valid 12-digit Aadhaar number.'
+    });
+  }
+});
+
+/** KYC tab — PAN & Aadhaar required for profile KYC */
 export const kycIdentitySchema = z.object({
-  pan_number: optionalPan,
-  aadhaar_last4: optionalAadhaar
+  pan_number: requiredPan,
+  aadhaar_last4: requiredAadhaar
 });
 
 /** Address dialog */

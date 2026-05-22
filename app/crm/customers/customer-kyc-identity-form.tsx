@@ -33,7 +33,8 @@ export function CustomerKycIdentityForm({
     defaultValues: kycIdentityValuesFromCustomer(
       customer ?? { pan_number: null, aadhaar_last4: null }
     ),
-    mode: 'onChange'
+    mode: 'onTouched',
+    reValidateMode: 'onBlur'
   });
 
   const { control, handleSubmit, reset } = form;

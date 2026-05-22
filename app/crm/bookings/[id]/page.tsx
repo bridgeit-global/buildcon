@@ -60,9 +60,17 @@ import {
   bookingAllotmentSchema,
   bookingApplicationSchema,
   bookingCancelSchema,
-  bookingTokenStageSchema
+  bookingTokenStageSchema,
+  parseBookingBuyerAadhaarBlurError,
+  parseBookingBuyerKycFieldErrors,
+  parseBookingBuyerPanBlurError
 } from '@/lib/booking/booking-workflow.schema';
-import { kycIdentitySchema } from '@/lib/customer/customer-forms.schema';
+import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';
+import {
+  isKycFileAllowed,
+  kycFileAcceptForDocType,
+  kycFileRejectMessage
+} from '@/lib/customer/kyc-file';
 import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
@@ -530,6 +538,10 @@ export default function BookingDetailPage() {
         pageError(appParsed.error.issues[0]?.message ?? 'Complete application details.');
         return;
       }
+      if (!validateAllBuyerKyc()) {
+        pageError('Enter valid PAN and Aadhaar for each applicant before continuing.');
+        return;
+      }
     }
     if (workflowStage === 'allotment') {
       const alParsed = bookingAllotmentSchema.safeParse({
@@ -598,23 +610,54 @@ export default function BookingDetailPage() {
     }
   }
 
+  function applyBuyerKycFieldErrors(
+    customerId: string,
+    fieldErrors: { pan?: string; aadhaar?: string }
+  ) {
+    setBuyerKycFieldErrors((prev) => ({
+      ...prev,
+      [customerId]: fieldErrors
+    }));
+  }
+
+  function setBuyerKycBlurError(
+    customerId: string,
+    field: 'pan' | 'aadhaar',
+    message: string | undefined
+  ) {
+    setBuyerKycFieldErrors((prev) => {
+      const row = { ...(prev[customerId] ?? {}) };
+      if (message) row[field] = message;
+      else delete row[field];
+      return { ...prev, [customerId]: row };
+    });
+  }
+
+  function validateAllBuyerKyc(): boolean {
+    const nextErrors: Record<string, { pan?: string; aadhaar?: string }> = {};
+    let ok = true;
+    for (const b of buyerKyc) {
+      const fieldErrors = parseBookingBuyerKycFieldErrors({
+        pan_number: b.pan,
+        aadhaar_last4: b.aadhaarLast4
+      });
+      if (fieldErrors) {
+        ok = false;
+        nextErrors[b.customerId] = fieldErrors;
+      }
+    }
+    if (!ok) setBuyerKycFieldErrors(nextErrors);
+    return ok;
+  }
+
   async function saveBuyerIdentifiers(b: BuyerKyc) {
     if (!booking) return;
-    const parsed = kycIdentitySchema.safeParse({
+    const fieldErrors = parseBookingBuyerKycFieldErrors({
       pan_number: b.pan,
       aadhaar_last4: b.aadhaarLast4
     });
-    if (!parsed.success) {
-      const fieldErrors: { pan?: string; aadhaar?: string } = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0];
-        if (key === 'pan_number') fieldErrors.pan = issue.message;
-        if (key === 'aadhaar_last4') fieldErrors.aadhaar = issue.message;
-      }
-      setBuyerKycFieldErrors((prev) => ({
-        ...prev,
-        [b.customerId]: fieldErrors
-      }));
+    if (fieldErrors) {
+      applyBuyerKycFieldErrors(b.customerId, fieldErrors);
       pageError('Fix the highlighted fields before saving.');
       return;
     }
@@ -646,9 +689,49 @@ export default function BookingDetailPage() {
     }
   }
 
+  function openKycFilePicker(customerId: string, docType: string) {
+    setKycUploadCustomerId(customerId);
+    setKycDocType(docType);
+    const input = kycFileRef.current;
+    if (!input) return;
+    input.accept = kycFileAcceptForDocType(docType);
+    input.value = '';
+    input.click();
+  }
+
   async function uploadKyc() {
     const file = kycFileRef.current?.files?.[0];
     if (!file || !kycUploadCustomerId) return;
+    if (!isKycFileAllowed(file, kycDocType)) {
+      pageError(kycFileRejectMessage(kycDocType));
+      if (kycFileRef.current) kycFileRef.current.value = '';
+      return;
+    }
+    const buyer = buyerKyc.find((b) => b.customerId === kycUploadCustomerId);
+    if (!buyer) return;
+    const uploadParsed = kycUploadSchema.safeParse({
+      docType: kycDocType,
+      pan_number: buyer.pan,
+      aadhaar_last4: buyer.aadhaarLast4,
+      hasFile: true
+    });
+    if (!uploadParsed.success) {
+      const fieldErrors: { pan?: string; aadhaar?: string } = {};
+      for (const issue of uploadParsed.error.issues) {
+        const key = issue.path[0];
+        if (key === 'pan_number') fieldErrors.pan = issue.message;
+        if (key === 'aadhaar_last4') fieldErrors.aadhaar = issue.message;
+      }
+      if (Object.keys(fieldErrors).length > 0) {
+        applyBuyerKycFieldErrors(buyer.customerId, fieldErrors);
+      }
+      pageError(
+        uploadParsed.error.issues.find((i) => i.path[0] === 'hasFile')?.message ??
+          'Fix the highlighted fields before uploading.'
+      );
+      if (kycFileRef.current) kycFileRef.current.value = '';
+      return;
+    }
     setSaving(true);
         const ext = extensionFromFile(file);
     const path = `customer/${kycUploadCustomerId}/${kycDocType}/${crypto.randomUUID()}${ext}`;
@@ -958,9 +1041,19 @@ export default function BookingDetailPage() {
                             return { ...prev, [b.customerId]: row };
                           });
                         }}
+                        onBlur={() => {
+                          const row = buyerKyc.find((r) => r.customerId === b.customerId);
+                          if (!row) return;
+                          setBuyerKycBlurError(
+                            b.customerId,
+                            'pan',
+                            parseBookingBuyerPanBlurError(row.pan)
+                          );
+                        }}
                         aria-invalid={
                           buyerKycFieldErrors[b.customerId]?.pan ? true : undefined
                         }
+                        className="uppercase"
                         placeholder="ABCDE1234F"
                       />
                       <FormFieldError
@@ -981,7 +1074,7 @@ export default function BookingDetailPage() {
                                   ...r,
                                   aadhaarLast4: e.target.value.replace(/\D/g, '').slice(0, 12)
                                 }
-                                : r
+                                  : r
                             )
                           );
                           setBuyerKycFieldErrors((prev) => {
@@ -989,6 +1082,15 @@ export default function BookingDetailPage() {
                             delete row.aadhaar;
                             return { ...prev, [b.customerId]: row };
                           });
+                        }}
+                        onBlur={() => {
+                          const row = buyerKyc.find((r) => r.customerId === b.customerId);
+                          if (!row) return;
+                          setBuyerKycBlurError(
+                            b.customerId,
+                            'aadhaar',
+                            parseBookingBuyerAadhaarBlurError(row.aadhaarLast4)
+                          );
                         }}
                         aria-invalid={
                           buyerKycFieldErrors[b.customerId]?.aadhaar ? true : undefined
@@ -1019,11 +1121,7 @@ export default function BookingDetailPage() {
                       size="sm"
                       variant="outline"
                       className="gap-1"
-                      onClick={() => {
-                        setKycUploadCustomerId(b.customerId);
-                        setKycDocType('pan');
-                        kycFileRef.current?.click();
-                      }}
+                      onClick={() => openKycFilePicker(b.customerId, 'pan')}
                     >
                       <Upload className="h-3.5 w-3.5" />
                       Upload PAN
@@ -1033,14 +1131,20 @@ export default function BookingDetailPage() {
                       size="sm"
                       variant="outline"
                       className="gap-1"
-                      onClick={() => {
-                        setKycUploadCustomerId(b.customerId);
-                        setKycDocType('aadhaar');
-                        kycFileRef.current?.click();
-                      }}
+                      onClick={() => openKycFilePicker(b.customerId, 'aadhaar')}
                     >
                       <Upload className="h-3.5 w-3.5" />
                       Upload Aadhaar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                      onClick={() => openKycFilePicker(b.customerId, 'photo')}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Upload photo
                     </Button>
                   </div>
                 </div>
@@ -1049,7 +1153,6 @@ export default function BookingDetailPage() {
                 ref={kycFileRef}
                 type="file"
                 className="hidden"
-                accept=".pdf,.jpg,.jpeg,.png"
                 onChange={() => void uploadKyc()}
               />
 

@@ -22,6 +22,11 @@ import {
 } from '@/components/ui/select';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';
+import {
+  isKycFileAllowed,
+  kycFileAcceptForDocType,
+  kycFileRejectMessage
+} from '@/lib/customer/kyc-file';
 
 const KYC_DOC_TYPES: { value: string; label: string }[] = [
   { value: 'aadhaar', label: 'Aadhaar' },
@@ -71,7 +76,8 @@ export function CustomerKycUploadDialog({
       aadhaar_last4: initialAadhaar,
       hasFile: false
     },
-    mode: 'onChange'
+    mode: 'onTouched',
+    reValidateMode: 'onBlur'
   });
 
   const { control, handleSubmit, setValue, watch, reset } = form;
@@ -117,6 +123,11 @@ export function CustomerKycUploadDialog({
             async (values) => {
               const file = fileRef.current?.files?.[0];
               if (!file) return;
+              if (!isKycFileAllowed(file, values.docType)) {
+                pageError(kycFileRejectMessage(values.docType));
+                if (fileRef.current) fileRef.current.value = '';
+                return;
+              }
               await onUpload({
                 docType: values.docType,
                 pan_number: values.pan_number,
@@ -141,6 +152,11 @@ export function CustomerKycUploadDialog({
                   setValue('docType', v, { shouldValidate: true });
                   if (v === 'pan') setValue('pan_number', initialPan);
                   if (v === 'aadhaar') setValue('aadhaar_last4', initialAadhaar);
+                  if (fileRef.current) {
+                    fileRef.current.accept = kycFileAcceptForDocType(v);
+                    fileRef.current.value = '';
+                    setValue('hasFile', false);
+                  }
                 }}
               >
                 <SelectTrigger className="mt-1 w-full">
@@ -221,7 +237,7 @@ export function CustomerKycUploadDialog({
                     <Input
                       ref={fileRef}
                       type="file"
-                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      accept={kycFileAcceptForDocType(docType)}
                       onChange={syncHasFile}
                       className="mt-1 block h-auto py-1.5 text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
                       aria-invalid={fieldState.error ? true : undefined}
@@ -231,6 +247,9 @@ export function CustomerKycUploadDialog({
                 )}
               />
               <p className="mt-1 text-xs text-gray-500">
+                {docType === 'photo'
+                  ? 'JPEG, PNG, or WebP only.'
+                  : 'PDF or image (JPEG, PNG, WebP).'}{' '}
                 Path:{' '}
                 <code className="text-[11px]">
                   customer/&lt;id&gt;/&lt;type&gt;/&lt;uuid&gt;

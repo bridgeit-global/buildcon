@@ -17,6 +17,14 @@ import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -196,6 +204,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     Set<string>
   >(() => new Set());
   const [visitInterest, setVisitInterest] = useState<SiteVisitInterest>('');
+  const [notInterestedConfirmOpen, setNotInterestedConfirmOpen] = useState(false);
   const [negotiationOffer, setNegotiationOffer] = useState('');
   const [approvalStatus, setApprovalStatus] = useState<
     'none' | 'pending' | 'approved' | 'rejected'
@@ -1155,13 +1164,14 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }
 
   async function handleVisitInterestChange(next: SiteVisitInterest) {
-    setVisitInterest(next);
     visitValidation.touch('visitInterest');
     if (next === 'Not Interested') {
       if (inquiryClosed && closedStatus === 'Not Interested') return;
-      await handleCloseAsNotInterested(next);
+      if (inquiryClosed || stagesReadOnly || saving) return;
+      setNotInterestedConfirmOpen(true);
       return;
     }
+    setVisitInterest(next);
     if (next === 'Interested') {
       if (inquiryClosed) return;
       if (activeInquiryId && !inquiryClosed && !stagesReadOnly) {
@@ -1170,6 +1180,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         });
       }
     }
+  }
+
+  async function confirmCloseAsNotInterested() {
+    setNotInterestedConfirmOpen(false);
+    setVisitInterest('Not Interested');
+    await handleCloseAsNotInterested('Not Interested');
   }
 
   async function resolveInquiryCustomerId(): Promise<string | null> {
@@ -1362,6 +1378,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           visitFieldError={visitValidation.fieldError('visitInterest')}
           followUpAssignedToMe={followUpAssignedToMe}
           onVisitInterestChange={(v) => void handleVisitInterestChange(v)}
+          notInterestedConfirmOpen={notInterestedConfirmOpen}
+          onNotInterestedConfirmOpenChange={setNotInterestedConfirmOpen}
+          onConfirmCloseNotInterested={() => void confirmCloseAsNotInterested()}
           onFollowUpBlur={() => {
             if (!activeInquiryId || stagesReadOnly) return;
             if (inquiryClosed) return;
@@ -1784,12 +1803,7 @@ function InterestToggle({
   disabled?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        'flex overflow-hidden rounded-md border border-border',
-        disabled && 'pointer-events-none opacity-60'
-      )}
-    >
+    <div className="flex overflow-hidden rounded-md border border-border">
       {(
         [
           { value: 'Interested' as const, label: 'Interested' },
@@ -1803,9 +1817,14 @@ function InterestToggle({
           onClick={() => onChange(opt.value)}
           className={cn(
             'min-h-9 flex-1 px-3 py-2 text-sm font-medium transition-colors',
+            disabled && 'cursor-not-allowed',
             value === opt.value
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-background text-muted-foreground hover:bg-muted'
+              ? disabled
+                ? 'bg-ds-primary-400 text-white'
+                : 'bg-primary text-primary-foreground'
+              : disabled
+                ? 'bg-ds-gray-50 text-ds-gray-400'
+                : 'bg-background text-muted-foreground hover:bg-muted'
           )}
         >
           {opt.label}
@@ -1825,6 +1844,9 @@ function StepVisitSite({
   setVisitInterest,
   visitFieldError,
   onVisitInterestChange,
+  notInterestedConfirmOpen,
+  onNotInterestedConfirmOpenChange,
+  onConfirmCloseNotInterested,
   followUpAssignedToMe,
   onFollowUpBlur,
   approvalStatus,
@@ -1843,6 +1865,9 @@ function StepVisitSite({
   setVisitInterest: (v: SiteVisitInterest) => void;
   visitFieldError?: string;
   onVisitInterestChange?: (v: SiteVisitInterest) => void;
+  notInterestedConfirmOpen?: boolean;
+  onNotInterestedConfirmOpenChange?: (open: boolean) => void;
+  onConfirmCloseNotInterested?: () => void;
   followUpAssignedToMe?: boolean;
   onFollowUpBlur?: () => void;
   approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
@@ -1981,6 +2006,49 @@ function StepVisitSite({
       <p className="text-[11px] leading-snug text-muted-foreground">
         {unitStatusInquiryStageHint(selectedUnit.status)}
       </p>
+
+      <Dialog
+        open={notInterestedConfirmOpen}
+        onOpenChange={onNotInterestedConfirmOpenChange}
+      >
+        <DialogContent className="max-w-md border-ds-gray-200 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-ds-gray-900">
+              Close enquiry as not interested?
+            </DialogTitle>
+            <DialogDescription className="text-left text-ds-gray-600">
+              This moves the enquiry to{' '}
+              <span className="font-medium text-ds-gray-800">Closed</span> and
+              releases{' '}
+              <span className="font-medium text-ds-gray-800">
+                {selectedUnit.unit_code}
+              </span>{' '}
+              back to available inventory. This cannot be undone from this
+              screen.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 w-full sm:w-auto"
+              disabled={saving}
+              onClick={() => onNotInterestedConfirmOpenChange?.(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="min-h-11 w-full sm:w-auto"
+              disabled={saving}
+              onClick={() => onConfirmCloseNotInterested?.()}
+            >
+              {saving ? 'Closing…' : 'Close enquiry'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

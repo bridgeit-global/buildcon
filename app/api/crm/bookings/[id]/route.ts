@@ -5,6 +5,8 @@ import {
   isTokenStageLocked,
   mergeStageData
 } from '@/app/crm/bookings/booking-stage-transitions';
+import { bookingBuyerKycSchema } from '@/lib/booking/booking-workflow.schema';
+import { normalizeAadhaar, normalizePan } from '@/lib/customer/kyc-identifiers';
 import type {
   BookingStageData,
   BookingWorkflowStage
@@ -108,14 +110,20 @@ export async function PATCH(
 
   const custId = body.customerId || (booking.customer_id as string);
   if (body.panNumber !== undefined || body.aadhaarLast4 !== undefined) {
-    const custPatch: Record<string, string | null> = {};
-    if (body.panNumber !== undefined) {
-      custPatch.pan_number = String(body.panNumber).trim().toUpperCase() || null;
+    const kycParsed = bookingBuyerKycSchema.safeParse({
+      pan_number: body.panNumber ?? '',
+      aadhaar_last4: body.aadhaarLast4 ?? ''
+    });
+    if (!kycParsed.success) {
+      return NextResponse.json(
+        { error: kycParsed.error.issues[0]?.message ?? 'Invalid KYC identifiers.' },
+        { status: 400 }
+      );
     }
-    if (body.aadhaarLast4 !== undefined) {
-      const aadhaar = String(body.aadhaarLast4).replace(/\D/g, '').slice(0, 12);
-      custPatch.aadhaar_last4 = aadhaar || null;
-    }
+    const custPatch: Record<string, string> = {
+      pan_number: normalizePan(String(body.panNumber ?? '')),
+      aadhaar_last4: normalizeAadhaar(String(body.aadhaarLast4 ?? ''))
+    };
     await admin.from('customers').update(custPatch).eq('id', custId);
   }
 
