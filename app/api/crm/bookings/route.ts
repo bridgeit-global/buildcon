@@ -170,7 +170,7 @@ export async function POST(request: Request) {
     .from('units')
     .update({ status: lockStatus })
     .eq('id', body.unitId)
-    .in('status', ['AVAILABLE', 'TOKEN', 'A']);
+    .in('status', ['AVAILABLE', 'TOKEN', 'A', 'BLOCKED', 'BL']);
   if (unitUpdErr) {
     return NextResponse.json({ error: unitUpdErr.message }, { status: 500 });
   }

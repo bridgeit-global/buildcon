@@ -62,18 +62,21 @@ export function isUnitAvailableForBooking(status: string | null | undefined): bo
   return s === 'AVAILABLE' || LEGACY_AVAILABLE.has(String(status || '').trim());
 }
 
-/** Start or continue booking while unit is available or already on token from inquiry. */
+/** Start or continue booking: available, blocked for a lead, or already on token. */
 export function isUnitBookableForWorkflow(status: string | null | undefined): boolean {
   const s = normalizeUnitStatusCode(status);
-  return isUnitAvailableForBooking(status) || s === 'TOKEN';
+  return (
+    isUnitAvailableForBooking(status) ||
+    s === 'TOKEN' ||
+    isUnitBlockedStatus(status)
+  );
 }
 
-/** Inquiry → booking prefill: available units and units already on token. */
+/** Inquiry → booking prefill — same statuses as {@link isUnitBookableForWorkflow}. */
 export function isUnitPrefillableFromInquiry(
   status: string | null | undefined
 ): boolean {
-  const s = normalizeUnitStatusCode(status);
-  return isUnitAvailableForBooking(status) || s === 'TOKEN';
+  return isUnitBookableForWorkflow(status);
 }
 
 /** Inquiry / sales flow: show units that can still be pitched. */

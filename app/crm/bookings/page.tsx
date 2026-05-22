@@ -489,7 +489,7 @@ export default function BookingsPage() {
     if (cErr) pageError(cErr.message);
     if (bkErr) pageError(bkErr.message);
 
-    const unitsList = (uData ?? []) as UnitOption[];
+    let unitsList = (uData ?? []) as UnitOption[];
     let customerList = (cData ?? []) as CustomerOption[];
 
     const p = readConsumeBookingPrefill();
@@ -516,7 +516,28 @@ export default function BookingsPage() {
         setCustomerId('');
       }
 
-      const prefillUnit = unitsList.find((u) => u.id === p.unitId);
+      const unitSelect =
+        'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id';
+
+      let prefillUnit = unitsList.find((u) => u.id === p.unitId);
+      if (!prefillUnit && p.unitId) {
+        const { data: urow } = await supabase
+          .from('units')
+          .select(unitSelect)
+          .eq('id', p.unitId)
+          .maybeSingle();
+        if (urow) {
+          const row = urow as UnitOption;
+          if (isUnitPrefillableFromInquiry(row.status)) {
+            unitsList = [row, ...unitsList];
+            prefillUnit = row;
+          } else {
+            setBreakdownUnit(row);
+            if (row.project_id) void loadProjectPricing(row.project_id);
+          }
+        }
+      }
+
       const prefillSelectable =
         prefillUnit && isUnitPrefillableFromInquiry(prefillUnit.status);
 
@@ -527,15 +548,19 @@ export default function BookingsPage() {
       } else {
         setUnitFromInquiryUnavailable(true);
         setUnitId('');
-        const { data: urow } = await supabase
-          .from('units')
-          .select(
-            'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
-          )
-          .eq('id', p.unitId)
-          .maybeSingle();
-        setBreakdownUnit(urow ? (urow as UnitOption) : null);
-        if (urow?.project_id) void loadProjectPricing(urow.project_id as string);
+        let breakdown: UnitOption | null = prefillUnit ?? null;
+        if (!breakdown && p.unitId) {
+          const { data: urow } = await supabase
+            .from('units')
+            .select(unitSelect)
+            .eq('id', p.unitId)
+            .maybeSingle();
+          breakdown = urow ? (urow as UnitOption) : null;
+        }
+        setBreakdownUnit(breakdown);
+        if (breakdown?.project_id) {
+          void loadProjectPricing(breakdown.project_id);
+        }
       }
 
       const amount = String(p.bookingAmount ?? '').trim();
