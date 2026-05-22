@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RequiredMark } from '@/components/ui/required-mark';
+import { FieldLabel } from '@/components/ui/field-label';
+import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 
 export type EmailInputFieldProps = {
@@ -27,15 +27,14 @@ export function EmailInputField({
   error
 }: EmailInputFieldProps) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id} className={cn(labelClassName)}>
+    <div>
+      <FieldLabel htmlFor={id} className={cn(labelClassName)} required={required}>
         {label}
-        {required ? <RequiredMark /> : null}
-      </Label>
+      </FieldLabel>
       <Input
         id={id}
         type="email"
-        className={cn(inputClassName)}
+        className={cn(formControlFieldGapClass, inputClassName)}
         aria-invalid={error ? true : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}

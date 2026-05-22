@@ -27,6 +27,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
+  WizardStepper,
+  WizardStepperVertical
+} from '@/components/ui/wizard-stepper';
+import {
   applyUnitStatusForFunnelStage,
   closeInquiry,
   computeNegotiationDiscount,
@@ -288,149 +292,10 @@ function ToggleGroup<T extends string>({
   );
 }
 
-// ─── Pipeline progress: macro (Customer → Unit → Enquiry) + vertical funnel ─
-
-function MacroPipelineStepper({
-  current,
-  onSelect
-}: {
-  current: PipelineMacroStep;
-  onSelect: (step: PipelineMacroStep) => void;
-}) {
-  const currentIdx = macroStepIndex(current);
-  return (
-    <div className="overflow-x-auto pb-1">
-      <div className="relative flex min-w-max items-start justify-between gap-0 px-1">
-        <div
-          className="absolute left-0 right-0 top-[15px] h-0.5 bg-border"
-          style={{ zIndex: 0 }}
-          aria-hidden
-        />
-        {MACRO_STEPS.map((step, idx) => {
-          const isActive = step.id === current;
-          const isDone = idx < currentIdx;
-          return (
-            <button
-              key={step.id}
-              type="button"
-              onClick={() => onSelect(step.id)}
-              className="relative z-10 flex min-h-[44px] min-w-0 flex-1 flex-col items-center gap-1 px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
-              aria-current={isActive ? 'step' : undefined}
-            >
-              <span
-                className={cn(
-                  'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors',
-                  isActive
-                    ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
-                    : isDone
-                      ? 'border-teal-500 bg-white text-teal-600'
-                      : 'border-border bg-white text-muted-foreground'
-                )}
-              >
-                {isDone ? '✓' : idx + 1}
-              </span>
-              <span
-                className={cn(
-                  'max-w-22 text-center text-[10px] font-semibold leading-tight sm:max-w-none',
-                  isActive
-                    ? 'text-teal-700'
-                    : isDone
-                      ? 'text-teal-600'
-                      : 'text-muted-foreground'
-                )}
-              >
-                {step.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function VerticalEnquiryStageStepper({
-  current,
-  onSelect,
-  canSelectStage
-}: {
-  current: string;
-  onSelect: (stage: PipelineAnchorStage) => void;
-  canSelectStage?: (stage: PipelineAnchorStage) => boolean;
-}) {
-  const currentIdx = stageIndex(current);
-  return (
-    <nav
-      className="shrink-0 rounded-lg border border-border bg-muted/20 p-2 sm:p-3 md:w-44"
-      aria-label="Enquiry pipeline stages"
-    >
-      <ol className="flex flex-col">
-        {PIPELINE_STEPS.map((step, idx) => {
-          const isActive = step.id === current;
-          const isDone = idx < currentIdx;
-          const isLast = idx === PIPELINE_STEPS.length - 1;
-          const selectable = canSelectStage ? canSelectStage(step.id) : true;
-          return (
-            <li key={step.id}>
-              <button
-                type="button"
-                disabled={!selectable}
-                onClick={() => {
-                  if (!selectable) return;
-                  onSelect(step.id);
-                }}
-                className={cn(
-                  'flex w-full min-h-[44px] gap-2 rounded-md px-1 py-1 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3',
-                  selectable
-                    ? 'hover:bg-muted/60'
-                    : 'cursor-not-allowed opacity-50'
-                )}
-                aria-current={isActive ? 'step' : undefined}
-                aria-disabled={!selectable}
-              >
-                <div className="flex shrink-0 flex-col items-center">
-                  <div className="flex h-9 items-center justify-center">
-                    <span
-                      className={cn(
-                        'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors',
-                        isActive
-                          ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
-                          : isDone
-                            ? 'border-teal-500 bg-background text-teal-600'
-                            : 'border-border bg-background text-muted-foreground'
-                      )}
-                    >
-                      {isDone ? '✓' : step.step}
-                    </span>
-                  </div>
-                  {!isLast ? (
-                    <div
-                      className="w-0.5 shrink-0 bg-border"
-                      style={{ height: '10px' }}
-                      aria-hidden
-                    />
-                  ) : null}
-                </div>
-                <span
-                  className={cn(
-                    'flex flex-1 items-center text-xs font-semibold leading-snug',
-                    isActive
-                      ? 'text-teal-700'
-                      : isDone
-                        ? 'text-teal-600'
-                        : 'text-muted-foreground'
-                  )}
-                >
-                  {step.label}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
+const PIPELINE_STEPPER_STEPS = PIPELINE_STEPS.map((s) => ({
+  id: s.id,
+  label: s.label
+}));
 
 function ActiveStageGuide({ stage }: { stage: string }) {
   const meta = PIPELINE_STEPS.find((p) => p.id === stage);
@@ -1383,9 +1248,13 @@ export function InquiryPipelinePanel(props: {
     <>
       <div className="mt-1 space-y-3 pb-3">
         {!hideMacroStepper ? (
-          <MacroPipelineStepper
-            current={macroStep}
-            onSelect={setMacroStep}
+          <WizardStepper
+            steps={MACRO_STEPS}
+            currentIndex={macroStepIndex(macroStep)}
+            ariaLabel="Pipeline sections"
+            onSelectStep={(_idx, step) =>
+              setMacroStep(step.id as PipelineMacroStep)
+            }
           />
         ) : null}
 
@@ -1443,11 +1312,19 @@ export function InquiryPipelinePanel(props: {
         {macroStep === 'enquiry' && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             {!hideVerticalStepper ? (
-              <VerticalEnquiryStageStepper
-                current={activeStage}
-                onSelect={(stage) => setActiveStage(stage)}
-                canSelectStage={(stage) =>
-                  !inquiryNegotiationStageLocked(stage, inquiryBookingLocked)
+              <WizardStepperVertical
+                steps={PIPELINE_STEPPER_STEPS}
+                currentIndex={stageIndex(activeStage)}
+                ariaLabel="Enquiry pipeline stages"
+                stepNumber={(idx) => PIPELINE_STEPS[idx]?.step ?? idx + 1}
+                canSelectStep={(_idx, step) =>
+                  !inquiryNegotiationStageLocked(
+                    step.id as PipelineAnchorStage,
+                    inquiryBookingLocked
+                  )
+                }
+                onSelectStep={(_idx, step) =>
+                  setActiveStage(step.id as FunnelStage)
                 }
               />
             ) : null}

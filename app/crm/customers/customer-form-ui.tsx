@@ -4,6 +4,7 @@ import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
+import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EmailInputField } from '@/components/ui/email-input-field';
@@ -16,6 +17,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
+import { cn } from '@/lib/utils';
 
 export const CUSTOMER_FORM_DIALOG_CLASS =
   'flex max-h-[min(90vh,720px)] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
@@ -57,7 +59,7 @@ export function RhfTextInput<T extends FieldValues>({
             value={field.value ?? ''}
             aria-invalid={fieldState.error ? true : undefined}
             placeholder={placeholder}
-            className={inputClassName}
+            className={cn(formControlFieldGapClass, inputClassName)}
           />
           <FormFieldError message={fieldState.error?.message} />
         </div>
@@ -180,6 +182,7 @@ export function CustomerProfileFields<T extends FieldValues>({
               {...field}
               value={field.value ?? ''}
               aria-invalid={fieldState.error ? true : undefined}
+              className={formControlFieldGapClass}
             />
             <FormFieldError message={fieldState.error?.message} />
           </div>
@@ -216,7 +219,6 @@ export function CustomerProfileFields<T extends FieldValues>({
         label={"Father's / mother's / spouse's name"}
         placeholder="As on PAN / Aadhaar"
         className="sm:col-span-2"
-        inputClassName="mt-1"
       />
       <Controller
         control={control}
@@ -243,7 +245,6 @@ export function CustomerProfileFields<T extends FieldValues>({
         control={control}
         name={'passport_number' as FieldPath<T>}
         label="Passport no. (NRI / foreign)"
-        inputClassName="mt-1"
       />
       <RhfTextarea
         control={control}
@@ -265,7 +266,7 @@ export function CustomerProfileFields<T extends FieldValues>({
                   onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                   aria-invalid={fieldState.error ? true : undefined}
                   placeholder="ABCDE1234F"
-                  className="mt-1 uppercase"
+                  className={cn(formControlFieldGapClass, 'uppercase')}
                 />
                 <FormFieldError message={fieldState.error?.message} />
               </div>
@@ -289,7 +290,7 @@ export function CustomerProfileFields<T extends FieldValues>({
                   inputMode="numeric"
                   aria-invalid={fieldState.error ? true : undefined}
                   placeholder="123456789012"
-                  className="mt-1"
+                  className={formControlFieldGapClass}
                 />
                 <FormFieldError message={fieldState.error?.message} />
               </div>

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -947,7 +948,7 @@ function FilterSelect({
     <div className="min-w-0">
       <Label className="text-sm text-ds-gray-600">{label}</Label>
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="mt-1 w-full text-sm">
+        <SelectTrigger className={cn(formControlFieldGapClass, 'w-full text-sm')}>
           <SelectValue placeholder={allLabel || label} />
         </SelectTrigger>
         <SelectContent>
@@ -984,7 +985,7 @@ function NumberFilter({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Any"
-        className="mt-1 text-sm"
+        className={cn(formControlFieldGapClass, 'text-sm')}
       />
     </div>
   );

@@ -30,6 +30,7 @@ import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { RequiredMark } from '@/components/ui/required-mark';
 import { EmailInputField } from '@/components/ui/email-input-field';
+import { formControlTriggerClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import {
   Popover,
@@ -266,7 +267,7 @@ function SearchablePicker<T extends { id: string }>({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="h-auto min-h-10 w-full flex-1 justify-between px-3 py-2 text-left font-normal"
+              className={cn(formControlTriggerClass, 'flex-1')}
             >
               <span className="min-w-0 flex-1 truncate">
                 {selected ? (
@@ -301,7 +302,7 @@ function SearchablePicker<T extends { id: string }>({
           align="start"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="flex min-h-11 items-center gap-2 border-b px-3 py-2">
+          <div className="flex h-9 min-h-9 items-center gap-2 border-b px-3">
             <Search className="size-4 shrink-0 text-muted-foreground" />
             <Input
               ref={searchRef}

@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowRight } from 'lucide-react';
+import { WizardStepper } from '@/components/ui/wizard-stepper';
 import { pageError, toast } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { EmailInputField } from '@/components/ui/email-input-field';
+import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -91,8 +93,8 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]['id'];
 
 const wizardInputClass = 'text-sm';
-const wizardFieldClass = `mt-1 ${wizardInputClass}`;
-const wizardSelectTriggerClass = 'mt-1 w-full text-sm';
+const wizardFieldClass = cn(formControlFieldGapClass, wizardInputClass);
+const wizardSelectTriggerClass = cn(formControlFieldGapClass, 'w-full text-sm');
 const wizardTextareaClass = 'mt-1 min-h-16 resize-y text-sm';
 const wizardLabelClass = 'text-sm text-ds-gray-600';
 
@@ -965,14 +967,21 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         </div>
       ) : null}
 
-      {!hideStepper && (
-        <Stepper
-          current={step}
-          onStepClick={gotoStep}
-          valid={stepValid}
+      {!hideStepper ? (
+        <WizardStepper
+          className="mt-4"
+          steps={WIZARD_STEPS}
+          currentIndex={step - 1}
           disabled={saving || stagesReadOnly}
+          ariaLabel="New enquiry progress"
+          isStepDone={(idx) => {
+            const id = STEPS[idx]?.id;
+            return id != null && id < step && stepValid[id];
+          }}
+          canSelectStep={() => !saving && !stagesReadOnly}
+          onSelectStep={(_idx, s) => void gotoStep(Number(s.id) as StepId)}
         />
-      )}
+      ) : null}
 
       {step === 1 ? (
         <StepEnquiry
@@ -1115,78 +1124,10 @@ type SellerForm = {
 };
 type SetSellerForm = Dispatch<SetStateAction<SellerForm>>;
 
-// ─── Stepper ─────────────────────────────────────────────────────────────────
-
-function Stepper({
-  current,
-  onStepClick,
-  valid,
-  disabled
-}: {
-  current: StepId;
-  onStepClick: (s: StepId) => void | Promise<void>;
-  valid: Record<StepId, boolean>;
-  disabled?: boolean;
-}) {
-  return (
-    <ol className="mt-4 flex items-center">
-      {STEPS.map((s, idx) => {
-        const isDone = s.id < current && valid[s.id];
-        const isActive = s.id === current;
-        const isLast = idx === STEPS.length - 1;
-        return (
-          <li
-            key={s.id}
-            className={cn('flex items-center', !isLast && 'flex-1')}
-          >
-            <button
-              type="button"
-              onClick={() => void onStepClick(s.id)}
-              disabled={disabled}
-              className="group flex items-center gap-1.5 text-left disabled:pointer-events-none disabled:opacity-50"
-              aria-current={isActive ? 'step' : undefined}
-            >
-              <span
-                className={cn(
-                  'flex size-6 items-center justify-center rounded-full border text-[10px] font-bold transition-colors',
-                  isDone && 'border-green-500 bg-green-500 text-white',
-                  isActive &&
-                  'border-primary bg-primary text-primary-foreground shadow-sm',
-                  !isDone &&
-                  !isActive &&
-                  'border-border bg-background text-muted-foreground group-hover:border-primary/40'
-                )}
-              >
-                {isDone ? '✓' : s.id}
-              </span>
-              <span
-                className={cn(
-                  'hidden text-[11px] font-semibold sm:inline',
-                  isActive
-                    ? 'text-foreground'
-                    : isDone
-                      ? 'text-green-700'
-                      : 'text-muted-foreground'
-                )}
-              >
-                {s.label}
-              </span>
-            </button>
-            {!isLast ? (
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'mx-2 h-px flex-1 transition-colors',
-                  s.id < current ? 'bg-green-400' : 'bg-border'
-                )}
-              />
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
+const WIZARD_STEPS = STEPS.map((s) => ({
+  id: String(s.id),
+  label: s.label
+}));
 
 // ─── Step 1: Enquiry (customer + unit preferences) ───────────────────────────
 

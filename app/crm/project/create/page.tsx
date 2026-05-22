@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { WizardStepper } from '@/components/ui/wizard-stepper';
 import {
   buildDefaultFloorProvisions,
   countProjectUnits,
@@ -65,6 +65,14 @@ export default function CreateProjectPage() {
 
   const canCreateProject = myProfile?.role === 'Super Admin';
   const lastWizardStep = WIZARD_STEPS.length - 1;
+  const projectWizardSteps = useMemo(
+    () =>
+      WIZARD_STEPS.map((label, i) => ({
+        id: String(i),
+        label
+      })),
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -305,49 +313,16 @@ export default function CreateProjectPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-0 border-b px-4 py-3 sm:px-6">
-          {WIZARD_STEPS.map((label, i) => (
-            <Fragment key={label}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (i <= createStep) {
-                                        setCreateStep(i);
-                  }
-                }}
-                disabled={i > createStep}
-                className={cn(
-                  'flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-md p-1 transition-colors',
-                  i <= createStep
-                    ? 'cursor-pointer text-blue-600 hover:bg-blue-50/80'
-                    : 'cursor-not-allowed opacity-50'
-                )}
-              >
-                <div
-                  className={cn(
-                    'flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white',
-                    i < createStep && 'bg-emerald-500',
-                    i === createStep && 'bg-blue-500',
-                    i > createStep && 'bg-slate-200 text-slate-500'
-                  )}
-                >
-                  {i < createStep ? '✓' : i + 1}
-                </div>
-                <span className="hidden text-center text-[9px] font-medium leading-tight sm:block">
-                  {label}
-                </span>
-              </button>
-              {i < lastWizardStep ? (
-                <div
-                  className={cn(
-                    'mb-5 hidden h-0.5 min-w-[6px] shrink sm:block sm:flex-1',
-                    i < createStep ? 'bg-emerald-400' : 'bg-slate-200'
-                  )}
-                  aria-hidden
-                />
-              ) : null}
-            </Fragment>
-          ))}
+        <div className="border-b px-4 py-3 sm:px-6">
+          <WizardStepper
+            steps={projectWizardSteps}
+            currentIndex={createStep}
+            maxReachableIndex={createStep}
+            ariaLabel="Create project progress"
+            onSelectStep={(idx) => {
+              if (idx <= createStep) setCreateStep(idx);
+            }}
+          />
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
