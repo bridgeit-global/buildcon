@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { pageError } from '@/lib/toast';
+import { pageError, toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
@@ -30,7 +30,10 @@ import {
   inquiryNegotiationStageLocked,
   inquiryStagesLockedByUnitToken
 } from '../inquiry-booking-guard';
-import { advanceInquiryToNegotiation } from '../inquiry-stage-transitions';
+import {
+  advanceInquiryToNegotiation,
+  isInquiryClosed
+} from '../inquiry-stage-transitions';
 import {
   loadInquiryStageData,
   stageHasMeaningfulData
@@ -79,7 +82,7 @@ function NewInquiryPageInner() {
   const prevResumeInquiryRef = useRef('');
 
   const loadInquiry = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (id: string): Promise<'ok' | 'missing' | 'closed'> => {
       const { data } = await supabase
         .from('sales_inquiries')
         .select(
@@ -98,10 +101,11 @@ function NewInquiryPageInner() {
         .eq('id', id)
         .maybeSingle();
 
-      if (!data) return false;
+      if (!data) return 'missing';
       const row = data as unknown as InquiryFetchRow;
       const { data: stageData } = await loadInquiryStageData(supabase, id);
       const fs = String(row.funnel_stage || 'Enquiry').trim();
+      if (isInquiryClosed(stageData, fs)) return 'closed';
       const uiStage = pipelineUiStage(fs);
 
       setInquiry({
@@ -149,7 +153,7 @@ function NewInquiryPageInner() {
       }
       setStagesWithData(filled);
 
-      return true;
+      return 'ok';
     },
     [supabase]
   );
@@ -182,9 +186,15 @@ function NewInquiryPageInner() {
     setResumeError(false);
 
     void (async () => {
-      const ok = await loadInquiry(resumeInquiryId);
+      const result = await loadInquiry(resumeInquiryId);
       if (cancelled) return;
-      if (ok) {
+      if (result === 'closed') {
+        toast.info('This enquiry is closed and cannot be opened.');
+        router.replace('/crm/inquiry/list');
+        setResumeReady(true);
+        return;
+      }
+      if (result === 'ok') {
         setInquiryId(resumeInquiryId);
       } else {
         setResumeError(true);
@@ -208,7 +218,7 @@ function NewInquiryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [resumeInquiryId, loadInquiry]);
+  }, [resumeInquiryId, loadInquiry, router]);
 
   const handleInquiryCreated = useCallback(
     async (id: string) => {
@@ -274,6 +284,7 @@ function NewInquiryPageInner() {
   );
 
   const inquiryUnitTokenLocked = inquiryStagesLockedByUnitToken(unitStatus);
+  const inquiryClosed = isInquiryClosed(inquiry?.stage_data, funnelStage);
 
   const pipelineUnitStageNote = useMemo(
     () =>
@@ -296,7 +307,12 @@ function NewInquiryPageInner() {
 
   const headerSub =
     inquiryId && (unitCode || funnelStage)
-      ? [unitCode, stepperHighlightStage].filter(Boolean).join(' · ')
+      ? [
+          unitCode,
+          inquiryClosed ? 'Closed' : stepperHighlightStage
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : 'Customer & unit preferences, then qualify a unit and record the site visit.';
 
   const resuming = Boolean(resumeInquiryId && !resumeReady);
@@ -390,7 +406,7 @@ function NewInquiryPageInner() {
                   hideStepper
                   inquiryId={inquiryId || undefined}
                   forcedStep={wizardStep as 1 | 2 | 3}
-                  stagesReadOnly={inquiryUnitTokenLocked}
+                  stagesReadOnly={inquiryUnitTokenLocked || inquiryClosed}
                   onStepChange={setWizardStep}
                   onCreated={(id) => void handleInquiryCreated(id)}
                   onFunnelStageChange={handleFunnelStageChange}

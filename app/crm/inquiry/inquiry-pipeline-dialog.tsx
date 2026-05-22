@@ -1110,7 +1110,10 @@ export function InquiryPipelinePanel(props: {
     linkedBookingId
   ]);
 
-  const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
+  const pipelineClosed = isInquiryClosed(
+    inquiry?.stage_data,
+    inquiry?.funnel_stage
+  );
 
   const negotiationBlocksAdvance = tokenStageBlockedByNegotiation(
     stageData.negotiation,

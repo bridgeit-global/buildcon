@@ -130,8 +130,8 @@ export default function WorkQueuePage() {
         const customerName = cust?.full_name?.trim() || '—';
         const inquiryId = r.id;
         const sd = stageDataOf(r.stage_data);
-        if (isInquiryClosed(sd)) continue;
         const funnelStage = String(r.funnel_stage ?? '');
+        if (isInquiryClosed(sd, funnelStage)) continue;
 
         const followCandidates: { key: string; due: string; note: string | null }[] =
           [];

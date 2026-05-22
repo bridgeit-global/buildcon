@@ -4,10 +4,25 @@ export const INQUIRY_FUNNEL_STAGE_ORDER = [
   'Qualified',
   'Site Visit',
   'Negotiation',
-  'Token'
+  'Token',
+  'Closed'
 ] as const;
 
+/** Terminal stage — not shown on the pipeline stepper. */
+export const INQUIRY_CLOSED_FUNNEL_STAGE = 'Closed' as const;
+
 export type InquiryFunnelStage = (typeof INQUIRY_FUNNEL_STAGE_ORDER)[number];
+
+/** Stages persisted in `sales_inquiry_stages` (excludes terminal Closed). */
+export type InquiryPipelineFunnelStage = Exclude<
+  InquiryFunnelStage,
+  typeof INQUIRY_CLOSED_FUNNEL_STAGE
+>;
+
+export const INQUIRY_PIPELINE_FUNNEL_STAGES = INQUIRY_FUNNEL_STAGE_ORDER.filter(
+  (stage): stage is InquiryPipelineFunnelStage =>
+    stage !== INQUIRY_CLOSED_FUNNEL_STAGE
+);
 
 const FUNNEL_STAGE_RANK = new Map<string, number>(
   INQUIRY_FUNNEL_STAGE_ORDER.map((stage, index) => [stage, index])
@@ -44,6 +59,13 @@ export type InquiryPipelineUiStage =
 /** @deprecated Use INQUIRY_PIPELINE_UI_STAGES — kept for list filters without Token. */
 export const FUNNEL_STAGES = INQUIRY_PIPELINE_UI_STAGES;
 
+/** List filter / badge labels including terminal stages. */
+export const INQUIRY_LIST_FUNNEL_STAGES = [
+  ...INQUIRY_PIPELINE_UI_STAGES,
+  'Token',
+  INQUIRY_CLOSED_FUNNEL_STAGE
+] as const;
+
 /** Index in `INQUIRY_PIPELINE_UI_STAGES` for a funnel stage (unknown → Enquiry). */
 export function funnelStageIndex(stage: string | null | undefined): number {
   const t = pipelineUiStage(stage);
@@ -55,6 +77,7 @@ export function pipelineUiStage(
   funnelStage: string | null | undefined
 ): InquiryPipelineUiStage {
   const t = String(funnelStage ?? '').trim() as InquiryFunnelStage;
+  if (t === 'Closed') return 'Site Visit';
   if (t === 'Token') return 'Negotiation';
   if (
     (INQUIRY_PIPELINE_UI_STAGES as readonly string[]).includes(t)

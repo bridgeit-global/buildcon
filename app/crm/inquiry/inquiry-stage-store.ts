@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  INQUIRY_FUNNEL_STAGE_ORDER,
+  INQUIRY_PIPELINE_FUNNEL_STAGES,
+  INQUIRY_CLOSED_FUNNEL_STAGE,
   isFunnelStageRegression,
-  type InquiryFunnelStage
+  type InquiryFunnelStage,
+  type InquiryPipelineFunnelStage
 } from './inquiry-funnel-stages';
 import type { InquiryStageData } from './inquiry-types';
 import { isUnitTokenReceivedStatus } from '../inventory/unit-status';
@@ -13,10 +15,13 @@ import {
   isInquiryTokenLocked
 } from './inquiry-token-stage';
 
-export const INQUIRY_STAGE_DB_NAMES = INQUIRY_FUNNEL_STAGE_ORDER;
+export const INQUIRY_STAGE_DB_NAMES = INQUIRY_PIPELINE_FUNNEL_STAGES;
 
 /** JSON key on `sales_inquiries.stage_data` for each funnel stage row. */
-export const STAGE_JSON_KEY: Record<InquiryFunnelStage, keyof InquiryStageData> = {
+export const STAGE_JSON_KEY: Record<
+  InquiryPipelineFunnelStage,
+  keyof InquiryStageData
+> = {
   Enquiry: 'enquiry',
   Qualified: 'qualified',
   'Site Visit': 'site_visit',
@@ -217,6 +222,7 @@ export function stageHasMeaningfulData(
   stage: InquiryFunnelStage,
   data: InquiryStageData
 ): boolean {
+  if (stage === INQUIRY_CLOSED_FUNNEL_STAGE) return false;
   const key = STAGE_JSON_KEY[stage];
   const block = data[key];
   if (!block || typeof block !== 'object' || Array.isArray(block)) return false;
@@ -231,7 +237,7 @@ export async function upsertInquiryStagePayload(
   supabase: SupabaseClient,
   params: {
     inquiryId: string;
-    stage: InquiryFunnelStage;
+    stage: InquiryPipelineFunnelStage;
     payload: Record<string, unknown>;
     markCompleted?: boolean;
   }

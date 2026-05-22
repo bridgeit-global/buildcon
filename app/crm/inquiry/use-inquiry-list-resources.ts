@@ -5,7 +5,10 @@ import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inquiry';
-import { negotiationApprovalBlockMessage } from './inquiry-stage-transitions';
+import {
+  isInquiryClosed,
+  negotiationApprovalBlockMessage
+} from './inquiry-stage-transitions';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
 
 const INQUIRY_SELECT = `
@@ -98,6 +101,7 @@ export function useInquiryListResources() {
 
   const navigateToBookingFromInquiry = useCallback(
     (inq: InquiryRowDb) => {
+      if (isInquiryClosed(inq.stage_data, inq.funnel_stage)) return;
       const pid = String(inq.project_id || '').trim();
       if (!pid || !String(inq.unit_id || '').trim()) return;
       const stageData = inq.stage_data as Record<string, unknown> | null | undefined;

@@ -94,8 +94,15 @@ function ToastItem({ toast: item }: { toast: ToastRecord }) {
   );
 }
 
+/** Stable server snapshot — inline `() => []` creates a new array each call and triggers an infinite loop. */
+const SERVER_TOASTS: ToastRecord[] = [];
+
+function getServerToasts() {
+  return SERVER_TOASTS;
+}
+
 export function Toaster() {
-  const toasts = useSyncExternalStore(subscribeToToasts, getToasts, () => []);
+  const toasts = useSyncExternalStore(subscribeToToasts, getToasts, getServerToasts);
 
   if (toasts.length === 0) return null;
 

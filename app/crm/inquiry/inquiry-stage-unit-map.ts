@@ -86,7 +86,7 @@ export function funnelUnitAlignment(
   unitStatus: string | null | undefined,
   stageData?: InquiryStageData | Record<string, unknown> | null
 ): 'aligned' | 'pipeline_behind' | 'pipeline_ahead' | null {
-  if (isInquiryClosed(stageData)) return 'aligned';
+  if (isInquiryClosed(stageData, funnelStage)) return 'aligned';
   const f = String(funnelStage || '').trim();
   const suggested = suggestedFunnelStageForUnitStatus(unitStatus);
   const fi = funnelStageRank(f);
@@ -102,7 +102,7 @@ export function funnelUnitAlignmentMessage(
   unitStatus: string | null | undefined,
   stageData?: InquiryStageData | Record<string, unknown> | null
 ): string | null {
-  if (isInquiryClosed(stageData)) return null;
+  if (isInquiryClosed(stageData, funnelStage)) return null;
   const rel = funnelUnitAlignment(funnelStage, unitStatus, stageData);
   const suggested = suggestedFunnelStageForUnitStatus(unitStatus);
   if (rel === 'pipeline_behind') {

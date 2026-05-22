@@ -9,6 +9,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { embedOne, inquiryProjectLabel } from './inquiry-helpers';
+import { INQUIRY_CLOSED_FUNNEL_STAGE } from './inquiry-funnel-stages';
+import {
+  getInquiryClosedStatus,
+  isInquiryClosed
+} from './inquiry-stage-transitions';
 import type { InquiryRowDb } from './inquiry-types';
 
 /** Light teal shades for donut + legend (Tailwind teal 100–400). */
@@ -34,6 +39,9 @@ function leadSourceColor(label: string, index: number) {
 
 function funnelStageBadgeClass(stage: string) {
   const s = String(stage || '').trim();
+  if (s === INQUIRY_CLOSED_FUNNEL_STAGE) {
+    return 'border-ds-gray-300 bg-ds-gray-100 text-ds-gray-800';
+  }
   if (!s || s === 'Enquiry') {
     return 'border-red-200 bg-red-50 text-red-800';
   }
@@ -105,8 +113,11 @@ function InquiryPageContent() {
   useEffect(() => {
     const q = searchParams.get('pipelineInquiry')?.trim();
     if (!q || loadingInquiries) return;
-    const exists = inquiries.some((i) => i.id === q);
-    if (exists) {
+    const row = inquiries.find((i) => i.id === q);
+    if (
+      row &&
+      !isInquiryClosed(row.stage_data, row.funnel_stage)
+    ) {
       router.replace(
         `/crm/inquiry/new?inquiry=${encodeURIComponent(q)}`,
         {
@@ -342,38 +353,65 @@ function InquiryPageContent() {
             ) : (
               recentInquiriesPreview.map((inq) => {
                 const c = embedOne(inq.customers);
-                const stage = inq.funnel_stage ?? '';
-                const label = funnelStageLabel(stage);
+                const closed = isInquiryClosed(
+                  inq.stage_data,
+                  inq.funnel_stage
+                );
+                const stage = closed
+                  ? INQUIRY_CLOSED_FUNNEL_STAGE
+                  : (inq.funnel_stage ?? '');
+                const closedReason = closed
+                  ? getInquiryClosedStatus(inq.stage_data)
+                  : null;
+                const label = closed
+                  ? closedReason && closedReason !== 'Closed'
+                    ? `Closed · ${closedReason}`
+                    : 'Closed'
+                  : funnelStageLabel(stage);
                 const projectName = inquiryProjectLabel(inq);
+                const rowBody = (
+                  <>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">
+                        {c?.full_name ?? '—'}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {c?.phone ?? '—'}
+                      </div>
+                      {projectName ? (
+                        <div className="truncate text-[10px] text-muted-foreground">
+                          {projectName}
+                        </div>
+                      ) : null}
+                    </div>
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                        funnelStageBadgeClass(stage)
+                      )}
+                    >
+                      {label}
+                    </span>
+                  </>
+                );
                 return (
                   <li key={inq.id} className="p-0">
-                    <Link
-                      href={`/crm/inquiry/new?inquiry=${encodeURIComponent(inq.id)}`}
-                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                      aria-label={`Open enquiry workspace for ${c?.full_name ?? 'enquiry'}`}
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-foreground">
-                          {c?.full_name ?? '—'}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {c?.phone ?? '—'}
-                        </div>
-                        {projectName ? (
-                          <div className="truncate text-[10px] text-muted-foreground">
-                            {projectName}
-                          </div>
-                        ) : null}
-                      </div>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                          funnelStageBadgeClass(stage)
-                        )}
+                    {closed ? (
+                      <div
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-ds-gray-600"
+                        aria-label={`${c?.full_name ?? 'Enquiry'} — closed, not openable`}
                       >
-                        {label}
-                      </span>
-                    </Link>
+                        {rowBody}
+                      </div>
+                    ) : (
+                      <Link
+                        href={`/crm/inquiry/new?inquiry=${encodeURIComponent(inq.id)}`}
+                        className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                        aria-label={`Open enquiry workspace for ${c?.full_name ?? 'enquiry'}`}
+                      >
+                        {rowBody}
+                      </Link>
+                    )}
                   </li>
                 );
               })

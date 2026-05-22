@@ -58,7 +58,14 @@ function inquiryBlocksUnitInBookingPicker(
   stageData: unknown,
   approval: ApprovalRow | undefined
 ): boolean {
-  if (isInquiryClosed(stageData)) return false;
+  if (
+    isInquiryClosed(
+      stageData as InquiryStageData | Record<string, unknown> | null,
+      funnelStage
+    )
+  ) {
+    return false;
+  }
   const negotiation = negotiationFromInquiryRow(stageData, approval);
   return bookingBlockedByNegotiationApproval(negotiation, {
     funnelStage: String(funnelStage ?? '')
@@ -82,7 +89,7 @@ export async function unitIdsHiddenByNegotiationApproval(
 
   const active = inquiries.filter((row) => {
     const unitId = String(row.unit_id ?? '').trim();
-    return unitId && !isInquiryClosed(row.stage_data);
+    return unitId && !isInquiryClosed(row.stage_data, row.funnel_stage);
   });
   if (!active.length) return new Set();
 
@@ -130,7 +137,7 @@ export async function inquiryUnitHiddenFromBookingPicker(
     .maybeSingle();
 
   if (error || !inq?.unit_id) return false;
-  if (isInquiryClosed(inq.stage_data)) return false;
+  if (isInquiryClosed(inq.stage_data, inq.funnel_stage)) return false;
 
   const neg = negotiationFromInquiryRow(inq.stage_data, undefined);
   const approvalId = String(neg?.approval_id ?? '').trim();

@@ -6,6 +6,7 @@ import {
 } from '../inventory/unit-status';
 import type { InquiryStageData } from './inquiry-types';
 import { negotiationRequiresApproval } from '@/lib/inquiry/negotiation-discount';
+import { INQUIRY_CLOSED_FUNNEL_STAGE } from './inquiry-funnel-stages';
 import { saveInquiryStageData } from './inquiry-stage-store';
 
 export const SITE_VISIT_OUTCOMES = [
@@ -27,8 +28,12 @@ export type QualifiedStagePayload = {
 };
 
 export function isInquiryClosed(
-  stageData: InquiryStageData | Record<string, unknown> | null | undefined
+  stageData: InquiryStageData | Record<string, unknown> | null | undefined,
+  funnelStage?: string | null
 ): boolean {
+  if (String(funnelStage ?? '').trim() === INQUIRY_CLOSED_FUNNEL_STAGE) {
+    return true;
+  }
   if (!stageData || typeof stageData !== 'object' || Array.isArray(stageData)) {
     return false;
   }
@@ -163,15 +168,17 @@ export async function advanceInquiryToNegotiation(
 }
 
 export function getInquiryClosedStatus(
-  stageData: InquiryStageData | Record<string, unknown> | null | undefined
+  stageData: InquiryStageData | Record<string, unknown> | null | undefined,
+  funnelStage?: string | null
 ): string | null {
+  if (!isInquiryClosed(stageData, funnelStage)) return null;
   if (!stageData || typeof stageData !== 'object' || Array.isArray(stageData)) {
-    return null;
+    return 'Closed';
   }
   const status = String(
     (stageData as Record<string, unknown>).closed_status ?? ''
   ).trim();
-  return status || (isInquiryClosed(stageData) ? 'Closed' : null);
+  return status || 'Closed';
 }
 
 /** Inventory status to apply when `funnel_stage` changes (app + DB mirror). */
@@ -335,7 +342,7 @@ export async function qualifyInquiryWithUnit(
   return { ok: true };
 }
 
-/** Close enquiry: release unit, reset stage to Enquiry, mark `stage_data.closed`. */
+/** Close enquiry: release unit, set funnel to Closed, mark `stage_data.closed`. */
 export async function closeInquiry(
   supabase: SupabaseClient,
   params: {
@@ -362,108 +369,13 @@ export async function closeInquiry(
   const { error: inqErr } = await supabase
     .from('sales_inquiries')
     .update({
-      funnel_stage: 'Enquiry',
+      funnel_stage: INQUIRY_CLOSED_FUNNEL_STAGE,
       stage_data: payload
     })
     .eq('id', inquiryId);
   if (inqErr) return { ok: false, error: inqErr.message };
 
   return { ok: true };
-}
-
-function stripInquiryClosedFlags(
-  stageData: InquiryStageData | Record<string, unknown> | null | undefined
-): Record<string, unknown> {
-  if (!stageData || typeof stageData !== 'object' || Array.isArray(stageData)) {
-    return {};
-  }
-  const { closed: _c, closed_status: _s, ...rest } = stageData as Record<
-    string,
-    unknown
-  >;
-  return rest;
-}
-
-/**
- * Undo a site-visit "Not interested" close: re-block unit, clear closed flags,
- * restore funnel to Qualified so the wizard can proceed.
- */
-export async function reopenInquiryAfterNotInterestedClose(
-  supabase: SupabaseClient,
-  params: {
-    inquiryId: string;
-    unitId: string;
-    siteVisitPatch?: Record<string, unknown>;
-  }
-): Promise<{ ok: boolean; error?: string }> {
-  const inquiryId = String(params.inquiryId || '').trim();
-  const unitId = String(params.unitId || '').trim();
-  if (!inquiryId) return { ok: false, error: 'Missing enquiry id' };
-  if (!unitId) {
-    return { ok: false, error: 'No unit on this enquiry — pick a unit in Qualified first.' };
-  }
-
-  const { data: unitRow, error: unitReadErr } = await supabase
-    .from('units')
-    .select('status')
-    .eq('id', unitId)
-    .maybeSingle();
-  if (unitReadErr) return { ok: false, error: unitReadErr.message };
-
-  const unitStatus = normalizeUnitStatusCode(unitRow?.status as string | undefined);
-  if (!isUnitAvailableForBooking(unitStatus) && !isUnitBlockedStatus(unitStatus)) {
-    return {
-      ok: false,
-      error:
-        'This unit is no longer available. Choose another unit or release the hold on inventory.'
-    };
-  }
-
-  const { data: inqRow, error: inqReadErr } = await supabase
-    .from('sales_inquiries')
-    .select('stage_data')
-    .eq('id', inquiryId)
-    .maybeSingle();
-  if (inqReadErr) return { ok: false, error: inqReadErr.message };
-
-  const stageData = stripInquiryClosedFlags(
-    inqRow?.stage_data as Record<string, unknown> | undefined
-  );
-  const siteVisit = {
-    ...((stageData.site_visit as Record<string, unknown>) ?? {}),
-    ...(params.siteVisitPatch ?? {}),
-    outcome: 'Interested'
-  };
-  stageData.site_visit = siteVisit;
-
-  const { error: linkUnitErr } = await supabase
-    .from('sales_inquiries')
-    .update({ unit_id: unitId })
-    .eq('id', inquiryId);
-  if (linkUnitErr) return { ok: false, error: linkUnitErr.message };
-
-  const unitResult = await applyUnitStatusForFunnelStage(
-    supabase,
-    unitId,
-    'Qualified'
-  );
-  if (unitResult.error) return { ok: false, error: unitResult.error };
-
-  const { error: inqErr } = await supabase
-    .from('sales_inquiries')
-    .update({
-      funnel_stage: 'Qualified',
-      stage_data: stageData
-    })
-    .eq('id', inquiryId);
-  if (inqErr) return { ok: false, error: inqErr.message };
-
-  return saveInquiryStageData(supabase, {
-    inquiryId,
-    patch: { site_visit: siteVisit as InquiryStageData['site_visit'] },
-    funnelStage: 'Qualified',
-    allowFunnelDowngrade: true
-  });
 }
 
 /** @deprecated Use `closeInquiry` */

@@ -26,7 +26,11 @@ import {
 } from '@/components/ui/select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
-import { FUNNEL_STAGES } from './inquiry-funnel-stages';
+import {
+  INQUIRY_CLOSED_FUNNEL_STAGE,
+  INQUIRY_LIST_FUNNEL_STAGES
+} from './inquiry-funnel-stages';
+import { getInquiryClosedStatus, isInquiryClosed } from './inquiry-stage-transitions';
 import {
   embedOne,
   inquiryReference,
@@ -92,6 +96,12 @@ const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   if (v === STAGE_FILTER_NEW_LEADS) {
     return !stage || stage === 'Enquiry';
   }
+  if (v === INQUIRY_CLOSED_FUNNEL_STAGE) {
+    return (
+      stage === INQUIRY_CLOSED_FUNNEL_STAGE ||
+      isInquiryClosed(inq.stage_data, stage)
+    );
+  }
   const display = stage || '—';
   return display === v;
 };
@@ -108,10 +118,14 @@ function parseListUrlColumnFilters(sp: {
     } else if (lower === 'new') {
       filters.push({ id: 'funnelStage', value: STAGE_FILTER_NEW_LEADS });
     } else {
-      const match = [...FUNNEL_STAGES].find(
-        (s) => s.toLowerCase() === lower
-      );
-      if (match) filters.push({ id: 'funnelStage', value: match });
+      if (lower === 'closed') {
+        filters.push({ id: 'funnelStage', value: INQUIRY_CLOSED_FUNNEL_STAGE });
+      } else {
+        const match = [...INQUIRY_LIST_FUNNEL_STAGES].find(
+          (s) => s.toLowerCase() === lower
+        );
+        if (match) filters.push({ id: 'funnelStage', value: match });
+      }
     }
   }
   const sourceRaw = sp.get('source')?.trim();
@@ -169,7 +183,14 @@ export function InquiryListTable({
       ).trim();
       if (s) fromData.add(s);
     }
-    const ordered: string[] = [...FUNNEL_STAGES].filter((s) => fromData.has(s));
+    const ordered: string[] = [...INQUIRY_LIST_FUNNEL_STAGES].filter((s) =>
+      fromData.has(s)
+    );
+    for (const inq of inquiries) {
+      if (isInquiryClosed(inq.stage_data, inq.funnel_stage)) {
+        fromData.add(INQUIRY_CLOSED_FUNNEL_STAGE);
+      }
+    }
     for (const s of fromData) {
       if (!ordered.includes(s)) {
         ordered.push(s);
@@ -243,25 +264,40 @@ export function InquiryListTable({
       {
         id: 'funnelStage',
         header: 'Stage',
-        accessorFn: (row) =>
-          String(row.funnel_stage || '').trim() ||
-          '—',
+        accessorFn: (row) => {
+          if (isInquiryClosed(row.stage_data, row.funnel_stage)) {
+            const reason = getInquiryClosedStatus(row.stage_data);
+            return reason && reason !== 'Closed'
+              ? `${INQUIRY_CLOSED_FUNNEL_STAGE} · ${reason}`
+              : INQUIRY_CLOSED_FUNNEL_STAGE;
+          }
+          return String(row.funnel_stage || '').trim() || '—';
+        },
         filterFn: funnelStageFilterFn,
-        cell: ({ getValue }) => {
+        cell: ({ row, getValue }) => {
+          const closed = isInquiryClosed(
+            row.original.stage_data,
+            row.original.funnel_stage
+          );
           const label = String(getValue() || '—');
+          const stageOnly = closed
+            ? INQUIRY_CLOSED_FUNNEL_STAGE
+            : String(row.original.funnel_stage || '').trim() || '—';
           return (
             <span
               className={cn(
                 'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                label === 'Enquiry' || !label || label === '—'
-                  ? 'border-red-200 bg-red-50 text-red-800'
-                  : label === 'Qualified'
-                    ? 'border-teal-200 bg-teal-50 text-teal-900'
-                    : label === 'Site Visit'
-                      ? 'border-green-200 bg-green-50 text-green-900'
-                      : label === 'Token'
-                        ? 'border-teal-300 bg-teal-100 text-teal-950'
-                        : 'border-slate-200 bg-slate-50 text-slate-800'
+                stageOnly === INQUIRY_CLOSED_FUNNEL_STAGE
+                  ? 'border-ds-gray-300 bg-ds-gray-100 text-ds-gray-800'
+                  : stageOnly === 'Enquiry' || !stageOnly || stageOnly === '—'
+                    ? 'border-red-200 bg-red-50 text-red-800'
+                    : stageOnly === 'Qualified'
+                      ? 'border-teal-200 bg-teal-50 text-teal-900'
+                      : stageOnly === 'Site Visit'
+                        ? 'border-green-200 bg-green-50 text-green-900'
+                        : stageOnly === 'Token'
+                          ? 'border-teal-300 bg-teal-100 text-teal-950'
+                          : 'border-slate-200 bg-slate-50 text-slate-800'
               )}
             >
               {label}
@@ -321,6 +357,17 @@ export function InquiryListTable({
         enableGlobalFilter: false,
         cell: ({ row }) => {
           const inq = row.original;
+          const closed = isInquiryClosed(inq.stage_data, inq.funnel_stage);
+          if (closed) {
+            const reason = getInquiryClosedStatus(inq.stage_data);
+            return (
+              <span className="px-1 text-[10px] font-medium text-ds-gray-500">
+                {reason && reason !== 'Closed'
+                  ? `Closed · ${reason}`
+                  : 'Closed'}
+              </span>
+            );
+          }
           return (
             <div className="flex flex-wrap justify-end gap-1.5">
               <Button

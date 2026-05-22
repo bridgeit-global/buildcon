@@ -52,13 +52,13 @@ import {
   getInquiryClosedStatus,
   isInquiryClosed,
   negotiationBlocksTokenAdvance,
-  qualifyInquiryWithUnit,
-  reopenInquiryAfterNotInterestedClose
+  qualifyInquiryWithUnit
 } from './inquiry-stage-transitions';
 import type { InquiryStageData } from './inquiry-types';
 import { loadInquiryStageData, saveInquiryStageData } from './inquiry-stage-store';
 import {
   funnelStageRank,
+  INQUIRY_CLOSED_FUNNEL_STAGE,
   type InquiryFunnelStage
 } from './inquiry-funnel-stages';
 import type { UnitRow } from './inquiry-types';
@@ -299,9 +299,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           notes: String(row.notes ?? '').trim()
         }));
       }
+      const rowFunnelStage = String(
+        (data as { funnel_stage?: string }).funnel_stage ?? ''
+      ).trim();
       const stageData = (data as { stage_data?: Record<string, unknown> })
         .stage_data;
-      setInquiryClosed(isInquiryClosed(stageData));
+      setInquiryClosed(isInquiryClosed(stageData, rowFunnelStage));
       setClosedStatus(getInquiryClosedStatus(stageData));
       const { data: sd } = await loadInquiryStageData(supabase, id);
       const sv = sd?.site_visit as
@@ -333,7 +336,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       if (neg?.approval_status === 'approved') setApprovalStatus('approved');
       if (neg?.approval_status === 'rejected') {
         setApprovalStatus('rejected');
-        if (!isInquiryClosed(stageData)) {
+        if (!isInquiryClosed(stageData, rowFunnelStage)) {
           const closeResult = await closeInquiry(supabase, {
             inquiryId: id,
             unitId: unitId || null,
@@ -342,6 +345,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           if (closeResult.ok) {
             setInquiryClosed(true);
             setClosedStatus('Rejected');
+            onFunnelStageChange?.(INQUIRY_CLOSED_FUNNEL_STAGE);
           }
         }
       }
@@ -409,17 +413,18 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     void (async () => {
       const { data, error } = await supabase
         .from('sales_inquiries')
-        .select('unit_id, stage_data')
+        .select('unit_id, funnel_stage, stage_data')
         .not('unit_id', 'is', null);
       if (cancelled || error) return;
       const ids = new Set<string>();
       for (const row of data ?? []) {
         const r = row as {
           unit_id?: string | null;
+          funnel_stage?: string | null;
           stage_data?: InquiryStageData | Record<string, unknown> | null;
         };
         const uid = String(r.unit_id ?? '').trim();
-        if (!uid || isInquiryClosed(r.stage_data)) continue;
+        if (!uid || isInquiryClosed(r.stage_data, r.funnel_stage)) continue;
         ids.add(uid);
       }
       setActivelyPursuedUnitIds(ids);
@@ -1109,36 +1114,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     return true;
   }
 
-  async function handleReopenFromNotInterested() {
-    if (!activeInquiryId || saving) return;
-    const uid = String(sellerForm.selectedUnitId || '').trim();
-    if (!uid) {
-      pageError('No unit on this enquiry — go back to Qualified to pick a unit.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const result = await reopenInquiryAfterNotInterestedClose(supabase, {
-        inquiryId: activeInquiryId,
-        unitId: uid,
-        siteVisitPatch: buildSiteVisitStagePayload({ outcome: 'Interested' })
-      });
-      if (!result.ok) {
-        throw new Error(result.error ?? 'Could not reopen enquiry');
-      }
-      setInquiryClosed(false);
-      setClosedStatus(null);
-      onFunnelStageChange?.('Qualified');
-      toast.success('Enquiry reopened — you can continue from site visit.');
-      onStageDataSaved?.();
-      await onInquirySaved?.();
-    } catch (e) {
-      pageError(e instanceof Error ? e.message : 'Reopen failed');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleCloseAsNotInterested(
     interest: SiteVisitInterest = visitInterest
   ) {
@@ -1169,8 +1144,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       if (!result.ok) throw new Error(result.error ?? 'Could not close enquiry');
       setInquiryClosed(true);
       setClosedStatus('Not Interested');
-      onFunnelStageChange?.('Enquiry');
-      toast.success('Enquiry closed — lead moved to Enquiry status. Unit released.');
+      onFunnelStageChange?.(INQUIRY_CLOSED_FUNNEL_STAGE);
+      toast.success('Enquiry closed. Unit released.');
       await onInquirySaved?.();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Close failed');
@@ -1188,15 +1163,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       return;
     }
     if (next === 'Interested') {
-      if (
-        inquiryClosed &&
-        closedStatus === 'Not Interested' &&
-        activeInquiryId &&
-        !stagesReadOnly
-      ) {
-        await handleReopenFromNotInterested();
-        return;
-      }
+      if (inquiryClosed) return;
       if (activeInquiryId && !inquiryClosed && !stagesReadOnly) {
         await persistVisitSiteStage({
           site_visit: buildSiteVisitStagePayload({ outcome: 'Interested' })
@@ -1397,7 +1364,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           onVisitInterestChange={(v) => void handleVisitInterestChange(v)}
           onFollowUpBlur={() => {
             if (!activeInquiryId || stagesReadOnly) return;
-            if (inquiryClosed && closedStatus !== 'Not Interested') return;
+            if (inquiryClosed) return;
             void persistVisitSiteStage({
               site_visit: buildSiteVisitStagePayload()
             });
@@ -1887,10 +1854,7 @@ function StepVisitSite({
   onSkipToNegotiation?: () => void;
   onCreateBooking?: () => void;
 }) {
-  const closedNotInterested =
-    inquiryClosed && closedStatus === 'Not Interested';
-  const formDisabled =
-    (inquiryClosed && !closedNotInterested) || stagesReadOnly;
+  const formDisabled = inquiryClosed || stagesReadOnly;
   if (!selectedUnit) {
     return (
       <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
@@ -1904,20 +1868,14 @@ function StepVisitSite({
       {inquiryClosed ? (
         <div
           role="status"
-          className={cn(
-            'rounded-lg border px-3 py-3 text-xs',
-            closedNotInterested
-              ? 'border-ds-primary-200 bg-ds-primary-50/60 text-ds-gray-800'
-              : 'border-slate-200 bg-slate-50 text-slate-800'
-          )}
+          className="rounded-lg border border-ds-gray-200 bg-ds-gray-50 px-3 py-3 text-xs text-ds-gray-800"
         >
           <p className="font-semibold text-ds-gray-800">
             Enquiry closed · {closedStatus ?? 'Closed'}
           </p>
           <p className="mt-1 text-[11px] text-ds-gray-600">
-            {closedNotInterested
-              ? 'The unit was released. Switch to Interested below to reopen this enquiry, re-block the unit, and continue negotiation or booking.'
-              : 'The unit has been released to available inventory when applicable.'}
+            Stage is Closed. The unit has been released to available inventory when
+            applicable.
           </p>
         </div>
       ) : null}
@@ -1936,7 +1894,7 @@ function StepVisitSite({
         <p className="mt-0.5 text-[11px] text-ds-gray-500">
           Set a follow-up date for the assigned team member. Choosing{' '}
           <span className="font-medium">Not interested</span> closes the enquiry
-          and moves the lead back to Enquiry status.
+          (Closed stage) and releases the unit.
         </p>
         <div className="mt-3 grid gap-3">
           <div>
@@ -1976,18 +1934,8 @@ function StepVisitSite({
         </div>
       </div>
 
-      {visitInterest === 'Not Interested' &&
-      !closedNotInterested &&
-      !formDisabled &&
-      saving ? (
+      {visitInterest === 'Not Interested' && !inquiryClosed && saving ? (
         <p className="text-xs text-ds-gray-600">Closing enquiry…</p>
-      ) : null}
-
-      {visitInterest === 'Interested' &&
-      closedNotInterested &&
-      !stagesReadOnly &&
-      saving ? (
-        <p className="text-xs text-ds-gray-600">Reopening enquiry…</p>
       ) : null}
 
       {visitInterest === 'Interested' && !formDisabled ? (
