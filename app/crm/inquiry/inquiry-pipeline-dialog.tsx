@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { pageError, toast } from '@/lib/toast';
+import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -26,8 +26,12 @@ import {
   tokenStageBlockedByNegotiation,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
-import { writeBookingPrefill } from '../booking-prefill-storage';
-import { buildBookingPrefillFromInquiry } from './booking-prefill-from-inquiry';
+import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inquiry';
+import {
+  INQUIRY_PIPELINE_UI_STAGES,
+  pipelineUiStage,
+  type InquiryPipelineUiStage
+} from './inquiry-funnel-stages';
 import {
   formatInr,
   formatInrCompactLacCr,
@@ -38,32 +42,20 @@ import { statusLabelForUnit } from '../inventory/inventory-utils';
 import type { InquiryStageData } from './inquiry-types';
 import {
   enrichNegotiationFromApprovals,
-  inquiryHasConfirmedBooking,
   loadInquiryStageData,
   persistNegotiationApprovalRequest,
   saveInquiryStageData
 } from './inquiry-stage-store';
-import { isInquiryTokenLocked } from './inquiry-token-stage';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
+
+export { INQUIRY_PIPELINE_UI_STAGES as FUNNEL_STAGES } from './inquiry-funnel-stages';
+
 // ─── Stage definitions ────────────────────────────────────────────────────────
 
-export const FUNNEL_STAGES = [
-  'Enquiry',
-  'Qualified',
-  'Site Visit',
-  'Negotiation',
-  'Token'
-] as const;
-type FunnelStage = (typeof FUNNEL_STAGES)[number];
+type FunnelStage = InquiryPipelineUiStage;
 
-/** First five funnel columns; payloads stored in `sales_inquiries.stage_data`. */
-const PIPELINE_ANCHOR_STAGES = [
-  'Enquiry',
-  'Qualified',
-  'Site Visit',
-  'Negotiation',
-  'Token'
-] as const;
+/** Pipeline UI stages; payloads stored in `sales_inquiries.stage_data`. */
+const PIPELINE_ANCHOR_STAGES = INQUIRY_PIPELINE_UI_STAGES;
 type PipelineAnchorStage = (typeof PIPELINE_ANCHOR_STAGES)[number];
 
 const PIPELINE_STEPS: {
@@ -98,14 +90,7 @@ const PIPELINE_STEPS: {
     label: 'Negotiate',
     step: 4,
     summary:
-      'Track price discussion, discounts or counter-offers, and what was agreed verbally.'
-  },
-  {
-    id: 'Token',
-    label: 'Token',
-    step: 5,
-    summary:
-      'Record token amount, date, payment mode, and reference when the buyer commits.'
+      'Track price discussion, discounts or counter-offers, and what was agreed verbally. When ready to commit, create a booking (token is recorded there).'
   }
 ];
 
@@ -548,6 +533,7 @@ function SiteVisitForm({
   data,
   onChange,
   onAdvance,
+  onCreateBooking,
   onCloseEnquiry,
   saving,
   pipelineClosed
@@ -555,6 +541,7 @@ function SiteVisitForm({
   data: SiteVisitStageData;
   onChange: (d: SiteVisitStageData) => void;
   onAdvance: (stage: PipelineAnchorStage) => void;
+  onCreateBooking: () => void;
   onCloseEnquiry: () => void;
   saving: boolean;
   pipelineClosed: boolean;
@@ -636,10 +623,13 @@ function SiteVisitForm({
           aria-label="Next step after site visit"
         >
           <p className="text-xs font-semibold text-ds-gray-800">Buyer liked the unit — choose next step</p>
-          <p className="mt-1 text-[11px] text-ds-gray-600">Start negotiation if price discussion is needed, or go straight to token if they are ready to commit.</p>
+          <p className="mt-1 text-[11px] text-ds-gray-600">Start negotiation if price discussion is needed, or create a booking when they are ready to commit.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Button type="button" variant="outline" className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700" disabled={saving} onClick={() => onAdvance('Negotiation')}>Negotiation</Button>
-            <Button type="button" className="min-h-11 flex-1 bg-teal-600 hover:bg-teal-700" disabled={saving} onClick={() => onAdvance('Token')}>Skip to token</Button>
+            <Button type="button" className="min-h-11 flex-1 gap-1 bg-teal-600 hover:bg-teal-700" disabled={saving} onClick={onCreateBooking}>
+              Create booking
+              <ArrowRight className="size-3.5 opacity-90" />
+            </Button>
           </div>
         </div>
       ) : null}
@@ -665,7 +655,7 @@ function NegotiationForm({
   listPriceInr,
   supabase,
   onApprovalSubmitted,
-  onApprovedProceedToToken,
+  onApprovedCreateBooking,
   onRejectedClose
 }: {
   data: NegotiationStageData;
@@ -676,7 +666,7 @@ function NegotiationForm({
   listPriceInr?: number | null;
   supabase?: ReturnType<typeof createSupabaseBrowserClient>;
   onApprovalSubmitted?: () => void;
-  onApprovedProceedToToken?: () => void | Promise<void>;
+  onApprovedCreateBooking?: () => void | Promise<void>;
   onRejectedClose?: (decisionNote?: string) => void | Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
@@ -721,7 +711,7 @@ function NegotiationForm({
       }
 
       if (nextStatus === 'approved' && prevStatus !== 'approved') {
-        await onApprovedProceedToToken?.();
+        await onApprovedCreateBooking?.();
         onApprovalSubmitted?.();
         return;
       }
@@ -929,16 +919,17 @@ function NegotiationForm({
           {approvalStatus === 'approved' ? (
             <div className="space-y-2">
               <p className="text-[11px] text-teal-900">
-                Budget approved. Record token when the buyer pays.
+                Budget approved. Create a booking to record token and continue.
               </p>
-              {onApprovedProceedToToken ? (
+              {onApprovedCreateBooking ? (
                 <Button
                   type="button"
-                  className="min-h-11 bg-teal-600 hover:bg-teal-700"
+                  className="min-h-11 gap-1 bg-teal-600 hover:bg-teal-700"
                   disabled={submitting || refreshing}
-                  onClick={() => void onApprovedProceedToToken()}
+                  onClick={() => void onApprovedCreateBooking()}
                 >
-                  Proceed to token
+                  Create booking
+                  <ArrowRight className="size-3.5 opacity-90" />
                 </Button>
               ) : null}
             </div>
@@ -961,115 +952,6 @@ function NegotiationForm({
           ) : null}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function TokenReadOnlySummary({ data }: { data: TokenStageData }) {
-  return (
-    <dl className="grid gap-2 text-sm sm:grid-cols-2">
-      <div>
-        <dt className="text-xs text-ds-gray-500">Token amount (₹)</dt>
-        <dd className="font-medium tabular-nums text-ds-gray-900">
-          {data.amount
-            ? `₹ ${Number(data.amount).toLocaleString('en-IN')}`
-            : '—'}
-        </dd>
-      </div>
-      <div>
-        <dt className="text-xs text-ds-gray-500">Token date</dt>
-        <dd className="font-medium text-ds-gray-900">{data.date ?? '—'}</dd>
-      </div>
-      <div className="sm:col-span-2">
-        <dt className="text-xs text-ds-gray-500">Payment mode</dt>
-        <dd className="font-medium text-ds-gray-900">{data.mode ?? '—'}</dd>
-      </div>
-      {data.reference ? (
-        <div className="sm:col-span-2">
-          <dt className="text-xs text-ds-gray-500">Reference</dt>
-          <dd className="font-medium text-ds-gray-900">{data.reference}</dd>
-        </div>
-      ) : null}
-      {data.notes ? (
-        <div className="sm:col-span-2">
-          <dt className="text-xs text-ds-gray-500">Notes</dt>
-          <dd className="whitespace-pre-wrap font-medium text-ds-gray-900">
-            {data.notes}
-          </dd>
-        </div>
-      ) : null}
-    </dl>
-  );
-}
-
-function TokenForm({
-  data,
-  onChange,
-  readOnly = false
-}: {
-  data: TokenStageData;
-  onChange: (d: TokenStageData) => void;
-  readOnly?: boolean;
-}) {
-  if (readOnly) {
-    return <TokenReadOnlySummary data={data} />;
-  }
-  return (
-    <div className="grid gap-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Token amount (₹)</Label>
-          <Input
-            type="number"
-            className="h-8 text-xs"
-            placeholder="1,00,000"
-            value={data.amount ?? ''}
-            onChange={(e) => onChange({ ...data, amount: e.target.value })}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Token date</Label>
-          <Input
-            type="date"
-            className="h-8 text-xs"
-            value={data.date ?? ''}
-            onChange={(e) => onChange({ ...data, date: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Payment mode</Label>
-        <ToggleGroup
-          options={[
-            { value: 'Cash', label: 'Cash' },
-            { value: 'Cheque', label: 'Cheque' },
-            { value: 'NEFT/RTGS', label: 'NEFT/RTGS' },
-            { value: 'UPI', label: 'UPI' }
-          ]}
-          value={data.mode ?? ''}
-          onChange={(v) => onChange({ ...data, mode: v })}
-        />
-      </div>
-
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Cheque / UTR / UPI ref</Label>
-        <Input
-          className="h-8 text-xs"
-          placeholder="Reference number"
-          value={data.reference ?? ''}
-          onChange={(e) => onChange({ ...data, reference: e.target.value })}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Notes</Label>
-        <Textarea
-          className="min-h-[56px] resize-y text-xs"
-          placeholder="Bank name, handover details…"
-          value={data.notes ?? ''}
-          onChange={(e) => onChange({ ...data, notes: e.target.value })}
-        />
-      </div>
     </div>
   );
 }
@@ -1130,82 +1012,22 @@ export function InquiryPipelinePanel(props: {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
-
-  const navigateToBooking = useCallback(async () => {
+  const navigateToBooking = useCallback(() => {
     const inqId = String(inquiry?.id || '').trim();
     const pid = String(projectId || '').trim();
     const uid = String(unitId || '').trim();
     const cid = String(customerId || '').trim();
     if (!inqId || !pid || !uid || !cid) return;
-
-    setSaving(true);
-        try {
-      const saveResult = await saveInquiryStageData(supabase, {
-        inquiryId: inqId,
-        patch: stageDataToJson(stageData),
-        funnelStage: 'Token' as InquiryFunnelStage,
-        markStagesCompleted: ['Token' as InquiryFunnelStage]
-      });
-      if (!saveResult.ok) throw new Error(saveResult.error ?? 'Could not save token');
-
-      const res = await fetch(
-        `/api/crm/inquiries/${encodeURIComponent(inqId)}/token/complete`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({})
-        }
-      );
-      const json = (await res.json()) as {
-        ok?: boolean;
-        bookingId?: string;
-        error?: string;
-      };
-      if (!res.ok || !json.ok || !json.bookingId) {
-        const msg = json.error ?? 'Could not create booking from token';
-        writeBookingPrefill(
-          buildBookingPrefillFromInquiry({
-            inquiryId: inqId,
-            projectId: pid,
-            customerId: cid,
-            unitId: uid,
-            stageData: stageDataToJson(stageData)
-          })
-        );
-        toast.info(`${msg} — opened the bookings page with prefilled data.`);
-        router.push('/crm/bookings');
-        return;
-      }
-      onSaved();
-      router.push(`/crm/bookings/${json.bookingId}`);
-    } catch (e) {
-      pageError(e instanceof Error ? e.message : 'Booking creation failed');
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    inquiry?.id,
-    projectId,
-    unitId,
-    customerId,
-    stageData,
-    router,
-    supabase,
-    onSaved
-  ]);
+    navigateToCreateBookingFromInquiry(router, {
+      inquiryId: inqId,
+      projectId: pid,
+      customerId: cid,
+      unitId: uid,
+      stageData: stageDataToJson(stageData)
+    });
+  }, [inquiry?.id, projectId, unitId, customerId, stageData, router]);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
-
-  const tokenStageLocked = useMemo(
-    () =>
-      isInquiryTokenLocked(stageDataToJson(stageData), {
-        inquiryClosed: pipelineClosed,
-        bookingConfirmed
-      }),
-    [stageData, pipelineClosed, bookingConfirmed]
-  );
 
   const negotiationBlocksAdvance = tokenStageBlockedByNegotiation(
     stageData.negotiation,
@@ -1248,24 +1070,16 @@ export function InquiryPipelinePanel(props: {
     if (!inquiry) return;
     let cancelled = false;
     void (async () => {
-      const fs = inquiry.funnel_stage ?? 'Enquiry';
-      const currentStage = FUNNEL_STAGES.includes(fs as FunnelStage)
-        ? (fs as FunnelStage)
-        : 'Qualified';
+      const currentStage = pipelineUiStage(inquiry.funnel_stage);
       if (activeStageOverride === undefined) {
-        setActiveStageInternal(
-          PIPELINE_STEPS.some((p) => p.id === currentStage)
-            ? currentStage
-            : 'Qualified'
-        );
+        setActiveStageInternal(currentStage);
       }
       setMacroStep('enquiry');
-      const [{ data, error: loadErr }, confirmed] = await Promise.all([
-        loadInquiryStageData(supabase, inquiry.id),
-        inquiryHasConfirmedBooking(supabase, inquiry.id)
-      ]);
+      const { data, error: loadErr } = await loadInquiryStageData(
+        supabase,
+        inquiry.id
+      );
       if (cancelled) return;
-      setBookingConfirmed(confirmed);
       if (loadErr) {
         setStageData(mergeStageDataFromJson(inquiry.stage_data));
       } else {
@@ -1277,32 +1091,6 @@ export function InquiryPipelinePanel(props: {
       cancelled = true;
     };
   }, [inquiry, supabase, activeStageOverride]);
-
-  function assertCanAdvanceToToken(targetStage: FunnelStage) {
-    if (targetStage !== 'Token') return;
-    if (
-      !tokenStageBlockedByNegotiation(stageData.negotiation, {
-        funnelStage:
-          activeStage === 'Negotiation' ? 'Negotiation' : inquiry?.funnel_stage
-      })
-    ) {
-      return;
-    }
-    const status = getNegotiationApprovalStatus(stageData.negotiation);
-    if (status === 'pending') {
-      throw new Error(
-        'Negotiation budget approval is pending. Wait for admin decision before token.'
-      );
-    }
-    if (status === 'rejected') {
-      throw new Error(
-        'Budget was rejected. Update the offer and send for approval again.'
-      );
-    }
-    throw new Error(
-      'Send the offer for admin approval and wait for acceptance before token.'
-    );
-  }
 
   async function closeFromRejectedApproval(decisionNote?: string) {
     if (!inquiry) return;
@@ -1337,7 +1125,6 @@ export function InquiryPipelinePanel(props: {
         setSaved(false);
     try {
       const targetStage = nextStage ?? activeStage;
-      assertCanAdvanceToToken(targetStage);
       const uid = String(unitId || '').trim();
       if (uid) {
         const unitResult = await applyUnitStatusForFunnelStage(
@@ -1355,7 +1142,6 @@ export function InquiryPipelinePanel(props: {
         markStagesCompleted: [targetStage as InquiryFunnelStage]
       });
       if (!saveResult.ok) throw new Error(saveResult.error ?? 'Save failed');
-      setBookingConfirmed(await inquiryHasConfirmedBooking(supabase, inquiry.id));
       if (nextStage) setActiveStage(nextStage);
       setSaved(true);
       onSaved();
@@ -1477,15 +1263,7 @@ export function InquiryPipelinePanel(props: {
               <VerticalEnquiryStageStepper
                 current={activeStage}
                 onSelect={(stage) => setActiveStage(stage)}
-                canSelectStage={(stage) => {
-                  if (stage !== 'Token') return true;
-                  return !tokenStageBlockedByNegotiation(stageData.negotiation, {
-                    funnelStage:
-                      activeStage === 'Negotiation'
-                        ? 'Negotiation'
-                        : inquiry?.funnel_stage
-                  });
-                }}
+                canSelectStage={() => true}
               />
             ) : null}
             <div className="min-w-0 flex-1 space-y-3">
@@ -1514,6 +1292,7 @@ export function InquiryPipelinePanel(props: {
                     setStageData((s) => ({ ...s, site_visit: d }))
                   }
                   onAdvance={(stage) => void save(stage)}
+                  onCreateBooking={() => navigateToBooking()}
                   onCloseEnquiry={() => void handleCloseEnquiry()}
                   saving={saving}
                   pipelineClosed={pipelineClosed}
@@ -1523,8 +1302,8 @@ export function InquiryPipelinePanel(props: {
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
                   {getNegotiationApprovalStatus(stageData.negotiation) ===
                   'pending'
-                    ? 'Admin approval is pending. Refresh status after decision — token is only available once approved.'
-                    : 'Send the offered price for admin approval. You cannot move to token until it is approved.'}
+                    ? 'Admin approval is pending. Refresh status after decision — create a booking once approved.'
+                    : 'Send the offered price for admin approval before creating a booking.'}
                 </p>
               ) : null}
               {activeStage === 'Negotiation' && (
@@ -1538,7 +1317,7 @@ export function InquiryPipelinePanel(props: {
                   unitId={unitId ?? null}
                   listPriceInr={unitListPriceInr}
                   supabase={supabase}
-                  onApprovedProceedToToken={() => void save('Token')}
+                  onApprovedCreateBooking={() => navigateToBooking()}
                   onRejectedClose={(note) => void closeFromRejectedApproval(note)}
                   onApprovalSubmitted={() => {
                     void (async () => {
@@ -1551,22 +1330,6 @@ export function InquiryPipelinePanel(props: {
                     })();
                   }}
                 />
-              )}
-              {activeStage === 'Token' && (
-                <div className="space-y-3">
-                  {tokenStageLocked ? (
-                    <p className="text-sm text-ds-gray-600">
-                      {bookingConfirmed
-                        ? 'Token was recorded and the linked booking is confirmed. Token details cannot be changed.'
-                        : 'Token was recorded on this enquiry. Token details cannot be changed.'}
-                    </p>
-                  ) : null}
-                  <TokenForm
-                    data={stageData.token ?? {}}
-                    readOnly={tokenStageLocked}
-                    onChange={(d) => setStageData((s) => ({ ...s, token: d }))}
-                  />
-                </div>
               )}
             </div>
           </div>
@@ -1590,16 +1353,13 @@ export function InquiryPipelinePanel(props: {
             </Button>
           ) : pipelineClosed ? null : (
             <>
-              {activeStage === 'Token' &&
-              projectId &&
-              unitId &&
-              customerId ? (
+              {projectId && unitId && customerId ? (
                 <Button
                   type="button"
                   variant="outline"
                   className="gap-1"
                   disabled={saving}
-                  onClick={() => void navigateToBooking()}
+                  onClick={() => navigateToBooking()}
                 >
                   Create booking
                   <ArrowRight className="size-3.5 opacity-90" />

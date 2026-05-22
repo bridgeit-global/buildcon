@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { writeBookingPrefill } from '../booking-prefill-storage';
-import { buildBookingPrefillFromInquiry } from './booking-prefill-from-inquiry';
+import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inquiry';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
 
 const INQUIRY_SELECT = `
@@ -100,16 +99,13 @@ export function useInquiryListResources() {
     (inq: InquiryRowDb) => {
       const pid = String(inq.project_id || '').trim();
       if (!pid || !String(inq.unit_id || '').trim()) return;
-      writeBookingPrefill(
-        buildBookingPrefillFromInquiry({
-          inquiryId: inq.id,
-          projectId: pid,
-          customerId: inq.customer_id,
-          unitId: inq.unit_id,
-          stageData: inq.stage_data
-        })
-      );
-      router.push('/crm/bookings');
+      navigateToCreateBookingFromInquiry(router, {
+        inquiryId: inq.id,
+        projectId: pid,
+        customerId: inq.customer_id,
+        unitId: inq.unit_id,
+        stageData: inq.stage_data
+      });
     },
     [router]
   );

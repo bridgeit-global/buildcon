@@ -14,7 +14,11 @@ import {
 } from '../inquiry-pipeline-dialog';
 import { funnelUnitAlignmentMessage } from '../inquiry-stage-unit-map';
 import type { InquiryFunnelStage } from '../inquiry-stage-unit-map';
-import { INQUIRY_FUNNEL_STAGE_ORDER } from '../inquiry-stage-unit-map';
+import {
+  INQUIRY_PIPELINE_UI_STAGES,
+  pipelineUiStage,
+  type InquiryPipelineUiStage
+} from '../inquiry-funnel-stages';
 import {
   InquiryFunnelStepper,
   funnelStageIndex
@@ -23,9 +27,6 @@ import {
   loadInquiryStageData,
   stageHasMeaningfulData
 } from '../inquiry-stage-store';
-import { tokenStageBlockedByNegotiation } from '../inquiry-stage-transitions';
-import type { InquiryStageData } from '../inquiry-types';
-
 type InquiryFetchRow = {
   id: string;
   project_id: string;
@@ -62,7 +63,8 @@ function NewInquiryPageInner() {
   );
 
   const [wizardStep, setWizardStep] = useState(1);
-  const [viewStage, setViewStage] = useState<InquiryFunnelStage>('Enquiry');
+  const [viewStage, setViewStage] =
+    useState<InquiryPipelineUiStage>('Enquiry');
   const [inquiry, setInquiry] = useState<InquiryPipelineRow | null>(null);
   const [funnelStage, setFunnelStage] = useState('Enquiry');
   const [unitStatus, setUnitStatus] = useState<string | null>(null);
@@ -102,10 +104,8 @@ function NewInquiryPageInner() {
       if (!data) return false;
       const row = data as unknown as InquiryFetchRow;
       const { data: stageData } = await loadInquiryStageData(supabase, id);
-      const fs = String(row.funnel_stage || 'Enquiry').trim() as InquiryFunnelStage;
-      const resolvedStage = INQUIRY_FUNNEL_STAGE_ORDER.includes(fs)
-        ? fs
-        : 'Site Visit';
+      const fs = String(row.funnel_stage || 'Enquiry').trim();
+      const uiStage = pipelineUiStage(fs);
 
       setInquiry({
         id: row.id,
@@ -113,9 +113,9 @@ function NewInquiryPageInner() {
         assigned_to: row.assigned_to,
         stage_data: stageData
       });
-      setFunnelStage(resolvedStage);
-      setViewStage(resolvedStage);
-      setWizardStep(wizardStepForFunnelStage(resolvedStage));
+      setFunnelStage(fs);
+      setViewStage(uiStage);
+      setWizardStep(wizardStepForFunnelStage(uiStage));
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
@@ -124,9 +124,12 @@ function NewInquiryPageInner() {
       setCustomerId(String(row.customer_id || '').trim());
       setProjectId(String(row.project_id || '').trim());
 
-      const filled = new Set<InquiryFunnelStage>();
-      for (const stage of INQUIRY_FUNNEL_STAGE_ORDER) {
+      const filled = new Set<InquiryPipelineUiStage>();
+      for (const stage of INQUIRY_PIPELINE_UI_STAGES) {
         if (stageHasMeaningfulData(stage, stageData)) filled.add(stage);
+      }
+      if (stageHasMeaningfulData('Token', stageData)) {
+        filled.add('Negotiation');
       }
       setStagesWithData(filled);
 
@@ -199,60 +202,40 @@ function NewInquiryPageInner() {
     [loadInquiry]
   );
 
-  const negotiationPayload = useMemo(() => {
-    const sd = inquiry?.stage_data;
-    if (!sd || typeof sd !== 'object' || Array.isArray(sd)) return undefined;
-    return (sd as InquiryStageData).negotiation;
-  }, [inquiry?.stage_data]);
-
-  const tokenNavigationBlocked = useMemo(
-    () =>
-      tokenStageBlockedByNegotiation(negotiationPayload, {
-        funnelStage:
-          viewStage === 'Negotiation' || funnelStage === 'Negotiation'
-            ? 'Negotiation'
-            : funnelStage
-      }),
-    [negotiationPayload, viewStage, funnelStage]
-  );
-
   const handleStageSelect = useCallback(
-    (stage: InquiryFunnelStage) => {
+    (stage: InquiryPipelineUiStage) => {
       if (!inquiryId && stage !== 'Enquiry' && stage !== 'Qualified') return;
-      if (stage === 'Token' && tokenNavigationBlocked) return;
       setViewStage(stage);
-      if (stage === 'Negotiation' || stage === 'Token') {
-        setFunnelStage(stage);
+      if (stage === 'Negotiation') {
+        setFunnelStage('Negotiation');
         return;
       }
       setWizardStep(wizardStepForFunnelStage(stage));
     },
-    [inquiryId, tokenNavigationBlocked]
+    [inquiryId]
   );
 
   const handleFunnelStageChange = useCallback((stage: string) => {
     setFunnelStage(stage);
-    setViewStage(stage as InquiryFunnelStage);
+    setViewStage(pipelineUiStage(stage));
   }, []);
 
   const handleStageDataSaved = useCallback(() => {
     if (inquiryId) void loadInquiry(inquiryId);
   }, [inquiryId, loadInquiry]);
 
-  const handleSkipToStage = useCallback(
-    (stage: InquiryFunnelStage) => {
-      if (stage === 'Token' && tokenNavigationBlocked) return;
-      setViewStage(stage);
-      if (stage === 'Negotiation' || stage === 'Token') {
-        setFunnelStage(stage);
-      }
-    },
-    [tokenNavigationBlocked]
-  );
-
-  const handlePipelineStageChange = useCallback((stage: InquiryFunnelStage) => {
-    setViewStage(stage);
+  const handleSkipToStage = useCallback((stage: InquiryFunnelStage) => {
+    const ui = pipelineUiStage(stage);
+    setViewStage(ui);
+    if (ui === 'Negotiation') setFunnelStage('Negotiation');
   }, []);
+
+  const handlePipelineStageChange = useCallback(
+    (stage: InquiryPipelineUiStage) => {
+      setViewStage(stage);
+    },
+    []
+  );
 
   const pipelineUnitStageNote = useMemo(
     () =>
@@ -269,7 +252,7 @@ function NewInquiryPageInner() {
 
   const headerSub =
     inquiryId && (unitCode || funnelStage)
-      ? [unitCode, funnelStage].filter(Boolean).join(' · ')
+      ? [unitCode, pipelineUiStage(funnelStage)].filter(Boolean).join(' · ')
       : 'Customer & unit preferences, then qualify a unit and record the site visit.';
 
   const resuming = Boolean(resumeInquiryId && !resumeReady);
@@ -278,8 +261,7 @@ function NewInquiryPageInner() {
     : Math.min(wizardStep - 1, 2);
 
   const showPipelinePanel =
-    Boolean(inquiryId) &&
-    (viewStage === 'Negotiation' || viewStage === 'Token');
+    Boolean(inquiryId) && viewStage === 'Negotiation';
 
   const showWizard =
     !showPipelinePanel &&
@@ -323,11 +305,6 @@ function NewInquiryPageInner() {
             disabled={resuming}
             onSelect={inquiryId || wizardStep > 1 ? handleStageSelect : undefined}
           />
-          {tokenNavigationBlocked && viewStage === 'Negotiation' ? (
-            <p className="mt-2 text-[11px] text-amber-900">
-              Token step unlocks after admin approves the negotiated offer.
-            </p>
-          ) : null}
         </div>
 
         <div className="px-4 py-4 sm:px-6">

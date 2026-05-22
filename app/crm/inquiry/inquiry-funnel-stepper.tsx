@@ -3,29 +3,30 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  INQUIRY_FUNNEL_STAGE_ORDER,
-  type InquiryFunnelStage
+  INQUIRY_PIPELINE_UI_STAGES,
+  pipelineUiStage,
+  type InquiryFunnelStage,
+  type InquiryPipelineUiStage
 } from './inquiry-funnel-stages';
 
-export const FUNNEL_STEP_LABELS: Record<InquiryFunnelStage, string> = {
+export const FUNNEL_STEP_LABELS: Record<InquiryPipelineUiStage, string> = {
   Enquiry: 'Enquiry',
   Qualified: 'Qualified',
   'Site Visit': 'Visit site',
-  Negotiation: 'Negotiate',
-  Token: 'Token'
+  Negotiation: 'Negotiate'
 };
 
 export function funnelStageIndex(stage: string): number {
-  const t = String(stage || '').trim() as InquiryFunnelStage;
-  const idx = INQUIRY_FUNNEL_STAGE_ORDER.indexOf(t);
+  const t = pipelineUiStage(stage);
+  const idx = INQUIRY_PIPELINE_UI_STAGES.indexOf(t);
   return idx >= 0 ? idx : 0;
 }
 
 type InquiryFunnelStepperProps = {
   currentStage: string;
   maxReachableIndex?: number;
-  stagesWithData?: Set<InquiryFunnelStage>;
-  onSelect?: (stage: InquiryFunnelStage) => void;
+  stagesWithData?: Set<InquiryFunnelStage | InquiryPipelineUiStage>;
+  onSelect?: (stage: InquiryPipelineUiStage) => void;
   disabled?: boolean;
   className?: string;
 };
@@ -41,9 +42,9 @@ export function InquiryFunnelStepper({
   const currentIdx = funnelStageIndex(currentStage);
   const maxIdx =
     maxReachableIndex != null
-      ? Math.min(maxReachableIndex, INQUIRY_FUNNEL_STAGE_ORDER.length - 1)
+      ? Math.min(maxReachableIndex, INQUIRY_PIPELINE_UI_STAGES.length - 1)
       : currentIdx;
-  const last = INQUIRY_FUNNEL_STAGE_ORDER.length - 1;
+  const last = INQUIRY_PIPELINE_UI_STAGES.length - 1;
 
   return (
     <div
@@ -67,7 +68,7 @@ export function InquiryFunnelStepper({
           />
         ) : null}
 
-        {INQUIRY_FUNNEL_STAGE_ORDER.map((stage, idx) => {
+        {INQUIRY_PIPELINE_UI_STAGES.map((stage, idx) => {
           const isDone = idx < currentIdx;
           const isActive = idx === currentIdx;
           const hasData = stagesWithData?.has(stage) ?? false;

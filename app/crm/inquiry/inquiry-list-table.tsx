@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
-import { FUNNEL_STAGES } from './inquiry-pipeline-dialog';
+import { FUNNEL_STAGES } from './inquiry-funnel-stages';
 import {
   embedOne,
   inquiryReference,

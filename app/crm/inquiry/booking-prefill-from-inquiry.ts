@@ -1,4 +1,5 @@
 import type { BookingPrefillV1 } from '../booking-prefill-storage';
+import { writeBookingPrefill } from '../booking-prefill-storage';
 import { negotiatedPriceFromInquiryStage } from '../booking-financial-total';
 import { inquiryReference } from './inquiry-helpers';
 import type { InquiryStageData } from './inquiry-types';
@@ -76,4 +77,13 @@ export function buildBookingPrefillFromInquiry(
     paymentReference: String(token.reference ?? '').trim() || null,
     negotiatedPriceInr
   };
+}
+
+/** Open `/crm/bookings` with session prefill from an enquiry. */
+export function navigateToCreateBookingFromInquiry(
+  router: { push: (url: string) => void },
+  input: BuildBookingPrefillInput
+): void {
+  writeBookingPrefill(buildBookingPrefillFromInquiry(input));
+  router.push('/crm/bookings');
 }

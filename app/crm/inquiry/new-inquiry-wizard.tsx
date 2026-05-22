@@ -26,6 +26,10 @@ import {
 } from '../booking-cost-utils';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 import {
+  navigateToCreateBookingFromInquiry,
+  type BuildBookingPrefillInput
+} from './booking-prefill-from-inquiry';
+import {
   formatFloorLabel,
   isUnitAvailableForBooking,
   statusLabelForUnit
@@ -725,56 +729,55 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
   }
 
-  function canProceedToToken(): boolean {
-    if (inquiryClosed) return false;
-    if (negotiationBlocksTokenAdvance({ approval_status: approvalStatus, approval_id: latestApprovalId, offered_price: negotiationOffer })) {
-      return false;
-    }
-    return true;
-  }
-
-  async function applyTokenStage(): Promise<boolean> {
-    if (!activeInquiryId) return false;
-    const ok = await persistVisitSiteStage(
-      {
-        site_visit: {
-          outcome: 'Interested',
-          scheduled_at: sellerForm.followUpDate.trim() || undefined
-        }
-      },
-      'Token'
-    );
-    if (!ok) return false;
-    const uid = String(sellerForm.selectedUnitId || '').trim();
-    if (uid) {
-      const unitResult = await applyUnitStatusForFunnelStage(
-        supabase,
-        uid,
-        'Token'
-      );
-      if (unitResult.error) throw new Error(unitResult.error);
-    }
-    onSkipToStage?.('Token');
-    toast.success('Token recorded. Unit marked TOKEN in inventory.');
-    await onInquirySaved?.();
-    return true;
-  }
-
-  async function handleCustomerGaveToken() {
+  async function handleCreateBookingFromVisit() {
     if (!activeInquiryId || saving) return;
-    if (!canProceedToToken()) {
+    const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
+    const uid = String(sellerForm.selectedUnitId || '').trim();
+    if (!inquiryProjectId || !uid) return;
+    if (
+      negotiationBlocksTokenAdvance({
+        approval_status: approvalStatus,
+        approval_id: latestApprovalId,
+        offered_price: negotiationOffer
+      })
+    ) {
       pageError(
         approvalStatus === 'pending'
-          ? 'Budget approval is pending in the Negotiate stage. Check status there before token.'
-          : 'Complete budget approval in the Negotiate stage before token.'
+          ? 'Budget approval is pending in the Negotiate stage. Check status there before creating a booking.'
+          : 'Complete budget approval in the Negotiate stage before creating a booking.'
       );
       return;
     }
     setSaving(true);
         try {
-      await applyTokenStage();
+      const customerId = await persistCustomerToDb();
+      if (!customerId) return;
+      await persistVisitSiteStage({
+        site_visit: {
+          outcome: 'Interested',
+          scheduled_at: sellerForm.followUpDate.trim() || undefined
+        }
+      });
+      const prefill: BuildBookingPrefillInput = {
+        inquiryId: activeInquiryId,
+        projectId: inquiryProjectId,
+        customerId,
+        unitId: uid,
+        parkingRequired: sellerForm.parkingRequired,
+        parkingCount: sellerForm.parkingCount,
+        parkingSlotsAvailable: projectParking?.parking_slots ?? null,
+        parkingRateSnapshot: projectParking?.parking_rate ?? null
+      };
+      const { data: stageData } = await loadInquiryStageData(
+        supabase,
+        activeInquiryId
+      );
+      if (stageData) prefill.stageData = stageData;
+      navigateToCreateBookingFromInquiry(router, prefill);
     } catch (e) {
-      pageError(e instanceof Error ? e.message : 'Update failed');
+      pageError(
+        e instanceof Error ? e.message : 'Could not open create booking'
+      );
     } finally {
       setSaving(false);
     }
@@ -852,7 +855,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           saving={saving}
           onCloseNotInterested={() => void handleCloseAsNotInterested()}
           onSkipToNegotiation={() => onSkipToStage?.('Negotiation')}
-          onSkipToToken={() => void handleCustomerGaveToken()}
+          onCreateBooking={() => void handleCreateBookingFromVisit()}
         />
       ) : null}
 
@@ -1340,7 +1343,7 @@ function StepVisitSite({
   saving,
   onCloseNotInterested,
   onSkipToNegotiation,
-  onSkipToToken
+  onCreateBooking
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
@@ -1354,7 +1357,7 @@ function StepVisitSite({
   saving: boolean;
   onCloseNotInterested: () => void;
   onSkipToNegotiation?: () => void;
-  onSkipToToken?: () => void;
+  onCreateBooking?: () => void;
 }) {
   if (!selectedUnit) {
     return (
@@ -1438,15 +1441,15 @@ function StepVisitSite({
             Buyer liked the unit — choose next step
           </p>
           <p className="text-[11px] text-ds-gray-600">
-            Start negotiation if price discussion is needed, or go straight to
-            token if they are ready to commit. Budget approval is handled in the
+            Start negotiation if price discussion is needed, or create a booking
+            when they are ready to commit. Budget approval is handled in the
             Negotiate stage.
           </p>
           {tokenBlockedByApproval ? (
             <p className="text-[11px] text-amber-900">
               {approvalStatus === 'pending'
-                ? 'Budget approval is pending in the Negotiate stage. Complete or refresh there before token.'
-                : 'Complete budget approval in the Negotiate stage before token.'}
+                ? 'Budget approval is pending in the Negotiate stage. Complete or refresh there before creating a booking.'
+                : 'Complete budget approval in the Negotiate stage before creating a booking.'}
             </p>
           ) : null}
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -1461,11 +1464,12 @@ function StepVisitSite({
             </Button>
             <Button
               type="button"
-              className="min-h-11 flex-1 bg-teal-600 hover:bg-teal-700"
+              className="min-h-11 flex-1 gap-1 bg-teal-600 hover:bg-teal-700"
               disabled={saving || tokenBlockedByApproval}
-              onClick={onSkipToToken}
+              onClick={onCreateBooking}
             >
-              Skip to token
+              Create booking
+              <ArrowRight className="size-3.5 opacity-90" />
             </Button>
           </div>
         </div>
