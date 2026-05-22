@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -380,7 +381,7 @@ export default function BrokersPage() {
                 ['Phone', selected.phone ?? '—'],
                 ['Email', selected.email ?? '—'],
                 ['License', selected.license_no ?? '—'],
-                ['Created', new Date(selected.created_at).toLocaleString()],
+                ['Created', formatDisplayDateTime(selected.created_at)],
                 [
                   'Notes',
                   selected.notes?.trim() ? selected.notes : '—'

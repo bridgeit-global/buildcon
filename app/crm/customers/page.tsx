@@ -26,6 +26,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
+import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-date';
 import {
   isAadhaarLast4Valid,
   isCustomerKycComplete,
@@ -1711,7 +1712,7 @@ export default function CustomersPage() {
                     <InfoRow label="Email" value={selected.email ?? '—'} />
                     <InfoRow
                       label="Date of birth"
-                      value={selected.dob ?? '—'}
+                      value={formatDisplayDate(selected.dob)}
                     />
                     <InfoRow
                       label="Occupation"
@@ -1751,7 +1752,7 @@ export default function CustomersPage() {
                     />
                     <InfoRow
                       label="Customer since"
-                      value={new Date(selected.created_at).toLocaleString()}
+                      value={formatDisplayDateTime(selected.created_at)}
                     />
                   </div>
                 </div>
@@ -1807,7 +1808,7 @@ export default function CustomersPage() {
                                 className="border-b border-gray-100"
                               >
                                 <td className="whitespace-nowrap px-3 py-2 text-gray-700">
-                                  {new Date(row.created_at).toLocaleString()}
+                                  {formatDisplayDateTime(row.created_at)}
                                 </td>
                                 <td className="px-3 py-2 text-gray-900">
                                   {embedOne(row.projects)?.name ?? '—'}
@@ -1945,7 +1946,7 @@ export default function CustomersPage() {
                                 {d.verified_status}
                               </td>
                               <td className="whitespace-nowrap px-3 py-2 text-gray-600">
-                                {new Date(d.uploaded_at).toLocaleString()}
+                                {formatDisplayDateTime(d.uploaded_at)}
                               </td>
                               <td className="whitespace-nowrap px-3 py-2 text-right">
                                 <div className="flex justify-end gap-1">
@@ -2301,7 +2302,7 @@ export default function CustomersPage() {
                             <div className="mt-1 text-xs text-gray-600">
                               {n.relationship ?? '—'} · DOB{' '}
                               {n.nominee_dob
-                                ? new Date(n.nominee_dob).toLocaleDateString()
+                                ? formatDisplayDate(n.nominee_dob)
                                 : '—'}
                             </div>
                           </div>

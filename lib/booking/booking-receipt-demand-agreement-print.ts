@@ -297,7 +297,7 @@ export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
         <tr><th>Unit</th><td>${esc(unitLine(input))}</td></tr>
         ${input.instalmentLabel ? `<tr><th>Instalment / milestone</th><td>${esc(input.instalmentLabel)}</td></tr>` : ''}
         <tr><th>Amount demanded</th><td>${esc(formatInr(dueAmount))}</td></tr>
-        ${input.demandDueDate ? `<tr><th>Due date</th><td>${esc(input.demandDueDate)}</td></tr>` : ''}
+        ${input.demandDueDate ? `<tr><th>Due date</th><td>${esc(formatDisplayDate(input.demandDueDate))}</td></tr>` : ''}
         <tr><th>Current workflow stage</th><td>${esc(display(input.workflowStage, '—'))}</td></tr>
       </tbody>
     </table>

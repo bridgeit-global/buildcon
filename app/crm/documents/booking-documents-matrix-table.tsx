@@ -18,6 +18,7 @@ import {
   parseKindFromBookingGeneratedPath,
   parseLinkIdFromBookingGeneratedPath
 } from '@/lib/booking/booking-generated-doc-kind';
+import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-date';
 import type { GeneratedDocRow } from './generated-documents-table';
 import { storageBucketForGeneratedPath } from './generated-documents-table';
 
@@ -203,7 +204,7 @@ export function BookingDocumentsMatrixTable({
           return (
             <div className="text-sm text-ds-gray-600">
               <span className="whitespace-nowrap">
-                Latest {new Date(latest.generated_at).toLocaleString()}
+                Latest {formatDisplayDateTime(latest.generated_at)}
               </span>
               {showLinked && recent.length > 0 ? (
                 <ul className="mt-1 space-y-0.5 text-xs text-ds-primary-800">
@@ -212,7 +213,7 @@ export function BookingDocumentsMatrixTable({
                     return (
                       <li key={v.id}>
                         {lbl ?? 'Saved PDF'} ·{' '}
-                        {new Date(v.generated_at).toLocaleDateString()}
+                        {formatDisplayDate(v.generated_at)}
                       </li>
                     );
                   })}

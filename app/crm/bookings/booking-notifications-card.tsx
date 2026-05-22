@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError, toast } from '@/lib/toast';
 import { Loader2, RefreshCw, Send } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -116,7 +117,7 @@ export function BookingNotificationsCard({ bookingId }: Props) {
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-ds-gray-100">
                   <td className="px-3 py-2 text-xs text-ds-gray-600">
-                    {new Date(r.processed_at ?? r.created_at).toLocaleString()}
+                    {formatDisplayDateTime(r.processed_at ?? r.created_at)}
                   </td>
                   <td className="px-3 py-2 capitalize">{r.channel}</td>
                   <td className="px-3 py-2 text-xs text-ds-gray-700">{r.recipient ?? '—'}</td>

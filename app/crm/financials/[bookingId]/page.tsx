@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr, formatInrCompactLacCr } from '../../inr-format';
 import { PaymentScheduleTable } from '../payment-schedule-table';
 import {
@@ -537,7 +538,7 @@ export default function FinancialsBookingPage() {
                     })}
                   </div>
                   <div className="text-xs text-ds-gray-500">
-                    {c.mode ?? '—'} · {c.received_at ?? '—'} · {c.reference ?? '—'}
+                    {c.mode ?? '—'} · {formatDisplayDate(c.received_at)} · {c.reference ?? '—'}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

@@ -1,3 +1,5 @@
+import { formatDisplayDate } from '@/lib/format-display-date';
+
 export type AllotmentLetterPrintInput = {
   letterRef?: string | null;
   allotmentDate?: string | null;
@@ -35,11 +37,7 @@ function formatInr(amount: number | null | undefined): string {
 }
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+  return formatDisplayDate(d);
 }
 
 function formatDateInput(raw: string | null | undefined, fallback: Date): string {

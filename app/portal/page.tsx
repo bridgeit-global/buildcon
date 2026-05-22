@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { formatInrCompactLacCr } from '@/app/crm/inr-format';
+import { formatDisplayDate } from '@/lib/format-display-date';
 
 type BookingRow = {
   id: string;
@@ -148,7 +149,7 @@ export default function PortalHomePage() {
                     {u?.unit_code ?? 'Unit'} · {p?.name ?? 'Project'}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    Booked {new Date(b.created_at).toLocaleDateString('en-IN')}
+                    Booked {formatDisplayDate(b.created_at)}
                   </div>
                   {b.booking_amount != null && b.booking_amount > 0 ? (
                     <div className="mt-1 text-xs text-slate-700">

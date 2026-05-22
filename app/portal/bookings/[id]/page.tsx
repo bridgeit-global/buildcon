@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { formatInr } from '@/app/crm/inr-format';
+import { formatDisplayDate } from '@/lib/format-display-date';
 
 type ScheduleRow = {
   id: string;
@@ -160,7 +161,7 @@ export default function PortalBookingDetailPage() {
                     <td className="py-2 pr-2">{s.instalment_no}</td>
                     <td className="py-2 pr-2 font-medium">{s.milestone}</td>
                     <td className="py-2 pr-2 text-slate-600">
-                      {s.due_date ?? '—'}
+                      {formatDisplayDate(s.due_date)}
                     </td>
                     <td className="py-2 pr-2">
                       ₹{' '}
@@ -188,7 +189,7 @@ export default function PortalBookingDetailPage() {
                 })}
               </div>
               <div className="text-xs text-slate-500">
-                {c.mode ?? '—'} · {c.received_at ?? '—'} · {c.reference ?? '—'}
+                {c.mode ?? '—'} · {formatDisplayDate(c.received_at)} · {c.reference ?? '—'}
               </div>
             </li>
           ))}

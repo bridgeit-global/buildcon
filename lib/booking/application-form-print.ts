@@ -1,5 +1,6 @@
 import type { ApplicationFormApplicantRow } from '@/lib/customer/application-form-data';
 import DOCX_PARAS from '@/lib/booking/application-form-docx-paras.json';
+import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type ApplicationFormPrintInput = {
   applicationFormNo?: string | null;
@@ -78,11 +79,7 @@ function formatInr(amount: number | null | undefined): string {
 }
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+  return formatDisplayDate(d);
 }
 
 function formatTokenDate(raw: string | null | undefined, fallback: Date): string {

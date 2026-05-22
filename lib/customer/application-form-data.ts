@@ -1,4 +1,5 @@
 import { maskAadhaarLast4 } from '@/lib/customer/kyc-identifiers';
+import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type CustomerAddressSnippet = {
   kind: string;
@@ -48,11 +49,7 @@ export function formatDobForForm(dob: string | null | undefined): string {
   if (!dob) return '—';
   const d = new Date(String(dob).slice(0, 10));
   if (Number.isNaN(d.getTime())) return String(dob);
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+  return formatDisplayDate(d);
 }
 
 export const RESIDENTIAL_STATUS_OPTIONS = [

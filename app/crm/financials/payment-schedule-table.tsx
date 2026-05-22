@@ -1,5 +1,6 @@
 'use client';
 
+import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr } from '../inr-format';
 
 export type PaymentScheduleLine = {
@@ -72,7 +73,7 @@ export function PaymentScheduleTable({
                       {s.milestone}
                     </td>
                     <td className={`${cellPad} text-ds-gray-600`}>
-                      {s.due_date ?? '—'}
+                      {formatDisplayDate(s.due_date)}
                     </td>
                     <td className={`${cellPad} text-ds-gray-700`}>
                       ₹ {formatInr(Number(s.amount || 0), { maximumFractionDigits: 0 })}

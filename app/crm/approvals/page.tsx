@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatInrCompactLacCr } from '../inr-format';
 import {
   embedOne,
@@ -139,10 +140,7 @@ function fmtInr(value: number | null): string {
 }
 
 function fmtDateTime(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString();
+  return formatDisplayDateTime(iso);
 }
 
 export default function ApprovalsPage() {

@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { formatDisplayDate } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
 import {
   formatInrCompactLacCr,
@@ -314,9 +315,7 @@ function UnitDetailDialog({
   const billable = unitBillableAreaSqft(unit);
   const baseInr = unitBaseAgreementInr(unit);
   const totalInr = unitAgreementTotalInr(unit);
-  const bookedOn = booking?.created_at
-    ? new Date(booking.created_at).toLocaleDateString('en-IN')
-    : '—';
+  const bookedOn = formatDisplayDate(booking?.created_at);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2448,9 +2447,7 @@ function InventoryPageContent() {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-[11px] text-slate-500">
-                      {u.blocked_on
-                        ? new Date(u.blocked_on).toLocaleDateString('en-IN')
-                        : '—'}
+                      {formatDisplayDate(u.blocked_on)}
                     </td>
                     <td className="px-3 py-2">
                       <button

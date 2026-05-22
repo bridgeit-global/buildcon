@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { pageError } from '@/lib/toast';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -211,7 +212,7 @@ export function GeneratedDocumentsTable({
       accessorKey: 'generated_at',
       cell: ({ getValue }) => (
         <span className="whitespace-nowrap text-ds-gray-600">
-          {new Date(String(getValue())).toLocaleString()}
+          {formatDisplayDateTime(String(getValue()))}
         </span>
       )
     };

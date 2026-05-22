@@ -8,6 +8,7 @@ import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInr } from '../inr-format';
+import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
 import type { InquiryStageData } from '../inquiry/inquiry-types';
 import { isInquiryClosed } from '../inquiry/inquiry-stage-transitions';
@@ -283,12 +284,7 @@ export default function WorkQueuePage() {
                   followRows.map((r) => (
                     <tr key={r.followId} className="border-b border-slate-100">
                       <td className="whitespace-nowrap px-3 py-2 text-xs">
-                        {new Date(r.dueAt).toLocaleString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                        {formatDisplayDateTime(r.dueAt)}
                       </td>
                       <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
                         {r.projectName}
@@ -349,13 +345,7 @@ export default function WorkQueuePage() {
                   visitRows.map((r) => (
                     <tr key={r.visitId} className="border-b border-slate-100">
                       <td className="whitespace-nowrap px-3 py-2 text-xs">
-                        {new Date(r.scheduledAt).toLocaleString('en-IN', {
-                          weekday: 'short',
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                        {formatDisplayDateTime(r.scheduledAt)}
                       </td>
                       <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
                         {r.projectName}
@@ -433,7 +423,7 @@ export default function WorkQueuePage() {
                       </td>
                       <td className="px-3 py-2 text-xs">{r.milestone}</td>
                       <td className="px-3 py-2 text-xs text-slate-600">
-                        {r.due_date ?? '—'}
+                        {formatDisplayDate(r.due_date)}
                       </td>
                       <td className="px-3 py-2 text-xs font-semibold text-red-700">
                         ₹{' '}

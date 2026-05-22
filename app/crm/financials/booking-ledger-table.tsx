@@ -7,6 +7,7 @@ import {
   useReactTable,
   type ColumnDef
 } from '@tanstack/react-table';
+import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr } from '../inr-format';
 
 export type BookingLedgerScheduleInput = {
@@ -52,7 +53,7 @@ export function buildBookingLedgerRows(
       sortDate: s.due_date?.slice(0, 10) || '1970-01-01',
       type: 'debit',
       label: `${s.instalment_no}. ${s.milestone}`,
-      detail: s.due_date ? `Due ${s.due_date}` : 'Demand',
+      detail: s.due_date ? `Due ${formatDisplayDate(s.due_date)}` : 'Demand',
       amount: amt
     });
   }
@@ -105,9 +106,12 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
         accessorKey: 'sortDate',
         cell: ({ row }) => (
           <span className="whitespace-nowrap tabular-nums text-ds-gray-700">
-            {row.original.sortDate === '1970-01-01' || row.original.sortDate === '2099-12-31'
-              ? '—'
-              : row.original.sortDate}
+            {formatDisplayDate(
+              row.original.sortDate === '1970-01-01' ||
+                row.original.sortDate === '2099-12-31'
+                ? null
+                : row.original.sortDate
+            )}
           </span>
         )
       },
