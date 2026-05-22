@@ -65,6 +65,8 @@ import {
   readConsumeBookingPrefill,
   type BookingPrefillV1
 } from '../booking-prefill-storage';
+import { loadInquiryStageData } from '../inquiry/inquiry-stage-store';
+import { negotiationApprovalBlockMessage } from '../inquiry/inquiry-stage-transitions';
 import { BookingListTable } from './booking-list-table';
 import type { BookingListRow } from './booking-types';
 
@@ -383,6 +385,9 @@ export default function BookingsPage() {
   const [inquiryNegotiatedPrice, setInquiryNegotiatedPrice] = useState<
     number | null
   >(null);
+  const [inquiryBookingBlockMessage, setInquiryBookingBlockMessage] = useState<
+    string | null
+  >(null);
   const [breakdownUnit, setBreakdownUnit] = useState<UnitOption | null>(null);
   const [unitFromInquiryUnavailable, setUnitFromInquiryUnavailable] =
     useState(false);
@@ -652,6 +657,7 @@ export default function BookingsPage() {
     const inquiryId = prefillMeta?.inquiryId;
     if (!inquiryId) {
       setInquiryNegotiatedPrice(null);
+      setInquiryBookingBlockMessage(null);
       return;
     }
     if (
@@ -659,21 +665,34 @@ export default function BookingsPage() {
       prefillMeta.negotiatedPriceInr > 0
     ) {
       setInquiryNegotiatedPrice(prefillMeta.negotiatedPriceInr);
-      return;
     }
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
+      const { data: inq } = await supabase
         .from('sales_inquiries')
-        .select('stage_data')
+        .select('funnel_stage, stage_data')
         .eq('id', inquiryId)
         .maybeSingle();
       if (cancelled) return;
-      setInquiryNegotiatedPrice(
-        negotiatedPriceFromInquiryStage(
-          (data?.stage_data as Record<string, unknown> | null) ?? null
-        )
+      const { data: stageData } = await loadInquiryStageData(supabase, inquiryId);
+      if (cancelled) return;
+      setInquiryBookingBlockMessage(
+        negotiationApprovalBlockMessage(stageData.negotiation, {
+          funnelStage: String(inq?.funnel_stage ?? '')
+        })
       );
+      if (
+        !(
+          prefillMeta.negotiatedPriceInr != null &&
+          prefillMeta.negotiatedPriceInr > 0
+        )
+      ) {
+        setInquiryNegotiatedPrice(
+          negotiatedPriceFromInquiryStage(
+            stageData as Record<string, unknown>
+          )
+        );
+      }
     })();
     return () => {
       cancelled = true;
@@ -683,6 +702,11 @@ export default function BookingsPage() {
   async function createBooking() {
     const selectedUnit = units.find((u) => u.id === unitId);
     if (!selectedUnit?.project_id || !unitId || !customerId) return;
+
+    if (inquiryBookingBlockMessage) {
+      pageError(inquiryBookingBlockMessage);
+      return;
+    }
 
     const coIdsOrdered = coBuyerSlots
       .map((s) => s.customerId)
@@ -1122,6 +1146,7 @@ export default function BookingsPage() {
                 onClick={() => {
                   setPrefillMeta(null);
                   setPrefillCustomerMissing(false);
+                  setInquiryBookingBlockMessage(null);
                   setBreakdownUnit(null);
                   setUnitFromInquiryUnavailable(false);
                 }}
@@ -1144,6 +1169,11 @@ export default function BookingsPage() {
                     the inquiry unit until you choose one.
                   </>
                 )}
+              </div>
+            ) : null}
+            {inquiryBookingBlockMessage ? (
+              <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950">
+                {inquiryBookingBlockMessage}
               </div>
             ) : null}
             {prefillCustomerMissing ? (
@@ -1638,7 +1668,12 @@ export default function BookingsPage() {
         <div className="mt-4 flex justify-end">
           <Button
             onClick={createBooking}
-            disabled={creating || !unitId || !customerId}
+            disabled={
+              creating ||
+              !unitId ||
+              !customerId ||
+              Boolean(inquiryBookingBlockMessage)
+            }
           >
             {creating ? 'Starting…' : 'Record token & continue'}
           </Button>

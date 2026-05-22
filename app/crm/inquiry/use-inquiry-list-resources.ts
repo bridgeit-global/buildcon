@@ -5,6 +5,7 @@ import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inquiry';
+import { negotiationApprovalBlockMessage } from './inquiry-stage-transitions';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
 
 const INQUIRY_SELECT = `
@@ -99,6 +100,20 @@ export function useInquiryListResources() {
     (inq: InquiryRowDb) => {
       const pid = String(inq.project_id || '').trim();
       if (!pid || !String(inq.unit_id || '').trim()) return;
+      const stageData = inq.stage_data as Record<string, unknown> | null | undefined;
+      const negotiation =
+        stageData &&
+        typeof stageData === 'object' &&
+        !Array.isArray(stageData)
+          ? (stageData.negotiation as Record<string, unknown> | undefined)
+          : undefined;
+      const blockMsg = negotiationApprovalBlockMessage(negotiation, {
+        funnelStage: inq.funnel_stage
+      });
+      if (blockMsg) {
+        pageError(blockMsg);
+        return;
+      }
       navigateToCreateBookingFromInquiry(router, {
         inquiryId: inq.id,
         projectId: pid,

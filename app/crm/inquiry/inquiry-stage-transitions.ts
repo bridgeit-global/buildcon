@@ -103,6 +103,41 @@ export function tokenStageBlockedByNegotiation(
   return negotiationBlocksTokenAdvance(negotiation);
 }
 
+/** Same gate as token advance — enquiry must not create a booking until approved. */
+export function bookingBlockedByNegotiationApproval(
+  negotiation: Record<string, unknown> | null | undefined,
+  options?: { funnelStage?: string }
+): boolean {
+  return tokenStageBlockedByNegotiation(negotiation, options);
+}
+
+/** User-facing message when `bookingBlockedByNegotiationApproval` is true; otherwise null. */
+export function negotiationApprovalBlockMessage(
+  negotiation: Record<string, unknown> | null | undefined,
+  options?: { funnelStage?: string }
+): string | null {
+  if (!bookingBlockedByNegotiationApproval(negotiation, options)) return null;
+
+  const status = getNegotiationApprovalStatus(negotiation);
+  const onNegotiateFunnel =
+    String(options?.funnelStage ?? '').trim() === 'Negotiation';
+
+  if (status === 'pending') {
+    return onNegotiateFunnel
+      ? 'Admin approval is pending. Refresh status after decision — create a booking once approved.'
+      : 'Budget approval is pending in the Negotiate stage. Check status there before creating a booking.';
+  }
+
+  if (onNegotiateFunnel) {
+    if (status === 'rejected') {
+      return 'Budget was rejected. Update the offer and obtain admin approval before creating a booking.';
+    }
+    return 'Send the offered price for admin approval before creating a booking.';
+  }
+
+  return 'Complete budget approval in the Negotiate stage before creating a booking.';
+}
+
 export function getInquiryClosedStatus(
   stageData: InquiryStageData | Record<string, unknown> | null | undefined
 ): string | null {

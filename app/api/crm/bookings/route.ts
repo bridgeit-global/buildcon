@@ -9,6 +9,9 @@ import {
   mergeStageData
 } from '@/app/crm/bookings/booking-stage-transitions';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
+import { negotiationApprovalBlockMessage } from '@/app/crm/inquiry/inquiry-stage-transitions';
+import { enrichNegotiationFromApprovals } from '@/app/crm/inquiry/inquiry-stage-store';
+import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
 
 type PaymentDetailPayload = {
   utr?: string;
@@ -137,6 +140,39 @@ export async function POST(request: Request) {
   }
   if (!isUnitBookableForWorkflow(unitRow.status as string)) {
     return NextResponse.json({ error: 'Unit is not available for booking' }, { status: 409 });
+  }
+
+  const salesInquiryId = body.salesInquiryId?.trim() || null;
+  if (salesInquiryId) {
+    const { data: inqRow, error: inqErr } = await admin
+      .from('sales_inquiries')
+      .select('funnel_stage, stage_data')
+      .eq('id', salesInquiryId)
+      .eq('project_id', body.projectId)
+      .maybeSingle();
+    if (inqErr) {
+      return NextResponse.json({ error: inqErr.message }, { status: 500 });
+    }
+    if (!inqRow) {
+      return NextResponse.json({ error: 'Enquiry not found' }, { status: 404 });
+    }
+    const baseStage =
+      inqRow.stage_data &&
+      typeof inqRow.stage_data === 'object' &&
+      !Array.isArray(inqRow.stage_data)
+        ? (inqRow.stage_data as InquiryStageData)
+        : ({} as InquiryStageData);
+    const enriched = await enrichNegotiationFromApprovals(
+      admin,
+      salesInquiryId,
+      baseStage
+    );
+    const blockMsg = negotiationApprovalBlockMessage(enriched.negotiation, {
+      funnelStage: String(inqRow.funnel_stage ?? '')
+    });
+    if (blockMsg) {
+      return NextResponse.json({ error: blockMsg }, { status: 403 });
+    }
   }
 
   const confirmNow = Boolean(body.confirmImmediately);

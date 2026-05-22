@@ -23,6 +23,7 @@ import {
   computeNegotiationDiscount,
   getNegotiationApprovalStatus,
   isInquiryClosed,
+  negotiationApprovalBlockMessage,
   tokenStageBlockedByNegotiation,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
@@ -1012,12 +1013,22 @@ export function InquiryPipelinePanel(props: {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [unitListPriceInr, setUnitListPriceInr] = useState<number | null>(null);
+  const negotiateFunnelForBooking =
+    activeStage === 'Negotiation' ? 'Negotiation' : inquiry?.funnel_stage;
+
   const navigateToBooking = useCallback(() => {
     const inqId = String(inquiry?.id || '').trim();
     const pid = String(projectId || '').trim();
     const uid = String(unitId || '').trim();
     const cid = String(customerId || '').trim();
     if (!inqId || !pid || !uid || !cid) return;
+    const blockMsg = negotiationApprovalBlockMessage(stageData.negotiation, {
+      funnelStage: negotiateFunnelForBooking
+    });
+    if (blockMsg) {
+      pageError(blockMsg);
+      return;
+    }
     navigateToCreateBookingFromInquiry(router, {
       inquiryId: inqId,
       projectId: pid,
@@ -1025,16 +1036,21 @@ export function InquiryPipelinePanel(props: {
       unitId: uid,
       stageData: stageDataToJson(stageData)
     });
-  }, [inquiry?.id, projectId, unitId, customerId, stageData, router]);
+  }, [
+    inquiry?.id,
+    projectId,
+    unitId,
+    customerId,
+    stageData,
+    router,
+    negotiateFunnelForBooking
+  ]);
 
   const pipelineClosed = isInquiryClosed(inquiry?.stage_data);
 
   const negotiationBlocksAdvance = tokenStageBlockedByNegotiation(
     stageData.negotiation,
-    {
-      funnelStage:
-        activeStage === 'Negotiation' ? 'Negotiation' : inquiry?.funnel_stage
-    }
+    { funnelStage: negotiateFunnelForBooking }
   );
 
   useEffect(() => {
@@ -1358,7 +1374,7 @@ export function InquiryPipelinePanel(props: {
                   type="button"
                   variant="outline"
                   className="gap-1"
-                  disabled={saving}
+                  disabled={saving || negotiationBlocksAdvance}
                   onClick={() => navigateToBooking()}
                 >
                   Create booking
