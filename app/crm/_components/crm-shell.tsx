@@ -320,7 +320,7 @@ function CrmNavLink({
       aria-current={active ? 'page' : undefined}
       title={collapsed ? label : undefined}
       className={cn(
-        'mb-0.5 flex w-full items-center rounded-xl text-left text-[12px] transition-colors',
+        'mb-0.5 flex w-full items-center rounded-lg text-left text-[12px] transition-colors',
         collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-2.5 py-2.5',
         active
           ? 'bg-(--crm-accent,#0d9488) font-semibold text-white shadow-sm'
