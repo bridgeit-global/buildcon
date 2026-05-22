@@ -6,8 +6,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { datetimeLocalValue } from '@/lib/date-input-value';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
@@ -88,8 +90,11 @@ const STEPS = [
 ] as const;
 type StepId = (typeof STEPS)[number]['id'];
 
-const wizardInputClass = 'mt-1 h-11 text-sm';
-const wizardSelectTriggerClass = 'mt-1 h-11 w-full text-sm';
+const wizardInputClass = 'text-sm';
+const wizardFieldClass = `mt-1 ${wizardInputClass}`;
+const wizardSelectTriggerClass = 'mt-1 w-full text-sm';
+const wizardTextareaClass = 'mt-1 min-h-16 resize-y text-sm';
+const wizardLabelClass = 'text-sm text-ds-gray-600';
 
 type SiteVisitInterest = 'Interested' | 'Not Interested' | '';
 
@@ -166,7 +171,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     parkingRequired: 'No' as 'Yes' | 'No',
     parkingCount: '1',
     selectedUnitId: '',
-    followUpDate: '',
+    followUpDate: datetimeLocalValue(),
     notes: ''
   });
 
@@ -670,7 +675,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       parkingRequired: 'No',
       parkingCount: '1',
       selectedUnitId: '',
-      followUpDate: '',
+      followUpDate: datetimeLocalValue(),
       notes: ''
     });
     setCreatedInquiryId('');
@@ -1049,7 +1054,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           <Button
             type="button"
             variant="outline"
-            size="lg"
             onClick={goBack}
             disabled={step === 1 || saving || stagesReadOnly}
           >
@@ -1058,7 +1062,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           <Button
             type="button"
             variant="ghost"
-            size="lg"
             onClick={resetForm}
             disabled={saving || stagesReadOnly}
           >
@@ -1072,7 +1075,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           {step < 3 && !stagesReadOnly ? (
             <Button
               type="button"
-              size="lg"
               className="gap-1.5"
               onClick={() => void goNext()}
               disabled={!stepValid[step] || saving}
@@ -1220,9 +1222,11 @@ function StepEnquiry({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <Label className="text-sm">Customer name *</Label>
+          <FieldLabel className={wizardLabelClass} required>
+            Customer name
+          </FieldLabel>
           <Input
-            className={wizardInputClass}
+            className={wizardFieldClass}
             value={sellerForm.customerName}
             onChange={(e) => {
               setSellerForm((s) => ({ ...s, customerName: e.target.value }));
@@ -1240,10 +1244,12 @@ function StepEnquiry({
             setSellerForm((s) => ({ ...s, phone: v }));
             touch('phone');
           }}
-          label="Phone *"
+          label="Phone"
+          required
           placeholder="10-digit mobile"
           mode="digits10"
-          inputClassName="h-11 text-sm"
+          inputClassName={wizardInputClass}
+          labelClassName={wizardLabelClass}
           error={fieldError('phone')}
         />
         <EmailInputField
@@ -1252,7 +1258,8 @@ function StepEnquiry({
             setSellerForm((s) => ({ ...s, email: v }));
             touch('email');
           }}
-          inputClassName="h-11 text-sm"
+          inputClassName={wizardInputClass}
+          labelClassName={wizardLabelClass}
           error={fieldError('email')}
           placeholder="Email (optional)"
         />
@@ -1260,7 +1267,9 @@ function StepEnquiry({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <Label className="text-sm">Lead source *</Label>
+          <FieldLabel className={wizardLabelClass} required>
+            Lead source
+          </FieldLabel>
           <Select
             value={sellerForm.leadSource}
             onValueChange={(v) => {
@@ -1287,12 +1296,12 @@ function StepEnquiry({
         </div>
 
         <div>
-          <Label className="text-sm">
+          <FieldLabel
+            className={wizardLabelClass}
+            required={sellerForm.leadSource === 'Broker'}
+          >
             Broker
-            {sellerForm.leadSource === 'Broker' ? (
-              <span className="ml-1 text-red-500">*</span>
-            ) : null}
-          </Label>
+          </FieldLabel>
           <Select
             value={
               sellerForm.brokerId === '' ? undefined : sellerForm.brokerId
@@ -1337,9 +1346,9 @@ function StepEnquiry({
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <Label className="text-xs text-ds-gray-600">Unit type / layout</Label>
+            <Label className={wizardLabelClass}>Unit type / layout</Label>
             <Input
-              className={wizardInputClass}
+              className={wizardFieldClass}
               placeholder="e.g. 2 BHK, corner, higher floor"
               value={sellerForm.interestedIn}
               onChange={(e) =>
@@ -1348,9 +1357,9 @@ function StepEnquiry({
             />
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">Preferred location / area</Label>
+            <Label className={wizardLabelClass}>Preferred location / area</Label>
             <Input
-              className={wizardInputClass}
+              className={wizardFieldClass}
               value={sellerForm.preferredLocation}
               onChange={(e) =>
                 setSellerForm((s) => ({
@@ -1361,10 +1370,10 @@ function StepEnquiry({
             />
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">Budget min (₹)</Label>
+            <Label className={wizardLabelClass}>Budget min (₹)</Label>
             <Input
               type="number"
-              className={wizardInputClass}
+              className={wizardFieldClass}
               value={sellerForm.budgetMin}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, budgetMin: e.target.value }))
@@ -1372,10 +1381,10 @@ function StepEnquiry({
             />
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">Budget max (₹)</Label>
+            <Label className={wizardLabelClass}>Budget max (₹)</Label>
             <Input
               type="number"
-              className={wizardInputClass}
+              className={wizardFieldClass}
               value={sellerForm.budgetMax}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, budgetMax: e.target.value }))
@@ -1383,9 +1392,9 @@ function StepEnquiry({
             />
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">Preferred wing / tower</Label>
+            <Label className={wizardLabelClass}>Preferred wing / tower</Label>
             <Input
-              className={wizardInputClass}
+              className={wizardFieldClass}
               value={sellerForm.preferredWing}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, preferredWing: e.target.value }))
@@ -1393,10 +1402,10 @@ function StepEnquiry({
             />
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">First follow-up</Label>
+            <Label className={wizardLabelClass}>First follow-up</Label>
             <Input
               type="datetime-local"
-              className={wizardInputClass}
+              className={wizardFieldClass}
               value={sellerForm.followUpDate}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
@@ -1406,7 +1415,7 @@ function StepEnquiry({
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <Label className="text-xs text-ds-gray-600">Extra parking?</Label>
+            <Label className={wizardLabelClass}>Extra parking?</Label>
             <div className="mt-1">
               <ParkingYesNoToggle
                 value={sellerForm.parkingRequired}
@@ -1417,7 +1426,7 @@ function StepEnquiry({
             </div>
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">Parking slots</Label>
+            <Label className={wizardLabelClass}>Parking slots</Label>
             <div className="mt-1">
               <ParkingCountToggle
                 value={sellerForm.parkingCount}
@@ -1430,14 +1439,14 @@ function StepEnquiry({
           </div>
         </div>
         <div className="mt-3">
-          <Label className="text-xs text-ds-gray-600">Other requirements</Label>
+          <Label className={wizardLabelClass}>Other requirements</Label>
           <Textarea
             value={sellerForm.notes}
             onChange={(e) =>
               setSellerForm((s) => ({ ...s, notes: e.target.value }))
             }
             rows={3}
-            className="mt-1 min-h-[80px] resize-y text-sm"
+            className={wizardTextareaClass}
           />
         </div>
       </div>
@@ -1462,7 +1471,7 @@ function ParkingYesNoToggle({
           type="button"
           onClick={() => onChange(v)}
           className={cn(
-            'min-h-11 flex-1 px-4 py-2.5 text-sm font-medium transition-colors',
+            'min-h-9 flex-1 px-4 py-2 text-sm font-medium transition-colors',
             value === v
               ? 'bg-primary text-primary-foreground'
               : 'bg-background text-muted-foreground hover:bg-muted'
@@ -1497,7 +1506,7 @@ function ParkingCountToggle({
           type="button"
           onClick={() => onChange(v)}
           className={cn(
-            'min-h-11 flex-1 px-3 py-2.5 text-sm font-medium transition-colors',
+            'min-h-9 flex-1 px-3 py-2 text-sm font-medium transition-colors',
             value === v
               ? 'bg-primary text-primary-foreground'
               : 'bg-background text-muted-foreground hover:bg-muted'
@@ -1538,7 +1547,7 @@ function InterestToggle({
           disabled={disabled}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'min-h-11 flex-1 px-3 py-2.5 text-sm font-medium transition-colors',
+            'min-h-9 flex-1 px-3 py-2 text-sm font-medium transition-colors',
             value === opt.value
               ? 'bg-primary text-primary-foreground'
               : 'bg-background text-muted-foreground hover:bg-muted'
@@ -1623,10 +1632,10 @@ function StepVisitSite({
         </p>
         <div className="mt-3 grid gap-3">
           <div>
-            <Label className="text-xs text-ds-gray-600">Follow-up date</Label>
+            <Label className={wizardLabelClass}>Follow-up date</Label>
             <Input
               type="datetime-local"
-              className={wizardInputClass}
+              className={wizardFieldClass}
               value={sellerForm.followUpDate}
               onChange={(e) =>
                 setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
@@ -1635,7 +1644,7 @@ function StepVisitSite({
             />
           </div>
           <div>
-            <Label className="text-xs text-ds-gray-600">After visit</Label>
+            <Label className={wizardLabelClass}>After visit</Label>
             <div className="mt-1">
               <InterestToggle
                 value={visitInterest}
@@ -1662,7 +1671,6 @@ function StepVisitSite({
           <Button
             type="button"
             variant="outline"
-            size="lg"
             className="mt-3 border-red-300 text-red-700 hover:bg-red-50"
             disabled={saving}
             onClick={onCloseNotInterested}
@@ -1693,7 +1701,6 @@ function StepVisitSite({
             <Button
               type="button"
               variant="outline"
-              size="lg"
               className="flex-1 border-ds-primary-300 text-ds-primary-700"
               disabled={saving}
               onClick={onSkipToNegotiation}
@@ -1702,7 +1709,6 @@ function StepVisitSite({
             </Button>
             <Button
               type="button"
-              size="lg"
               className="flex-1 gap-1 bg-teal-600 hover:bg-teal-700"
               disabled={saving || tokenBlockedByApproval}
               onClick={onCreateBooking}

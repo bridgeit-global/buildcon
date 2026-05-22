@@ -3,6 +3,7 @@
 import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EmailInputField } from '@/components/ui/email-input-field';
@@ -37,10 +38,12 @@ export function RhfTextInput<T extends FieldValues>({
   label,
   placeholder,
   className,
-  inputClassName
+  inputClassName,
+  required
 }: BaseProps<T> & {
   placeholder?: string;
   inputClassName?: string;
+  required?: boolean;
 }) {
   return (
     <Controller
@@ -48,7 +51,7 @@ export function RhfTextInput<T extends FieldValues>({
       name={name}
       render={({ field, fieldState }) => (
         <div className={className}>
-          <Label>{label}</Label>
+          <FieldLabel required={required}>{label}</FieldLabel>
           <Input
             {...field}
             value={field.value ?? ''}
@@ -66,8 +69,9 @@ export function RhfTextInput<T extends FieldValues>({
 export function RhfPhoneInput<T extends FieldValues>({
   control,
   name,
-  label
-}: BaseProps<T>) {
+  label,
+  required
+}: BaseProps<T> & { required?: boolean }) {
   return (
     <Controller
       control={control}
@@ -75,6 +79,7 @@ export function RhfPhoneInput<T extends FieldValues>({
       render={({ field, fieldState }) => (
         <PhoneInputField
           label={label}
+          required={required}
           value={field.value ?? ''}
           onChange={field.onChange}
           error={fieldState.error?.message}
@@ -147,14 +152,16 @@ export function CustomerProfileFields<T extends FieldValues>({
       <RhfTextInput
         control={control}
         name={'full_name' as FieldPath<T>}
-        label="Full name *"
+        label="Full name"
+        required
         placeholder="e.g. Mr. Amit Deshmukh"
         className="sm:col-span-2"
       />
       <RhfPhoneInput
         control={control}
         name={'phone' as FieldPath<T>}
-        label="Phone *"
+        label="Phone"
+        required
       />
       <RhfEmailInput
         control={control}

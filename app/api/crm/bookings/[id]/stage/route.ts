@@ -14,6 +14,8 @@ import {
 } from '@/app/crm/bookings/booking-stage-transitions';
 import type { BookingStageData, BookingWorkflowStage } from '@/app/crm/bookings/booking-types';
 import { loadBookingKycReport } from '@/lib/customer/server-kyc-loader';
+import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type StageBody = {
   action: 'advance' | 'save';
@@ -81,6 +83,21 @@ export async function POST(
     bookingAmount: booking.booking_amount as number | null,
     stageData: stageData as Record<string, unknown>
   });
+
+  if (body.action === 'save' && current === 'token' && resolvedBookingAmount > 0) {
+    const saleTotalInr = await resolveSaleTotalInrForBooking(admin, {
+      unitId: booking.unit_id as string,
+      projectId: booking.project_id as string,
+      salesInquiryId: (booking.sales_inquiry_id as string | null) ?? null
+    });
+    const capMsg = bookingAmountExceedsUnitTotalMessage(
+      resolvedBookingAmount,
+      saleTotalInr
+    );
+    if (capMsg) {
+      return NextResponse.json({ error: capMsg }, { status: 400 });
+    }
+  }
 
   if (body.action === 'save') {
     const bookingPatch: {

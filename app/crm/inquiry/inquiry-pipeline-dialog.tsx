@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { pageError } from '@/lib/toast';
+import {
+  datetimeLocalValue,
+  todayIsoDate,
+  withDateInputDefault
+} from '@/lib/date-input-value';
 import { negotiationApprovalRequestSchema } from '@/lib/inquiry/inquiry-pipeline.schema';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
@@ -185,11 +190,13 @@ export type OpportunityRow = InquiryPipelineRow;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function emptyStageData(): StageData {
+  const now = datetimeLocalValue();
+  const today = todayIsoDate();
   return {
-    enquiry: {},
-    qualified: {},
-    site_visit: {},
-    negotiation: {},
+    enquiry: { follow_up_date: now },
+    qualified: { follow_up_date: now },
+    site_visit: { scheduled_at: now },
+    negotiation: { expected_close: today },
     token: {}
   };
 }
@@ -200,13 +207,32 @@ function mergeStageDataFromJson(
   const base = emptyStageData();
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
   const r = raw as InquiryStageData;
+  const enquiry = (r.enquiry ?? {}) as EnquiryStageData;
+  const qualified = (r.qualified ?? {}) as QualifiedStageData;
+  const siteVisit = (r.site_visit ?? {}) as SiteVisitStageData;
+  const negotiation = (r.negotiation ?? {}) as NegotiationStageData;
+  const now = datetimeLocalValue();
+  const today = todayIsoDate();
   return {
-    enquiry: { ...base.enquiry, ...(r.enquiry as EnquiryStageData) },
-    qualified: { ...base.qualified, ...(r.qualified as QualifiedStageData) },
-    site_visit: { ...base.site_visit, ...(r.site_visit as SiteVisitStageData) },
+    enquiry: {
+      ...base.enquiry,
+      ...enquiry,
+      follow_up_date: withDateInputDefault(enquiry.follow_up_date, now)
+    },
+    qualified: {
+      ...base.qualified,
+      ...qualified,
+      follow_up_date: withDateInputDefault(qualified.follow_up_date, now)
+    },
+    site_visit: {
+      ...base.site_visit,
+      ...siteVisit,
+      scheduled_at: withDateInputDefault(siteVisit.scheduled_at, now)
+    },
     negotiation: {
       ...base.negotiation,
-      ...(r.negotiation as NegotiationStageData)
+      ...negotiation,
+      expected_close: withDateInputDefault(negotiation.expected_close, today)
     },
     token: { ...base.token, ...(r.token as TokenStageData) }
   };

@@ -16,6 +16,7 @@ import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
@@ -209,7 +210,7 @@ export default function BrokersPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <Label>Full name</Label>
+                    <FieldLabel required>Full name</FieldLabel>
                     <Input
                       {...register('full_name')}
                       aria-invalid={errors.full_name ? true : undefined}

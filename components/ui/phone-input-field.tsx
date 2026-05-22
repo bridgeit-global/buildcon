@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredMark } from '@/components/ui/required-mark';
 import { cn } from '@/lib/utils';
 
 export type PhoneInputFieldProps = {
@@ -11,6 +12,8 @@ export type PhoneInputFieldProps = {
   /** `digits10` keeps up to 10 numeric digits (Indian mobile). Default allows any text. */
   mode?: 'free' | 'digits10';
   inputClassName?: string;
+  labelClassName?: string;
+  required?: boolean;
   error?: string;
 };
 
@@ -22,11 +25,16 @@ export function PhoneInputField({
   id,
   mode = 'digits10',
   inputClassName,
+  labelClassName,
+  required,
   error
 }: PhoneInputFieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className={cn(labelClassName)}>
+        {label}
+        {required ? <RequiredMark /> : null}
+      </Label>
       <Input
         id={id}
         className={cn(inputClassName)}

@@ -13,6 +13,8 @@ import { generatedReceiptExistsForCollection } from '@/lib/booking/booking-gener
 import { isInquiryTokenComplete } from '@/app/crm/inquiry/inquiry-token-stage';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
+import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type Body = { saleTotalInr?: number | null };
 
@@ -138,6 +140,20 @@ export async function POST(
       { error: 'Unit is not available — another booking may have claimed it.' },
       { status: 409 }
     );
+  }
+
+  const saleTotalInr = await resolveSaleTotalInrForBooking(admin, {
+    unitId,
+    projectId,
+    salesInquiryId: inquiryId,
+    saleTotalInr: body.saleTotalInr
+  });
+  const tokenAmountCapMsg = bookingAmountExceedsUnitTotalMessage(
+    tokenAmount,
+    saleTotalInr
+  );
+  if (tokenAmountCapMsg) {
+    return NextResponse.json({ error: tokenAmountCapMsg }, { status: 400 });
   }
 
   // Verify customer is on file.

@@ -67,13 +67,13 @@ const STAGE_TABS: Array<{
   id: 'token' | 'all' | BookingWorkflowStage;
   label: string;
 }> = [
-  { id: 'token', label: 'Token received' },
-  { id: 'all', label: 'All stages' },
-  ...BOOKING_WORKFLOW_STAGES.filter((s) => s !== 'token').map((s) => ({
-    id: s,
-    label: BOOKING_WORKFLOW_LABEL[s]
-  }))
-];
+    { id: 'all', label: 'All stages' },
+    { id: 'token', label: 'Token received' },
+    ...BOOKING_WORKFLOW_STAGES.filter((s) => s !== 'token').map((s) => ({
+      id: s,
+      label: BOOKING_WORKFLOW_LABEL[s]
+    }))
+  ];
 
 export function BookingListTable({ rows, projectNameById, loading }: Props) {
   const [globalFilter, setGlobalFilter] = useState('');

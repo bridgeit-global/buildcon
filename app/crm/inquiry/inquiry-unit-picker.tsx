@@ -425,8 +425,7 @@ function SelectedUnitCard({
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="min-h-9 border-ds-primary-200 text-ds-primary-700 hover:bg-ds-primary-50"
+              className="border-ds-primary-200 text-ds-primary-700 hover:bg-ds-primary-50"
               onClick={onChangeUnit}
             >
               Change unit
@@ -578,14 +577,14 @@ export function InquiryUnitPicker({
                 <Button
                   type="button"
                   variant="outline"
-                  className="min-h-11 w-full sm:w-auto"
+                  className="w-full sm:w-auto"
                   onClick={() => setPreviewUnit(null)}
                 >
                   Back to list
                 </Button>
                 <Button
                   type="button"
-                  className="min-h-11 w-full gap-1.5 sm:w-auto"
+                  className="w-full gap-1.5 sm:w-auto"
                   onClick={confirmPreviewSelection}
                 >
                   Select this unit
@@ -601,7 +600,7 @@ export function InquiryUnitPicker({
       <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
-            <Label htmlFor="unit-search" className="text-xs text-ds-gray-600">
+            <Label htmlFor="unit-search" className="text-sm text-ds-gray-600">
               Search units
             </Label>
             <div className="relative mt-1">
@@ -616,14 +615,14 @@ export function InquiryUnitPicker({
                   setFilters((f) => ({ ...f, search: e.target.value }))
                 }
                 placeholder="Code, wing, project, floor, type…"
-                className="min-h-11 pl-9 text-sm"
+                className="pl-9 text-sm"
               />
             </div>
           </div>
           <Button
             type="button"
             variant={advancedOpen ? 'default' : 'outline'}
-            className="min-h-11 shrink-0 gap-2"
+            className="shrink-0 gap-2"
             onClick={() => setAdvancedOpen((o) => !o)}
             aria-expanded={advancedOpen}
           >
@@ -801,7 +800,7 @@ export function InquiryUnitPicker({
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-ds-primary-700 hover:bg-ds-primary-50"
+                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm text-ds-primary-700 hover:bg-ds-primary-50"
               >
                 <X className="size-3.5" aria-hidden />
                 Clear filters ({activeFilterCount})
@@ -813,7 +812,7 @@ export function InquiryUnitPicker({
               type="button"
               aria-pressed={viewMode === 'grid'}
               className={cn(
-                'flex min-h-9 min-w-11 items-center justify-center px-2.5',
+                'flex min-h-9 min-w-9 items-center justify-center px-2.5',
                 viewMode === 'grid'
                   ? 'bg-ds-primary-500 text-white'
                   : 'bg-white text-ds-gray-600 hover:bg-ds-gray-50'
@@ -827,7 +826,7 @@ export function InquiryUnitPicker({
               type="button"
               aria-pressed={viewMode === 'list'}
               className={cn(
-                'flex min-h-9 min-w-11 items-center justify-center px-2.5',
+                'flex min-h-9 min-w-9 items-center justify-center px-2.5',
                 viewMode === 'list'
                   ? 'bg-ds-primary-500 text-white'
                   : 'bg-white text-ds-gray-600 hover:bg-ds-gray-50'
@@ -895,15 +894,15 @@ export function InquiryUnitPicker({
                 {parkingSection}
                 {onNotesChange ? (
                   <div>
-                    <Label className="text-xs text-ds-gray-600">
+                    <Label className="text-sm text-ds-gray-600">
                       Requirements / notes
                     </Label>
                     <Textarea
                       value={notes}
                       onChange={(e) => onNotesChange(e.target.value)}
-                      rows={2}
+                      rows={3}
                       placeholder="Higher floor, corner, sea view, budget, Vastu…"
-                      className="mt-1 min-h-[60px] resize-y text-xs"
+                      className="mt-1 min-h-16 resize-y text-sm"
                     />
                   </div>
                 ) : null}
@@ -946,9 +945,9 @@ function FilterSelect({
 }) {
   return (
     <div className="min-w-0">
-      <Label className="text-xs text-ds-gray-600">{label}</Label>
+      <Label className="text-sm text-ds-gray-600">{label}</Label>
       <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className="mt-1 h-10 w-full min-h-11 text-xs">
+        <SelectTrigger className="mt-1 w-full text-sm">
           <SelectValue placeholder={allLabel || label} />
         </SelectTrigger>
         <SelectContent>
@@ -977,7 +976,7 @@ function NumberFilter({
 }) {
   return (
     <div>
-      <Label className="text-xs text-ds-gray-600">{label}</Label>
+      <Label className="text-sm text-ds-gray-600">{label}</Label>
       <Input
         type="number"
         inputMode="decimal"
@@ -985,7 +984,7 @@ function NumberFilter({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Any"
-        className="mt-1 min-h-10 text-xs"
+        className="mt-1 text-sm"
       />
     </div>
   );

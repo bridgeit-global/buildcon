@@ -13,6 +13,8 @@ import { INQUIRY_ACTIVE_BOOKING_MESSAGE } from '@/app/crm/inquiry/inquiry-bookin
 import { negotiationApprovalBlockMessage } from '@/app/crm/inquiry/inquiry-stage-transitions';
 import { enrichNegotiationFromApprovals } from '@/app/crm/inquiry/inquiry-stage-store';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
+import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type PaymentDetailPayload = {
   utr?: string;
@@ -211,6 +213,20 @@ export async function POST(request: Request) {
     if (blockMsg) {
       return NextResponse.json({ error: blockMsg }, { status: 403 });
     }
+  }
+
+  const saleTotalInr = await resolveSaleTotalInrForBooking(admin, {
+    unitId: body.unitId,
+    projectId: body.projectId,
+    salesInquiryId,
+    saleTotalInr: body.saleTotalInr
+  });
+  const bookingAmountCapMsg = bookingAmountExceedsUnitTotalMessage(
+    bookingAmountNum,
+    saleTotalInr
+  );
+  if (bookingAmountCapMsg) {
+    return NextResponse.json({ error: bookingAmountCapMsg }, { status: 400 });
   }
 
   const confirmNow = Boolean(body.confirmImmediately);

@@ -9,6 +9,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -1356,7 +1357,7 @@ export default function BookingDetailPage() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1.5">
-              <Label>Reason *</Label>
+              <FieldLabel required>Reason</FieldLabel>
               <Select
                 value={cancelReason}
                 onValueChange={setCancelReason}

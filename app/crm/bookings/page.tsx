@@ -26,7 +26,9 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
+import { RequiredMark } from '@/components/ui/required-mark';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import {
@@ -88,6 +90,7 @@ import {
   type BookingCreateFormValues,
   type BookingQuickCustomerValues
 } from '@/lib/booking/booking-create.schema';
+import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
 import { zodFieldErrors } from '@/lib/form/zod-field-errors';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 
@@ -190,6 +193,7 @@ function normalizeSearch(s: string) {
 
 function SearchablePicker<T extends { id: string }>({
   label,
+  required,
   itemCount,
   items,
   selectedId,
@@ -204,6 +208,7 @@ function SearchablePicker<T extends { id: string }>({
   renderRow
 }: {
   label: string;
+  required?: boolean;
   itemCount: number;
   items: T[];
   selectedId: string;
@@ -249,7 +254,8 @@ function SearchablePicker<T extends { id: string }>({
   return (
     <div className="space-y-1.5">
       <Label>
-        {label}{' '}
+        {label}
+        {required ? <RequiredMark /> : null}{' '}
         <span className="font-normal text-muted-foreground">({itemCount})</span>
       </Label>
       <Popover open={open} onOpenChange={setOpen}>
@@ -418,35 +424,12 @@ export default function BookingsPage() {
     Partial<Record<keyof BookingCreateFormValues, boolean>>
   >({});
   const [createSubmitAttempted, setCreateSubmitAttempted] = useState(false);
+  const [createFormOpen, setCreateFormOpen] = useState(false);
   const [newCustomerTouched, setNewCustomerTouched] = useState<
     Partial<Record<keyof BookingQuickCustomerValues, boolean>>
   >({});
   const [newCustomerSubmitAttempted, setNewCustomerSubmitAttempted] =
     useState(false);
-
-  const createErrors = useMemo(() => {
-    return zodFieldErrors<keyof BookingCreateFormValues>(
-      bookingCreateSchema.safeParse({
-        unitId,
-        customerId,
-        paymentMode,
-        loanBank,
-        upiUtr,
-        chequeNo,
-        neftRef,
-        bookingAmount
-      })
-    );
-  }, [
-    unitId,
-    customerId,
-    paymentMode,
-    loanBank,
-    upiUtr,
-    chequeNo,
-    neftRef,
-    bookingAmount
-  ]);
 
   const newCustomerErrors = useMemo(() => {
     return zodFieldErrors<keyof BookingQuickCustomerValues>(
@@ -570,6 +553,7 @@ export default function BookingsPage() {
 
     const p = readConsumeBookingPrefill();
     if (p) {
+      setCreateFormOpen(true);
       setPrefillMeta(p);
       if (p.customerId) {
         const { data: custRow } = await supabase
@@ -806,6 +790,14 @@ export default function BookingsPage() {
       pageError('Fix the highlighted fields before recording the token.');
       return;
     }
+    const amountCapMsg = bookingAmountExceedsUnitTotalMessage(
+      Number(parsed.data.bookingAmount),
+      unitSaleTotalInr
+    );
+    if (amountCapMsg) {
+      pageError(amountCapMsg);
+      return;
+    }
 
     const selectedUnit = units.find((u) => u.id === unitId);
     if (!selectedUnit?.project_id) return;
@@ -882,6 +874,7 @@ export default function BookingsPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to create booking');
       const newId = json.bookingId ?? null;
       setCreatedBookingId(newId);
+      setCreateFormOpen(true);
       if (json.redirectTo && newId) {
         router.push(json.redirectTo);
         return;
@@ -1133,6 +1126,43 @@ export default function BookingsPage() {
     inquiryNegotiatedPrice
   ]);
 
+  const unitSaleTotalInr = useMemo(() => {
+    const fromFinancial = paymentFinancialTotal?.financialTotalInr;
+    if (fromFinancial != null && fromFinancial > 0) return fromFinancial;
+    return catalogTotalInr > 0 ? catalogTotalInr : 0;
+  }, [paymentFinancialTotal, catalogTotalInr]);
+
+  const createErrors = useMemo(() => {
+    const errors = zodFieldErrors<keyof BookingCreateFormValues>(
+      bookingCreateSchema.safeParse({
+        unitId,
+        customerId,
+        paymentMode,
+        loanBank,
+        upiUtr,
+        chequeNo,
+        neftRef,
+        bookingAmount
+      })
+    );
+    const capMsg = bookingAmountExceedsUnitTotalMessage(
+      Number(String(bookingAmount).trim()),
+      unitSaleTotalInr
+    );
+    if (capMsg) errors.bookingAmount = capMsg;
+    return errors;
+  }, [
+    unitId,
+    customerId,
+    paymentMode,
+    loanBank,
+    upiUtr,
+    chequeNo,
+    neftRef,
+    bookingAmount,
+    unitSaleTotalInr
+  ]);
+
   const matchUnit = useCallback((u: UnitOption, q: string) => {
     const blob = [
       u.unit_code,
@@ -1181,23 +1211,45 @@ export default function BookingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold text-gray-900">
-              Create booking
+        <div className="flex items-start justify-between gap-3">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-lg text-left transition-colors hover:bg-ds-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary-500/40 -m-1 p-1"
+            onClick={() => setCreateFormOpen((open) => !open)}
+            aria-expanded={createFormOpen}
+            aria-controls="create-booking-form"
+          >
+            <ChevronDown
+              className={cn(
+                'mt-0.5 size-4 shrink-0 text-ds-gray-500 transition-transform',
+                createFormOpen && 'rotate-180'
+              )}
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-ds-gray-900">
+                Create booking
+              </div>
+              <div className="text-xs text-ds-gray-500">
+                Select a blocked unit (held for a lead), primary customer, and optional
+                co-buyers.
+              </div>
             </div>
-            <div className="text-xs text-gray-500">
-              Select a blocked unit (held for a lead), primary customer, and optional
-              co-buyers.
-            </div>
-          </div>
-          <Button variant="outline" onClick={load} disabled={loading}>
+          </button>
+          <Button
+            variant="outline"
+            className="shrink-0"
+            onClick={load}
+            disabled={loading}
+          >
             {loading ? 'Loading…' : 'Refresh'}
           </Button>
         </div>
 
+        {createFormOpen ? (
+          <div id="create-booking-form" className="mt-4 flex flex-col gap-4">
         {prefillMeta ? (
-          <div className="mt-4 overflow-hidden rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50 via-white to-slate-50 shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50 via-white to-slate-50 shadow-sm">
             <div className="flex items-start justify-between gap-3 border-b border-emerald-100 px-4 py-3">
               <div className="flex gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
@@ -1310,7 +1362,7 @@ export default function BookingsPage() {
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <SearchablePicker<UnitOption>
               label="Blocked units"
@@ -1354,7 +1406,8 @@ export default function BookingsPage() {
 
           <div className="col-span-2">
             <SearchablePicker<CustomerOption>
-              label="Customer *"
+              label="Customer"
+              required
               itemCount={customers.length}
               items={customers}
               selectedId={customerId}
@@ -1677,6 +1730,12 @@ export default function BookingsPage() {
           ) : null}
           <div className="col-span-2">
             <Label>Booking amount (₹)</Label>
+            {unitSaleTotalInr > 0 ? (
+              <p className="mt-0.5 text-xs text-ds-gray-500">
+                Cannot exceed unit total: ₹{' '}
+                {unitSaleTotalInr.toLocaleString('en-IN')}
+              </p>
+            ) : null}
             <Input
               value={bookingAmount}
               onChange={(e) => {
@@ -1686,6 +1745,7 @@ export default function BookingsPage() {
               onBlur={() => touchCreateField('bookingAmount')}
               aria-invalid={createFieldError('bookingAmount') ? true : undefined}
               placeholder="500000"
+              className="mt-1"
             />
             <FormFieldError message={createFieldError('bookingAmount')} />
           </div>
@@ -1803,7 +1863,7 @@ export default function BookingsPage() {
           />
         ) : null}
 
-        <div className="mt-4 flex justify-end">
+        <div className="flex justify-end">
           <Button
             onClick={createBooking}
             disabled={
@@ -1816,6 +1876,8 @@ export default function BookingsPage() {
             {creating ? 'Starting…' : 'Record token & continue'}
           </Button>
         </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="p-4">
@@ -1858,7 +1920,9 @@ export default function BookingsPage() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="new-cust-name">Full name *</Label>
+              <FieldLabel htmlFor="new-cust-name" required>
+                Full name
+              </FieldLabel>
               <Input
                 id="new-cust-name"
                 value={newCustomerDraft.full_name}
@@ -1882,7 +1946,8 @@ export default function BookingsPage() {
                 setNewCustomerDraft((d) => ({ ...d, phone: v }));
                 touchNewCustomerField('phone');
               }}
-              label="Phone *"
+              label="Phone"
+              required
               placeholder="Enter Phone number"
               id="new-cust-phone"
               mode="digits10"

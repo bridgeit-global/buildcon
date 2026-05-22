@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredMark } from '@/components/ui/required-mark';
 import { cn } from '@/lib/utils';
 
 export type EmailInputFieldProps = {
@@ -9,6 +10,8 @@ export type EmailInputFieldProps = {
   placeholder?: string;
   id?: string;
   inputClassName?: string;
+  labelClassName?: string;
+  required?: boolean;
   error?: string;
 };
 
@@ -19,11 +22,16 @@ export function EmailInputField({
   placeholder,
   id,
   inputClassName,
+  labelClassName,
+  required,
   error
 }: EmailInputFieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className={cn(labelClassName)}>
+        {label}
+        {required ? <RequiredMark /> : null}
+      </Label>
       <Input
         id={id}
         type="email"
