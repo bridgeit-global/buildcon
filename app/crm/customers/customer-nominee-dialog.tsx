@@ -11,10 +11,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import {
-  FormFieldError,
-  RhfTextInput
-} from '@/app/crm/customers/customer-form-ui';
+import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
 import { Controller } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

@@ -7,30 +7,33 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { EmailInputField } from '@/components/ui/email-input-field';
-import { PhoneInputField } from '@/components/ui/phone-input-field';
-import { Textarea } from '@/components/ui/textarea';
+
+import { CustomerAddDialog } from '@/app/crm/customers/customer-add-dialog';
+import { CustomerEditDialog } from '@/app/crm/customers/customer-edit-dialog';
+import { CustomerAddressDialog } from '@/app/crm/customers/customer-address-dialog';
+import { CustomerNomineeDialog } from '@/app/crm/customers/customer-nominee-dialog';
+import { CustomerBankDialog } from '@/app/crm/customers/customer-bank-dialog';
+import { CustomerKycIdentityForm } from '@/app/crm/customers/customer-kyc-identity-form';
+import { CustomerKycUploadDialog } from '@/app/crm/customers/customer-kyc-upload-dialog';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
+  customerCreatePayload,
+  customerEditPayload,
+  EMPTY_ADDRESS,
+  EMPTY_BANK,
+  EMPTY_NOMINEE,
+  addressValuesFromRow,
+  bankValuesFromRow,
+  nomineeValuesFromRow,
+  type AddressFormValues,
+  type BankFormValues,
+  type CustomerCreateFormValues,
+  type CustomerEditFormValues,
+  type KycIdentityFormValues,
+  type NomineeFormValues
+} from '@/lib/customer/customer-forms.schema';
 import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-date';
 import {
-  isAadhaarLast4Valid,
   isCustomerKycComplete,
-  isPanValid,
   maskAadhaarLast4,
   normalizeAadhaarLast4,
   normalizePan
@@ -121,213 +124,6 @@ function initialsFromName(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function normalizePhoneDigits(p: string | null | undefined) {
-  return String(p ?? '').replace(/\D/g, '');
-}
-
-type CustomerFormDraft = {
-  full_name: string;
-  phone: string;
-  email: string;
-  pan_number?: string;
-  aadhaar_last4?: string;
-};
-
-type CustomerFormFieldErrors = {
-  full_name?: string;
-  phone?: string;
-  email?: string;
-  pan_number?: string;
-  aadhaar_last4?: string;
-};
-
-const CUSTOMER_FORM_DIALOG_CLASS =
-  'flex max-h-[min(90vh,720px)] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
-
-function isValidEmail(email: string) {
-  const t = email.trim();
-  if (!t) return true;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
-}
-
-function validateCustomerForm(draft: CustomerFormDraft): CustomerFormFieldErrors {
-  const errors: CustomerFormFieldErrors = {};
-  if (!draft.full_name.trim()) {
-    errors.full_name = 'Customer name is required.';
-  }
-  if (normalizePhoneDigits(draft.phone).length !== 10) {
-    errors.phone = 'Enter a 10-digit phone number.';
-  }
-  if (!isValidEmail(draft.email)) {
-    errors.email = 'Enter a valid email address.';
-  }
-  const panNorm = normalizePan(draft.pan_number ?? '');
-  if (panNorm && !isPanValid(panNorm)) {
-    errors.pan_number = 'Enter a valid PAN (e.g. ABCDE1234F).';
-  }
-  const a4Raw = String(draft.aadhaar_last4 ?? '').trim();
-  if (a4Raw && !isAadhaarLast4Valid(a4Raw)) {
-    errors.aadhaar_last4 = 'Enter the last 4 digits of Aadhaar.';
-  }
-  return errors;
-}
-
-function hasCustomerFormErrors(errors: CustomerFormFieldErrors) {
-  return Object.keys(errors).length > 0;
-}
-
-type AddressFormShape = {
-  kind: 'current' | 'permanent';
-  address_line1: string;
-  city: string;
-  state: string;
-  pin: string;
-};
-
-type AddressFormFieldErrors = {
-  address_line1?: string;
-  pin?: string;
-};
-
-type NomineeFormShape = {
-  nominee_name: string;
-  relationship: string;
-  nominee_dob: string;
-};
-
-type NomineeFormFieldErrors = {
-  nominee_name?: string;
-};
-
-type BankFormShape = {
-  bank_name: string;
-  account_no: string;
-  ifsc: string;
-  branch: string;
-};
-
-type BankFormFieldErrors = {
-  bank_name?: string;
-  ifsc?: string;
-};
-
-type KycIdentityFieldErrors = {
-  pan_number?: string;
-  aadhaar_last4?: string;
-};
-
-type KycUploadFieldErrors = {
-  pan_number?: string;
-  aadhaar_last4?: string;
-  file?: string;
-};
-
-function isValidPin(pin: string) {
-  const t = pin.trim();
-  if (!t) return true;
-  return /^\d{6}$/.test(t);
-}
-
-function isValidIfsc(ifsc: string) {
-  const t = ifsc.trim().toUpperCase();
-  if (!t) return true;
-  return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(t);
-}
-
-function validateAddressForm(form: AddressFormShape): AddressFormFieldErrors {
-  const errors: AddressFormFieldErrors = {};
-  if (!form.address_line1.trim()) {
-    errors.address_line1 = 'Address line is required.';
-  }
-  if (!isValidPin(form.pin)) {
-    errors.pin = 'Enter a 6-digit PIN code.';
-  }
-  return errors;
-}
-
-function validateNomineeForm(form: NomineeFormShape): NomineeFormFieldErrors {
-  const errors: NomineeFormFieldErrors = {};
-  if (!form.nominee_name.trim()) {
-    errors.nominee_name = 'Nominee name is required.';
-  }
-  return errors;
-}
-
-function validateBankForm(form: BankFormShape): BankFormFieldErrors {
-  const errors: BankFormFieldErrors = {};
-  if (!form.bank_name.trim()) {
-    errors.bank_name = 'Bank name is required.';
-  }
-  const ifscNorm = form.ifsc.trim().toUpperCase();
-  if (ifscNorm && !isValidIfsc(ifscNorm)) {
-    errors.ifsc = 'Enter a valid IFSC (e.g. HDFC0001234).';
-  }
-  return errors;
-}
-
-function validateKycIdentity(
-  pan: string,
-  aadhaarLast4: string
-): KycIdentityFieldErrors {
-  const errors: KycIdentityFieldErrors = {};
-  const panNorm = normalizePan(pan);
-  if (panNorm && !isPanValid(panNorm)) {
-    errors.pan_number = 'Enter a valid PAN (e.g. ABCDE1234F).';
-  }
-  const a4Raw = String(aadhaarLast4 ?? '').trim();
-  if (a4Raw && !isAadhaarLast4Valid(a4Raw)) {
-    errors.aadhaar_last4 = 'Enter the last 4 digits of Aadhaar.';
-  }
-  return errors;
-}
-
-function validateKycUpload(
-  docType: string,
-  pan: string,
-  aadhaarLast4: string,
-  hasFile: boolean
-): KycUploadFieldErrors {
-  const errors: KycUploadFieldErrors = {};
-  if (docType === 'pan') {
-    const panNorm = normalizePan(pan);
-    if (!panNorm) {
-      errors.pan_number = 'PAN number is required for this upload.';
-    } else if (!isPanValid(panNorm)) {
-      errors.pan_number = 'Enter a valid PAN (e.g. ABCDE1234F).';
-    }
-  }
-  if (docType === 'aadhaar') {
-    if (!isAadhaarLast4Valid(aadhaarLast4)) {
-      errors.aadhaar_last4 = 'Enter the last 4 digits of Aadhaar.';
-    }
-  }
-  if (!hasFile) {
-    errors.file = 'Choose a file to upload.';
-  }
-  return errors;
-}
-
-function hasFormFieldErrors(errors: object) {
-  return Object.keys(errors).length > 0;
-}
-
-function visibleFieldError(
-  touched: Partial<Record<string, boolean>>,
-  showAll: boolean,
-  field: string,
-  errors: Record<string, string | undefined>
-): string | undefined {
-  const message = errors[field];
-  if (!message) return undefined;
-  if (showAll || touched[field]) return message;
-  return undefined;
-}
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return <p className="mt-1 text-xs text-red-600">{message}</p>;
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-3 border-b border-gray-100 py-2.5 last:border-b-0">
@@ -350,14 +146,6 @@ const DETAIL_TABS: { id: DetailTab; label: string }[] = [
 ];
 
 const KYC_BUCKET = 'kyc';
-
-const KYC_DOC_TYPES: { value: string; label: string }[] = [
-  { value: 'aadhaar', label: 'Aadhaar' },
-  { value: 'pan', label: 'PAN' },
-  { value: 'photo', label: 'Photo' },
-  { value: 'address_proof', label: 'Address proof' },
-  { value: 'other', label: 'Other' }
-];
 
 function extensionFromFile(file: File): string {
   const name = file.name;
@@ -393,46 +181,6 @@ export default function CustomersPage() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState({
-    full_name: '',
-    phone: '',
-    email: '',
-    dob: '',
-    occupation: '',
-    nationality: 'Indian',
-    guardian_name: '',
-    residential_status: 'Resident Indian',
-    passport_number: '',
-    office_name_address: ''
-  });
-  const [editDraft, setEditDraft] = useState({
-    full_name: '',
-    phone: '',
-    email: '',
-    dob: '',
-    occupation: '',
-    nationality: 'Indian',
-    pan_number: '',
-    aadhaar_last4: '',
-    guardian_name: '',
-    residential_status: 'Resident Indian',
-    passport_number: '',
-    office_name_address: ''
-  });
-  const [draftFieldErrors, setDraftFieldErrors] = useState<CustomerFormFieldErrors>(
-    {}
-  );
-  const [draftFieldTouched, setDraftFieldTouched] = useState<
-    Partial<Record<keyof CustomerFormFieldErrors, boolean>>
-  >({});
-  const [draftShowAllErrors, setDraftShowAllErrors] = useState(false);
-  const [editFieldErrors, setEditFieldErrors] = useState<CustomerFormFieldErrors>(
-    {}
-  );
-  const [editFieldTouched, setEditFieldTouched] = useState<
-    Partial<Record<keyof CustomerFormFieldErrors, boolean>>
-  >({});
-  const [editShowAllErrors, setEditShowAllErrors] = useState(false);
 
   const [customerInquiries, setCustomerInquiries] = useState<
     CustomerInquiryRow[]
@@ -450,67 +198,19 @@ export default function CustomersPage() {
 
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [addressForm, setAddressForm] = useState<AddressFormShape>({
-    kind: 'current',
-    address_line1: '',
-    city: '',
-    state: '',
-    pin: ''
-  });
-  const [addressFieldErrors, setAddressFieldErrors] =
-    useState<AddressFormFieldErrors>({});
-  const [addressFieldTouched, setAddressFieldTouched] = useState<
-    Partial<Record<keyof AddressFormFieldErrors, boolean>>
-  >({});
-  const [addressShowAllErrors, setAddressShowAllErrors] = useState(false);
+  const [addressDefaults, setAddressDefaults] =
+    useState<AddressFormValues>(EMPTY_ADDRESS);
 
   const [nomineeFormOpen, setNomineeFormOpen] = useState(false);
   const [editingNomineeId, setEditingNomineeId] = useState<string | null>(null);
-  const [nomineeForm, setNomineeForm] = useState<NomineeFormShape>({
-    nominee_name: '',
-    relationship: '',
-    nominee_dob: ''
-  });
-  const [nomineeFieldErrors, setNomineeFieldErrors] =
-    useState<NomineeFormFieldErrors>({});
-  const [nomineeFieldTouched, setNomineeFieldTouched] = useState<
-    Partial<Record<keyof NomineeFormFieldErrors, boolean>>
-  >({});
-  const [nomineeShowAllErrors, setNomineeShowAllErrors] = useState(false);
+  const [nomineeDefaults, setNomineeDefaults] =
+    useState<NomineeFormValues>(EMPTY_NOMINEE);
 
   const [bankFormOpen, setBankFormOpen] = useState(false);
   const [editingBankId, setEditingBankId] = useState<string | null>(null);
-  const [bankForm, setBankForm] = useState<BankFormShape>({
-    bank_name: '',
-    account_no: '',
-    ifsc: '',
-    branch: ''
-  });
-  const [bankFieldErrors, setBankFieldErrors] = useState<BankFormFieldErrors>({});
-  const [bankFieldTouched, setBankFieldTouched] = useState<
-    Partial<Record<keyof BankFormFieldErrors, boolean>>
-  >({});
-  const [bankShowAllErrors, setBankShowAllErrors] = useState(false);
+  const [bankDefaults, setBankDefaults] = useState<BankFormValues>(EMPTY_BANK);
 
   const [kycFormOpen, setKycFormOpen] = useState(false);
-  const [kycDocType, setKycDocType] = useState('aadhaar');
-  const kycFileRef = useRef<HTMLInputElement>(null);
-  const [kycPanInput, setKycPanInput] = useState('');
-  const [kycAadhaarInput, setKycAadhaarInput] = useState('');
-  const [identityPan, setIdentityPan] = useState('');
-  const [identityAadhaar, setIdentityAadhaar] = useState('');
-  const [identityFieldErrors, setIdentityFieldErrors] =
-    useState<KycIdentityFieldErrors>({});
-  const [identityFieldTouched, setIdentityFieldTouched] = useState<
-    Partial<Record<keyof KycIdentityFieldErrors, boolean>>
-  >({});
-  const [identityShowAllErrors, setIdentityShowAllErrors] = useState(false);
-  const [kycUploadFieldErrors, setKycUploadFieldErrors] =
-    useState<KycUploadFieldErrors>({});
-  const [kycUploadFieldTouched, setKycUploadFieldTouched] = useState<
-    Partial<Record<keyof KycUploadFieldErrors, boolean>>
-  >({});
-  const [kycUploadShowAllErrors, setKycUploadShowAllErrors] = useState(false);
 
   const fetchCustomerList = useCallback(
     async (opts: { reset: boolean }) => {
@@ -742,41 +442,12 @@ export default function CustomersPage() {
       )
     : false;
 
-  useEffect(() => {
-    if (!selected) return;
-    setIdentityPan(selected.pan_number ?? '');
-    setIdentityAadhaar(selected.aadhaar_last4 ?? '');
-    setIdentityFieldErrors({});
-    setIdentityFieldTouched({});
-    setIdentityShowAllErrors(false);
-  }, [selected?.id, selected?.pan_number, selected?.aadhaar_last4]);
-
-  async function createCustomer() {
-    const fieldErrors = validateCustomerForm(draft);
-    setDraftFieldErrors(fieldErrors);
-    setDraftShowAllErrors(true);
-    if (hasCustomerFormErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before saving.');
-      return;
-    }
-    const full_name = draft.full_name.trim();
-    const phoneDigits = normalizePhoneDigits(draft.phone);
+  async function createCustomer(values: CustomerCreateFormValues) {
     setSaving(true);
-        try {
+    try {
       const { data, error: insErr } = await supabase
         .from('customers')
-        .insert({
-          full_name,
-          phone: phoneDigits,
-          email: draft.email.trim() || null,
-          dob: draft.dob || null,
-          occupation: draft.occupation || null,
-          nationality: draft.nationality || null,
-          guardian_name: draft.guardian_name.trim() || null,
-          residential_status: draft.residential_status || null,
-          passport_number: draft.passport_number.trim() || null,
-          office_name_address: draft.office_name_address.trim() || null
-        })
+        .insert(customerCreatePayload(values))
         .select(CUSTOMER_SELECT)
         .single();
 
@@ -786,21 +457,6 @@ export default function CustomersPage() {
       setListTotal((t) => (t != null ? t + 1 : t));
       selectCustomer(row);
       setOpen(false);
-      setDraftFieldErrors({});
-      setDraftFieldTouched({});
-      setDraftShowAllErrors(false);
-      setDraft({
-        full_name: '',
-        phone: '',
-        email: '',
-        dob: '',
-        occupation: '',
-        nationality: 'Indian',
-        guardian_name: '',
-        residential_status: 'Resident Indian',
-        passport_number: '',
-        office_name_address: ''
-      });
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to create customer');
     } finally {
@@ -808,35 +464,13 @@ export default function CustomersPage() {
     }
   }
 
-  async function updateCustomer() {
+  async function updateCustomer(values: CustomerEditFormValues) {
     if (!selectedId) return;
-    const fieldErrors = validateCustomerForm(editDraft);
-    setEditFieldErrors(fieldErrors);
-    setEditShowAllErrors(true);
-    if (hasCustomerFormErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before saving.');
-      return;
-    }
-    const full_name = editDraft.full_name.trim();
-    const phoneDigits = normalizePhoneDigits(editDraft.phone);
     setSaving(true);
-        try {
+    try {
       const { data, error: upErr } = await supabase
         .from('customers')
-        .update({
-          full_name,
-          phone: phoneDigits,
-          email: editDraft.email.trim() || null,
-          dob: editDraft.dob || null,
-          occupation: editDraft.occupation || null,
-          nationality: editDraft.nationality || null,
-          pan_number: normalizePan(editDraft.pan_number) || null,
-          aadhaar_last4: normalizeAadhaarLast4(editDraft.aadhaar_last4) || null,
-          guardian_name: editDraft.guardian_name.trim() || null,
-          residential_status: editDraft.residential_status || null,
-          passport_number: editDraft.passport_number.trim() || null,
-          office_name_address: editDraft.office_name_address.trim() || null
-        })
+        .update(customerEditPayload(values))
         .eq('id', selectedId)
         .select(CUSTOMER_SELECT)
         .single();
@@ -845,9 +479,6 @@ export default function CustomersPage() {
       const row = data as CustomerRow;
       setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
       setPinnedCustomer((p) => (p?.id === row.id ? row : p));
-      setEditFieldErrors({});
-      setEditFieldTouched({});
-      setEditShowAllErrors(false);
       setEditOpen(false);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to update customer');
@@ -858,75 +489,31 @@ export default function CustomersPage() {
 
   function openEditDialog() {
     if (!selected) return;
-    setEditFieldErrors({});
-    setEditFieldTouched({});
-    setEditShowAllErrors(false);
-    setEditDraft({
-      full_name: selected.full_name,
-      phone: selected.phone ?? '',
-      email: selected.email ?? '',
-      dob: selected.dob ? String(selected.dob).slice(0, 10) : '',
-      occupation: selected.occupation ?? '',
-      nationality: selected.nationality || 'Indian',
-      pan_number: selected.pan_number ?? '',
-      aadhaar_last4: selected.aadhaar_last4 ?? '',
-      guardian_name: selected.guardian_name ?? '',
-      residential_status:
-        selected.residential_status || 'Resident Indian',
-      passport_number: selected.passport_number ?? '',
-      office_name_address: selected.office_name_address ?? ''
-    });
     setEditOpen(true);
   }
 
   function openAddressCreate() {
     setEditingAddressId(null);
-    setAddressFieldErrors({});
-    setAddressFieldTouched({});
-    setAddressShowAllErrors(false);
-    setAddressForm({
-      kind: 'current',
-      address_line1: '',
-      city: '',
-      state: '',
-      pin: ''
-    });
+    setAddressDefaults(EMPTY_ADDRESS);
     setAddressFormOpen(true);
   }
 
   function openAddressEdit(row: AddressRow) {
     setEditingAddressId(row.id);
-    setAddressFieldErrors({});
-    setAddressFieldTouched({});
-    setAddressShowAllErrors(false);
-    setAddressForm({
-      kind: row.kind === 'permanent' ? 'permanent' : 'current',
-      address_line1: row.address_line1 ?? '',
-      city: row.city ?? '',
-      state: row.state ?? '',
-      pin: row.pin ?? ''
-    });
+    setAddressDefaults(addressValuesFromRow(row));
     setAddressFormOpen(true);
   }
 
-  async function saveAddress() {
+  async function saveAddress(values: AddressFormValues) {
     if (!selectedId) return;
-    const fieldErrors = validateAddressForm(addressForm);
-    setAddressFieldErrors(fieldErrors);
-    setAddressShowAllErrors(true);
-    if (hasFormFieldErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before saving.');
-      return;
-    }
-    const line = addressForm.address_line1.trim();
     setExtrasSaving(true);
-        try {
+    try {
       const payload = {
-        kind: addressForm.kind,
-        address_line1: line,
-        city: addressForm.city.trim() || null,
-        state: addressForm.state.trim() || null,
-        pin: addressForm.pin.trim() || null
+        kind: values.kind,
+        address_line1: values.address_line1.trim(),
+        city: values.city.trim() || null,
+        state: values.state.trim() || null,
+        pin: values.pin.trim() || null
       };
       if (editingAddressId) {
         const { data, error: upErr } = await supabase
@@ -952,9 +539,6 @@ export default function CustomersPage() {
         setAddresses((prev) => [...prev, row]);
       }
       setAddressFormOpen(false);
-      setAddressFieldErrors({});
-      setAddressFieldTouched({});
-      setAddressShowAllErrors(false);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save address'
@@ -987,48 +571,24 @@ export default function CustomersPage() {
 
   function openNomineeCreate() {
     setEditingNomineeId(null);
-    setNomineeFieldErrors({});
-    setNomineeFieldTouched({});
-    setNomineeShowAllErrors(false);
-    setNomineeForm({
-      nominee_name: '',
-      relationship: '',
-      nominee_dob: ''
-    });
+    setNomineeDefaults(EMPTY_NOMINEE);
     setNomineeFormOpen(true);
   }
 
   function openNomineeEdit(row: NomineeRow) {
     setEditingNomineeId(row.id);
-    setNomineeFieldErrors({});
-    setNomineeFieldTouched({});
-    setNomineeShowAllErrors(false);
-    setNomineeForm({
-      nominee_name: row.nominee_name ?? '',
-      relationship: row.relationship ?? '',
-      nominee_dob: row.nominee_dob
-        ? String(row.nominee_dob).slice(0, 10)
-        : ''
-    });
+    setNomineeDefaults(nomineeValuesFromRow(row));
     setNomineeFormOpen(true);
   }
 
-  async function saveNominee() {
+  async function saveNominee(values: NomineeFormValues) {
     if (!selectedId) return;
-    const fieldErrors = validateNomineeForm(nomineeForm);
-    setNomineeFieldErrors(fieldErrors);
-    setNomineeShowAllErrors(true);
-    if (hasFormFieldErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before saving.');
-      return;
-    }
-    const name = nomineeForm.nominee_name.trim();
     setExtrasSaving(true);
-        try {
+    try {
       const payload = {
-        nominee_name: name,
-        relationship: nomineeForm.relationship.trim() || null,
-        nominee_dob: nomineeForm.nominee_dob || null
+        nominee_name: values.nominee_name.trim(),
+        relationship: values.relationship.trim() || null,
+        nominee_dob: values.nominee_dob || null
       };
       if (editingNomineeId) {
         const { data, error: upErr } = await supabase
@@ -1054,9 +614,6 @@ export default function CustomersPage() {
         setNominees((prev) => [row, ...prev]);
       }
       setNomineeFormOpen(false);
-      setNomineeFieldErrors({});
-      setNomineeFieldTouched({});
-      setNomineeShowAllErrors(false);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save nominee'
@@ -1089,49 +646,25 @@ export default function CustomersPage() {
 
   function openBankCreate() {
     setEditingBankId(null);
-    setBankFieldErrors({});
-    setBankFieldTouched({});
-    setBankShowAllErrors(false);
-    setBankForm({
-      bank_name: '',
-      account_no: '',
-      ifsc: '',
-      branch: ''
-    });
+    setBankDefaults(EMPTY_BANK);
     setBankFormOpen(true);
   }
 
   function openBankEdit(row: BankRow) {
     setEditingBankId(row.id);
-    setBankFieldErrors({});
-    setBankFieldTouched({});
-    setBankShowAllErrors(false);
-    setBankForm({
-      bank_name: row.bank_name ?? '',
-      account_no: row.account_no ?? '',
-      ifsc: row.ifsc ?? '',
-      branch: row.branch ?? ''
-    });
+    setBankDefaults(bankValuesFromRow(row));
     setBankFormOpen(true);
   }
 
-  async function saveBank() {
+  async function saveBank(values: BankFormValues) {
     if (!selectedId) return;
-    const fieldErrors = validateBankForm(bankForm);
-    setBankFieldErrors(fieldErrors);
-    setBankShowAllErrors(true);
-    if (hasFormFieldErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before saving.');
-      return;
-    }
-    const bankName = bankForm.bank_name.trim();
     setExtrasSaving(true);
-        try {
+    try {
       const payload = {
-        bank_name: bankName,
-        account_no: bankForm.account_no.trim() || null,
-        ifsc: bankForm.ifsc.trim() || null,
-        branch: bankForm.branch.trim() || null
+        bank_name: values.bank_name.trim(),
+        account_no: values.account_no.trim() || null,
+        ifsc: values.ifsc.trim() || null,
+        branch: values.branch.trim() || null
       };
       if (editingBankId) {
         const { data, error: upErr } = await supabase
@@ -1157,9 +690,6 @@ export default function CustomersPage() {
         setBankRows((prev) => [row, ...prev]);
       }
       setBankFormOpen(false);
-      setBankFieldErrors({});
-      setBankFieldTouched({});
-      setBankShowAllErrors(false);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save bank details'
@@ -1191,13 +721,6 @@ export default function CustomersPage() {
   }
 
   function openKycUpload() {
-    setKycDocType('aadhaar');
-    setKycPanInput(selected?.pan_number ?? '');
-    setKycAadhaarInput(selected?.aadhaar_last4 ?? '');
-    setKycUploadFieldErrors({});
-    setKycUploadFieldTouched({});
-    setKycUploadShowAllErrors(false);
-    if (kycFileRef.current) kycFileRef.current.value = '';
     setKycFormOpen(true);
   }
 
@@ -1221,22 +744,13 @@ export default function CustomersPage() {
     const row = data as CustomerRow;
     setCustomers((cs) => cs.map((c) => (c.id === row.id ? row : c)));
     setPinnedCustomer((p) => (p?.id === row.id ? row : p));
-    setIdentityPan(row.pan_number ?? '');
-    setIdentityAadhaar(row.aadhaar_last4 ?? '');
     return row;
   }
 
-  async function saveKycIdentityDetails() {
-    const fieldErrors = validateKycIdentity(identityPan, identityAadhaar);
-    setIdentityFieldErrors(fieldErrors);
-    setIdentityShowAllErrors(true);
-    if (hasFormFieldErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before saving.');
-      return;
-    }
+  async function saveKycIdentityDetails(values: KycIdentityFormValues) {
     setExtrasSaving(true);
     try {
-      await persistCustomerIdentifiers(identityPan, identityAadhaar);
+      await persistCustomerIdentifiers(values.pan_number, values.aadhaar_last4);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to save PAN / Aadhaar'
@@ -1246,22 +760,15 @@ export default function CustomersPage() {
     }
   }
 
-  async function uploadKycDocument() {
+  async function uploadKycDocument(input: {
+    docType: string;
+    pan_number: string;
+    aadhaar_last4: string;
+    file: File;
+  }) {
     if (!selectedId) return;
-    const file = kycFileRef.current?.files?.[0];
-    const fieldErrors = validateKycUpload(
-      kycDocType,
-      kycPanInput,
-      kycAadhaarInput,
-      Boolean(file)
-    );
-    setKycUploadFieldErrors(fieldErrors);
-    setKycUploadShowAllErrors(true);
-    if (hasFormFieldErrors(fieldErrors)) {
-      pageError('Fix the highlighted fields before uploading.');
-      return;
-    }
-    if (!file) return;
+    const { docType: kycDocType, pan_number: kycPanInput, aadhaar_last4: kycAadhaarInput, file } =
+      input;
     const maxBytes = 50 * 1024 * 1024;
     if (file.size > maxBytes) {
       pageError('File is too large (max 50 MB).');
@@ -1326,7 +833,6 @@ export default function CustomersPage() {
       }
 
       setKycFormOpen(false);
-      if (kycFileRef.current) kycFileRef.current.value = '';
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Failed to upload document'
@@ -1400,209 +906,12 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <Dialog
+          <CustomerAddDialog
             open={open}
-            onOpenChange={(next) => {
-              setOpen(next);
-              if (!next) {
-                setDraftFieldErrors({});
-                setDraftFieldTouched({});
-                setDraftShowAllErrors(false);
-              }
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button size="sm">Add</Button>
-            </DialogTrigger>
-            <DialogContent className={CUSTOMER_FORM_DIALOG_CLASS}>
-              <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
-                <DialogTitle>Add customer</DialogTitle>
-              </DialogHeader>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Label>Full name *</Label>
-                  <Input
-                    value={draft.full_name}
-                    aria-invalid={
-                      visibleFieldError(
-                        draftFieldTouched,
-                        draftShowAllErrors,
-                        'full_name',
-                        draftFieldErrors
-                      )
-                        ? true
-                        : undefined
-                    }
-                    onChange={(e) => {
-                      const full_name = e.target.value;
-                      setDraftFieldTouched((t) => ({ ...t, full_name: true }));
-                      setDraft((d) => {
-                        const next = { ...d, full_name };
-                        setDraftFieldErrors(validateCustomerForm(next));
-                        return next;
-                      });
-                    }}
-                    placeholder="e.g. Mr. Amit Deshmukh"
-                  />
-                  <FieldError
-                    message={visibleFieldError(
-                      draftFieldTouched,
-                      draftShowAllErrors,
-                      'full_name',
-                      draftFieldErrors
-                    )}
-                  />
-                </div>
-                <PhoneInputField
-                  value={draft.phone}
-                  onChange={(v) => {
-                    setDraftFieldTouched((t) => ({ ...t, phone: true }));
-                    setDraft((d) => {
-                      const next = { ...d, phone: v };
-                      setDraftFieldErrors(validateCustomerForm(next));
-                      return next;
-                    });
-                  }}
-                  label="Phone *"
-                  error={visibleFieldError(
-                    draftFieldTouched,
-                    draftShowAllErrors,
-                    'phone',
-                    draftFieldErrors
-                  )}
-                />
-                <EmailInputField
-                  value={draft.email}
-                  onChange={(v) => {
-                    setDraftFieldTouched((t) => ({ ...t, email: true }));
-                    setDraft((d) => {
-                      const next = { ...d, email: v };
-                      setDraftFieldErrors(validateCustomerForm(next));
-                      return next;
-                    });
-                  }}
-                  placeholder="name@email.com"
-                  error={visibleFieldError(
-                    draftFieldTouched,
-                    draftShowAllErrors,
-                    'email',
-                    draftFieldErrors
-                  )}
-                />
-                <div>
-                  <Label>Date of birth</Label>
-                  <Input
-                    type="date"
-                    value={draft.dob}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, dob: e.target.value }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Occupation</Label>
-                  <Input
-                    value={draft.occupation}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, occupation: e.target.value }))
-                    }
-                    placeholder="Salaried / Business…"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Nationality</Label>
-                  <Select
-                    value={draft.nationality}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, nationality: v }))
-                    }
-                  >
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Indian">Indian</SelectItem>
-                      <SelectItem value="NRI">NRI</SelectItem>
-                      <SelectItem value="Foreign National">
-                        Foreign National
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Father&apos;s / mother&apos;s / spouse&apos;s name</Label>
-                  <Input
-                    value={draft.guardian_name}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, guardian_name: e.target.value }))
-                    }
-                    placeholder="As on PAN / Aadhaar"
-                    className="mt-1"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Residential status</Label>
-                  <Select
-                    value={draft.residential_status}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, residential_status: v }))
-                    }
-                  >
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {RESIDENTIAL_STATUS_OPTIONS.map((o) => (
-                        <SelectItem key={o} value={o}>
-                          {o}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Passport no. (NRI / foreign)</Label>
-                  <Input
-                    value={draft.passport_number}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, passport_number: e.target.value }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Office name &amp; address</Label>
-                  <Textarea
-                    value={draft.office_name_address}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        office_name_address: e.target.value
-                      }))
-                    }
-                    rows={2}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-              </div>
-
-              <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setOpen(false)}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={() => void createCustomer()} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+            onOpenChange={setOpen}
+            saving={saving}
+            onSubmit={createCustomer}
+          />
         </div>
 
         <Input
@@ -1697,312 +1006,23 @@ export default function CustomersPage() {
                 </div>
                 </div>
 
-                <Dialog
-                  open={editOpen}
-                  onOpenChange={(next) => {
-                    setEditOpen(next);
-                    if (!next) {
-                      setEditFieldErrors({});
-                      setEditFieldTouched({});
-                      setEditShowAllErrors(false);
-                    }
-                  }}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={openEditDialog}
                 >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={openEditDialog}
-                  >
-                    Edit
-                  </Button>
-                  <DialogContent className={CUSTOMER_FORM_DIALOG_CLASS}>
-                    <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
-                      <DialogTitle>Edit customer</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div className="sm:col-span-2">
-                        <Label>Full name *</Label>
-                        <Input
-                          value={editDraft.full_name}
-                          aria-invalid={
-                            visibleFieldError(
-                              editFieldTouched,
-                              editShowAllErrors,
-                              'full_name',
-                              editFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const full_name = e.target.value;
-                            setEditFieldTouched((t) => ({ ...t, full_name: true }));
-                            setEditDraft((d) => {
-                              const next = { ...d, full_name };
-                              setEditFieldErrors(validateCustomerForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="e.g. Mr. Amit Deshmukh"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            editFieldTouched,
-                            editShowAllErrors,
-                            'full_name',
-                            editFieldErrors
-                          )}
-                        />
-                      </div>
-                      <PhoneInputField
-                        value={editDraft.phone}
-                        onChange={(v) => {
-                          setEditFieldTouched((t) => ({ ...t, phone: true }));
-                          setEditDraft((d) => {
-                            const next = { ...d, phone: v };
-                            setEditFieldErrors(validateCustomerForm(next));
-                            return next;
-                          });
-                        }}
-                        label="Phone *"
-                        error={visibleFieldError(
-                          editFieldTouched,
-                          editShowAllErrors,
-                          'phone',
-                          editFieldErrors
-                        )}
-                      />
-                      <EmailInputField
-                        value={editDraft.email}
-                        onChange={(v) => {
-                          setEditFieldTouched((t) => ({ ...t, email: true }));
-                          setEditDraft((d) => {
-                            const next = { ...d, email: v };
-                            setEditFieldErrors(validateCustomerForm(next));
-                            return next;
-                          });
-                        }}
-                        placeholder="name@email.com"
-                        error={visibleFieldError(
-                          editFieldTouched,
-                          editShowAllErrors,
-                          'email',
-                          editFieldErrors
-                        )}
-                      />
-                      <div>
-                        <Label>Date of birth</Label>
-                        <Input
-                          type="date"
-                          value={editDraft.dob}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              dob: e.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label>Occupation</Label>
-                        <Input
-                          value={editDraft.occupation}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              occupation: e.target.value
-                            }))
-                          }
-                          placeholder="Salaried / Business…"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Nationality</Label>
-                        <Select
-                          value={editDraft.nationality}
-                          onValueChange={(v) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              nationality: v
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="mt-1 w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Indian">Indian</SelectItem>
-                            <SelectItem value="NRI">NRI</SelectItem>
-                            <SelectItem value="Foreign National">
-                              Foreign National
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Father&apos;s / mother&apos;s / spouse&apos;s name</Label>
-                        <Input
-                          value={editDraft.guardian_name}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              guardian_name: e.target.value
-                            }))
-                          }
-                          placeholder="As on PAN / Aadhaar"
-                          className="mt-1"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Residential status</Label>
-                        <Select
-                          value={editDraft.residential_status}
-                          onValueChange={(v) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              residential_status: v
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="mt-1 w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {RESIDENTIAL_STATUS_OPTIONS.map((o) => (
-                              <SelectItem key={o} value={o}>
-                                {o}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Passport no. (NRI / foreign)</Label>
-                        <Input
-                          value={editDraft.passport_number}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              passport_number: e.target.value
-                            }))
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <Label>Office name &amp; address</Label>
-                        <Textarea
-                          value={editDraft.office_name_address}
-                          onChange={(e) =>
-                            setEditDraft((d) => ({
-                              ...d,
-                              office_name_address: e.target.value
-                            }))
-                          }
-                          rows={2}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label>PAN</Label>
-                        <Input
-                          value={editDraft.pan_number}
-                          aria-invalid={
-                            visibleFieldError(
-                              editFieldTouched,
-                              editShowAllErrors,
-                              'pan_number',
-                              editFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const pan_number = e.target.value.toUpperCase();
-                            setEditFieldTouched((t) => ({ ...t, pan_number: true }));
-                            setEditDraft((d) => {
-                              const next = { ...d, pan_number };
-                              setEditFieldErrors(validateCustomerForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="ABCDE1234F"
-                          className="mt-1 uppercase"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            editFieldTouched,
-                            editShowAllErrors,
-                            'pan_number',
-                            editFieldErrors
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label>Aadhaar (last 4)</Label>
-                        <Input
-                          value={editDraft.aadhaar_last4}
-                          maxLength={4}
-                          aria-invalid={
-                            visibleFieldError(
-                              editFieldTouched,
-                              editShowAllErrors,
-                              'aadhaar_last4',
-                              editFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const aadhaar_last4 = e.target.value
-                              .replace(/\D/g, '')
-                              .slice(0, 4);
-                            setEditFieldTouched((t) => ({
-                              ...t,
-                              aadhaar_last4: true
-                            }));
-                            setEditDraft((d) => {
-                              const next = { ...d, aadhaar_last4 };
-                              setEditFieldErrors(validateCustomerForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="1234"
-                          className="mt-1"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            editFieldTouched,
-                            editShowAllErrors,
-                            'aadhaar_last4',
-                            editFieldErrors
-                          )}
-                        />
-                      </div>
-                    </div>
-                    </div>
-
-                    <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditOpen(false)}
-                        disabled={saving}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => void updateCustomer()}
-                        disabled={saving}
-                      >
-                        {saving ? 'Saving…' : 'Save'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  Edit
+                </Button>
+                <CustomerEditDialog
+                  open={editOpen}
+                  onOpenChange={setEditOpen}
+                  saving={saving}
+                  customer={selected}
+                  onSubmit={updateCustomer}
+                />
+                
               </div>
             </div>
 
@@ -2179,94 +1199,11 @@ export default function CustomersPage() {
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>PAN</Label>
-                      <Input
-                        value={identityPan}
-                        aria-invalid={
-                          visibleFieldError(
-                            identityFieldTouched,
-                            identityShowAllErrors,
-                            'pan_number',
-                            identityFieldErrors
-                          )
-                            ? true
-                            : undefined
-                        }
-                        onChange={(e) => {
-                          const pan = e.target.value.toUpperCase();
-                          setIdentityFieldTouched((t) => ({
-                            ...t,
-                            pan_number: true
-                          }));
-                          setIdentityPan(pan);
-                          setIdentityFieldErrors(
-                            validateKycIdentity(pan, identityAadhaar)
-                          );
-                        }}
-                        placeholder="ABCDE1234F"
-                        className="mt-1 uppercase"
-                      />
-                      <FieldError
-                        message={visibleFieldError(
-                          identityFieldTouched,
-                          identityShowAllErrors,
-                          'pan_number',
-                          identityFieldErrors
-                        )}
-                      />
-                    </div>
-                    <div>
-                      <Label>Aadhaar (last 4)</Label>
-                      <Input
-                        value={identityAadhaar}
-                        maxLength={4}
-                        aria-invalid={
-                          visibleFieldError(
-                            identityFieldTouched,
-                            identityShowAllErrors,
-                            'aadhaar_last4',
-                            identityFieldErrors
-                          )
-                            ? true
-                            : undefined
-                        }
-                        onChange={(e) => {
-                          const aadhaar = e.target.value
-                            .replace(/\D/g, '')
-                            .slice(0, 4);
-                          setIdentityFieldTouched((t) => ({
-                            ...t,
-                            aadhaar_last4: true
-                          }));
-                          setIdentityAadhaar(aadhaar);
-                          setIdentityFieldErrors(
-                            validateKycIdentity(identityPan, aadhaar)
-                          );
-                        }}
-                        placeholder="1234"
-                        className="mt-1"
-                      />
-                      <FieldError
-                        message={visibleFieldError(
-                          identityFieldTouched,
-                          identityShowAllErrors,
-                          'aadhaar_last4',
-                          identityFieldErrors
-                        )}
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => void saveKycIdentityDetails()}
-                    disabled={extrasSaving}
-                  >
-                    {extrasSaving ? 'Saving…' : 'Save to customer'}
-                  </Button>
+                  <CustomerKycIdentityForm
+                    customer={selected}
+                    saving={extrasSaving}
+                    onSubmit={saveKycIdentityDetails}
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
@@ -2354,218 +1291,14 @@ export default function CustomersPage() {
                   )}
                 </div>
 
-                <Dialog
+                <CustomerKycUploadDialog
                   open={kycFormOpen}
-                  onOpenChange={(next) => {
-                    setKycFormOpen(next);
-                    if (!next) {
-                      setKycUploadFieldErrors({});
-                      setKycUploadFieldTouched({});
-                      setKycUploadShowAllErrors(false);
-                    }
-                  }}
-                >
-                  <DialogContent className="max-w-xl">
-                    <DialogHeader>
-                      <DialogTitle>Upload KYC document</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid gap-4">
-                      <div>
-                        <Label>Document type</Label>
-                        <Select
-                          value={kycDocType}
-                          onValueChange={(v) => {
-                            const pan =
-                              v === 'pan'
-                                ? selected?.pan_number ?? ''
-                                : kycPanInput;
-                            const aadhaar =
-                              v === 'aadhaar'
-                                ? selected?.aadhaar_last4 ?? ''
-                                : kycAadhaarInput;
-                            setKycDocType(v);
-                            if (v === 'pan') setKycPanInput(pan);
-                            if (v === 'aadhaar') setKycAadhaarInput(aadhaar);
-                            setKycUploadFieldErrors(
-                              validateKycUpload(
-                                v,
-                                pan,
-                                aadhaar,
-                                Boolean(kycFileRef.current?.files?.[0])
-                              )
-                            );
-                          }}
-                        >
-                          <SelectTrigger className="mt-1 w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {KYC_DOC_TYPES.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {kycDocType === 'pan' ? (
-                        <div>
-                          <Label>PAN number</Label>
-                          <Input
-                            value={kycPanInput}
-                            aria-invalid={
-                              visibleFieldError(
-                                kycUploadFieldTouched,
-                                kycUploadShowAllErrors,
-                                'pan_number',
-                                kycUploadFieldErrors
-                              )
-                                ? true
-                                : undefined
-                            }
-                            onChange={(e) => {
-                              const pan = e.target.value.toUpperCase();
-                              setKycUploadFieldTouched((t) => ({
-                                ...t,
-                                pan_number: true
-                              }));
-                              setKycPanInput(pan);
-                              setKycUploadFieldErrors(
-                                validateKycUpload(
-                                  kycDocType,
-                                  pan,
-                                  kycAadhaarInput,
-                                  Boolean(kycFileRef.current?.files?.[0])
-                                )
-                              );
-                            }}
-                            placeholder="ABCDE1234F"
-                            className="mt-1 uppercase"
-                          />
-                          <FieldError
-                            message={visibleFieldError(
-                              kycUploadFieldTouched,
-                              kycUploadShowAllErrors,
-                              'pan_number',
-                              kycUploadFieldErrors
-                            )}
-                          />
-                          <p className="mt-1 text-xs text-gray-500">
-                            Stored on the customer profile when you upload.
-                          </p>
-                        </div>
-                      ) : null}
-                      {kycDocType === 'aadhaar' ? (
-                        <div>
-                          <Label>Aadhaar (last 4 digits)</Label>
-                          <Input
-                            value={kycAadhaarInput}
-                            maxLength={4}
-                            aria-invalid={
-                              visibleFieldError(
-                                kycUploadFieldTouched,
-                                kycUploadShowAllErrors,
-                                'aadhaar_last4',
-                                kycUploadFieldErrors
-                              )
-                                ? true
-                                : undefined
-                            }
-                            onChange={(e) => {
-                              const aadhaar = e.target.value
-                                .replace(/\D/g, '')
-                                .slice(0, 4);
-                              setKycUploadFieldTouched((t) => ({
-                                ...t,
-                                aadhaar_last4: true
-                              }));
-                              setKycAadhaarInput(aadhaar);
-                              setKycUploadFieldErrors(
-                                validateKycUpload(
-                                  kycDocType,
-                                  kycPanInput,
-                                  aadhaar,
-                                  Boolean(kycFileRef.current?.files?.[0])
-                                )
-                              );
-                            }}
-                            placeholder="1234"
-                            className="mt-1"
-                          />
-                          <FieldError
-                            message={visibleFieldError(
-                              kycUploadFieldTouched,
-                              kycUploadShowAllErrors,
-                              'aadhaar_last4',
-                              kycUploadFieldErrors
-                            )}
-                          />
-                        </div>
-                      ) : null}
-                      <div>
-                        <Label>File</Label>
-                        <Input
-                          ref={kycFileRef}
-                          type="file"
-                          accept="application/pdf,image/jpeg,image/png,image/webp"
-                          aria-invalid={
-                            visibleFieldError(
-                              kycUploadFieldTouched,
-                              kycUploadShowAllErrors,
-                              'file',
-                              kycUploadFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={() => {
-                            setKycUploadFieldTouched((t) => ({ ...t, file: true }));
-                            setKycUploadFieldErrors(
-                              validateKycUpload(
-                                kycDocType,
-                                kycPanInput,
-                                kycAadhaarInput,
-                                Boolean(kycFileRef.current?.files?.[0])
-                              )
-                            );
-                          }}
-                          className="mt-1 block h-auto py-1.5 text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            kycUploadFieldTouched,
-                            kycUploadShowAllErrors,
-                            'file',
-                            kycUploadFieldErrors
-                          )}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Path:{' '}
-                          <code className="text-[11px]">
-                            customer/&lt;id&gt;/&lt;type&gt;/&lt;uuid&gt;
-                          </code>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setKycFormOpen(false)}
-                        disabled={extrasSaving}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => void uploadKycDocument()}
-                        disabled={extrasSaving}
-                      >
-                        {extrasSaving ? 'Uploading…' : 'Upload'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  onOpenChange={setKycFormOpen}
+                  saving={extrasSaving}
+                  initialPan={selected?.pan_number ?? ''}
+                  initialAadhaar={selected?.aadhaar_last4 ?? ''}
+                  onUpload={uploadKycDocument}
+                />
               </div>
             ) : null}
 
@@ -2640,163 +1373,14 @@ export default function CustomersPage() {
                   ))
                 )}
 
-                <Dialog
+                <CustomerAddressDialog
                   open={addressFormOpen}
-                  onOpenChange={(next) => {
-                    setAddressFormOpen(next);
-                    if (!next) {
-                      setAddressFieldErrors({});
-                      setAddressFieldTouched({});
-                      setAddressShowAllErrors(false);
-                    }
-                  }}
-                >
-                  <DialogContent className="max-w-xl">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {editingAddressId ? 'Edit address' : 'Add address'}
-                      </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <Label>Type</Label>
-                        <Select
-                          value={addressForm.kind}
-                          onValueChange={(v) =>
-                            setAddressForm((f) => ({
-                              ...f,
-                              kind: v as 'current' | 'permanent'
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="mt-1 w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="current">Current</SelectItem>
-                            <SelectItem value="permanent">Permanent</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-2">
-                        <Label>Address line</Label>
-                        <Textarea
-                          value={addressForm.address_line1}
-                          aria-invalid={
-                            visibleFieldError(
-                              addressFieldTouched,
-                              addressShowAllErrors,
-                              'address_line1',
-                              addressFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const address_line1 = e.target.value;
-                            setAddressFieldTouched((t) => ({
-                              ...t,
-                              address_line1: true
-                            }));
-                            setAddressForm((f) => {
-                              const next = { ...f, address_line1 };
-                              setAddressFieldErrors(validateAddressForm(next));
-                              return next;
-                            });
-                          }}
-                          rows={2}
-                          placeholder="Street, building, landmark…"
-                          className="mt-1"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            addressFieldTouched,
-                            addressShowAllErrors,
-                            'address_line1',
-                            addressFieldErrors
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label>City</Label>
-                        <Input
-                          value={addressForm.city}
-                          onChange={(e) =>
-                            setAddressForm((f) => ({
-                              ...f,
-                              city: e.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label>State</Label>
-                        <Input
-                          value={addressForm.state}
-                          onChange={(e) =>
-                            setAddressForm((f) => ({
-                              ...f,
-                              state: e.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label>PIN</Label>
-                        <Input
-                          value={addressForm.pin}
-                          aria-invalid={
-                            visibleFieldError(
-                              addressFieldTouched,
-                              addressShowAllErrors,
-                              'pin',
-                              addressFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const pin = e.target.value.replace(/\D/g, '').slice(0, 6);
-                            setAddressFieldTouched((t) => ({ ...t, pin: true }));
-                            setAddressForm((f) => {
-                              const next = { ...f, pin };
-                              setAddressFieldErrors(validateAddressForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="e.g. 400001"
-                          inputMode="numeric"
-                          maxLength={6}
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            addressFieldTouched,
-                            addressShowAllErrors,
-                            'pin',
-                            addressFieldErrors
-                          )}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setAddressFormOpen(false)}
-                        disabled={extrasSaving}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => void saveAddress()}
-                        disabled={extrasSaving}
-                      >
-                        {extrasSaving ? 'Saving…' : 'Save'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  onOpenChange={setAddressFormOpen}
+                  saving={extrasSaving}
+                  editing={Boolean(editingAddressId)}
+                  defaultValues={addressDefaults}
+                  onSubmit={saveAddress}
+                />
               </div>
             ) : null}
 
@@ -2869,107 +1453,14 @@ export default function CustomersPage() {
                   )}
                 </div>
 
-                <Dialog
+                <CustomerNomineeDialog
                   open={nomineeFormOpen}
-                  onOpenChange={(next) => {
-                    setNomineeFormOpen(next);
-                    if (!next) {
-                      setNomineeFieldErrors({});
-                      setNomineeFieldTouched({});
-                      setNomineeShowAllErrors(false);
-                    }
-                  }}
-                >
-                  <DialogContent className="max-w-xl">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {editingNomineeId ? 'Edit nominee' : 'Add nominee'}
-                      </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <Label>Full name</Label>
-                        <Input
-                          value={nomineeForm.nominee_name}
-                          aria-invalid={
-                            visibleFieldError(
-                              nomineeFieldTouched,
-                              nomineeShowAllErrors,
-                              'nominee_name',
-                              nomineeFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const nominee_name = e.target.value;
-                            setNomineeFieldTouched((t) => ({
-                              ...t,
-                              nominee_name: true
-                            }));
-                            setNomineeForm((f) => {
-                              const next = { ...f, nominee_name };
-                              setNomineeFieldErrors(validateNomineeForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="Nominee name"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            nomineeFieldTouched,
-                            nomineeShowAllErrors,
-                            'nominee_name',
-                            nomineeFieldErrors
-                          )}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label>Relationship</Label>
-                        <Input
-                          value={nomineeForm.relationship}
-                          onChange={(e) =>
-                            setNomineeForm((f) => ({
-                              ...f,
-                              relationship: e.target.value
-                            }))
-                          }
-                          placeholder="e.g. Spouse, Father"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label>Date of birth</Label>
-                        <Input
-                          type="date"
-                          value={nomineeForm.nominee_dob}
-                          onChange={(e) =>
-                            setNomineeForm((f) => ({
-                              ...f,
-                              nominee_dob: e.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setNomineeFormOpen(false)}
-                        disabled={extrasSaving}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => void saveNominee()}
-                        disabled={extrasSaving}
-                      >
-                        {extrasSaving ? 'Saving…' : 'Save'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  onOpenChange={setNomineeFormOpen}
+                  saving={extrasSaving}
+                  editing={Boolean(editingNomineeId)}
+                  defaultValues={nomineeDefaults}
+                  onSubmit={saveNominee}
+                />
               </div>
             ) : null}
 
@@ -3043,137 +1534,14 @@ export default function CustomersPage() {
                   )}
                 </div>
 
-                <Dialog
+                <CustomerBankDialog
                   open={bankFormOpen}
-                  onOpenChange={(next) => {
-                    setBankFormOpen(next);
-                    if (!next) {
-                      setBankFieldErrors({});
-                      setBankFieldTouched({});
-                      setBankShowAllErrors(false);
-                    }
-                  }}
-                >
-                  <DialogContent className="max-w-xl">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {editingBankId ? 'Edit bank details' : 'Add bank details'}
-                      </DialogTitle>
-                    </DialogHeader>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <Label>Bank name</Label>
-                        <Input
-                          value={bankForm.bank_name}
-                          aria-invalid={
-                            visibleFieldError(
-                              bankFieldTouched,
-                              bankShowAllErrors,
-                              'bank_name',
-                              bankFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const bank_name = e.target.value;
-                            setBankFieldTouched((t) => ({ ...t, bank_name: true }));
-                            setBankForm((f) => {
-                              const next = { ...f, bank_name };
-                              setBankFieldErrors(validateBankForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="Bank name"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            bankFieldTouched,
-                            bankShowAllErrors,
-                            'bank_name',
-                            bankFieldErrors
-                          )}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label>Account number</Label>
-                        <Input
-                          value={bankForm.account_no}
-                          onChange={(e) =>
-                            setBankForm((f) => ({
-                              ...f,
-                              account_no: e.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label>IFSC</Label>
-                        <Input
-                          value={bankForm.ifsc}
-                          aria-invalid={
-                            visibleFieldError(
-                              bankFieldTouched,
-                              bankShowAllErrors,
-                              'ifsc',
-                              bankFieldErrors
-                            )
-                              ? true
-                              : undefined
-                          }
-                          onChange={(e) => {
-                            const ifsc = e.target.value.toUpperCase();
-                            setBankFieldTouched((t) => ({ ...t, ifsc: true }));
-                            setBankForm((f) => {
-                              const next = { ...f, ifsc };
-                              setBankFieldErrors(validateBankForm(next));
-                              return next;
-                            });
-                          }}
-                          placeholder="IFSC code"
-                          className="uppercase"
-                        />
-                        <FieldError
-                          message={visibleFieldError(
-                            bankFieldTouched,
-                            bankShowAllErrors,
-                            'ifsc',
-                            bankFieldErrors
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label>Branch</Label>
-                        <Input
-                          value={bankForm.branch}
-                          onChange={(e) =>
-                            setBankForm((f) => ({
-                              ...f,
-                              branch: e.target.value
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setBankFormOpen(false)}
-                        disabled={extrasSaving}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => void saveBank()}
-                        disabled={extrasSaving}
-                      >
-                        {extrasSaving ? 'Saving…' : 'Save'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  onOpenChange={setBankFormOpen}
+                  saving={extrasSaving}
+                  editing={Boolean(editingBankId)}
+                  defaultValues={bankDefaults}
+                  onSubmit={saveBank}
+                />
               </div>
             ) : null}
           </div>

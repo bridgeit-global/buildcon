@@ -41,10 +41,6 @@ const optionalAadhaarLast4 = z.string().refine(
   { message: 'Enter the last 4 digits of Aadhaar.' }
 );
 
-const requiredAadhaarLast4 = z.string().refine((v) => isAadhaarLast4Valid(v), {
-  message: 'Enter the last 4 digits of Aadhaar.'
-});
-
 const pinOptional = z.string().refine(
   (v) => {
     const t = v.trim();

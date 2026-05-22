@@ -1,12 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import type {
-  Control,
-  FieldPath,
-  FieldValues,
-  UseFormRegister
-} from 'react-hook-form';
+import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -83,7 +77,6 @@ export function RhfPhoneInput<T extends FieldValues>({
           label={label}
           value={field.value ?? ''}
           onChange={field.onChange}
-          onBlur={field.onBlur}
           error={fieldState.error?.message}
         />
       )}
@@ -106,7 +99,6 @@ export function RhfEmailInput<T extends FieldValues>({
           label={label}
           value={field.value ?? ''}
           onChange={field.onChange}
-          onBlur={field.onBlur}
           placeholder={placeholder}
           error={fieldState.error?.message}
         />
