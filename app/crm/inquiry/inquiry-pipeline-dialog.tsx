@@ -8,7 +8,7 @@ import {
   todayIsoDate,
   withDateInputDefault
 } from '@/lib/date-input-value';
-import { negotiationApprovalRequestSchema } from '@/lib/inquiry/inquiry-pipeline.schema';
+import { negotiationApprovalRequestSchemaWithUnitCap } from '@/lib/inquiry/inquiry-pipeline.schema';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { useRouter } from 'next/navigation';
@@ -642,13 +642,17 @@ function NegotiationForm({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const approvalValidation = useFieldValidation(negotiationApprovalRequestSchema, {
+  const listPrice =
+    listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
+  const approvalSchema = useMemo(
+    () => negotiationApprovalRequestSchemaWithUnitCap(listPrice),
+    [listPrice]
+  );
+  const approvalValidation = useFieldValidation(approvalSchema, {
     offeredPrice: data.offered_price ?? '',
     requestNote: data.notes ?? ''
   });
   const approvalStatus = getNegotiationApprovalStatus(data);
-  const listPrice =
-    listPriceInr != null && listPriceInr > 0 ? listPriceInr : null;
   const { discountPct, discountInr } = computeNegotiationDiscount(
     listPrice,
     data.offered_price
@@ -784,7 +788,7 @@ function NegotiationForm({
       {listPrice ? (
         <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ds-gray-500">
-            Unit list price
+            Actual unit cost (agreement total)
           </p>
           <p className="mt-1 text-sm font-semibold text-ds-gray-900">
             {formatInrCompactLacCr(listPrice)}
@@ -819,6 +823,7 @@ function NegotiationForm({
             type="number"
             className="h-8 text-xs"
             placeholder="75,00,000"
+            max={listPrice ?? undefined}
             value={data.offered_price ?? ''}
             onChange={(e) => {
               applyOfferedPrice(e.target.value);
@@ -831,6 +836,11 @@ function NegotiationForm({
             disabled={formDisabled}
           />
           <FormFieldError message={approvalValidation.fieldError('offeredPrice')} />
+          {listPrice ? (
+            <p className="text-[10px] text-ds-gray-500">
+              Must not exceed actual unit cost (₹ {formatInr(listPrice)}).
+            </p>
+          ) : null}
         </div>
         <div className="grid gap-1.5">
           <Label className="text-xs">Discount asked (%)</Label>
