@@ -80,6 +80,19 @@ export async function POST(request: Request) {
   if (modeTrim === 'NEFT/RTGS' && !paymentDetailObj.neft_ref) {
     return NextResponse.json({ error: 'Enter NEFT / RTGS reference' }, { status: 400 });
   }
+  if (!modeTrim) {
+    return NextResponse.json({ error: 'Payment mode is required' }, { status: 400 });
+  }
+  const bookingAmountNum = Number(body.bookingAmount ?? 0);
+  if (!Number.isFinite(bookingAmountNum) || bookingAmountNum <= 0) {
+    return NextResponse.json({ error: 'Enter a positive booking amount' }, { status: 400 });
+  }
+  if (
+    (modeTrim === 'Home Loan' || modeTrim === 'Construction Linked') &&
+    !String(body.loanBank ?? '').trim()
+  ) {
+    return NextResponse.json({ error: 'Select the loan or sanctioning bank' }, { status: 400 });
+  }
 
   const rawCoIds = Array.isArray(body.coBuyerCustomerIds) ? body.coBuyerCustomerIds : [];
   const coBuyerIdsOrdered: string[] = [];

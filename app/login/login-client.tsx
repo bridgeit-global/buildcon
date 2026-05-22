@@ -18,8 +18,28 @@ export function LoginClient() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | undefined>();
+  const [passwordError, setPasswordError] = useState<string | undefined>();
+
+  function validateLoginFields() {
+    const trimmedEmail = email.trim();
+    const nextEmailError = !trimmedEmail
+      ? 'Email is required.'
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
+        ? 'Enter a valid email address.'
+        : undefined;
+    const nextPasswordError = !password
+      ? 'Password is required.'
+      : password.length < 6
+        ? 'Password must be at least 6 characters.'
+        : undefined;
+    setEmailError(nextEmailError);
+    setPasswordError(nextPasswordError);
+    return !nextEmailError && !nextPasswordError;
+  }
 
   async function submit() {
+    if (!validateLoginFields()) return;
     setBusy(true);
     try {
       if (mode === 'sign_in') {
@@ -71,7 +91,11 @@ export function LoginClient() {
         <div className="flex flex-col gap-3">
           <EmailInputField
             value={email}
-            onChange={setEmail}
+            onChange={(v) => {
+              setEmail(v);
+              if (emailError) setEmailError(undefined);
+            }}
+            error={emailError}
             placeholder="name@company.com"
           />
 
@@ -79,19 +103,29 @@ export function LoginClient() {
             <span className="text-xs font-medium text-gray-600">Password</span>
             <Input
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (passwordError) setPasswordError(undefined);
+              }}
+              onBlur={() => {
+                if (password) validateLoginFields();
+              }}
+              aria-invalid={passwordError ? true : undefined}
               placeholder="••••••••"
               type="password"
               autoComplete={
                 mode === 'sign_in' ? 'current-password' : 'new-password'
               }
             />
+            {passwordError ? (
+              <p className="text-xs text-red-600">{passwordError}</p>
+            ) : null}
           </label>
 
           <Button
             onClick={submit}
-            disabled={busy || !email || !password}
-            variant={busy || !email || !password ? 'outline' : 'default'}
+            disabled={busy}
+            variant={busy ? 'outline' : 'default'}
           >
             {busy ? 'Please wait…' : mode === 'sign_in' ? 'Sign in' : 'Sign up'}
           </Button>

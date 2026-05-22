@@ -31,6 +31,11 @@ import {
 } from '@/lib/booking/persist-collection-receipt';
 import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
 import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
+import {
+  collectionEntrySchema,
+  type CollectionEntryValues
+} from '@/lib/financials/collection-entry.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 
 const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
 
@@ -70,11 +75,44 @@ export default function FinancialsBookingPage() {
   const [loading, setLoading] = useState(true);
   const [entryScheduleId, setEntryScheduleId] = useState('');
   const [entryAmount, setEntryAmount] = useState('');
-  const [entryDate, setEntryDate] = useState('');
+  const [entryDate, setEntryDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
   const [entryMode, setEntryMode] = useState('NEFT');
   const [entryRef, setEntryRef] = useState('');
   const [saving, setSaving] = useState(false);
   const [generatingDemandFor, setGeneratingDemandFor] = useState<string | null>(null);
+  const [collectionTouched, setCollectionTouched] = useState<
+    Partial<Record<keyof CollectionEntryValues, boolean>>
+  >({});
+  const [collectionSubmitAttempted, setCollectionSubmitAttempted] = useState(false);
+
+  const collectionErrors = useMemo(() => {
+    const parsed = collectionEntrySchema.safeParse({
+      entryAmount,
+      entryDate,
+      entryMode,
+      entryRef
+    });
+    if (parsed.success) return {};
+    const out: Partial<Record<keyof CollectionEntryValues, string>> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === 'string' && !(key in out)) {
+        out[key as keyof CollectionEntryValues] = issue.message;
+      }
+    }
+    return out;
+  }, [entryAmount, entryDate, entryMode, entryRef]);
+
+  function collectionFieldError(field: keyof CollectionEntryValues) {
+    if (!collectionSubmitAttempted && !collectionTouched[field]) return undefined;
+    return collectionErrors[field];
+  }
+
+  function touchCollectionField(field: keyof CollectionEntryValues) {
+    setCollectionTouched((t) => ({ ...t, [field]: true }));
+  }
 
   async function syncScheduleIfNeeded() {
     try {
@@ -198,7 +236,18 @@ export default function FinancialsBookingPage() {
   }
 
   async function addCollection() {
-    if (!bookingId || !entryAmount) return;
+    if (!bookingId) return;
+    setCollectionSubmitAttempted(true);
+    const parsed = collectionEntrySchema.safeParse({
+      entryAmount,
+      entryDate,
+      entryMode,
+      entryRef
+    });
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
     setSaving(true);
     try {
       const { data: inserted, error: insErr } = await supabase
@@ -236,8 +285,10 @@ export default function FinancialsBookingPage() {
         }
       }
       setEntryAmount('');
-      setEntryDate('');
+      setEntryDate(new Date().toISOString().slice(0, 10));
       setEntryRef('');
+      setCollectionTouched({});
+      setCollectionSubmitAttempted(false);
       await loadFinancials();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save collection');
@@ -469,7 +520,12 @@ export default function FinancialsBookingPage() {
             <Label>Amount (₹)</Label>
             <Input
               value={entryAmount}
-              onChange={(e) => setEntryAmount(e.target.value)}
+              onChange={(e) => {
+                setEntryAmount(e.target.value);
+                touchCollectionField('entryAmount');
+              }}
+              onBlur={() => touchCollectionField('entryAmount')}
+              aria-invalid={collectionFieldError('entryAmount') ? true : undefined}
               placeholder={
                 pendingSchedules[0]
                   ? String(Math.round(pendingSchedules[0].pending))
@@ -477,19 +533,33 @@ export default function FinancialsBookingPage() {
               }
               disabled={loading}
             />
+            <FormFieldError message={collectionFieldError('entryAmount')} />
           </div>
           <div>
             <Label>Date</Label>
             <Input
               type="date"
               value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
+              onChange={(e) => {
+                setEntryDate(e.target.value);
+                touchCollectionField('entryDate');
+              }}
+              onBlur={() => touchCollectionField('entryDate')}
+              aria-invalid={collectionFieldError('entryDate') ? true : undefined}
               disabled={loading}
             />
+            <FormFieldError message={collectionFieldError('entryDate')} />
           </div>
           <div>
             <Label>Mode</Label>
-            <Select value={entryMode} onValueChange={setEntryMode} disabled={loading}>
+            <Select
+              value={entryMode}
+              onValueChange={(v) => {
+                setEntryMode(v);
+                touchCollectionField('entryMode');
+              }}
+              disabled={loading}
+            >
               <SelectTrigger className="mt-1 w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -515,7 +585,7 @@ export default function FinancialsBookingPage() {
             <Button
               className="w-full sm:w-auto"
               onClick={() => void addCollection()}
-              disabled={saving || loading || !entryAmount}
+              disabled={saving || loading}
             >
               {saving ? 'Saving…' : 'Save collection'}
             </Button>

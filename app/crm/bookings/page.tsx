@@ -73,6 +73,18 @@ import {
 import { negotiationApprovalBlockMessage } from '../inquiry/inquiry-stage-transitions';
 import { BookingListTable } from './booking-list-table';
 import type { BookingListRow } from './booking-types';
+import {
+  BOOKING_PAYMENT_MODE_OPTIONS,
+  paymentModeNeedsLoanBank
+} from '@/lib/booking/booking-payment';
+import {
+  bookingCreateSchema,
+  bookingQuickCustomerSchema,
+  zodFieldErrors,
+  type BookingCreateFormValues,
+  type BookingQuickCustomerValues
+} from '@/lib/booking/booking-create.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 
 type UnitOption = {
   id: string;
@@ -121,17 +133,6 @@ function newCoBuyerSlot(): CoBuyerSlot {
   return { key: crypto.randomUUID(), customerId: '' };
 }
 
-const PAYMENT_MODE_OPTIONS = [
-  'Cash',
-  'UPI',
-  'Cheque',
-  'NEFT/RTGS',
-  'Card',
-  'Down Payment',
-  'Home Loan',
-  'Construction Linked'
-] as const;
-
 const LOAN_BANK_OPTIONS = [
   'HDFC Bank',
   'SBI Bank',
@@ -139,11 +140,6 @@ const LOAN_BANK_OPTIONS = [
   'ICICI Bank',
   'Bank of Baroda'
 ] as const;
-
-function paymentModeNeedsLoanBank(mode: string | null | undefined) {
-  const m = String(mode || '').trim();
-  return m === 'Home Loan' || m === 'Construction Linked';
-}
 
 function parsePaymentDetailStored(raw: unknown): PaymentDetailStored | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -413,6 +409,63 @@ export default function BookingsPage() {
     email: ''
   });
   const [savingCustomer, setSavingCustomer] = useState(false);
+  const [createTouched, setCreateTouched] = useState<
+    Partial<Record<keyof BookingCreateFormValues, boolean>>
+  >({});
+  const [createSubmitAttempted, setCreateSubmitAttempted] = useState(false);
+  const [newCustomerTouched, setNewCustomerTouched] = useState<
+    Partial<Record<keyof BookingQuickCustomerValues, boolean>>
+  >({});
+  const [newCustomerSubmitAttempted, setNewCustomerSubmitAttempted] =
+    useState(false);
+
+  const createErrors = useMemo(() => {
+    return zodFieldErrors<keyof BookingCreateFormValues>(
+      bookingCreateSchema.safeParse({
+        unitId,
+        customerId,
+        paymentMode,
+        loanBank,
+        upiUtr,
+        chequeNo,
+        neftRef,
+        bookingAmount
+      })
+    );
+  }, [
+    unitId,
+    customerId,
+    paymentMode,
+    loanBank,
+    upiUtr,
+    chequeNo,
+    neftRef,
+    bookingAmount
+  ]);
+
+  const newCustomerErrors = useMemo(() => {
+    return zodFieldErrors<keyof BookingQuickCustomerValues>(
+      bookingQuickCustomerSchema.safeParse(newCustomerDraft)
+    );
+  }, [newCustomerDraft]);
+
+  function createFieldError(field: keyof BookingCreateFormValues) {
+    if (!createSubmitAttempted && !createTouched[field]) return undefined;
+    return createErrors[field];
+  }
+
+  function touchCreateField(field: keyof BookingCreateFormValues) {
+    setCreateTouched((t) => ({ ...t, [field]: true }));
+  }
+
+  function newCustomerFieldError(field: keyof BookingQuickCustomerValues) {
+    if (!newCustomerSubmitAttempted && !newCustomerTouched[field]) return undefined;
+    return newCustomerErrors[field];
+  }
+
+  function touchNewCustomerField(field: keyof BookingQuickCustomerValues) {
+    setNewCustomerTouched((t) => ({ ...t, [field]: true }));
+  }
 
   async function loadProjectPricing(projectId: string) {
     const { data: projData, error: projErr } = await supabase
@@ -576,7 +629,7 @@ export default function BookingsPage() {
       if (amount) setBookingAmount(amount);
 
       const mode = String(p.paymentMode ?? '').trim();
-      if (mode && (PAYMENT_MODE_OPTIONS as readonly string[]).includes(mode)) {
+      if (mode && (BOOKING_PAYMENT_MODE_OPTIONS as readonly string[]).includes(mode)) {
         setPaymentMode(mode);
       }
 
@@ -711,13 +764,29 @@ export default function BookingsPage() {
   }, [prefillMeta, supabase]);
 
   async function createBooking() {
-    const selectedUnit = units.find((u) => u.id === unitId);
-    if (!selectedUnit?.project_id || !unitId || !customerId) return;
-
     if (inquiryBookingBlockMessage) {
       pageError(inquiryBookingBlockMessage);
       return;
     }
+
+    setCreateSubmitAttempted(true);
+    const parsed = bookingCreateSchema.safeParse({
+      unitId,
+      customerId,
+      paymentMode,
+      loanBank,
+      upiUtr,
+      chequeNo,
+      neftRef,
+      bookingAmount
+    });
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before recording the token.');
+      return;
+    }
+
+    const selectedUnit = units.find((u) => u.id === unitId);
+    if (!selectedUnit?.project_id) return;
 
     const coIdsOrdered = coBuyerSlots
       .map((s) => s.customerId)
@@ -754,27 +823,6 @@ export default function BookingsPage() {
         }
         seenCoPhones.add(ph);
       }
-    }
-
-    if (
-      paymentModeNeedsLoanBank(paymentMode) &&
-      !String(loanBank || '').trim()
-    ) {
-      pageError('Select the loan or sanctioning bank.');
-      return;
-    }
-
-    if (paymentMode === 'UPI' && !String(upiUtr || '').trim()) {
-      pageError('Enter UPI UTR.');
-      return;
-    }
-    if (paymentMode === 'Cheque' && !String(chequeNo || '').trim()) {
-      pageError('Enter cheque number.');
-      return;
-    }
-    if (paymentMode === 'NEFT/RTGS' && !String(neftRef || '').trim()) {
-      pageError('Enter NEFT / RTGS reference.');
-      return;
     }
 
     setCreating(true);
@@ -825,6 +873,8 @@ export default function BookingsPage() {
       setPrefillMeta(null);
       setBreakdownUnit(null);
       setUnitFromInquiryUnavailable(false);
+      setCreateTouched({});
+      setCreateSubmitAttempted(false);
       await load();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to create booking');
@@ -834,16 +884,14 @@ export default function BookingsPage() {
   }
 
   async function submitNewCustomer() {
-    const full_name = newCustomerDraft.full_name.trim();
-    if (!full_name) {
-      pageError('Customer name is required.');
+    setNewCustomerSubmitAttempted(true);
+    const parsed = bookingQuickCustomerSchema.safeParse(newCustomerDraft);
+    if (!parsed.success) {
+      pageError('Fix the highlighted fields before saving.');
       return;
     }
-    const digits = normalizePhoneDigits(newCustomerDraft.phone);
-    if (digits.length !== 10) {
-      pageError('Enter a 10-digit phone number.');
-      return;
-    }
+    const full_name = parsed.data.full_name.trim();
+    const digits = normalizePhoneDigits(parsed.data.phone);
     setSavingCustomer(true);
         try {
       const { data, error: insErr } = await supabase
@@ -851,7 +899,7 @@ export default function BookingsPage() {
         .insert({
           full_name,
           phone: digits,
-          email: newCustomerDraft.email.trim() || null
+          email: parsed.data.email.trim() || null
         })
         .select('id,full_name,phone,email')
         .single();
@@ -871,6 +919,8 @@ export default function BookingsPage() {
       setAddCustomerOpen(false);
       setAddCustomerCoSlotKey(null);
       setNewCustomerDraft({ full_name: '', phone: '', email: '' });
+      setNewCustomerTouched({});
+      setNewCustomerSubmitAttempted(false);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to create customer');
     } finally {
@@ -1486,24 +1536,34 @@ export default function BookingsPage() {
 
           <div>
             <Label>Payment mode</Label>
-            <Select value={paymentMode} onValueChange={setPaymentMode}>
+            <Select
+              value={paymentMode}
+              onValueChange={(v) => {
+                setPaymentMode(v);
+                touchCreateField('paymentMode');
+              }}
+            >
               <SelectTrigger className="mt-1 w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PAYMENT_MODE_OPTIONS.map((m) => (
+                {BOOKING_PAYMENT_MODE_OPTIONS.map((m) => (
                   <SelectItem key={m} value={m}>
                     {m}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <FormFieldError message={createFieldError('paymentMode')} />
           </div>
           <div>
             <Label>Loan bank</Label>
             <Select
               value={loanBank === '' ? undefined : loanBank}
-              onValueChange={setLoanBank}
+              onValueChange={(v) => {
+                setLoanBank(v);
+                touchCreateField('loanBank');
+              }}
               disabled={!paymentModeNeedsLoanBank(paymentMode)}
             >
               <SelectTrigger className="mt-1 w-full">
@@ -1517,17 +1577,24 @@ export default function BookingsPage() {
                 ))}
               </SelectContent>
             </Select>
+            <FormFieldError message={createFieldError('loanBank')} />
           </div>
           {paymentMode === 'UPI' ? (
             <div className="col-span-2">
               <Label>UPI UTR</Label>
               <Input
                 value={upiUtr}
-                onChange={(e) => setUpiUtr(e.target.value)}
+                onChange={(e) => {
+                  setUpiUtr(e.target.value);
+                  touchCreateField('upiUtr');
+                }}
+                onBlur={() => touchCreateField('upiUtr')}
+                aria-invalid={createFieldError('upiUtr') ? true : undefined}
                 placeholder="Bank reference / UTR"
                 className="mt-1"
                 autoComplete="off"
               />
+              <FormFieldError message={createFieldError('upiUtr')} />
             </div>
           ) : null}
           {paymentMode === 'Cheque' ? (
@@ -1535,11 +1602,17 @@ export default function BookingsPage() {
               <Label>Cheque number</Label>
               <Input
                 value={chequeNo}
-                onChange={(e) => setChequeNo(e.target.value)}
+                onChange={(e) => {
+                  setChequeNo(e.target.value);
+                  touchCreateField('chequeNo');
+                }}
+                onBlur={() => touchCreateField('chequeNo')}
+                aria-invalid={createFieldError('chequeNo') ? true : undefined}
                 placeholder="Cheque no."
                 className="mt-1"
                 autoComplete="off"
               />
+              <FormFieldError message={createFieldError('chequeNo')} />
             </div>
           ) : null}
           {paymentMode === 'NEFT/RTGS' ? (
@@ -1547,20 +1620,32 @@ export default function BookingsPage() {
               <Label>NEFT / RTGS reference</Label>
               <Input
                 value={neftRef}
-                onChange={(e) => setNeftRef(e.target.value)}
+                onChange={(e) => {
+                  setNeftRef(e.target.value);
+                  touchCreateField('neftRef');
+                }}
+                onBlur={() => touchCreateField('neftRef')}
+                aria-invalid={createFieldError('neftRef') ? true : undefined}
                 placeholder="Transaction reference"
                 className="mt-1"
                 autoComplete="off"
               />
+              <FormFieldError message={createFieldError('neftRef')} />
             </div>
           ) : null}
           <div className="col-span-2">
             <Label>Booking amount (₹)</Label>
             <Input
               value={bookingAmount}
-              onChange={(e) => setBookingAmount(e.target.value)}
+              onChange={(e) => {
+                setBookingAmount(e.target.value);
+                touchCreateField('bookingAmount');
+              }}
+              onBlur={() => touchCreateField('bookingAmount')}
+              aria-invalid={createFieldError('bookingAmount') ? true : undefined}
               placeholder="500000"
             />
+            <FormFieldError message={createFieldError('bookingAmount')} />
           </div>
         </div>
 
@@ -1717,6 +1802,8 @@ export default function BookingsPage() {
           if (!open) {
             setAddCustomerCoSlotKey(null);
             setNewCustomerDraft({ full_name: '', phone: '', email: '' });
+            setNewCustomerTouched({});
+            setNewCustomerSubmitAttempted(false);
           }
         }}
       >
@@ -1733,35 +1820,43 @@ export default function BookingsPage() {
               <Input
                 id="new-cust-name"
                 value={newCustomerDraft.full_name}
-                onChange={(e) =>
+                onChange={(e) => {
                   setNewCustomerDraft((d) => ({
                     ...d,
                     full_name: e.target.value
-                  }))
-                }
+                  }));
+                  touchNewCustomerField('full_name');
+                }}
+                onBlur={() => touchNewCustomerField('full_name')}
+                aria-invalid={newCustomerFieldError('full_name') ? true : undefined}
                 placeholder="Name as on records"
                 autoComplete="name"
               />
+              <FormFieldError message={newCustomerFieldError('full_name')} />
             </div>
             <PhoneInputField
               value={newCustomerDraft.phone}
-              onChange={(v) =>
-                setNewCustomerDraft((d) => ({ ...d, phone: v }))
-              }
+              onChange={(v) => {
+                setNewCustomerDraft((d) => ({ ...d, phone: v }));
+                touchNewCustomerField('phone');
+              }}
               label="Phone *"
               placeholder="Enter Phone number"
               id="new-cust-phone"
               mode="digits10"
+              error={newCustomerFieldError('phone')}
             />
 
             <EmailInputField
               value={newCustomerDraft.email}
-              onChange={(v) =>
-                setNewCustomerDraft((d) => ({ ...d, email: v }))
-              }
+              onChange={(v) => {
+                setNewCustomerDraft((d) => ({ ...d, email: v }));
+                touchNewCustomerField('email');
+              }}
               label="Email (optional)"
               placeholder="email@example.com"
               id="new-cust-email"
+              error={newCustomerFieldError('email')}
             />
           </div>
           <DialogFooter>

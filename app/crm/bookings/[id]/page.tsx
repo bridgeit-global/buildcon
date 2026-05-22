@@ -38,7 +38,13 @@ import {
   canAdvanceWorkflowStage,
   isTokenStageLocked
 } from '../booking-stage-transitions';
-import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
+import {
+  isAadhaarValid,
+  isCustomerKycComplete,
+  isPanValid,
+  normalizeAadhaar,
+  normalizePan
+} from '@/lib/customer/kyc-identifiers';
 import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
 import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
@@ -50,6 +56,7 @@ import {
   buildMatrixRows
 } from '@/app/crm/documents/booking-documents-matrix-table';
 import { BookingNotificationsCard } from '@/app/crm/bookings/booking-notifications-card';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
@@ -106,6 +113,9 @@ export default function BookingDetailPage() {
   const kycFileRef = useRef<HTMLInputElement>(null);
   const [kycUploadCustomerId, setKycUploadCustomerId] = useState('');
   const [kycDocType, setKycDocType] = useState('pan');
+  const [buyerKycFieldErrors, setBuyerKycFieldErrors] = useState<
+    Record<string, { pan?: string; aadhaar?: string }>
+  >({});
   const [paymentSchedules, setPaymentSchedules] = useState<
     {
       id: string;
@@ -553,6 +563,28 @@ export default function BookingDetailPage() {
 
   async function saveBuyerIdentifiers(b: BuyerKyc) {
     if (!booking) return;
+    const panNorm = normalizePan(b.pan);
+    const aadhaarNorm = normalizeAadhaar(b.aadhaarLast4);
+    const fieldErrors: { pan?: string; aadhaar?: string } = {};
+    if (panNorm && !isPanValid(panNorm)) {
+      fieldErrors.pan = 'Enter a valid PAN (e.g. ABCDE1234F).';
+    }
+    if (aadhaarNorm && !isAadhaarValid(aadhaarNorm)) {
+      fieldErrors.aadhaar = 'Enter a valid 12-digit Aadhaar number.';
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      setBuyerKycFieldErrors((prev) => ({
+        ...prev,
+        [b.customerId]: fieldErrors
+      }));
+      pageError('Fix the highlighted fields before saving.');
+      return;
+    }
+    setBuyerKycFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[b.customerId];
+      return next;
+    });
     setSaving(true);
         try {
       const res = await fetch(`/api/crm/bookings/${booking.id}`, {
@@ -560,8 +592,8 @@ export default function BookingDetailPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           customerId: b.customerId,
-          panNumber: b.pan,
-          aadhaarLast4: b.aadhaarLast4
+          panNumber: panNorm || null,
+          aadhaarLast4: aadhaarNorm || null
         })
       });
       const json = (await res.json()) as { error?: string };
@@ -867,16 +899,27 @@ export default function BookingDetailPage() {
                       <Label className="text-xs">PAN</Label>
                       <Input
                         value={b.pan}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setBuyerKyc((rows) =>
                             rows.map((r) =>
                               r.customerId === b.customerId
                                 ? { ...r, pan: e.target.value.toUpperCase() }
                                 : r
                             )
-                          )
+                          );
+                          setBuyerKycFieldErrors((prev) => {
+                            const row = { ...(prev[b.customerId] ?? {}) };
+                            delete row.pan;
+                            return { ...prev, [b.customerId]: row };
+                          });
+                        }}
+                        aria-invalid={
+                          buyerKycFieldErrors[b.customerId]?.pan ? true : undefined
                         }
                         placeholder="ABCDE1234F"
+                      />
+                      <FormFieldError
+                        message={buyerKycFieldErrors[b.customerId]?.pan}
                       />
                     </div>
                     <div className="space-y-1">
@@ -885,7 +928,7 @@ export default function BookingDetailPage() {
                         value={b.aadhaarLast4}
                         maxLength={12}
                         inputMode="numeric"
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setBuyerKyc((rows) =>
                             rows.map((r) =>
                               r.customerId === b.customerId
@@ -895,9 +938,20 @@ export default function BookingDetailPage() {
                                 }
                                 : r
                             )
-                          )
+                          );
+                          setBuyerKycFieldErrors((prev) => {
+                            const row = { ...(prev[b.customerId] ?? {}) };
+                            delete row.aadhaar;
+                            return { ...prev, [b.customerId]: row };
+                          });
+                        }}
+                        aria-invalid={
+                          buyerKycFieldErrors[b.customerId]?.aadhaar ? true : undefined
                         }
                         placeholder="123456789012"
+                      />
+                      <FormFieldError
+                        message={buyerKycFieldErrors[b.customerId]?.aadhaar}
                       />
                     </div>
                   </div>

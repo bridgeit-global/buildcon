@@ -1,9 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
+import {
+  brokerFormPayload,
+  brokerFormSchema,
+  EMPTY_BROKER_FORM,
+  type BrokerFormValues
+} from '@/lib/broker/broker-forms.schema';
+import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,24 +45,6 @@ type BrokerRow = {
   created_at: string;
 };
 
-type BrokerDraft = {
-  full_name: string;
-  phone: string;
-  email: string;
-  license_no: string;
-  status: 'Active' | 'Inactive';
-  notes: string;
-};
-
-const EMPTY_DRAFT: BrokerDraft = {
-  full_name: '',
-  phone: '',
-  email: '',
-  license_no: '',
-  status: 'Active',
-  notes: ''
-};
-
 export default function BrokersPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -66,7 +57,21 @@ export default function BrokersPage() {
   /** When set, dialog is editing this broker; otherwise add flow. */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState<BrokerDraft>(EMPTY_DRAFT);
+
+  const form = useForm<BrokerFormValues>({
+    resolver: zodResolver(brokerFormSchema),
+    defaultValues: EMPTY_BROKER_FORM,
+    mode: 'onChange'
+  });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors }
+  } = form;
+  const status = watch('status');
 
   async function load() {
     setLoading(true);
@@ -106,7 +111,7 @@ export default function BrokersPage() {
     brokers.find((b) => b.id === selectedId) ??
     null;
 
-  function rowToDraft(b: BrokerRow): BrokerDraft {
+  function rowToFormValues(b: BrokerRow): BrokerFormValues {
     const st = b.status === 'Inactive' ? 'Inactive' : 'Active';
     return {
       full_name: b.full_name,
@@ -118,17 +123,22 @@ export default function BrokersPage() {
     };
   }
 
-  async function saveBroker() {
+  function openBrokerDialog(editing: BrokerRow | null) {
+    setEditingId(editing?.id ?? null);
+    reset(editing ? rowToFormValues(editing) : EMPTY_BROKER_FORM);
+    setOpen(true);
+  }
+
+  function closeBrokerDialog() {
+    setOpen(false);
+    setEditingId(null);
+    reset(EMPTY_BROKER_FORM);
+  }
+
+  const saveBroker = handleSubmit(async (values) => {
     setSaving(true);
         try {
-      const payload = {
-        full_name: draft.full_name.trim(),
-        phone: draft.phone.trim() || null,
-        email: draft.email.trim() || null,
-        license_no: draft.license_no.trim() || null,
-        status: draft.status,
-        notes: draft.notes.trim() || null
-      };
+      const payload = brokerFormPayload(values);
 
       if (editingId) {
         const { data, error: updErr } = await supabase
@@ -161,15 +171,13 @@ export default function BrokersPage() {
         setSelectedId(row.id);
       }
 
-      setOpen(false);
-      setEditingId(null);
-      setDraft(EMPTY_DRAFT);
+      closeBrokerDialog();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save broker');
     } finally {
       setSaving(false);
     }
-  }
+  }, () => pageError('Fix the highlighted fields before saving.'));
 
   return (
     <div className="grid grid-cols-[260px_1fr] gap-4">
@@ -185,110 +193,95 @@ export default function BrokersPage() {
           <Dialog
             open={open}
             onOpenChange={(next) => {
-              setOpen(next);
-              if (!next) {
-                setEditingId(null);
-                setDraft(EMPTY_DRAFT);
-              }
+              if (!next) closeBrokerDialog();
             }}
           >
-            <Button
-              size="sm"
-              onClick={() => {
-                                setEditingId(null);
-                setDraft(EMPTY_DRAFT);
-                setOpen(true);
-              }}
-            >
+            <Button size="sm" onClick={() => openBrokerDialog(null)}>
               Add
             </Button>
             <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingId ? 'Edit broker' : 'Add broker'}
-                </DialogTitle>
-              </DialogHeader>
+              <form onSubmit={(e) => void saveBroker(e)}>
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingId ? 'Edit broker' : 'Add broker'}
+                  </DialogTitle>
+                </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label>Full name</Label>
-                  <Input
-                    value={draft.full_name}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, full_name: e.target.value }))
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Label>Full name</Label>
+                    <Input
+                      {...register('full_name')}
+                      aria-invalid={errors.full_name ? true : undefined}
+                      placeholder="Broker / agency name"
+                      className="mt-1"
+                    />
+                    <FormFieldError message={errors.full_name?.message} />
+                  </div>
+                  <PhoneInputField
+                    value={watch('phone')}
+                    onChange={(v) =>
+                      setValue('phone', v, { shouldValidate: true })
                     }
-                    placeholder="Broker / agency name"
+                    error={errors.phone?.message}
                   />
-                </div>
-                <PhoneInputField
-                  value={draft.phone}
-                  onChange={(v) =>
-                    setDraft((d) => ({ ...d, phone: v }))
-                  }
-                />
-                <EmailInputField
-                  value={draft.email}
-                  onChange={(v) =>
-                    setDraft((d) => ({ ...d, email: v }))
-                  }
-                />
-                <div className="col-span-2">
-                  <Label>RERA / license no.</Label>
-                  <Input
-                    value={draft.license_no}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, license_no: e.target.value }))
+                  <EmailInputField
+                    value={watch('email')}
+                    onChange={(v) =>
+                      setValue('email', v, { shouldValidate: true })
                     }
+                    error={errors.email?.message}
                   />
+                  <div className="col-span-2">
+                    <Label>RERA / license no.</Label>
+                    <Input
+                      {...register('license_no')}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <Select
+                      value={status}
+                      onValueChange={(v) =>
+                        setValue('status', v as 'Active' | 'Inactive', {
+                          shouldValidate: true
+                        })
+                      }
+                    >
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      {...register('notes')}
+                      rows={3}
+                      className="mt-1"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select
-                    value={draft.status}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({
-                        ...d,
-                        status: v as 'Active' | 'Inactive'
-                      }))
-                    }
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeBrokerDialog}
+                    disabled={saving}
                   >
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
                 </div>
-                <div className="col-span-2">
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={draft.notes}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, notes: e.target.value }))
-                    }
-                    rows={3}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setOpen(false)}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => void saveBroker()}
-                  disabled={saving || !draft.full_name.trim()}
-                >
-                  {saving ? 'Saving…' : 'Save'}
-                </Button>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
@@ -357,9 +350,7 @@ export default function BrokersPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                                        setEditingId(selected.id);
-                    setDraft(rowToDraft(selected));
-                    setOpen(true);
+                    openBrokerDialog(selected);
                   }}
                 >
                   Edit
