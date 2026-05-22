@@ -52,7 +52,8 @@ import {
   getInquiryClosedStatus,
   isInquiryClosed,
   negotiationBlocksTokenAdvance,
-  qualifyInquiryWithUnit
+  qualifyInquiryWithUnit,
+  reopenInquiryAfterNotInterestedClose
 } from './inquiry-stage-transitions';
 import type { InquiryStageData } from './inquiry-types';
 import { loadInquiryStageData, saveInquiryStageData } from './inquiry-stage-store';
@@ -1108,10 +1109,42 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     return true;
   }
 
+  async function handleReopenFromNotInterested() {
+    if (!activeInquiryId || saving) return;
+    const uid = String(sellerForm.selectedUnitId || '').trim();
+    if (!uid) {
+      pageError('No unit on this enquiry — go back to Qualified to pick a unit.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await reopenInquiryAfterNotInterestedClose(supabase, {
+        inquiryId: activeInquiryId,
+        unitId: uid,
+        siteVisitPatch: buildSiteVisitStagePayload({ outcome: 'Interested' })
+      });
+      if (!result.ok) {
+        throw new Error(result.error ?? 'Could not reopen enquiry');
+      }
+      setInquiryClosed(false);
+      setClosedStatus(null);
+      onFunnelStageChange?.('Qualified');
+      toast.success('Enquiry reopened — you can continue from site visit.');
+      onStageDataSaved?.();
+      await onInquirySaved?.();
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Reopen failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleCloseAsNotInterested(
     interest: SiteVisitInterest = visitInterest
   ) {
-    if (!activeInquiryId || saving || inquiryClosed) return;
+    if (!activeInquiryId || saving) return;
+    if (inquiryClosed && closedStatus === 'Not Interested') return;
+    if (inquiryClosed) return;
     if (!requireVisitInterestSelected(interest)) return;
     setSaving(true);
     try {
@@ -1150,13 +1183,25 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     setVisitInterest(next);
     visitValidation.touch('visitInterest');
     if (next === 'Not Interested') {
+      if (inquiryClosed && closedStatus === 'Not Interested') return;
       await handleCloseAsNotInterested(next);
       return;
     }
-    if (next === 'Interested' && activeInquiryId && !inquiryClosed && !stagesReadOnly) {
-      await persistVisitSiteStage({
-        site_visit: buildSiteVisitStagePayload({ outcome: 'Interested' })
-      });
+    if (next === 'Interested') {
+      if (
+        inquiryClosed &&
+        closedStatus === 'Not Interested' &&
+        activeInquiryId &&
+        !stagesReadOnly
+      ) {
+        await handleReopenFromNotInterested();
+        return;
+      }
+      if (activeInquiryId && !inquiryClosed && !stagesReadOnly) {
+        await persistVisitSiteStage({
+          site_visit: buildSiteVisitStagePayload({ outcome: 'Interested' })
+        });
+      }
     }
   }
 
@@ -1351,7 +1396,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           followUpAssignedToMe={followUpAssignedToMe}
           onVisitInterestChange={(v) => void handleVisitInterestChange(v)}
           onFollowUpBlur={() => {
-            if (!activeInquiryId || inquiryClosed || stagesReadOnly) return;
+            if (!activeInquiryId || stagesReadOnly) return;
+            if (inquiryClosed && closedStatus !== 'Not Interested') return;
             void persistVisitSiteStage({
               site_visit: buildSiteVisitStagePayload()
             });
@@ -1841,7 +1887,10 @@ function StepVisitSite({
   onSkipToNegotiation?: () => void;
   onCreateBooking?: () => void;
 }) {
-  const formDisabled = inquiryClosed || stagesReadOnly;
+  const closedNotInterested =
+    inquiryClosed && closedStatus === 'Not Interested';
+  const formDisabled =
+    (inquiryClosed && !closedNotInterested) || stagesReadOnly;
   if (!selectedUnit) {
     return (
       <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
@@ -1855,13 +1904,20 @@ function StepVisitSite({
       {inquiryClosed ? (
         <div
           role="status"
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-800"
+          className={cn(
+            'rounded-lg border px-3 py-3 text-xs',
+            closedNotInterested
+              ? 'border-ds-primary-200 bg-ds-primary-50/60 text-ds-gray-800'
+              : 'border-slate-200 bg-slate-50 text-slate-800'
+          )}
         >
           <p className="font-semibold text-ds-gray-800">
             Enquiry closed · {closedStatus ?? 'Closed'}
           </p>
           <p className="mt-1 text-[11px] text-ds-gray-600">
-            The unit has been released to available inventory when applicable.
+            {closedNotInterested
+              ? 'The unit was released. Switch to Interested below to reopen this enquiry, re-block the unit, and continue negotiation or booking.'
+              : 'The unit has been released to available inventory when applicable.'}
           </p>
         </div>
       ) : null}
@@ -1920,8 +1976,18 @@ function StepVisitSite({
         </div>
       </div>
 
-      {visitInterest === 'Not Interested' && !formDisabled && saving ? (
+      {visitInterest === 'Not Interested' &&
+      !closedNotInterested &&
+      !formDisabled &&
+      saving ? (
         <p className="text-xs text-ds-gray-600">Closing enquiry…</p>
+      ) : null}
+
+      {visitInterest === 'Interested' &&
+      closedNotInterested &&
+      !stagesReadOnly &&
+      saving ? (
+        <p className="text-xs text-ds-gray-600">Reopening enquiry…</p>
       ) : null}
 
       {visitInterest === 'Interested' && !formDisabled ? (
