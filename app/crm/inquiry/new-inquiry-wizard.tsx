@@ -46,7 +46,8 @@ import type { UnitRow } from './inquiry-types';
 import {
   DEFAULT_UNIT_PICK_FILTERS,
   InquiryUnitPicker,
-  type UnitPickFilters
+  type UnitPickFilters,
+  unitPickFiltersFromSellerPreferences
 } from './inquiry-unit-picker';
 
 const LEAD_SOURCES = [
@@ -313,6 +314,25 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     [units]
   );
 
+  const applySellerPrefsToUnitFilters = useCallback(() => {
+    setUnitPickFilters(
+      unitPickFiltersFromSellerPreferences(selectableUnits, {
+        interestedIn: sellerForm.interestedIn,
+        preferredLocation: sellerForm.preferredLocation,
+        preferredWing: sellerForm.preferredWing,
+        budgetMin: sellerForm.budgetMin,
+        budgetMax: sellerForm.budgetMax
+      })
+    );
+  }, [
+    selectableUnits,
+    sellerForm.interestedIn,
+    sellerForm.preferredLocation,
+    sellerForm.preferredWing,
+    sellerForm.budgetMin,
+    sellerForm.budgetMax
+  ]);
+
   const selectedUnit = useMemo(() => {
     const id = String(sellerForm.selectedUnitId || '').trim();
     if (!id) return null;
@@ -478,6 +498,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
+        applySellerPrefsToUnitFilters();
         changeStep(2);
         toast.success('Customer saved.');
       } finally {
@@ -510,6 +531,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
+        applySellerPrefsToUnitFilters();
         toast.success('Customer saved.');
       } finally {
         setSaving(false);

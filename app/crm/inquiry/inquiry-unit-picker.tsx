@@ -157,6 +157,90 @@ export function buildUnitPickFilterOptions(units: UnitRow[]) {
   };
 }
 
+function normalizeFilterToken(s: string): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+/** Map step-1 “What are they looking for?” fields onto unit-picker filters. */
+export function unitPickFiltersFromSellerPreferences(
+  units: UnitRow[],
+  prefs: {
+    interestedIn?: string;
+    preferredLocation?: string;
+    preferredWing?: string;
+    budgetMin?: string;
+    budgetMax?: string;
+  }
+): UnitPickFilters {
+  const filters: UnitPickFilters = { ...DEFAULT_UNIT_PICK_FILTERS };
+
+  const minBudget = String(prefs.budgetMin || '').trim();
+  const maxBudget = String(prefs.budgetMax || '').trim();
+  if (minBudget) filters.minBudget = minBudget;
+  if (maxBudget) filters.maxBudget = maxBudget;
+
+  const projectOpts = buildProjectFilterOptions(units);
+  const filterOpts = buildUnitPickFilterOptions(units);
+
+  const interested = String(prefs.interestedIn || '').trim();
+  if (interested) {
+    const norm = normalizeFilterToken(interested);
+    const exact = filterOpts.unitTypes.find(
+      (t) => normalizeFilterToken(t) === norm
+    );
+    const partial = filterOpts.unitTypes.find((t) => {
+      const tn = normalizeFilterToken(t);
+      return tn.includes(norm) || norm.includes(tn);
+    });
+    if (exact || partial) {
+      filters.unitType = exact ?? partial ?? '';
+    } else {
+      filters.search = interested;
+    }
+  }
+
+  const wing = String(prefs.preferredWing || '').trim();
+  if (wing) {
+    const wingLower = wing.toLowerCase();
+    const structure =
+      filterOpts.structures.find((s) => s.toLowerCase() === wingLower) ??
+      filterOpts.structures.find(
+        (s) =>
+          s.toLowerCase().includes(wingLower) ||
+          wingLower.includes(s.toLowerCase())
+      );
+    if (structure) {
+      filters.structure = structure;
+    } else if (!filters.search) {
+      filters.search = wing;
+    } else if (!filters.search.toLowerCase().includes(wingLower)) {
+      filters.search = `${filters.search} ${wing}`;
+    }
+  }
+
+  const loc = String(prefs.preferredLocation || '').trim();
+  if (loc) {
+    const locLower = loc.toLowerCase();
+    const proj = projectOpts.find(
+      ([, name]) =>
+        name.toLowerCase().includes(locLower) ||
+        locLower.includes(name.toLowerCase())
+    );
+    if (proj) {
+      filters.projectId = proj[0];
+    } else if (!filters.search) {
+      filters.search = loc;
+    } else if (!filters.search.toLowerCase().includes(locLower)) {
+      filters.search = `${filters.search} ${loc}`;
+    }
+  }
+
+  return filters;
+}
+
 function parseOptionalNumber(raw: string): number | null {
   const t = String(raw || '').trim();
   if (!t) return null;
