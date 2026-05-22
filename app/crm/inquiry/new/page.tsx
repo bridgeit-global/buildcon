@@ -19,6 +19,7 @@ import {
   funnelStageRank,
   inquiryWizardStepForView,
   maxReachablePipelineUiIndex,
+  pipelineStepperHighlightStage,
   pipelineUiStage,
   type InquiryFunnelStage,
   type InquiryPipelineUiStage
@@ -287,9 +288,15 @@ function NewInquiryPageInner() {
   const headerTitle =
     customerName && inquiryId ? customerName : 'New enquiry';
 
+  const stepperHighlightStage = pipelineStepperHighlightStage(
+    viewStage,
+    wizardStep,
+    funnelStage
+  );
+
   const headerSub =
     inquiryId && (unitCode || funnelStage)
-      ? [unitCode, pipelineUiStage(funnelStage)].filter(Boolean).join(' · ')
+      ? [unitCode, stepperHighlightStage].filter(Boolean).join(' · ')
       : 'Customer & unit preferences, then qualify a unit and record the site visit.';
 
   const resuming = Boolean(resumeInquiryId && !resumeReady);
@@ -336,7 +343,7 @@ function NewInquiryPageInner() {
 
         <div className="border-b border-border bg-muted/5 px-4 py-4 sm:px-6">
           <InquiryFunnelStepper
-            currentStage={viewStage}
+            currentStage={stepperHighlightStage}
             maxReachableIndex={maxReachableIndex}
             stagesWithData={stagesWithData}
             disabled={resuming}

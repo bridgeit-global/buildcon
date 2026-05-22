@@ -100,3 +100,19 @@ export function inquiryWizardStepForView(
   }
   return 2;
 }
+
+/**
+ * Pipeline stepper highlight while the 3-step enquiry wizard is open.
+ * Wizard step 3 is the site-visit form even when `funnel_stage` is still Qualified.
+ */
+export function pipelineStepperHighlightStage(
+  viewStage: InquiryPipelineUiStage,
+  wizardStep: number,
+  persistedFunnelStage?: string | null
+): InquiryPipelineUiStage {
+  if (wizardStep < 3) return viewStage;
+  if (viewStage === 'Negotiation' || viewStage === 'Site Visit') return viewStage;
+  const persisted = pipelineUiStage(persistedFunnelStage);
+  if (viewStage === 'Enquiry' && persisted === 'Enquiry') return 'Enquiry';
+  return 'Site Visit';
+}
