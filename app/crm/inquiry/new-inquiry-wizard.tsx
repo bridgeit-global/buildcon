@@ -209,8 +209,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   const activeInquiryId = String(inquiryIdProp || createdInquiryId || '').trim();
   const followUpAssignedToMe = Boolean(
     userLabel.id &&
-      inquiryAssignedTo &&
-      inquiryAssignedTo === userLabel.id
+    inquiryAssignedTo &&
+    inquiryAssignedTo === userLabel.id
   );
 
   const [internalStep, setInternalStep] = useState<StepId>(() =>
@@ -283,10 +283,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           ...(unitId ? { selectedUnitId: unitId } : {}),
           ...(cust
             ? {
-                customerName: String(cust.full_name ?? '').trim(),
-                phone: String(cust.phone ?? '').trim(),
-                email: String(cust.email ?? '').trim()
-              }
+              customerName: String(cust.full_name ?? '').trim(),
+              phone: String(cust.phone ?? '').trim(),
+              email: String(cust.email ?? '').trim()
+            }
             : {}),
           leadSource: (LEAD_SOURCES as readonly string[]).includes(
             String(row.lead_source || '')
@@ -678,7 +678,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     if (!canQualifyUnit || !inquiryProjectId || !selectedUnit) return;
     setSaving(true);
-        try {
+    try {
       const customerId = await persistCustomerToDb();
       if (!customerId) return;
       writeBookingPrefill({
@@ -728,7 +728,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (!stepValid[step]) return;
     if (step === 1) {
       setSaving(true);
-            try {
+      try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
         applySellerPrefsToUnitFilters();
@@ -763,7 +763,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         return;
       }
       setSaving(true);
-            try {
+      try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
         applySellerPrefsToUnitFilters();
@@ -953,7 +953,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
 
     setSaving(true);
-        try {
+    try {
       const customerId = await persistCustomerToDb();
       if (!customerId) return;
 
@@ -1217,7 +1217,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       return;
     }
     setSaving(true);
-        try {
+    try {
       const customerId = await resolveInquiryCustomerId();
       if (!customerId) return;
       await persistVisitSiteStage({
@@ -1616,26 +1616,33 @@ function StepEnquiry({
             />
           </div>
           <div>
-            <Label className={wizardLabelClass}>Budget min (₹)</Label>
-            <Input
-              type="number"
-              className={wizardFieldClass}
-              value={sellerForm.budgetMin}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, budgetMin: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <Label className={wizardLabelClass}>Budget max (₹)</Label>
-            <Input
-              type="number"
-              className={wizardFieldClass}
-              value={sellerForm.budgetMax}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, budgetMax: e.target.value }))
-              }
-            />
+            <Label className={wizardLabelClass}>Budget (₹)</Label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                className={wizardFieldClass}
+                placeholder="Min"
+                aria-label="Budget minimum"
+                value={sellerForm.budgetMin}
+                onChange={(e) =>
+                  setSellerForm((s) => ({ ...s, budgetMin: e.target.value }))
+                }
+              />
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                className={wizardFieldClass}
+                placeholder="Max"
+                aria-label="Budget maximum"
+                value={sellerForm.budgetMax}
+                onChange={(e) =>
+                  setSellerForm((s) => ({ ...s, budgetMax: e.target.value }))
+                }
+              />
+            </div>
           </div>
           <div>
             <Label className={wizardLabelClass}>Preferred wing / tower</Label>
@@ -1712,7 +1719,7 @@ function ParkingYesNoToggle({
               : 'bg-background text-muted-foreground hover:bg-muted'
           )}
         >
-          {v === 'No' ? 'No extra' : 'Yes, extra'}
+          {v}
         </button>
       ))}
     </div>
@@ -1883,8 +1890,8 @@ function StepVisitSite({
               className={cn(
                 wizardFieldClass,
                 followUpAssignedToMe &&
-                  followUpNeedsAttention(sellerForm.followUpDate) &&
-                  'border-ds-primary-400 ring-1 ring-ds-primary-200'
+                followUpNeedsAttention(sellerForm.followUpDate) &&
+                'border-ds-primary-400 ring-1 ring-ds-primary-200'
               )}
               value={sellerForm.followUpDate}
               onChange={(e) =>
