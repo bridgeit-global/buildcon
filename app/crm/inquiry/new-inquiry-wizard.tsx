@@ -791,8 +791,18 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     return true;
   }
 
+  function requireVisitInterestSelected() {
+    const parsed = visitValidation.validate();
+    if (!parsed.success) {
+      pageError('Select visit interest before continuing.');
+      return false;
+    }
+    return true;
+  }
+
   async function handleCloseAsNotInterested() {
     if (!activeInquiryId) return;
+    if (!requireVisitInterestSelected()) return;
     setSaving(true);
         try {
       await persistVisitSiteStage({
@@ -843,6 +853,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
 
   async function handleCreateBookingFromVisit() {
     if (!activeInquiryId || saving) return;
+    if (!requireVisitInterestSelected()) return;
     const inquiryProjectId = String(selectedUnit?.project_id || '').trim();
     const uid = String(sellerForm.selectedUnitId || '').trim();
     if (!inquiryProjectId || !uid) return;
@@ -978,6 +989,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           closedStatus={closedStatus}
           tokenBlockedByApproval={tokenBlockedByApproval}
           saving={saving}
+          visitFieldError={visitValidation.fieldError('visitInterest')}
+          onVisitInterestChange={(v) => {
+            setVisitInterest(v);
+            visitValidation.touch('visitInterest');
+          }}
           onCloseNotInterested={() => void handleCloseAsNotInterested()}
           onSkipToNegotiation={() => onSkipToStage?.('Negotiation')}
           onCreateBooking={() => void handleCreateBookingFromVisit()}
@@ -1480,6 +1496,8 @@ function StepVisitSite({
   selectedUnit,
   visitInterest,
   setVisitInterest,
+  visitFieldError,
+  onVisitInterestChange,
   approvalStatus,
   inquiryClosed,
   closedStatus,
@@ -1494,6 +1512,8 @@ function StepVisitSite({
   selectedUnit: UnitRow | null;
   visitInterest: SiteVisitInterest;
   setVisitInterest: (v: SiteVisitInterest) => void;
+  visitFieldError?: string;
+  onVisitInterestChange?: (v: SiteVisitInterest) => void;
   approvalStatus: 'none' | 'pending' | 'approved' | 'rejected';
   inquiryClosed: boolean;
   closedStatus: string | null;
@@ -1552,9 +1572,13 @@ function StepVisitSite({
             <div className="mt-1">
               <InterestToggle
                 value={visitInterest}
-                onChange={setVisitInterest}
+                onChange={(v) => {
+                  setVisitInterest(v);
+                  onVisitInterestChange?.(v);
+                }}
               />
             </div>
+            <FormFieldError message={visitFieldError} />
           </div>
         </div>
       </div>
