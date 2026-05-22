@@ -71,7 +71,6 @@ import type { InquiryStageData } from './inquiry-types';
 import {
   enrichNegotiationFromApprovals,
   loadInquiryStageData,
-  persistNegotiationApprovalRequest,
   saveInquiryStageData
 } from './inquiry-stage-store';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
@@ -1244,13 +1243,55 @@ export function InquiryPipelinePanel(props: {
         if (unitResult.error) throw new Error(unitResult.error);
       }
 
+      const prevNegotiation =
+        (inquiry.stage_data as InquiryStageData | null)?.negotiation ?? {};
+      const prevExpectedClose = String(
+        (prevNegotiation as Record<string, unknown>).expected_close ?? ''
+      ).trim();
+      const nextExpectedClose = String(
+        stageData.negotiation?.expected_close ?? ''
+      ).trim();
+
+      const negotiationPatch =
+        targetStage === 'Negotiation'
+          ? syncNegotiationDiscountFields(
+              unitListPriceInr,
+              (stageData.negotiation ?? {}) as Record<string, unknown>
+            )
+          : undefined;
+
+      const patchJson = stageDataToJson(stageData);
+      if (negotiationPatch && targetStage === 'Negotiation') {
+        patchJson.negotiation = negotiationPatch;
+      }
+
       const saveResult = await saveInquiryStageData(supabase, {
         inquiryId: inquiry.id,
-        patch: stageDataToJson(stageData),
+        patch: patchJson,
         funnelStage: targetStage as InquiryFunnelStage,
         markStagesCompleted: [targetStage as InquiryFunnelStage]
       });
       if (!saveResult.ok) throw new Error(saveResult.error ?? 'Save failed');
+
+      if (
+        targetStage === 'Negotiation' &&
+        nextExpectedClose &&
+        nextExpectedClose !== prevExpectedClose
+      ) {
+        void fetch(
+          `/api/crm/inquiries/${encodeURIComponent(inquiry.id)}/negotiation/notify-expected-close`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              expectedClose: nextExpectedClose,
+              customerName: inquiryContext?.customerName ?? null,
+              unitCode: inquiryContext?.unitCode ?? null
+            })
+          }
+        );
+      }
+
       if (nextStage) setActiveStage(nextStage);
       setSaved(true);
       onSaved();

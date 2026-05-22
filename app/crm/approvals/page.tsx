@@ -297,6 +297,17 @@ export default function ApprovalsPage() {
           }
         );
         if (rpcErr) throw rpcErr;
+        void fetch(
+          `/api/crm/negotiation-approvals/${encodeURIComponent(activeRow.id)}/notify-decision`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              decision,
+              decisionNote: decisionNote.trim() || null
+            })
+          }
+        );
         setActiveRow(null);
         setDecisionNote('');
         await loadRows();

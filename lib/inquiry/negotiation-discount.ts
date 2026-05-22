@@ -64,8 +64,8 @@ export function negotiationRequiresApproval(
   }
 
   const resolved = resolveNegotiationDiscount(listPrice, {
-    discountInrRaw: negotiation.discount_inr,
-    discountPctRaw: negotiation.discount_pct
+    discountInrRaw: negotiation.discount_inr as string | number | null | undefined,
+    discountPctRaw: negotiation.discount_pct as string | number | null | undefined
   });
 
   if (resolved.discountInr != null && resolved.discountInr > 0) return true;
@@ -82,8 +82,8 @@ export function offeredPriceFromNegotiation(
 ): string {
   const listPrice = Number(listPriceInr);
   const resolved = resolveNegotiationDiscount(listPrice, {
-    discountInrRaw: negotiation?.discount_inr,
-    discountPctRaw: negotiation?.discount_pct
+    discountInrRaw: negotiation?.discount_inr as string | number | null | undefined,
+    discountPctRaw: negotiation?.discount_pct as string | number | null | undefined
   });
   if (resolved.offeredPrice != null) return String(resolved.offeredPrice);
   const legacy = String(negotiation?.offered_price ?? '').trim();
@@ -97,8 +97,8 @@ export function syncNegotiationDiscountFields(
   negotiation: Record<string, unknown>
 ): Record<string, unknown> {
   const resolved = resolveNegotiationDiscount(listPriceInr, {
-    discountInrRaw: negotiation.discount_inr,
-    discountPctRaw: negotiation.discount_pct
+    discountInrRaw: negotiation.discount_inr as string | number | null | undefined,
+    discountPctRaw: negotiation.discount_pct as string | number | null | undefined
   });
   const offered =
     resolved.offeredPrice != null

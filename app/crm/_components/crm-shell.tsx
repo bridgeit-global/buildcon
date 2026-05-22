@@ -21,6 +21,7 @@ import {
 } from './nav';
 import type { CrmProject } from './types';
 import { CrmProjectsProvider } from './active-project-context';
+import { CrmNotificationBell } from './crm-notification-bell';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -289,9 +290,12 @@ export function CrmShell({
                   </>
                 ) : null}
               </nav>
-              <h1 className="mb-3 text-base font-bold leading-snug text-[#101828] sm:text-lg">
-                {pageHeading}
-              </h1>
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <h1 className="min-w-0 flex-1 text-base font-bold leading-snug text-[#101828] sm:text-lg">
+                  {pageHeading}
+                </h1>
+                <CrmNotificationBell />
+              </div>
               {children}
             </div>
           </main>
