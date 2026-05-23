@@ -67,12 +67,12 @@ export async function POST(
   const ref = inquiryReference(inquiryId);
   const linkPath = `/crm/inquiry/new?inquiry=${encodeURIComponent(inquiryId)}`;
   const title = approved
-    ? 'Budget approval approved'
-    : 'Budget approval rejected';
+    ? 'Negotiation approved'
+    : 'Negotiation rejected';
   const note = String(body.decisionNote ?? row.decision_note ?? '').trim();
   const bodyText = approved
-    ? `${ref} — your discount request was approved. You can create a booking from the enquiry.`
-    : `${ref} — your discount request was rejected.${note ? ` Note: ${note}` : ''}`;
+    ? `${ref} — your negotiation request was approved. You can create a booking from the enquiry.`
+    : `${ref} — your negotiation request was rejected.${note ? ` Note: ${note}` : ''}`;
   const emailHtml = staffNotificationEmailHtml({
     title,
     body: bodyText,

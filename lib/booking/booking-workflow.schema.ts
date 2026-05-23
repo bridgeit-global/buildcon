@@ -3,6 +3,7 @@ import { paymentModeNeedsLoanBank } from '@/lib/booking/booking-payment';
 import { positiveNumberString } from '@/lib/form/common-fields';
 import {
   isAadhaarValid,
+  isPanPrefixValid,
   isPanValid,
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
@@ -89,27 +90,47 @@ export function parseBookingBuyerKycFieldErrors(values: {
   return Object.keys(fieldErrors).length > 0 ? fieldErrors : null;
 }
 
-/** Blur-time PAN check — no “required” while empty; format only when 10 chars entered. */
-export function parseBookingBuyerPanBlurError(pan_number: string): string | undefined {
+/** Inline PAN validation while typing: required, prefix/format, then length. */
+export function parseBookingBuyerPanInlineError(pan_number: string): string | undefined {
   const panNorm = normalizePan(pan_number);
-  if (!panNorm || panNorm.length < 10) return undefined;
+  if (!panNorm) return 'PAN is required.';
+  if (!isPanPrefixValid(panNorm)) {
+    return 'Enter a valid PAN (e.g. ABCDE1234F).';
+  }
+  if (panNorm.length < 10) return 'PAN must be 10 characters.';
   if (!isPanValid(panNorm)) {
     return 'Enter a valid PAN (e.g. ABCDE1234F).';
   }
   return undefined;
 }
 
-/** Blur-time Aadhaar check — no error until all 12 digits are entered. */
-export function parseBookingBuyerAadhaarBlurError(
+/** Inline Aadhaar validation while typing: required, length, then checksum. */
+export function parseBookingBuyerAadhaarInlineError(
   aadhaar_last4: string
 ): string | undefined {
   const raw = String(aadhaar_last4 ?? '').replace(/\D/g, '');
-  if (!raw || raw.length < 12) return undefined;
+  if (!raw) return 'Aadhaar number is required.';
+  if (/^[01]/.test(raw)) {
+    return 'Enter a valid 12-digit Aadhaar number.';
+  }
+  if (raw.length < 12) return 'Aadhaar must be 12 digits.';
   if (!isAadhaarValid(raw)) {
     return 'Enter a valid 12-digit Aadhaar number.';
   }
   return undefined;
 }
+
+/** @deprecated Use {@link parseBookingBuyerPanInlineError}. */
+export const parseBookingBuyerPanBlurError = parseBookingBuyerPanInlineError;
+
+/** @deprecated Use {@link parseBookingBuyerAadhaarInlineError}. */
+export const parseBookingBuyerAadhaarBlurError = parseBookingBuyerAadhaarInlineError;
+
+/** @deprecated Use {@link parseBookingBuyerPanInlineError}. */
+export const parseBookingBuyerPanChangeError = parseBookingBuyerPanInlineError;
+
+/** @deprecated Use {@link parseBookingBuyerAadhaarInlineError}. */
+export const parseBookingBuyerAadhaarChangeError = parseBookingBuyerAadhaarInlineError;
 
 export const bookingCancelSchema = z.object({
   cancelReason: z.string().trim().min(1, 'Select a cancellation reason.')

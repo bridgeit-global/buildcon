@@ -48,6 +48,7 @@ import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
 import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
 import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import { formatDisplayDate } from '@/lib/format-display-date';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
 import {
@@ -61,9 +62,9 @@ import {
   bookingApplicationSchema,
   bookingCancelSchema,
   bookingTokenStageSchema,
-  parseBookingBuyerAadhaarBlurError,
+  parseBookingBuyerAadhaarInlineError,
   parseBookingBuyerKycFieldErrors,
-  parseBookingBuyerPanBlurError
+  parseBookingBuyerPanInlineError
 } from '@/lib/booking/booking-workflow.schema';
 import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';
 import {
@@ -254,8 +255,7 @@ export default function BookingDetailPage() {
       docsByCustomer.get(cid)!.add(String(doc.doc_type));
     }
 
-    setBuyerKyc(
-      buyerIds.map((b) => {
+    const nextBuyerKyc = buyerIds.map((b) => {
         const c = custById.get(b.id);
         const docs = docsByCustomer.get(b.id) ?? new Set();
         return {
@@ -271,8 +271,9 @@ export default function BookingDetailPage() {
           hasAadhaarDoc: docs.has('aadhaar'),
           hasPhotoDoc: docs.has('photo')
         };
-      })
-    );
+      });
+    setBuyerKyc(nextBuyerKyc);
+    setBuyerKycFieldErrors({});
     setLoading(false);
   }, [bookingId, supabase]);
 
@@ -901,7 +902,7 @@ export default function BookingDetailPage() {
                     <div>
                       <dt className="text-ds-gray-500">Date</dt>
                       <dd className="font-medium text-ds-gray-900">
-                        {stageData.token?.date ?? '—'}
+                        {formatDisplayDate(stageData.token?.date)}
                       </dd>
                     </div>
                     <div className="sm:col-span-2">
@@ -1027,27 +1028,27 @@ export default function BookingDetailPage() {
                       <Label className="text-xs">PAN</Label>
                       <Input
                         value={b.pan}
+                        maxLength={10}
                         onChange={(e) => {
+                          const pan = normalizePan(e.target.value);
                           setBuyerKyc((rows) =>
                             rows.map((r) =>
-                              r.customerId === b.customerId
-                                ? { ...r, pan: e.target.value.toUpperCase() }
-                                : r
+                              r.customerId === b.customerId ? { ...r, pan } : r
                             )
                           );
-                          setBuyerKycFieldErrors((prev) => {
-                            const row = { ...(prev[b.customerId] ?? {}) };
-                            delete row.pan;
-                            return { ...prev, [b.customerId]: row };
-                          });
-                        }}
-                        onBlur={() => {
-                          const row = buyerKyc.find((r) => r.customerId === b.customerId);
-                          if (!row) return;
                           setBuyerKycBlurError(
                             b.customerId,
                             'pan',
-                            parseBookingBuyerPanBlurError(row.pan)
+                            parseBookingBuyerPanInlineError(pan)
+                          );
+                        }}
+                        onBlur={(e) => {
+                          setBuyerKycBlurError(
+                            b.customerId,
+                            'pan',
+                            parseBookingBuyerPanInlineError(
+                              normalizePan(e.target.value)
+                            )
                           );
                         }}
                         aria-invalid={
@@ -1067,29 +1068,27 @@ export default function BookingDetailPage() {
                         maxLength={12}
                         inputMode="numeric"
                         onChange={(e) => {
+                          const aadhaarLast4 = normalizeAadhaar(e.target.value);
                           setBuyerKyc((rows) =>
                             rows.map((r) =>
                               r.customerId === b.customerId
-                                ? {
-                                  ...r,
-                                  aadhaarLast4: e.target.value.replace(/\D/g, '').slice(0, 12)
-                                }
-                                  : r
+                                ? { ...r, aadhaarLast4 }
+                                : r
                             )
                           );
-                          setBuyerKycFieldErrors((prev) => {
-                            const row = { ...(prev[b.customerId] ?? {}) };
-                            delete row.aadhaar;
-                            return { ...prev, [b.customerId]: row };
-                          });
-                        }}
-                        onBlur={() => {
-                          const row = buyerKyc.find((r) => r.customerId === b.customerId);
-                          if (!row) return;
                           setBuyerKycBlurError(
                             b.customerId,
                             'aadhaar',
-                            parseBookingBuyerAadhaarBlurError(row.aadhaarLast4)
+                            parseBookingBuyerAadhaarInlineError(aadhaarLast4)
+                          );
+                        }}
+                        onBlur={(e) => {
+                          setBuyerKycBlurError(
+                            b.customerId,
+                            'aadhaar',
+                            parseBookingBuyerAadhaarInlineError(
+                              normalizeAadhaar(e.target.value)
+                            )
                           );
                         }}
                         aria-invalid={
