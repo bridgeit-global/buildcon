@@ -47,12 +47,7 @@ import {
   navigateToCreateBookingFromInquiry,
   type BuildBookingPrefillInput
 } from './booking-prefill-from-inquiry';
-import {
-  formatFloorLabel,
-  isUnitAvailableForBooking,
-  isUnitBlockedStatus,
-  statusLabelForUnit
-} from '../inventory/inventory-utils';
+import { formatFloorLabel, statusLabelForUnit } from '../inventory/inventory-utils';
 import { unitStatusInquiryStageHint } from './inquiry-stage-unit-map';
 import {
   applyUnitStatusForFunnelStage,
@@ -200,9 +195,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   const [createdInquiryId, setCreatedInquiryId] = useState('');
   const [persistedInquiryProjectId, setPersistedInquiryProjectId] = useState('');
   const [inquiryHeldUnitId, setInquiryHeldUnitId] = useState('');
-  const [activelyPursuedUnitIds, setActivelyPursuedUnitIds] = useState<
-    Set<string>
-  >(() => new Set());
   const [visitInterest, setVisitInterest] = useState<SiteVisitInterest>('');
   const [notInterestedConfirmOpen, setNotInterestedConfirmOpen] = useState(false);
   const [negotiationOffer, setNegotiationOffer] = useState('');
@@ -420,32 +412,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from('sales_inquiries')
-        .select('unit_id, funnel_stage, stage_data')
-        .not('unit_id', 'is', null);
-      if (cancelled || error) return;
-      const ids = new Set<string>();
-      for (const row of data ?? []) {
-        const r = row as {
-          unit_id?: string | null;
-          funnel_stage?: string | null;
-          stage_data?: InquiryStageData | Record<string, unknown> | null;
-        };
-        const uid = String(r.unit_id ?? '').trim();
-        if (!uid || isInquiryClosed(r.stage_data, r.funnel_stage)) continue;
-        ids.add(uid);
-      }
-      setActivelyPursuedUnitIds(ids);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
       setLoadingUnits(true);
       const unitsRes = await supabase
         .from('units')
@@ -483,19 +449,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     );
   }, [sellerForm, userLabel.id]);
 
-  const selectableUnits = useMemo(
-    () =>
-      (units || []).filter(
-        (u) =>
-          isUnitAvailableForBooking(u.status) ||
-          (isUnitBlockedStatus(u.status) && activelyPursuedUnitIds.has(u.id))
-      ),
-    [units, activelyPursuedUnitIds]
-  );
-
   const applySellerPrefsToUnitFilters = useCallback(() => {
     setUnitPickFilters(
-      unitPickFiltersFromSellerPreferences(selectableUnits, {
+      unitPickFiltersFromSellerPreferences(units, {
         interestedIn: sellerForm.interestedIn,
         preferredLocation: sellerForm.preferredLocation,
         preferredWing: sellerForm.preferredWing,
@@ -504,7 +460,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       })
     );
   }, [
-    selectableUnits,
+    units,
     sellerForm.interestedIn,
     sellerForm.preferredLocation,
     sellerForm.preferredWing,
@@ -525,7 +481,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (fromUnit) return fromUnit;
     const fromFilters = String(unitPickFilters.projectId || '').trim();
     if (fromFilters) return fromFilters;
-    const prefFilters = unitPickFiltersFromSellerPreferences(selectableUnits, {
+    const prefFilters = unitPickFiltersFromSellerPreferences(units, {
       interestedIn: sellerForm.interestedIn,
       preferredLocation: sellerForm.preferredLocation,
       preferredWing: sellerForm.preferredWing,
@@ -542,7 +498,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     persistedInquiryProjectId,
     selectedUnit?.project_id,
     unitPickFilters.projectId,
-    selectableUnits,
     sellerForm.interestedIn,
     sellerForm.preferredLocation,
     sellerForm.preferredWing,
@@ -1330,11 +1285,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         >
           <p className="text-xs text-ds-gray-600">
             Pick an available unit from the inventory grid, or continue without
-            a unit. Blocked units with an active enquiry are shown for context.
-            Selecting a unit qualifies the lead and blocks inventory.
+            a unit. All units are shown with price and status; only available
+            inventory can be selected. Selecting a unit qualifies the lead and
+            blocks inventory.
           </p>
           <InquiryUnitPicker
-            selectableUnits={selectableUnits}
+            units={units}
             inquiryHeldUnitId={inquiryHeldUnitId || null}
             loadingUnits={loadingUnits}
             selectedUnit={selectedUnit}

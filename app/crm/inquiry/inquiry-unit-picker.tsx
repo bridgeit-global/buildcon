@@ -456,7 +456,8 @@ function SelectedUnitCard({
 }
 
 type InquiryUnitPickerProps = {
-  selectableUnits: UnitRow[];
+  /** Full project inventory — only available (and this enquiry's held) units are selectable. */
+  units: UnitRow[];
   loadingUnits: boolean;
   selectedUnit: UnitRow | null;
   selectedUnitId: string;
@@ -477,7 +478,7 @@ type InquiryUnitPickerProps = {
 };
 
 export function InquiryUnitPicker({
-  selectableUnits,
+  units,
   loadingUnits,
   selectedUnit,
   selectedUnitId,
@@ -500,13 +501,13 @@ export function InquiryUnitPicker({
 
   const unitsAfterProject = useMemo(() => {
     const pid = String(filters.projectId || '').trim();
-    if (!pid) return selectableUnits;
-    return selectableUnits.filter((u) => u.project_id === pid);
-  }, [selectableUnits, filters.projectId]);
+    if (!pid) return units;
+    return units.filter((u) => u.project_id === pid);
+  }, [units, filters.projectId]);
 
   const projectFilterOptions = useMemo(
-    () => buildProjectFilterOptions(selectableUnits),
-    [selectableUnits]
+    () => buildProjectFilterOptions(units),
+    [units]
   );
 
   const filterOptions = useMemo(
@@ -515,8 +516,16 @@ export function InquiryUnitPicker({
   );
 
   const filteredUnits = useMemo(
-    () => filterAndSortUnits(selectableUnits, filters),
-    [selectableUnits, filters]
+    () => filterAndSortUnits(units, filters),
+    [units, filters]
+  );
+
+  const selectableFilteredCount = useMemo(
+    () =>
+      filteredUnits.filter((u) =>
+        isUnitSelectableForQualifyPick(u, inquiryHeldUnitId)
+      ).length,
+    [filteredUnits, inquiryHeldUnitId]
   );
 
   const activeFilterCount = countActiveUnitFilters(filters);
@@ -525,15 +534,15 @@ export function InquiryUnitPicker({
   const gridProjectId = useMemo(() => {
     const fromFilter = String(filters.projectId || '').trim();
     if (fromFilter) return fromFilter;
-    const projects = buildProjectFilterOptions(selectableUnits);
+    const projects = buildProjectFilterOptions(units);
     if (projects.length === 1) return projects[0][0];
     return '';
-  }, [filters.projectId, selectableUnits]);
+  }, [filters.projectId, units]);
 
   const gridUnits = useMemo(() => {
     if (!gridProjectId) return [];
-    return selectableUnits.filter((u) => u.project_id === gridProjectId);
-  }, [selectableUnits, gridProjectId]);
+    return units.filter((u) => u.project_id === gridProjectId);
+  }, [units, gridProjectId]);
 
   const matchingUnitIds = useMemo(
     () => new Set(filteredUnits.map((u) => u.id)),
@@ -601,6 +610,19 @@ export function InquiryUnitPicker({
                 <p className="mt-3 text-[11px] leading-snug text-ds-gray-600">
                   {unitStatusInquiryStageHint(previewUnit.status)}
                 </p>
+                {!isUnitSelectableForQualifyPick(
+                  previewUnit,
+                  inquiryHeldUnitId
+                ) ? (
+                  <p className="mt-2 rounded-lg border border-ds-gray-200 bg-ds-gray-50 px-3 py-2 text-[11px] text-ds-gray-600">
+                    This unit is{' '}
+                    <span className="font-semibold text-ds-gray-800">
+                      {statusLabelForUnit(previewUnit.status)}
+                    </span>
+                    . Only available units (or this enquiry&apos;s held unit) can
+                    be selected.
+                  </p>
+                ) : null}
               </div>
               <DialogFooter className="flex-col-reverse gap-2 border-t border-ds-gray-100 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
                 <Button
@@ -616,12 +638,10 @@ export function InquiryUnitPicker({
                   className="w-full gap-1.5 sm:w-auto"
                   onClick={confirmPreviewSelection}
                   disabled={
-                    previewUnit
-                      ? !isUnitSelectableForQualifyPick(
-                          previewUnit,
-                          inquiryHeldUnitId
-                        )
-                      : true
+                    !isUnitSelectableForQualifyPick(
+                      previewUnit,
+                      inquiryHeldUnitId
+                    )
                   }
                 >
                   Select this unit
@@ -784,7 +804,9 @@ export function InquiryUnitPicker({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ds-gray-100 pt-3">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ds-gray-600">
             <span className="font-semibold text-ds-gray-800">
-              {loadingUnits ? 'Loading…' : `${filteredUnits.length} units`}
+              {loadingUnits
+                ? 'Loading…'
+                : `${selectableFilteredCount} selectable · ${filteredUnits.length} shown`}
             </span>
             {activeFilterCount > 0 ? (
               <button
@@ -835,9 +857,9 @@ export function InquiryUnitPicker({
         <p className="mb-2 text-[11px] text-ds-gray-500">
           {viewMode === 'grid'
             ? hasActivePickFilters
-              ? 'Inventory grid — units that do not match your filters are greyed out. Tap a unit to preview.'
-              : 'Inventory grid by wing and floor. Tap a unit to preview, then confirm your choice.'
-            : 'Tap a unit to preview full details, then confirm your choice.'}
+              ? 'Inventory grid — only available units can be selected; others stay visible but disabled. Units that do not match filters are dimmed.'
+              : 'Inventory grid by wing and floor. Available units can be selected; all other statuses are shown disabled with full details.'
+            : 'Available units can be selected. Other statuses are listed disabled — tap to preview, not to book.'}
         </p>
         <div className="max-h-[min(400px,52vh)] overflow-y-auto rounded-xl border border-ds-gray-200 bg-ds-gray-50/40 p-2">
           {viewMode === 'grid' ? (
@@ -1171,22 +1193,30 @@ function InquiryUnitGridCell({
   const bg = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? '#94A3B8';
   const total = unitAgreementTotalInr(unit);
   const bill = unitBillableAreaSqft(unit);
-  const title = `${unit.unit_code} · ${statusLabelForUnit(unit.status)} · ${formatInrCompactLacCr(total)}`;
+  const statusLabel = statusLabelForUnit(unit.status);
+  const title = selectable
+    ? `${unit.unit_code} · ${statusLabel} · ${formatInrCompactLacCr(total)}`
+    : `${unit.unit_code} · ${statusLabel} — not selectable`;
 
   return (
     <button
       type="button"
       title={title}
       aria-label={title}
+      aria-disabled={!selectable}
       onClick={onClick}
       className={cn(
-        'flex h-[76px] w-[76px] shrink-0 cursor-pointer flex-col items-stretch justify-between rounded-lg border-2 bg-white px-1 py-1 text-left shadow-sm transition',
-        active && 'ring-2 ring-ds-primary-400 ring-offset-1',
+        'relative flex h-[76px] w-[76px] shrink-0 flex-col items-stretch justify-between rounded-lg border-2 bg-white px-1 py-1 text-left shadow-sm transition',
+        selectable
+          ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md'
+          : 'cursor-not-allowed',
+        active && selectable && 'ring-2 ring-ds-primary-400 ring-offset-1',
         dimmed && 'opacity-35 grayscale',
-        !dimmed && selectable && 'hover:-translate-y-0.5 hover:shadow-md',
-        !selectable && !dimmed && 'opacity-70'
+        !selectable &&
+          !dimmed &&
+          'opacity-55 saturate-[0.45] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-ds-gray-100/35'
       )}
-      style={{ borderColor: active ? 'var(--primary)' : bg }}
+      style={{ borderColor: active && selectable ? 'var(--primary)' : bg }}
     >
       <div className="truncate text-[8px] font-bold leading-tight text-ds-gray-800">
         {unit.unit_code}
@@ -1224,13 +1254,14 @@ function UnitResultRow({
   return (
     <button
       type="button"
+      aria-disabled={!selectable}
       onClick={onClick}
       className={cn(
         'flex w-full min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-xs transition-colors',
-        active
+        active && selectable
           ? 'border-ds-primary-500 bg-ds-primary-50'
-          : 'border-ds-gray-200 bg-white hover:bg-ds-gray-50',
-        !selectable && 'opacity-60'
+          : 'border-ds-gray-200 bg-white',
+        selectable ? 'hover:bg-ds-gray-50' : 'cursor-not-allowed opacity-55 saturate-[0.5]'
       )}
     >
       <div className="min-w-0 flex-1">
