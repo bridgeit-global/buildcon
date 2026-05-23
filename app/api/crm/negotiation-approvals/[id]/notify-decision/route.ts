@@ -3,12 +3,15 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { requireSuperAdmin } from '@/lib/authz';
 import { inquiryReference } from '@/app/crm/inquiry/inquiry-helpers';
 import {
+  isNegotiationApprovalDecided,
+  NEGOTIATION_APPROVAL_DB_STATUS
+} from '@/app/crm/inquiry/inquiry-stage-store';
+import {
   notifyCrmUser,
   staffNotificationEmailHtml
 } from '@/lib/notifications/crm-staff-notification';
 
 type Body = {
-  decision: 'approved' | 'rejected';
   decisionNote?: string | null;
 };
 
@@ -22,7 +25,7 @@ export async function POST(
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  let body: Body = { decision: 'approved' };
+  let body: Body = {};
   try {
     body = (await request.json()) as Body;
   } catch {
@@ -45,15 +48,24 @@ export async function POST(
     return NextResponse.json({ error: 'Approval not found' }, { status: 404 });
   }
 
+  const dbStatus = String(row.status ?? '').trim();
+  if (!isNegotiationApprovalDecided(dbStatus)) {
+    return NextResponse.json({
+      ok: true,
+      skipped: 'not_decided',
+      status: dbStatus
+    });
+  }
+
   const requestedBy = String(row.requested_by ?? '').trim();
   if (!requestedBy) {
     return NextResponse.json({ ok: true, skipped: 'no_requester' });
   }
 
+  const approved = dbStatus === NEGOTIATION_APPROVAL_DB_STATUS.approved;
   const inquiryId = String(row.sales_inquiry_id);
   const ref = inquiryReference(inquiryId);
   const linkPath = `/crm/inquiry/new?inquiry=${encodeURIComponent(inquiryId)}`;
-  const approved = body.decision === 'approved';
   const title = approved
     ? 'Budget approval approved'
     : 'Budget approval rejected';
@@ -80,5 +92,5 @@ export async function POST(
     emailHtml
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, status: dbStatus });
 }

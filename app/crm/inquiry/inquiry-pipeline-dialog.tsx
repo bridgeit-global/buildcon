@@ -46,6 +46,7 @@ import {
   getNegotiationApprovalStatus,
   isInquiryClosed,
   negotiationApprovalBlockMessage,
+  reopenInquiryAfterBudgetApproval,
   tokenStageBlockedByNegotiation,
   SITE_VISIT_OUTCOMES
 } from './inquiry-stage-transitions';
@@ -73,6 +74,7 @@ import type { InquiryStageData } from './inquiry-types';
 import {
   enrichNegotiationFromApprovals,
   loadInquiryStageData,
+  negotiationApprovalStatusFromDb,
   saveInquiryStageData
 } from './inquiry-stage-store';
 import type { InquiryFunnelStage } from './inquiry-funnel-stages';
@@ -699,16 +701,38 @@ function NegotiationForm({
       const next = { ...data, ...(neg as NegotiationStageData) };
       const prevStatus = String(data.approval_status ?? '').toLowerCase();
       const nextStatus = String(next.approval_status ?? '').toLowerCase();
-      onChange(next);
 
-      if (nextStatus === 'rejected') {
+      const approvalId = String(next.approval_id ?? '').trim();
+      let dbStatus = '';
+      if (approvalId) {
+        const { data: approvalRow } = await supabase
+          .from('negotiation_approvals')
+          .select('status')
+          .eq('id', approvalId)
+          .maybeSingle();
+        dbStatus = negotiationApprovalStatusFromDb(
+          (approvalRow as { status?: string } | null)?.status
+        );
+      }
+      const effectiveStatus = dbStatus || nextStatus;
+
+      if (effectiveStatus && effectiveStatus !== nextStatus) {
+        onChange({ ...next, approval_status: effectiveStatus });
+      } else {
+        onChange(next);
+      }
+
+      if (effectiveStatus === 'rejected') {
         await onRejectedClose?.(String(next.decision_note ?? ''));
         onApprovalSubmitted?.();
         return;
       }
 
-      if (nextStatus === 'approved' && prevStatus !== 'approved') {
-        await onApprovedCreateBooking?.();
+      if (effectiveStatus === 'approved') {
+        await reopenInquiryAfterBudgetApproval(supabase, inquiryId);
+        if (prevStatus !== 'approved') {
+          await onApprovedCreateBooking?.();
+        }
         onApprovalSubmitted?.();
         return;
       }

@@ -55,10 +55,15 @@ import {
   getInquiryClosedStatus,
   isInquiryClosed,
   negotiationBlocksTokenAdvance,
-  qualifyInquiryWithUnit
+  qualifyInquiryWithUnit,
+  reopenInquiryAfterBudgetApproval
 } from './inquiry-stage-transitions';
 import type { InquiryStageData } from './inquiry-types';
-import { loadInquiryStageData, saveInquiryStageData } from './inquiry-stage-store';
+import {
+  loadInquiryStageData,
+  negotiationApprovalStatusFromDb,
+  saveInquiryStageData
+} from './inquiry-stage-store';
 import {
   funnelStageRank,
   INQUIRY_CLOSED_FUNNEL_STAGE,
@@ -334,19 +339,53 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         setVisitInterest('Interested');
       }
       if (neg?.approval_status === 'pending') setApprovalStatus('pending');
-      if (neg?.approval_status === 'approved') setApprovalStatus('approved');
+      if (neg?.approval_status === 'approved') {
+        setApprovalStatus('approved');
+        const reopen = await reopenInquiryAfterBudgetApproval(supabase, id);
+        if (
+          reopen.ok &&
+          isInquiryClosed(stageData, rowFunnelStage) &&
+          getInquiryClosedStatus(stageData, rowFunnelStage) === 'Rejected'
+        ) {
+          setInquiryClosed(false);
+          setClosedStatus(null);
+          onFunnelStageChange?.('Negotiation');
+        }
+      }
       if (neg?.approval_status === 'rejected') {
-        setApprovalStatus('rejected');
-        if (!isInquiryClosed(stageData, rowFunnelStage)) {
-          const closeResult = await closeInquiry(supabase, {
-            inquiryId: id,
-            unitId: unitId || null,
-            closedStatus: 'Rejected'
-          });
-          if (closeResult.ok) {
-            setInquiryClosed(true);
-            setClosedStatus('Rejected');
-            onFunnelStageChange?.(INQUIRY_CLOSED_FUNNEL_STAGE);
+        let effectiveRejected = true;
+        const approvalId = String(neg.approval_id ?? '').trim();
+        if (approvalId) {
+          const { data: approvalRow } = await supabase
+            .from('negotiation_approvals')
+            .select('status')
+            .eq('id', approvalId)
+            .maybeSingle();
+          const dbStatus = negotiationApprovalStatusFromDb(
+            (approvalRow as { status?: string } | null)?.status
+          );
+          if (dbStatus === 'approved') {
+            setApprovalStatus('approved');
+            effectiveRejected = false;
+            await reopenInquiryAfterBudgetApproval(supabase, id);
+          } else if (dbStatus === 'pending') {
+            setApprovalStatus('pending');
+            effectiveRejected = false;
+          }
+        }
+        if (effectiveRejected) {
+          setApprovalStatus('rejected');
+          if (!isInquiryClosed(stageData, rowFunnelStage)) {
+            const closeResult = await closeInquiry(supabase, {
+              inquiryId: id,
+              unitId: unitId || null,
+              closedStatus: 'Rejected'
+            });
+            if (closeResult.ok) {
+              setInquiryClosed(true);
+              setClosedStatus('Rejected');
+              onFunnelStageChange?.(INQUIRY_CLOSED_FUNNEL_STAGE);
+            }
           }
         }
       }

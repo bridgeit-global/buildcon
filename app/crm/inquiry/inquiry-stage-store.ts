@@ -106,12 +106,36 @@ export async function loadInquiryStageRows(
   return { rows };
 }
 
-function approvalStatusFromRow(status: string | null | undefined): string {
+/** Values stored in `negotiation_approvals.status` (see DB check constraint). */
+export const NEGOTIATION_APPROVAL_DB_STATUS = {
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  cancelled: 'Cancelled'
+} as const;
+
+export type NegotiationApprovalDbStatus =
+  (typeof NEGOTIATION_APPROVAL_DB_STATUS)[keyof typeof NEGOTIATION_APPROVAL_DB_STATUS];
+
+/** Map DB status (`Approved` / `Rejected` / …) to pipeline `approval_status` (lowercase). */
+export function negotiationApprovalStatusFromDb(
+  status: string | null | undefined
+): 'approved' | 'rejected' | 'pending' | '' {
   const s = String(status || '').trim();
-  if (s === 'Approved') return 'approved';
-  if (s === 'Rejected') return 'rejected';
-  if (s === 'Pending') return 'pending';
+  if (s === NEGOTIATION_APPROVAL_DB_STATUS.approved) return 'approved';
+  if (s === NEGOTIATION_APPROVAL_DB_STATUS.rejected) return 'rejected';
+  if (s === NEGOTIATION_APPROVAL_DB_STATUS.pending) return 'pending';
   return '';
+}
+
+export function isNegotiationApprovalDecided(
+  status: string | null | undefined
+): status is typeof NEGOTIATION_APPROVAL_DB_STATUS.approved | typeof NEGOTIATION_APPROVAL_DB_STATUS.rejected {
+  const s = String(status ?? '').trim();
+  return (
+    s === NEGOTIATION_APPROVAL_DB_STATUS.approved ||
+    s === NEGOTIATION_APPROVAL_DB_STATUS.rejected
+  );
 }
 
 /** Merge latest `negotiation_approvals` row into negotiation payload when stage row is stale. */
@@ -155,7 +179,7 @@ export async function enrichNegotiationFromApprovals(
 
   if (!approvalRow) return data;
 
-  const status = approvalStatusFromRow(approvalRow.status);
+  const status = negotiationApprovalStatusFromDb(approvalRow.status);
   const offered =
     approvalRow.offered_price != null
       ? String(approvalRow.offered_price)

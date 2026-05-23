@@ -3,6 +3,7 @@ import {
   bookingBlockedByNegotiationApproval,
   isInquiryClosed
 } from './inquiry-stage-transitions';
+import { negotiationApprovalStatusFromDb } from './inquiry-stage-store';
 import type { InquiryStageData } from './inquiry-types';
 
 type ApprovalRow = {
@@ -12,14 +13,6 @@ type ApprovalRow = {
   offered_price: number | string | null;
   decision_note: string | null;
 };
-
-function approvalStatusFromRow(status: string | null | undefined): string {
-  const s = String(status || '').trim();
-  if (s === 'Approved') return 'approved';
-  if (s === 'Rejected') return 'rejected';
-  if (s === 'Pending') return 'pending';
-  return '';
-}
 
 function negotiationFromInquiryRow(
   stageData: unknown,
@@ -36,7 +29,7 @@ function negotiationFromInquiryRow(
   };
   if (!approval) return neg;
 
-  const status = approvalStatusFromRow(approval.status);
+  const status = negotiationApprovalStatusFromDb(approval.status);
   const offered =
     approval.offered_price != null
       ? String(approval.offered_price)

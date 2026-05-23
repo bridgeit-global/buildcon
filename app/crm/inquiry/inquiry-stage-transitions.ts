@@ -167,6 +167,46 @@ export async function advanceInquiryToNegotiation(
   });
 }
 
+/** Undo mistaken close when budget was later approved (e.g. stale refresh). */
+export async function reopenInquiryAfterBudgetApproval(
+  supabase: SupabaseClient,
+  inquiryId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const id = String(inquiryId || '').trim();
+  if (!id) return { ok: false, error: 'Missing inquiry id' };
+
+  const { data: inq, error: loadErr } = await supabase
+    .from('sales_inquiries')
+    .select('funnel_stage, stage_data')
+    .eq('id', id)
+    .maybeSingle();
+  if (loadErr) return { ok: false, error: loadErr.message };
+  if (!inq) return { ok: false, error: 'Inquiry not found' };
+
+  const stageData = inq.stage_data as Record<string, unknown> | null;
+  if (!isInquiryClosed(stageData, inq.funnel_stage)) return { ok: true };
+  if (getInquiryClosedStatus(stageData, inq.funnel_stage) !== 'Rejected') {
+    return { ok: true };
+  }
+
+  const nextStageData =
+    stageData && typeof stageData === 'object' && !Array.isArray(stageData)
+      ? { ...stageData }
+      : {};
+  delete nextStageData.closed;
+  delete nextStageData.closed_status;
+
+  const { error: updErr } = await supabase
+    .from('sales_inquiries')
+    .update({
+      funnel_stage: 'Negotiation',
+      stage_data: nextStageData
+    })
+    .eq('id', id);
+  if (updErr) return { ok: false, error: updErr.message };
+  return { ok: true };
+}
+
 export function getInquiryClosedStatus(
   stageData: InquiryStageData | Record<string, unknown> | null | undefined,
   funnelStage?: string | null

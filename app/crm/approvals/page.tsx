@@ -303,7 +303,6 @@ export default function ApprovalsPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              decision,
               decisionNote: decisionNote.trim() || null
             })
           }
