@@ -11,6 +11,8 @@ import {
 import { negotiationDiscountApprovalSchemaWithUnitCap } from '@/lib/inquiry/inquiry-pipeline.schema';
 import {
   negotiationFormLocked,
+  isNegotiationDiscountOverCap,
+  MAX_NEGOTIATION_DISCOUNT_PCT,
   negotiationRequiresApproval,
   offeredPriceFromNegotiation,
   resolveNegotiationDiscount,
@@ -821,6 +823,10 @@ function NegotiationForm({
         </p>
       ) : null}
 
+      <p className="text-[11px] text-ds-gray-500">
+        Maximum discount: {MAX_NEGOTIATION_DISCOUNT_PCT}% of list price.
+      </p>
+
       <div className="flex flex-wrap gap-2">
         {(['inr', 'pct'] as const).map((mode) => (
           <Button
@@ -848,6 +854,11 @@ function NegotiationForm({
               type="number"
               className="h-8 text-xs"
               placeholder="2,00,000"
+              max={
+                listPrice != null
+                  ? (listPrice * MAX_NEGOTIATION_DISCOUNT_PCT) / 100
+                  : undefined
+              }
               value={data.discount_inr ?? ''}
               onChange={(e) => {
                 applyDiscountPatch({ discount_inr: e.target.value, discount_pct: '' });
@@ -871,6 +882,7 @@ function NegotiationForm({
               className="h-8 text-xs"
               placeholder="5"
               step="0.01"
+              max={MAX_NEGOTIATION_DISCOUNT_PCT}
               value={data.discount_pct ?? ''}
               onChange={(e) => {
                 applyDiscountPatch({ discount_pct: e.target.value, discount_inr: '' });
@@ -1232,6 +1244,20 @@ export function InquiryPipelinePanel(props: {
     if (inquiryNegotiationStageLocked(targetStage, inquiryBookingLocked)) {
       pageError(INQUIRY_ACTIVE_BOOKING_MESSAGE);
       return;
+    }
+    if (targetStage === 'Negotiation') {
+      const neg = stageData.negotiation ?? {};
+      if (
+        isNegotiationDiscountOverCap(unitListPriceInr, {
+          discountInrRaw: neg.discount_inr,
+          discountPctRaw: neg.discount_pct
+        })
+      ) {
+        pageError(
+          `Discount cannot exceed ${MAX_NEGOTIATION_DISCOUNT_PCT}% of list price.`
+        );
+        return;
+      }
     }
     setSaving(true);
         setSaved(false);

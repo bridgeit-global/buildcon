@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { positiveNumberString } from '@/lib/form/common-fields';
+import { MAX_NEGOTIATION_DISCOUNT_PCT } from '@/lib/inquiry/negotiation-discount';
 
 function parseInr(raw: string): number {
   return Number(String(raw).replace(/,/g, '').trim());
@@ -28,6 +29,7 @@ function discountRefine(
       return;
     }
     if (!Number.isFinite(list) || list <= 0) return;
+    const maxDiscountInr = (list * MAX_NEGOTIATION_DISCOUNT_PCT) / 100;
     if (mode === 'inr' && value > list) {
       ctx.addIssue({
         code: 'custom',
@@ -35,11 +37,18 @@ function discountRefine(
         message: `Discount cannot exceed list price (₹ ${list.toLocaleString('en-IN')}).`
       });
     }
-    if (mode === 'pct' && value > 100) {
+    if (mode === 'inr' && value > maxDiscountInr) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['discountInr'],
+        message: `Discount cannot exceed ${MAX_NEGOTIATION_DISCOUNT_PCT}% of list price (₹ ${maxDiscountInr.toLocaleString('en-IN')}).`
+      });
+    }
+    if (mode === 'pct' && value > MAX_NEGOTIATION_DISCOUNT_PCT) {
       ctx.addIssue({
         code: 'custom',
         path: ['discountPct'],
-        message: 'Discount percentage cannot exceed 100%.'
+        message: `Discount cannot exceed ${MAX_NEGOTIATION_DISCOUNT_PCT}%.`
       });
     }
   };

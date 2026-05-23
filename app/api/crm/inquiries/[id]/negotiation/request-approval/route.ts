@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
-import { resolveNegotiationDiscount } from '@/lib/inquiry/negotiation-discount';
+import {
+  isNegotiationDiscountOverCap,
+  MAX_NEGOTIATION_DISCOUNT_PCT,
+  resolveNegotiationDiscount
+} from '@/lib/inquiry/negotiation-discount';
 import { persistNegotiationApprovalRequest } from '@/app/crm/inquiry/inquiry-stage-store';
 import {
   listSuperAdminUserIds,
@@ -67,6 +71,18 @@ export async function POST(
   if (resolved.discountInr == null || resolved.offeredPrice == null) {
     return NextResponse.json(
       { error: 'Enter a discount amount or percentage below list price.' },
+      { status: 400 }
+    );
+  }
+
+  if (
+    isNegotiationDiscountOverCap(listPrice, {
+      discountInrRaw: body.discountInr,
+      discountPctRaw: body.discountPct
+    })
+  ) {
+    return NextResponse.json(
+      { error: `Discount cannot exceed ${MAX_NEGOTIATION_DISCOUNT_PCT}%.` },
       { status: 400 }
     );
   }
@@ -137,7 +153,7 @@ export async function POST(
   });
 
   const adminIds = await listSuperAdminUserIds(admin);
-  await notifyManyCrmUsers(admin, adminIds, {
+  const { inAppCount, emailsSent } = await notifyManyCrmUsers(admin, adminIds, {
     projectId,
     kind: 'negotiation_approval_requested',
     title,
@@ -152,6 +168,9 @@ export async function POST(
     approvalId,
     offeredPrice: offeredRaw,
     discountInr: resolved.discountInr,
-    discountPct: resolved.discountPct
+    discountPct: resolved.discountPct,
+    notifiedAdmins: adminIds.length,
+    inAppNotifications: inAppCount,
+    emailsSent
   });
 }

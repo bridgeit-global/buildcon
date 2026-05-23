@@ -1,5 +1,8 @@
 import { computeNegotiationDiscount } from '@/app/crm/inquiry/inquiry-stage-transitions';
 
+/** Maximum discount allowed on negotiation (agreement) price before admin approval. */
+export const MAX_NEGOTIATION_DISCOUNT_PCT = 50;
+
 export type NegotiationDiscountInput = {
   discountInrRaw?: string | number | null;
   discountPctRaw?: string | number | null;
@@ -47,6 +50,17 @@ export function resolveNegotiationDiscount(
 
   const offeredPrice = Number((listPrice - discountInr).toFixed(2));
   return { discountInr, discountPct, offeredPrice };
+}
+
+export function isNegotiationDiscountOverCap(
+  listPriceInr: number | null | undefined,
+  input: NegotiationDiscountInput
+): boolean {
+  const resolved = resolveNegotiationDiscount(listPriceInr, input);
+  return (
+    resolved.discountPct != null &&
+    resolved.discountPct > MAX_NEGOTIATION_DISCOUNT_PCT
+  );
 }
 
 /** True when buyer terms differ from list (agreement) price — admin approval required. */
