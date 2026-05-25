@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
+import { PanInputField } from '@/components/ui/pan-input-field';
+import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
 import {
   Select,
   SelectContent,
@@ -107,6 +109,52 @@ export function RhfEmailInput<T extends FieldValues>({
           value={field.value ?? ''}
           onChange={field.onChange}
           placeholder={placeholder}
+          error={fieldState.error?.message}
+        />
+      )}
+    />
+  );
+}
+
+export function RhfPanInput<T extends FieldValues>({
+  control,
+  name,
+  label,
+  required
+}: BaseProps<T> & { required?: boolean }) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field, fieldState }) => (
+        <PanInputField
+          label={label}
+          required={required}
+          value={field.value ?? ''}
+          onChange={field.onChange}
+          error={fieldState.error?.message}
+        />
+      )}
+    />
+  );
+}
+
+export function RhfAadhaarInput<T extends FieldValues>({
+  control,
+  name,
+  label,
+  required
+}: BaseProps<T> & { required?: boolean }) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field, fieldState }) => (
+        <AadhaarInputField
+          label={label}
+          required={required}
+          value={field.value ?? ''}
+          onChange={field.onChange}
           error={fieldState.error?.message}
         />
       )}
@@ -254,47 +302,15 @@ export function CustomerProfileFields<T extends FieldValues>({
       />
       {showKyc ? (
         <>
-          <Controller
+          <RhfPanInput
             control={control}
             name={'pan_number' as FieldPath<T>}
-            render={({ field, fieldState }) => (
-              <div>
-                <Label>PAN</Label>
-                <Input
-                  {...field}
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                  aria-invalid={fieldState.error ? true : undefined}
-                  placeholder="ABCDE1234F"
-                  className={cn(formControlFieldGapClass, 'uppercase')}
-                />
-                <FormFieldError message={fieldState.error?.message} />
-              </div>
-            )}
+            label="PAN"
           />
-          <Controller
+          <RhfAadhaarInput
             control={control}
             name={'aadhaar_last4' as FieldPath<T>}
-            render={({ field, fieldState }) => (
-              <div>
-                <Label>Aadhaar number</Label>
-                <Input
-                  value={field.value ?? ''}
-                  onChange={(e) =>
-                    field.onChange(
-                      e.target.value.replace(/\D/g, '').slice(0, 12)
-                    )
-                  }
-                  onBlur={field.onBlur}
-                  maxLength={12}
-                  inputMode="numeric"
-                  aria-invalid={fieldState.error ? true : undefined}
-                  placeholder="123456789012"
-                  className={formControlFieldGapClass}
-                />
-                <FormFieldError message={fieldState.error?.message} />
-              </div>
-            )}
+            label="Aadhaar number"
           />
         </>
       ) : null}

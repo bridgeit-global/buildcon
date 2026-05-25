@@ -21,6 +21,8 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { PanInputField } from '@/components/ui/pan-input-field';
+import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
 import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';
 import {
   isKycFileAllowed,
@@ -174,22 +176,16 @@ export function CustomerKycUploadDialog({
 
             {docType === 'pan' ? (
               <div>
-                <Label>PAN number</Label>
                 <Controller
                   control={control}
                   name="pan_number"
                   render={({ field, fieldState }) => (
-                    <>
-                      <Input
-                        value={field.value}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                        onBlur={field.onBlur}
-                        placeholder="ABCDE1234F"
-                        className="mt-1 uppercase"
-                        aria-invalid={fieldState.error ? true : undefined}
-                      />
-                      <FormFieldError message={fieldState.error?.message} />
-                    </>
+                    <PanInputField
+                      label="PAN number"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                    />
                   )}
                 />
                 <p className="mt-1 text-xs text-gray-500">
@@ -199,32 +195,18 @@ export function CustomerKycUploadDialog({
             ) : null}
 
             {docType === 'aadhaar' ? (
-              <div>
-                <Label>Aadhaar number</Label>
-                <Controller
-                  control={control}
-                  name="aadhaar_last4"
-                  render={({ field, fieldState }) => (
-                    <>
-                      <Input
-                        value={field.value}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value.replace(/\D/g, '').slice(0, 12)
-                          )
-                        }
-                        onBlur={field.onBlur}
-                        maxLength={12}
-                        inputMode="numeric"
-                        placeholder="123456789012"
-                        className="mt-1"
-                        aria-invalid={fieldState.error ? true : undefined}
-                      />
-                      <FormFieldError message={fieldState.error?.message} />
-                    </>
-                  )}
-                />
-              </div>
+              <Controller
+                control={control}
+                name="aadhaar_last4"
+                render={({ field, fieldState }) => (
+                  <AadhaarInputField
+                    label="Aadhaar number"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={fieldState.error?.message}
+                  />
+                )}
+              />
             ) : null}
 
             <div>
