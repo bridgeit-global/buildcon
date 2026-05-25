@@ -187,7 +187,7 @@ export default function ApprovalsPage() {
 
   const loadRows = useCallback(async () => {
     setLoading(true);
-        const { data, error: readErr } = await supabase
+    const { data, error: readErr } = await supabase
       .from('negotiation_approvals')
       .select(
         `
@@ -287,7 +287,7 @@ export default function ApprovalsPage() {
     async (decision: 'approve' | 'reject') => {
       if (!activeRow) return;
       setDeciding(true);
-            try {
+      try {
         const { error: rpcErr } = await supabase.rpc(
           'decide_negotiation_approval',
           {
@@ -494,7 +494,7 @@ export default function ApprovalsPage() {
           Approvals
         </h1>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Negotiation budget approvals from the enquiry pipeline. Only Super
+          Discount approvals from the enquiry pipeline. Only Super
           Admins can approve or reject.
         </p>
       </div>
@@ -512,7 +512,7 @@ export default function ApprovalsPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-foreground">
-              Negotiation requests
+              Discount requests
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               <span className="tabular-nums text-foreground">
@@ -698,9 +698,9 @@ export default function ApprovalsPage() {
           {activeRow ? (
             <>
               <DialogHeader>
-                <DialogTitle>Review negotiation</DialogTitle>
+                <DialogTitle>Review discount</DialogTitle>
                 <DialogDescription className="text-xs">
-                  Decide whether to approve or reject the offered budget.
+                  Decide whether to approve or reject the offered discount.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-3 py-2 text-sm">

@@ -144,7 +144,7 @@ export async function POST(
       ? `${resolved.discountPct}% (₹ ${resolved.discountInr?.toLocaleString('en-IN')})`
       : `₹ ${resolved.discountInr?.toLocaleString('en-IN')}`;
 
-  const title = 'Negotiation budget approval requested';
+  const title = 'Discount approval requested';
   const bodyText = `${ref} — discount ${discountLabel} on offered ₹ ${resolved.offeredPrice.toLocaleString('en-IN')}. Review under CRM → Approvals.`;
   const emailHtml = staffNotificationEmailHtml({
     title,

@@ -95,35 +95,35 @@ const PIPELINE_STEPS: {
   step: number;
   summary: string;
 }[] = [
-  {
-    id: 'Enquiry',
-    label: 'Enquiry',
-    step: 1,
-    summary:
-      'Initial enquiry: customer details, unit interest, budget, and cost sheet notes captured at creation.'
-  },
-  {
-    id: 'Qualified',
-    label: 'Qualified',
-    step: 2,
-    summary:
-      'Lead is qualified — unit is blocked in inventory. Confirm budget, financing, and follow-up.'
-  },
-  {
-    id: 'Site Visit',
-    label: 'Site Visit',
-    step: 3,
-    summary:
-      'Schedule site visit and follow-ups. After the visit, record Liked or Disliked to advance or close.'
-  },
-  {
-    id: 'Negotiation',
-    label: 'Negotiate',
-    step: 4,
-    summary:
-      'Track price discussion, discounts or counter-offers, and what was agreed verbally. When ready to commit, create a booking (token is recorded there).'
-  }
-];
+    {
+      id: 'Enquiry',
+      label: 'Enquiry',
+      step: 1,
+      summary:
+        'Initial enquiry: customer details, unit interest, budget, and cost sheet notes captured at creation.'
+    },
+    {
+      id: 'Qualified',
+      label: 'Qualified',
+      step: 2,
+      summary:
+        'Lead is qualified — unit is blocked in inventory. Confirm budget, financing, and follow-up.'
+    },
+    {
+      id: 'Site Visit',
+      label: 'Site Visit',
+      step: 3,
+      summary:
+        'Schedule site visit and follow-ups. After the visit, record Liked or Disliked to advance or close.'
+    },
+    {
+      id: 'Negotiation',
+      label: 'Negotiate',
+      step: 4,
+      summary:
+        'Track price discussion, discounts or counter-offers, and what was agreed verbally. When ready to commit, create a booking (token is recorded there).'
+    }
+  ];
 
 function stageIndex(s: string) {
   return PIPELINE_STEPS.findIndex((p) => p.id === s);
@@ -690,7 +690,7 @@ function NegotiationForm({
   async function refreshApprovalStatus() {
     if (!supabase || !inquiryId) return;
     setRefreshing(true);
-        try {
+    try {
       const { data: loaded } = await loadInquiryStageData(supabase, inquiryId);
       const enriched = await enrichNegotiationFromApprovals(
         supabase,
@@ -846,11 +846,6 @@ function NegotiationForm({
             : 'Discount terms are locked while admin approval is pending.'}
         </p>
       ) : null}
-
-      <p className="text-[11px] text-ds-gray-500">
-        Maximum discount: {MAX_NEGOTIATION_DISCOUNT_PCT}% of list price.
-      </p>
-
       <div className="flex flex-wrap gap-2">
         {(['inr', 'pct'] as const).map((mode) => (
           <Button
@@ -1018,8 +1013,8 @@ function NegotiationForm({
             </p>
           ) : null}
           {approvalStatus !== 'pending' &&
-          approvalStatus !== 'approved' &&
-          requiresApproval ? (
+            approvalStatus !== 'approved' &&
+            requiresApproval ? (
             <Button
               type="button"
               variant="outline"
@@ -1220,7 +1215,7 @@ export function InquiryPipelinePanel(props: {
       } else {
         setStageData(mergeStageDataFromJson(data));
       }
-            setSaved(false);
+      setSaved(false);
     })();
     return () => {
       cancelled = true;
@@ -1234,7 +1229,7 @@ export function InquiryPipelinePanel(props: {
       return;
     }
     setSaving(true);
-        try {
+    try {
       const result = await closeInquiry(supabase, {
         inquiryId: inquiry.id,
         unitId: unitId ?? null,
@@ -1284,7 +1279,7 @@ export function InquiryPipelinePanel(props: {
       }
     }
     setSaving(true);
-        setSaved(false);
+    setSaved(false);
     try {
       const uid = String(unitId || '').trim();
       if (uid) {
@@ -1308,9 +1303,9 @@ export function InquiryPipelinePanel(props: {
       const negotiationPatch =
         targetStage === 'Negotiation'
           ? syncNegotiationDiscountFields(
-              unitListPriceInr,
-              (stageData.negotiation ?? {}) as Record<string, unknown>
-            )
+            unitListPriceInr,
+            (stageData.negotiation ?? {}) as Record<string, unknown>
+          )
           : undefined;
 
       const patchJson = stageDataToJson(stageData);
@@ -1369,7 +1364,7 @@ export function InquiryPipelinePanel(props: {
       return;
     }
     setSaving(true);
-        try {
+    try {
       const result = await closeInquiry(supabase, {
         inquiryId: inquiry.id,
         unitId: unitId ?? null,
@@ -1530,7 +1525,7 @@ export function InquiryPipelinePanel(props: {
               {activeStage === 'Negotiation' && negotiationBlocksAdvance ? (
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
                   {getNegotiationApprovalStatus(stageData.negotiation) ===
-                  'pending'
+                    'pending'
                     ? 'Admin approval is pending. Refresh status after decision — create a booking once approved.'
                     : 'Enter a discount and send for admin approval before creating a booking.'}
                 </p>
@@ -1610,14 +1605,14 @@ export function InquiryPipelinePanel(props: {
               {!isLastPipelineStage &&
                 activeStage !== 'Site Visit' &&
                 !(activeStage === 'Negotiation' && negotiationBlocksAdvance) && (
-                <Button
-                  disabled={saving}
-                  className="bg-teal-600 hover:bg-teal-700"
-                  onClick={() => advanceStage()}
-                >
-                  {saving ? 'Saving…' : 'Save & advance →'}
-                </Button>
-              )}
+                  <Button
+                    disabled={saving}
+                    className="bg-teal-600 hover:bg-teal-700"
+                    onClick={() => advanceStage()}
+                  >
+                    {saving ? 'Saving…' : 'Save & advance →'}
+                  </Button>
+                )}
             </>
           )}
         </div>
