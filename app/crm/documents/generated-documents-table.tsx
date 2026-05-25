@@ -13,7 +13,7 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, Download, Loader2, RefreshCw, Search, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Eye, Loader2, RefreshCw, Search, Send } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   parseKindFromBookingGeneratedPath,
@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 export type GeneratedDocRow = {
   id: string;
   project_id: string;
@@ -168,6 +169,10 @@ export function GeneratedDocumentsTable({
   const [globalFilter, setGlobalFilter] = useState('');
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
   const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null);
+  const [viewBusyId, setViewBusyId] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState('');
+  const [viewerTitle, setViewerTitle] = useState('');
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const downloadRow = useCallback(
     async (row: GeneratedDocRow) => {
@@ -192,6 +197,35 @@ export function GeneratedDocumentsTable({
       }
     },
     [supabase]
+  );
+
+  const viewRow = useCallback(
+    async (row: GeneratedDocRow) => {
+      const bucket = storageBucketForGeneratedPath(row.storage_path);
+      if (!bucket) {
+        pageError('This row is a print log only; there is no file in storage.');
+        return;
+      }
+      setViewBusyId(row.id);
+      try {
+        const { data, error: urlErr } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(row.storage_path, 3600);
+        if (urlErr || !data?.signedUrl) {
+          throw urlErr ?? new Error('No preview URL');
+        }
+        setViewerUrl(data.signedUrl);
+        setViewerTitle(
+          formatGeneratedDocKind(row.storage_path, Boolean(row.template_id), scheduleLabelById)
+        );
+        setViewerOpen(true);
+      } catch (e) {
+        pageError(e instanceof Error ? e.message : 'Preview failed');
+      } finally {
+        setViewBusyId(null);
+      }
+    },
+    [supabase, scheduleLabelById]
   );
 
   const columns = useMemo<ColumnDef<GeneratedDocRow, unknown>[]>(() => {
@@ -258,6 +292,34 @@ export function GeneratedDocumentsTable({
         );
       }
     };
+    const viewCol: ColumnDef<GeneratedDocRow, unknown> = {
+      id: 'view',
+      header: 'View',
+      enableGlobalFilter: false,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const r = row.original;
+        const bucket = storageBucketForGeneratedPath(r.storage_path);
+        const busy = viewBusyId === r.id;
+        if (!showDownload) return <span className="text-ds-gray-400">—</span>;
+        if (!bucket) {
+          return <span className="text-xs text-ds-gray-500">—</span>;
+        }
+        return (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            disabled={busy}
+            onClick={() => void viewRow(r)}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+            {busy ? '…' : 'View'}
+          </Button>
+        );
+      }
+    };
     const sendCol: ColumnDef<GeneratedDocRow, unknown> = {
       id: 'send',
       header: 'Send',
@@ -296,7 +358,7 @@ export function GeneratedDocumentsTable({
     if (variant === 'bookingFocus') {
       const cols: ColumnDef<GeneratedDocRow, unknown>[] = [kindCol, generatedCol];
       if (!showDownload) cols.push(pathCol);
-      else cols.push(pathCol, downloadCol, sendCol);
+      else cols.push(pathCol, viewCol, downloadCol, sendCol);
       return cols;
     }
 
@@ -341,9 +403,9 @@ export function GeneratedDocumentsTable({
       },
       generatedCol,
       pathCol,
-      ...(showDownload ? [downloadCol, sendCol] : [])
+      ...(showDownload ? [viewCol, downloadCol, sendCol] : [])
     ];
-  }, [variant, showDownload, downloadBusyId, downloadRow, notifyBusyId, onNotify, scheduleLabelById]);
+  }, [variant, showDownload, viewBusyId, viewRow, downloadBusyId, downloadRow, notifyBusyId, onNotify, scheduleLabelById]);
 
   const table = useReactTable({
     data: rows,
@@ -474,6 +536,15 @@ export function GeneratedDocumentsTable({
           </Button>
         </div>
       </div>
+      <PdfViewerDialog
+        open={viewerOpen}
+        onOpenChange={(open) => {
+          setViewerOpen(open);
+          if (!open) setViewerUrl('');
+        }}
+        url={viewerUrl}
+        title={viewerTitle}
+      />
     </div>
   );
 }
