@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
@@ -48,7 +49,6 @@ import {
 import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
 import {
   loadBookingPrintPack,
-  printApplicationFormFromPack,
   type BookingPrintPack
 } from '@/lib/booking/load-booking-print-pack';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
@@ -86,6 +86,15 @@ import {
 import { BookingAddressFields } from '../booking-address-fields';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+
+const PdfViewerInner = dynamic(() => import('@/components/pdf-viewer-inner'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-ds-gray-400" />
+    </div>
+  )
+});
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -197,6 +206,8 @@ export default function BookingDetailPage() {
   const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
     useState(false);
   const [generatingApplicationForm, setGeneratingApplicationForm] = useState(false);
+  const [appFormPreviewOpen, setAppFormPreviewOpen] = useState(false);
+  const [appFormPreviewUrl, setAppFormPreviewUrl] = useState('');
   const [kycPreviewOpen, setKycPreviewOpen] = useState(false);
   const [kycPreviewUrl, setKycPreviewUrl] = useState('');
   const [kycPreviewTitle, setKycPreviewTitle] = useState('');
@@ -206,7 +217,7 @@ export default function BookingDetailPage() {
   const load = useCallback(async () => {
     if (!bookingId) return;
     setLoading(true);
-        const { data, error: qErr } = await supabase
+    const { data, error: qErr } = await supabase
       .from('bookings')
       .select(
         `
@@ -325,37 +336,37 @@ export default function BookingDetailPage() {
     }
 
     const nextBuyerKyc = buyerIds.map((b) => {
-        const c = custById.get(b.id);
-        const docs = docsByCustomer.get(b.id) ?? new Set();
-        const paths = docPathsByCustomer.get(b.id) ?? {};
-        const addrs = addrByCustomer.get(b.id) ?? [];
-        const permAddr = addrs.find((a) => a.kind === 'permanent') ?? null;
-        const commAddr = addrs.find((a) => a.kind === 'current') ?? addrs[0] ?? null;
-        return {
-          customerId: b.id,
-          label: b.label,
-          fullName: String(c?.full_name ?? b.label),
-          phone: (c?.phone as string | null) ?? null,
-          email: (c?.email as string | null) ?? null,
-          occupation: (c?.occupation as string | null) ?? null,
-          dob: (c?.dob as string | null) ?? null,
-          nationality: (c?.nationality as string | null) ?? null,
-          guardian_name: (c?.guardian_name as string | null) ?? null,
-          residential_status: (c?.residential_status as string | null) ?? null,
-          passport_number: (c?.passport_number as string | null) ?? null,
-          office_name_address: (c?.office_name_address as string | null) ?? null,
-          pan: String(c?.pan_number ?? ''),
-          aadhaarLast4: String(c?.aadhaar_last4 ?? ''),
-          hasPanDoc: docs.has('pan'),
-          hasAadhaarDoc: docs.has('aadhaar'),
-          hasPhotoDoc: docs.has('photo'),
-          panDocPath: paths['pan'] ?? null,
-          aadhaarDocPath: paths['aadhaar'] ?? null,
-          photoDocPath: paths['photo'] ?? null,
-          permanentAddress: permAddr ? { id: permAddr.id, kind: permAddr.kind, address_line1: permAddr.address_line1, city: permAddr.city, state: permAddr.state, pin: permAddr.pin } : null,
-          communicationAddress: commAddr ? { id: commAddr.id, kind: commAddr.kind, address_line1: commAddr.address_line1, city: commAddr.city, state: commAddr.state, pin: commAddr.pin } : null
-        };
-      });
+      const c = custById.get(b.id);
+      const docs = docsByCustomer.get(b.id) ?? new Set();
+      const paths = docPathsByCustomer.get(b.id) ?? {};
+      const addrs = addrByCustomer.get(b.id) ?? [];
+      const permAddr = addrs.find((a) => a.kind === 'permanent') ?? null;
+      const commAddr = addrs.find((a) => a.kind === 'current') ?? addrs[0] ?? null;
+      return {
+        customerId: b.id,
+        label: b.label,
+        fullName: String(c?.full_name ?? b.label),
+        phone: (c?.phone as string | null) ?? null,
+        email: (c?.email as string | null) ?? null,
+        occupation: (c?.occupation as string | null) ?? null,
+        dob: (c?.dob as string | null) ?? null,
+        nationality: (c?.nationality as string | null) ?? null,
+        guardian_name: (c?.guardian_name as string | null) ?? null,
+        residential_status: (c?.residential_status as string | null) ?? null,
+        passport_number: (c?.passport_number as string | null) ?? null,
+        office_name_address: (c?.office_name_address as string | null) ?? null,
+        pan: String(c?.pan_number ?? ''),
+        aadhaarLast4: String(c?.aadhaar_last4 ?? ''),
+        hasPanDoc: docs.has('pan'),
+        hasAadhaarDoc: docs.has('aadhaar'),
+        hasPhotoDoc: docs.has('photo'),
+        panDocPath: paths['pan'] ?? null,
+        aadhaarDocPath: paths['aadhaar'] ?? null,
+        photoDocPath: paths['photo'] ?? null,
+        permanentAddress: permAddr ? { id: permAddr.id, kind: permAddr.kind, address_line1: permAddr.address_line1, city: permAddr.city, state: permAddr.state, pin: permAddr.pin } : null,
+        communicationAddress: commAddr ? { id: commAddr.id, kind: commAddr.kind, address_line1: commAddr.address_line1, city: commAddr.city, state: commAddr.state, pin: commAddr.pin } : null
+      };
+    });
     const prefilled: Record<string, Set<string>> = {};
     for (const nb of nextBuyerKyc) {
       const fields = new Set<string>();
@@ -582,9 +593,18 @@ export default function BookingDetailPage() {
         pageError(r.error);
         return;
       }
-      toast.success('Application form generated. Review it, then click Send to notify the customer.');
 
-      printApplicationFormFromPack(pack);
+      const bucket = r.storagePath.startsWith('documents/') ? 'documents' : 'kyc';
+      const { data: urlData, error: urlErr } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(r.storagePath, 3600);
+      if (urlErr || !urlData?.signedUrl) {
+        toast.success('Application form generated but preview could not be loaded.');
+        return;
+      }
+
+      setAppFormPreviewUrl(urlData.signedUrl);
+      setAppFormPreviewOpen(true);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Generate failed');
     } finally {
@@ -626,7 +646,7 @@ export default function BookingDetailPage() {
   async function saveStagePatch(patch: Record<string, unknown>) {
     if (!booking || cancelled) return;
     setSaving(true);
-        try {
+    try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -707,7 +727,7 @@ export default function BookingDetailPage() {
       return;
     }
     setSaving(true);
-        try {
+    try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -817,7 +837,7 @@ export default function BookingDetailPage() {
       return next;
     });
     setSaving(true);
-        try {
+    try {
       const res = await fetch(`/api/crm/bookings/${booking.id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -904,19 +924,19 @@ export default function BookingDetailPage() {
           aadhaar_last4: normalizeAadhaar(b.aadhaarLast4) || null,
           permanent_address: b.permanentAddress
             ? {
-                address_line1: b.permanentAddress.address_line1?.trim() || null,
-                city: b.permanentAddress.city?.trim() || null,
-                state: b.permanentAddress.state?.trim() || null,
-                pin: b.permanentAddress.pin?.trim() || null
-              }
+              address_line1: b.permanentAddress.address_line1?.trim() || null,
+              city: b.permanentAddress.city?.trim() || null,
+              state: b.permanentAddress.state?.trim() || null,
+              pin: b.permanentAddress.pin?.trim() || null
+            }
             : null,
           communication_address: b.communicationAddress
             ? {
-                address_line1: b.communicationAddress.address_line1?.trim() || null,
-                city: b.communicationAddress.city?.trim() || null,
-                state: b.communicationAddress.state?.trim() || null,
-                pin: b.communicationAddress.pin?.trim() || null
-              }
+              address_line1: b.communicationAddress.address_line1?.trim() || null,
+              city: b.communicationAddress.city?.trim() || null,
+              state: b.communicationAddress.state?.trim() || null,
+              pin: b.communicationAddress.pin?.trim() || null
+            }
             : null
         })
       });
@@ -990,13 +1010,13 @@ export default function BookingDetailPage() {
       }
       pageError(
         uploadParsed.error.issues.find((i) => i.path[0] === 'hasFile')?.message ??
-          'Fix the highlighted fields before uploading.'
+        'Fix the highlighted fields before uploading.'
       );
       if (kycFileRef.current) kycFileRef.current.value = '';
       return;
     }
     setSaving(true);
-        const ext = extensionFromFile(file);
+    const ext = extensionFromFile(file);
     const path = `customer/${kycUploadCustomerId}/${kycDocType}/${crypto.randomUUID()}${ext}`;
     try {
       const {
@@ -1034,7 +1054,7 @@ export default function BookingDetailPage() {
       return;
     }
     setSaving(true);
-        try {
+    try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/cancel`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -1179,59 +1199,59 @@ export default function BookingDetailPage() {
                   </Button>
                 </>
               ) : (
-              <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Amount (INR)</Label>
-                  <Input
-                    value={stageData.token?.amount ?? String(booking.booking_amount ?? '')}
-                    onChange={(e) =>
-                      setStageData((d) => ({
-                        ...d,
-                        token: { ...d.token, amount: e.target.value }
-                      }))
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Amount (INR)</Label>
+                      <Input
+                        value={stageData.token?.amount ?? String(booking.booking_amount ?? '')}
+                        onChange={(e) =>
+                          setStageData((d) => ({
+                            ...d,
+                            token: { ...d.token, amount: e.target.value }
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Date</Label>
+                      <Input
+                        type="date"
+                        value={stageData.token?.date ?? ''}
+                        onChange={(e) =>
+                          setStageData((d) => ({
+                            ...d,
+                            token: { ...d.token, date: e.target.value }
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label>Payment mode</Label>
+                      <Input
+                        value={stageData.token?.mode ?? booking.payment_mode ?? ''}
+                        onChange={(e) =>
+                          setStageData((d) => ({
+                            ...d,
+                            token: { ...d.token, mode: e.target.value }
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    disabled={saving}
+                    onClick={() =>
+                      void saveStagePatch({
+                        amount: stageData.token?.amount,
+                        date: stageData.token?.date,
+                        mode: stageData.token?.mode ?? booking.payment_mode
+                      })
                     }
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Date</Label>
-                  <Input
-                    type="date"
-                    value={stageData.token?.date ?? ''}
-                    onChange={(e) =>
-                      setStageData((d) => ({
-                        ...d,
-                        token: { ...d.token, date: e.target.value }
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Payment mode</Label>
-                  <Input
-                    value={stageData.token?.mode ?? booking.payment_mode ?? ''}
-                    onChange={(e) =>
-                      setStageData((d) => ({
-                        ...d,
-                        token: { ...d.token, mode: e.target.value }
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <Button
-                disabled={saving}
-                onClick={() =>
-                  void saveStagePatch({
-                    amount: stageData.token?.amount,
-                    date: stageData.token?.date,
-                    mode: stageData.token?.mode ?? booking.payment_mode
-                  })
-                }
-              >
-                Save token
-              </Button>
-              </>
+                  >
+                    Save token
+                  </Button>
+                </>
               )}
             </Card>
           ) : null}
@@ -1268,18 +1288,17 @@ export default function BookingDetailPage() {
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {/* Full Name */}
                         <div className="space-y-1">
-                          <FieldLabel required>Full Name (in capital)</FieldLabel>
+                          <FieldLabel required>Full Name</FieldLabel>
                           {pre?.has('fullName') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm font-medium text-ds-gray-800 uppercase">{b.fullName}</p>
+                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm font-medium text-ds-gray-800">{b.fullName}</p>
                           ) : (
                             <Input
                               value={b.fullName}
-                              className="uppercase"
-                              placeholder="FULL NAME"
+                              placeholder="Full Name"
                               onChange={(e) =>
                                 setBuyerKyc((rows) =>
                                   rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, fullName: e.target.value.toUpperCase() } : r
+                                    r.customerId === b.customerId ? { ...r, fullName: e.target.value } : r
                                   )
                                 )
                               }
@@ -2047,20 +2066,20 @@ export default function BookingDetailPage() {
                         View all documents
                       </Link>
                     </Button>
-                  <Button variant="outline" asChild>
-                    <Link href={`/crm/financials/${bookingId}`}>
-                      Ledger &amp; collections
-                    </Link>
-                  </Button>
-                  {booking?.project_id ? (
                     <Button variant="outline" asChild>
-                      <Link href={`/crm/project/${booking.project_id}/cld`}>
-                        Project CLD
+                      <Link href={`/crm/financials/${bookingId}`}>
+                        Ledger &amp; collections
                       </Link>
                     </Button>
-                  ) : null}
-                </div>
-                <BookingNotificationsCard bookingId={booking.id} />
+                    {booking?.project_id ? (
+                      <Button variant="outline" asChild>
+                        <Link href={`/crm/project/${booking.project_id}/cld`}>
+                          Project CLD
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                  <BookingNotificationsCard bookingId={booking.id} />
                 </>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -2101,6 +2120,45 @@ export default function BookingDetailPage() {
           ) : null}
         </>
       )}
+
+      {/* Application Form Preview + Verify */}
+      <Dialog open={appFormPreviewOpen} onOpenChange={(open) => { setAppFormPreviewOpen(open); if (!open) setAppFormPreviewUrl(''); }}>
+        <DialogContent className="flex h-[96vh] w-[96vw] max-w-[96vw] sm:max-w-[96vw] flex-col gap-0 rounded-xl p-0">
+          <DialogHeader className="shrink-0 border-b border-ds-gray-200 px-5 py-3">
+            <DialogTitle className="text-sm font-semibold text-ds-gray-800">
+              Application Form — Review &amp; Verify
+            </DialogTitle>
+            <DialogDescription className="text-xs text-ds-gray-500">
+              Review the generated application form below. Once verified, click &quot;Verified — Continue&quot; to proceed to the next step.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 p-2">
+            {appFormPreviewUrl ? <PdfViewerInner src={appFormPreviewUrl} /> : null}
+          </div>
+          <div className="shrink-0 flex items-center justify-end gap-2 border-t border-ds-gray-200 px-5 py-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setAppFormPreviewOpen(false); setAppFormPreviewUrl(''); }}
+            >
+              Close
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1"
+              disabled={saving}
+              onClick={() => {
+                setAppFormPreviewOpen(false);
+                setAppFormPreviewUrl('');
+                void advanceStage();
+              }}
+            >
+              <Check className="h-4 w-4" />
+              {saving ? 'Saving…' : 'Verified — Continue'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* KYC Document Preview — image or PDF */}
       {kycPreviewIsImage ? (
