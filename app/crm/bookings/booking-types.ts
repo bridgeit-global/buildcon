@@ -39,6 +39,15 @@ export type BookingApplicationStageData = {
   state?: string;
   pin?: string;
   notes?: string;
+  mode_of_booking?: string;
+  channel_partner_name?: string;
+  channel_partner_rera?: string;
+  finance_from_bank?: string;
+  preferred_bank?: string;
+  mode_of_payment?: string;
+  heard_from?: string;
+  heard_from_detail?: string;
+  purpose_of_purchase?: string;
 };
 
 export type BookingAllotmentStageData = {

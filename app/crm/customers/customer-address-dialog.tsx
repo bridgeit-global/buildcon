@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
 import { pageError } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,8 @@ import {
   EMPTY_ADDRESS,
   type AddressFormValues
 } from '@/lib/customer/customer-forms.schema';
+import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
+import { INDIAN_STATES } from '@/lib/address/pincode-lookup';
 
 type Props = {
   open: boolean;
@@ -51,11 +54,22 @@ export function CustomerAddressDialog({
     mode: 'onChange'
   });
 
-  const { control, handleSubmit, reset, register } = form;
+  const { control, handleSubmit, reset, register, setValue } = form;
 
   useEffect(() => {
     if (open) reset(defaultValues);
   }, [open, defaultValues, reset]);
+
+  const onPincodeResult = useCallback(
+    (result: { city: string; state: string }) => {
+      setValue('city', result.city, { shouldDirty: true });
+      setValue('state', result.state, { shouldDirty: true });
+    },
+    [setValue]
+  );
+
+  const { loading: pincodeLoading, handlePinChange } =
+    usePincodeLookup(onPincodeResult);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,36 +124,71 @@ export function CustomerAddressDialog({
                 )}
               />
             </div>
-            <div>
-              <Label>City</Label>
-              <Input className="mt-1" {...register('city')} />
-            </div>
-            <div>
-              <Label>State</Label>
-              <Input className="mt-1" {...register('state')} />
-            </div>
             <div className="col-span-2">
-              <Label>PIN</Label>
+              <Label>PIN Code</Label>
               <Controller
                 control={control}
                 name="pin"
                 render={({ field, fieldState }) => (
-                  <>
+                  <div className="relative">
                     <Input
                       value={field.value}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value.replace(/\D/g, '').slice(0, 6)
-                        )
-                      }
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        field.onChange(val);
+                        handlePinChange(val);
+                      }}
                       onBlur={field.onBlur}
                       placeholder="e.g. 400001"
                       inputMode="numeric"
                       maxLength={6}
+                      className="mt-1"
                       aria-invalid={fieldState.error ? true : undefined}
                     />
+                    {pincodeLoading && (
+                      <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ds-gray-400" />
+                    )}
                     <FormFieldError message={fieldState.error?.message} />
-                  </>
+                  </div>
+                )}
+              />
+            </div>
+            <div>
+              <Label>City</Label>
+              <Controller
+                control={control}
+                name="city"
+                render={({ field }) => (
+                  <Input
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    placeholder="City / District"
+                    className="mt-1"
+                  />
+                )}
+              />
+            </div>
+            <div>
+              <Label>State</Label>
+              <Controller
+                control={control}
+                name="state"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDIAN_STATES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               />
             </div>
