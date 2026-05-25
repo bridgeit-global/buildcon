@@ -30,7 +30,8 @@ export const bookingApplicationSchema = z.object({
 });
 
 export const bookingAllotmentSchema = z.object({
-  allotment_date: z.string().trim().min(1, 'Enter allotment date.')
+  allotment_date: z.string().trim().min(1, 'Enter allotment date.'),
+  allotment_letter_ref: z.string().trim().min(1, 'Enter letter reference.')
 });
 
 /** PAN & 12-digit Aadhaar required when saving buyer IDs on a booking. */

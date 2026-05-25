@@ -632,8 +632,33 @@ export default function BookingDetailPage() {
 
   const handleGenerateAllotmentLetter = useCallback(async () => {
     if (!booking) return;
+    const alParsed = bookingAllotmentSchema.safeParse({
+      allotment_date: String(stageData.allotment?.allotment_date ?? ''),
+      allotment_letter_ref: String(stageData.allotment?.allotment_letter_ref ?? '')
+    });
+    if (!alParsed.success) {
+      pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date and letter reference before generating.');
+      return;
+    }
     setGeneratingAllotmentLetter(true);
     try {
+      const saveRes = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save',
+          stageDataPatch: {
+            allotment_date: stageData.allotment?.allotment_date,
+            allotment_letter_ref: stageData.allotment?.allotment_letter_ref
+          }
+        })
+      });
+      if (!saveRes.ok) {
+        const sj = (await saveRes.json()) as { error?: string };
+        pageError(sj.error || 'Could not save allotment details before generating.');
+        return;
+      }
+
       const packRes = await loadBookingPrintPack(supabase, bookingId);
       if (!packRes.ok) {
         pageError(packRes.error);
@@ -658,7 +683,7 @@ export default function BookingDetailPage() {
     } finally {
       setGeneratingAllotmentLetter(false);
     }
-  }, [booking, bookingId, supabase]);
+  }, [booking, bookingId, stageData.allotment, supabase]);
 
   const handleViewAllotmentLetter = useCallback(async () => {
     if (!bookingId) return;
@@ -794,10 +819,11 @@ export default function BookingDetailPage() {
     }
     if (workflowStage === 'allotment') {
       const alParsed = bookingAllotmentSchema.safeParse({
-        allotment_date: String(patch.allotment_date ?? '')
+        allotment_date: String(patch.allotment_date ?? ''),
+        allotment_letter_ref: String(patch.allotment_letter_ref ?? '')
       });
       if (!alParsed.success) {
-        pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date.');
+        pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date and letter reference.');
         return;
       }
     }
@@ -1999,7 +2025,7 @@ export default function BookingDetailPage() {
               <h2 className="font-semibold text-ds-gray-900">Allotment</h2>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>Allotment date</Label>
+                  <Label>Allotment date <span className="text-red-500">*</span></Label>
                   <Input
                     type="date"
                     value={stageData.allotment?.allotment_date ?? ''}
@@ -2012,7 +2038,7 @@ export default function BookingDetailPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Letter reference</Label>
+                  <Label>Letter reference <span className="text-red-500">*</span></Label>
                   <Input
                     value={stageData.allotment?.allotment_letter_ref ?? ''}
                     onChange={(e) =>
