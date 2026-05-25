@@ -1,11 +1,10 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Eye, FileText, Loader2, Upload } from 'lucide-react';
+import { ArrowLeft, Check, Eye, FileText, Upload } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -86,15 +85,6 @@ import {
 import { BookingAddressFields } from '../booking-address-fields';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
-
-const PdfViewerInner = dynamic(() => import('@/components/pdf-viewer-inner'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin text-ds-gray-400" />
-    </div>
-  )
-});
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -206,6 +196,7 @@ export default function BookingDetailPage() {
   const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
     useState(false);
   const [generatingApplicationForm, setGeneratingApplicationForm] = useState(false);
+  const [viewingApplicationForm, setViewingApplicationForm] = useState(false);
   const [appFormPreviewOpen, setAppFormPreviewOpen] = useState(false);
   const [appFormPreviewUrl, setAppFormPreviewUrl] = useState('');
   const [kycPreviewOpen, setKycPreviewOpen] = useState(false);
@@ -594,23 +585,46 @@ export default function BookingDetailPage() {
         return;
       }
 
-      const bucket = r.storagePath.startsWith('documents/') ? 'documents' : 'kyc';
-      const { data: urlData, error: urlErr } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(r.storagePath, 3600);
-      if (urlErr || !urlData?.signedUrl) {
-        toast.success('Application form generated but preview could not be loaded.');
-        return;
-      }
-
-      setAppFormPreviewUrl(urlData.signedUrl);
-      setAppFormPreviewOpen(true);
+      toast.success('Application form generated successfully.');
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Generate failed');
     } finally {
       setGeneratingApplicationForm(false);
     }
   }, [booking, bookingId, supabase]);
+
+  const handleViewApplicationForm = useCallback(async () => {
+    if (!bookingId) return;
+    setViewingApplicationForm(true);
+    try {
+      const { data, error } = await supabase
+        .from('generated_documents')
+        .select('storage_path')
+        .eq('booking_id', bookingId)
+        .like('storage_path', '%application-form%')
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (error || !data?.storage_path) {
+        pageError('No application form found. Please generate one first.');
+        return;
+      }
+      const bucket = data.storage_path.startsWith('documents/') ? 'documents' : 'kyc';
+      const { data: urlData, error: urlErr } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(data.storage_path, 3600);
+      if (urlErr || !urlData?.signedUrl) {
+        pageError('Could not load application form preview.');
+        return;
+      }
+      setAppFormPreviewUrl(urlData.signedUrl);
+      setAppFormPreviewOpen(true);
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Failed to load application form');
+    } finally {
+      setViewingApplicationForm(false);
+    }
+  }, [bookingId, supabase]);
 
   const stepIndex = BOOKING_WORKFLOW_STAGES.indexOf(workflowStage);
   const tokenStageLocked = useMemo(
@@ -1881,6 +1895,16 @@ export default function BookingDetailPage() {
                   <FileText className="h-4 w-4" />
                   {generatingApplicationForm ? 'Generating…' : 'Generate application form'}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={viewingApplicationForm}
+                  onClick={() => void handleViewApplicationForm()}
+                >
+                  <Eye className="h-4 w-4" />
+                  {viewingApplicationForm ? 'Loading…' : 'View application form'}
+                </Button>
                 <Button type="button" variant="outline" className="gap-1" asChild>
                   <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
                     <FileText className="h-4 w-4" />
@@ -2153,44 +2177,13 @@ export default function BookingDetailPage() {
         </>
       )}
 
-      {/* Application Form Preview + Verify */}
-      <Dialog open={appFormPreviewOpen} onOpenChange={(open) => { setAppFormPreviewOpen(open); if (!open) setAppFormPreviewUrl(''); }}>
-        <DialogContent className="flex h-[96vh] w-[96vw] max-w-[96vw] sm:max-w-[96vw] flex-col gap-0 rounded-xl p-0">
-          <DialogHeader className="shrink-0 border-b border-ds-gray-200 px-5 py-3">
-            <DialogTitle className="text-sm font-semibold text-ds-gray-800">
-              Application Form — Review &amp; Verify
-            </DialogTitle>
-            <DialogDescription className="text-xs text-ds-gray-500">
-              Review the generated application form below. Once verified, click &quot;Verified — Continue&quot; to proceed to the next step.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 p-2">
-            {appFormPreviewUrl ? <PdfViewerInner src={appFormPreviewUrl} /> : null}
-          </div>
-          <div className="shrink-0 flex items-center justify-end gap-2 border-t border-ds-gray-200 px-5 py-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setAppFormPreviewOpen(false); setAppFormPreviewUrl(''); }}
-            >
-              Close
-            </Button>
-            <Button
-              size="sm"
-              className="gap-1"
-              disabled={saving}
-              onClick={() => {
-                setAppFormPreviewOpen(false);
-                setAppFormPreviewUrl('');
-                void advanceStage();
-              }}
-            >
-              <Check className="h-4 w-4" />
-              {saving ? 'Saving…' : 'Verified — Continue'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Application Form Preview */}
+      <PdfViewerDialog
+        open={appFormPreviewOpen}
+        onOpenChange={(open) => { setAppFormPreviewOpen(open); if (!open) setAppFormPreviewUrl(''); }}
+        url={appFormPreviewUrl}
+        title="Application Form"
+      />
 
       {/* KYC Document Preview — image or PDF */}
       {kycPreviewIsImage ? (
