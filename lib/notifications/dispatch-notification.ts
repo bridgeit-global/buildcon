@@ -217,8 +217,8 @@ async function sendSmsChannel(
   if (!text) {
     return skipped(
       'Set SMS_DOCUMENT_MESSAGE to the exact SMS Alert/DLT-approved text for document alerts (sender PKAEPL). ' +
-        'Do not include download URLs. Placeholders: {mobile}, {name}, {doc}, {days}. ' +
-        'Your login OTP template only allows that OTP wording — register a separate document template on smsalert.co.in.'
+      'Do not include download URLs. Placeholders: {mobile}, {name}, {doc}, {days}. ' +
+      'Your login OTP template only allows that OTP wording — register a separate document template on smsalert.co.in.'
     );
   }
   const res: SmsSendResult = await sendSmsAlertPlainText({ mobileNo, text });
@@ -251,9 +251,9 @@ async function sendWhatsappChannel(
 
   const fallbackShareUrl = phone
     ? buildWaMeShareUrl(
-        phone,
-        `Hello ${recipient.fullName},\n\nYour ${doc.docLabel} from BuildCon is ready.\nDownload (link valid ${doc.signedUrlValidDays} days): ${doc.signedUrl}\n\n— BuildCon CRM`
-      )
+      phone,
+      `Hello ${recipient.fullName},\n\nYour ${doc.docLabel} from BuildCon is ready.\nDownload (link valid ${doc.signedUrlValidDays} days): ${doc.signedUrl}\n\n— BuildCon CRM`
+    )
     : null;
 
   if (!phone) {
@@ -303,15 +303,15 @@ async function loadGeneratedDocument(
   id: string
 ): Promise<
   | {
-      ok: true;
-      row: {
-        id: string;
-        project_id: string;
-        booking_id: string | null;
-        customer_id: string | null;
-        storage_path: string;
-      };
-    }
+    ok: true;
+    row: {
+      id: string;
+      project_id: string;
+      booking_id: string | null;
+      customer_id: string | null;
+      storage_path: string;
+    };
+  }
   | { ok: false; error: string }
 > {
   const { data, error } = await admin

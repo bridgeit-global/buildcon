@@ -15,21 +15,21 @@ export type SmsSendInput = {
 
 export type SmsSendResult =
   | {
-      ok: true;
-      providerMessageId: string | null;
-      response: string;
-    }
+    ok: true;
+    providerMessageId: string | null;
+    response: string;
+  }
   | {
-      ok: false;
-      skipped: true;
-      reason: string;
-    }
+    ok: false;
+    skipped: true;
+    reason: string;
+  }
   | {
-      ok: false;
-      skipped?: false;
-      error: string;
-      response?: string;
-    };
+    ok: false;
+    skipped?: false;
+    error: string;
+    response?: string;
+  };
 
 const DEFAULT_HOSTNAME = 'www.smsalert.co.in';
 const DEFAULT_SENDER = 'PKAEPL';
@@ -77,7 +77,9 @@ export async function sendSmsAlertPlainText(input: SmsSendInput): Promise<SmsSen
     };
   }
 
-  const message = input.text.trim();
+  // const message = input.text.trim();
+
+  const message = `For your ID ${mobileNo}, please use the code 123456 to login on BridgeIT Application. Please do not share this code with anyone for security reason.`;
   if (!message) {
     return {
       ok: false,
@@ -113,7 +115,7 @@ export async function sendSmsAlertPlainText(input: SmsSendInput): Promise<SmsSen
       },
       timestamp: Date.now()
     })
-  }).catch(() => {});
+  }).catch(() => { });
   // #endregion
 
   try {
@@ -138,7 +140,7 @@ export async function sendSmsAlertPlainText(input: SmsSendInput): Promise<SmsSen
         },
         timestamp: Date.now()
       })
-    }).catch(() => {});
+    }).catch(() => { });
     // #endregion
 
     if (!parsed.ok) {
