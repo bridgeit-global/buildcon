@@ -8,7 +8,6 @@ import {
 import { isUnitBookableForWorkflow } from '@/app/crm/inventory/unit-status';
 import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
-import { dispatchGeneratedDocumentNotification } from '@/lib/notifications/dispatch-notification';
 import { generatedReceiptExistsForCollection } from '@/lib/booking/booking-generated-doc-kind';
 import { isInquiryTokenComplete } from '@/app/crm/inquiry/inquiry-token-stage';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
@@ -246,11 +245,8 @@ export async function POST(
     );
   }
 
-  // Generate token receipt PDF + dispatch notification.
+  // Generate token receipt PDF (notification is sent manually via Documents > Send).
   let tokenReceiptId: string | null = null;
-  let notifyResult: Awaited<
-    ReturnType<typeof dispatchGeneratedDocumentNotification>
-  > | null = null;
   try {
     const packRes = await loadBookingPrintPack(admin, bookingId);
     if (packRes.ok) {
@@ -306,7 +302,6 @@ export async function POST(
           );
           if (persisted.ok) {
             tokenReceiptId = persisted.id;
-            notifyResult = await dispatchGeneratedDocumentNotification(admin, persisted.id);
           }
         }
       }
@@ -320,35 +315,7 @@ export async function POST(
     bookingId,
     workflowStage: bookingRow.workflow_stage,
     created: true,
-    tokenReceiptId,
-    notify: notifyResult
-      ? {
-          ok: notifyResult.ok,
-          docLabel: notifyResult.docLabel,
-          emailSent: notifyResult.email.status === 'sent',
-          emailSkippedReason:
-            notifyResult.email.status === 'skipped'
-              ? notifyResult.email.skippedReason
-              : notifyResult.email.status === 'failed'
-                ? notifyResult.email.error
-                : undefined,
-          smsSent: notifyResult.sms.status === 'sent',
-          smsSkippedReason:
-            notifyResult.sms.status === 'skipped'
-              ? notifyResult.sms.skippedReason
-              : notifyResult.sms.status === 'failed'
-                ? notifyResult.sms.error
-                : undefined,
-          whatsappSent: notifyResult.whatsapp.status === 'sent',
-          whatsappSkippedReason:
-            notifyResult.whatsapp.status === 'skipped'
-              ? notifyResult.whatsapp.skippedReason
-              : notifyResult.whatsapp.status === 'failed'
-                ? notifyResult.whatsapp.error
-                : undefined,
-          whatsappUrl: notifyResult.whatsapp.fallbackShareUrl
-        }
-      : undefined
+    tokenReceiptId
   });
 }
 

@@ -3,7 +3,6 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
-import { dispatchGeneratedDocumentNotification } from '@/lib/notifications/dispatch-notification';
 
 type Body = {
   stage?: 'OC' | 'FinalDemand' | 'PossessionLetter' | 'Handover' | 'Closed';
@@ -92,10 +91,9 @@ export async function POST(
     unitStatus = targetStatus;
   }
 
-  // Auto-generate possession letter PDF + dispatch when reaching PossessionLetter
-  // stage on a confirmed booking.
+  // Auto-generate possession letter PDF when reaching PossessionLetter stage.
+  // Notification is NOT sent automatically — review in Documents, then Send.
   let generatedDocumentId: string | null = null;
-  let notify: Awaited<ReturnType<typeof dispatchGeneratedDocumentNotification>> | null = null;
   if (stage === 'PossessionLetter' && bookingId) {
     const packRes = await loadBookingPrintPack(admin, bookingId);
     if (packRes.ok) {
@@ -107,7 +105,6 @@ export async function POST(
       );
       if (persisted.ok) {
         generatedDocumentId = persisted.id;
-        notify = await dispatchGeneratedDocumentNotification(admin, persisted.id);
       }
     }
   }
@@ -116,16 +113,6 @@ export async function POST(
     ok: true,
     stage,
     unitStatus,
-    generatedDocumentId,
-    notify: notify
-      ? {
-          ok: notify.ok,
-          docLabel: notify.docLabel,
-          emailSent: notify.email.status === 'sent',
-          smsSent: notify.sms.status === 'sent',
-          whatsappSent: notify.whatsapp.status === 'sent',
-          error: notify.error
-        }
-      : undefined
+    generatedDocumentId
   });
 }

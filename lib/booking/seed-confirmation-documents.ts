@@ -3,13 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
 import { generatedReceiptExistsForCollection } from '@/lib/booking/booking-generated-doc-kind';
-import { dispatchGeneratedDocumentNotification } from '@/lib/notifications/dispatch-notification';
 
 export type SeedConfirmationDocumentsResult = {
   tokenReceiptCreated: boolean;
   tokenReceiptSkipped: boolean;
-  notified?: boolean;
-  notifyError?: string;
   error?: string;
 };
 
@@ -100,12 +97,8 @@ export async function seedConfirmationDocuments(
     return { tokenReceiptCreated: false, tokenReceiptSkipped: false, error: persisted.error };
   }
 
-  const notify = await dispatchGeneratedDocumentNotification(admin, persisted.id);
-
   return {
     tokenReceiptCreated: true,
-    tokenReceiptSkipped: false,
-    notified: notify.ok,
-    notifyError: notify.error
+    tokenReceiptSkipped: false
   };
 }

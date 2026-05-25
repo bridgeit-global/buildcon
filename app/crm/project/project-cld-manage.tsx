@@ -152,7 +152,7 @@ export function ProjectCldManage({
       const skipped = json.demandLettersSkipped ?? 0;
       const demandNote =
         generated > 0
-          ? ` Demand letter PDFs created for ${generated} confirmed booking${generated === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped — already issued or fully paid)` : ''}.`
+          ? ` Demand letter PDFs created for ${generated} booking${generated === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped)` : ''}. Review in Documents, then Send to notify customers.`
           : n > 0
             ? ' No new demand PDFs (instalments may already be paid or letters already on file).'
             : '';

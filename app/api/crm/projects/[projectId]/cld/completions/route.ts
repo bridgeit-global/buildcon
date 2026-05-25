@@ -123,9 +123,7 @@ export async function POST(
     generatedBy: gate.userId
   });
 
-  // Drain the per-booking CLD notification queue rows we just inserted. The
-  // actual customer message is the demand letter dispatched inline above; we
-  // mark queue rows so they don't pile up as `pending`.
+  // Mark queue rows as generated (demand letters stored, pending manual Send).
   await admin
     .from('cld_notification_queue')
     .update({ status: 'sent', processed_at: new Date().toISOString() })
@@ -140,8 +138,7 @@ export async function POST(
     ...applyResult,
     demandLettersGenerated: demandResult.demandLettersGenerated,
     demandLettersSkipped: demandResult.demandLettersSkipped,
-    notificationsSent: demandResult.notificationsSent,
-    notificationsFailed: demandResult.notificationsFailed,
+    notificationsPending: demandResult.notificationsPending,
     demandLetterErrors: demandResult.errors.length ? demandResult.errors : undefined
   });
 }

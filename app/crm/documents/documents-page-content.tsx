@@ -10,7 +10,10 @@ import { Button } from '@/components/ui/button';
 import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
-import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import {
+  formatDocumentDeliveryNotice,
+  notifyGeneratedBookingDocument
+} from '@/lib/booking/notify-booking-document';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
 import {
@@ -188,7 +191,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     async (kind: BookingDocumentPrintKind) => {
       if (!printPack) return;
       setGeneratingKind(kind);
-            setDeliveryBanner('');
+      setDeliveryBanner('');
       try {
         const r = await generateAndNotifyBookingDocument({
           supabase,
@@ -200,9 +203,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           pageError(r.error);
           return;
         }
-        setDeliveryBanner(
-          formatDocumentDeliveryNotice('Document generated and saved.', r.notify)
-        );
+        setDeliveryBanner('Document generated. Review it below, then click Send to notify the customer.');
         await refreshGenerated();
       } catch (e) {
         pageError(e instanceof Error ? e.message : 'Generate failed');
@@ -211,6 +212,25 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       }
     },
     [printPack, supabase, refreshGenerated]
+  );
+
+  const handleMatrixNotify = useCallback(
+    async (generatedDocumentId: string) => {
+      const bId = lockedBookingId || selectedBookingId;
+      if (!bId) return;
+      setDeliveryBanner('');
+      try {
+        const r = await notifyGeneratedBookingDocument(bId, generatedDocumentId);
+        if (!r.ok) {
+          pageError(r.error ?? 'Notification failed');
+          return;
+        }
+        setDeliveryBanner(formatDocumentDeliveryNotice('Notification sent.', r));
+      } catch (e) {
+        pageError(e instanceof Error ? e.message : 'Send failed');
+      }
+    },
+    [lockedBookingId, selectedBookingId]
   );
 
   const matrixRows = useMemo(() => buildMatrixRows(generated), [generated]);
@@ -384,6 +404,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                     kycComplete={printPack.kycComplete}
                     generatingKind={generatingKind}
                     onGenerate={handleMatrixGenerate}
+                    onNotify={handleMatrixNotify}
                     scheduleLabelById={docScheduleLabels}
                     outstandingTotal={outstandingTotal}
                   />
@@ -407,6 +428,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                 loading={loadingGenerated}
                 variant="bookingFocus"
                 showDownload
+                onNotify={(_bId, docId) => handleMatrixNotify(docId)}
                 scheduleLabelById={docScheduleLabels}
                 onRefresh={() => void loadGeneratedForBooking(lockedBookingId)}
               />

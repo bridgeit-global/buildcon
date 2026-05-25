@@ -34,14 +34,10 @@ export async function persistCollectionReceipt(
       paymentReference: collection.reference,
       instalmentLabel: collection.instalmentLabel
     },
-    notify: opts?.notify !== false
+    notify: opts?.notify === true
   });
 
   if (!result.ok) return { ok: false, error: result.error };
-
-  if (opts?.notify === false) {
-    return { ok: true, id: result.generatedDocumentId };
-  }
 
   return {
     ok: true,

@@ -8,7 +8,7 @@ import {
   useReactTable,
   type ColumnDef
 } from '@tanstack/react-table';
-import { Download, Loader2, Sparkles } from 'lucide-react';
+import { Download, Eye, Loader2, Send, Sparkles } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
@@ -70,6 +70,8 @@ type BookingDocumentsMatrixTableProps = {
   kycComplete: boolean;
   generatingKind: BookingDocumentPrintKind | null;
   onGenerate: (kind: BookingDocumentPrintKind) => void | Promise<void>;
+  /** Notify (email/SMS/WhatsApp) for a specific generated document. */
+  onNotify?: (generatedDocumentId: string) => void | Promise<void>;
   /** Maps schedule/collection id from filename to instalment label. */
   scheduleLabelById?: Map<string, string>;
   /** Outstanding rupee amount across the unit's payment schedule, if known. */
@@ -138,11 +140,13 @@ export function BookingDocumentsMatrixTable({
   kycComplete,
   generatingKind,
   onGenerate,
+  onNotify,
   scheduleLabelById,
   outstandingTotal
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
+  const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null);
 
   const presentKinds = useMemo(() => {
     const set = new Set<BookingDocumentPrintKind>();
@@ -257,8 +261,8 @@ export function BookingDocumentsMatrixTable({
         }
       },
       {
-        id: 'download',
-        header: 'Download',
+        id: 'review',
+        header: 'Review',
         enableSorting: false,
         cell: ({ row }) => {
           const latest = row.original.latest;
@@ -275,8 +279,41 @@ export function BookingDocumentsMatrixTable({
               disabled={busy}
               onClick={() => void downloadRow(latest)}
             >
-              <Download className="h-4 w-4" />
-              {busy ? '…' : 'Download'}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              {busy ? '…' : 'View'}
+            </Button>
+          );
+        }
+      },
+      {
+        id: 'send',
+        header: 'Send',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const latest = row.original.latest;
+          if (!latest) {
+            return <span className="text-xs text-ds-gray-500">—</span>;
+          }
+          const busy = notifyBusyId === latest.id;
+          return (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="gap-1"
+              disabled={busy || !onNotify}
+              onClick={async () => {
+                if (!onNotify) return;
+                setNotifyBusyId(latest.id);
+                try {
+                  await onNotify(latest.id);
+                } finally {
+                  setNotifyBusyId(null);
+                }
+              }}
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {busy ? 'Sending…' : 'Send'}
             </Button>
           );
         }
@@ -287,7 +324,9 @@ export function BookingDocumentsMatrixTable({
       downloadRow,
       generatingKind,
       kycComplete,
+      notifyBusyId,
       onGenerate,
+      onNotify,
       outstandingTotal,
       presentKinds,
       scheduleLabelById
@@ -332,9 +371,8 @@ export function BookingDocumentsMatrixTable({
         </table>
       </div>
       <p className="text-xs text-ds-gray-500">
-        Files are stored as PDF in Documents. Receipts and demand letters from Financials and CLD
-        completions appear here automatically. Email/WhatsApp runs when you use Generate with notify
-        enabled.
+        Files are stored as PDF in Documents. After generating, use View to review the document,
+        then Send to notify the customer via email / SMS / WhatsApp.
       </p>
     </div>
   );

@@ -29,7 +29,6 @@ import {
   generatedReceiptExistsForCollection,
   persistCollectionReceipt
 } from '@/lib/booking/persist-collection-receipt';
-import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
 import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
 import {
   collectionEntrySchema,
@@ -268,13 +267,10 @@ export default function FinancialsBookingPage() {
           mode: entryMode,
           reference: entryRef || null,
           instalmentLabel: instalmentLabelForSchedule(entryScheduleId || null)
-        });
+        }, { notify: false });
         if (receiptRes.ok) {
           toast.success(
-            `${formatDocumentDeliveryNotice(
-              'Collection saved. Payment receipt PDF stored in Documents.',
-              receiptRes.notify
-            )} View all files in Unit documents.`
+            'Collection saved. Payment receipt stored in Documents — review and Send to notify the customer.'
           );
         } else {
           toast.warning(`Collection saved; receipt PDF failed: ${receiptRes.error}`);
@@ -307,14 +303,11 @@ export default function FinancialsBookingPage() {
           demandAmount: pending > 0 ? pending : schedule.amount,
           demandDueDate: schedule.due_date
         },
-        notify: true
+        notify: false
       });
       if (!persisted.ok) throw new Error(persisted.error);
       toast.success(
-        formatDocumentDeliveryNotice(
-          `Demand letter PDF for instalment ${schedule.instalment_no} saved.`,
-          persisted.notify
-        )
+        `Demand letter for instalment ${schedule.instalment_no} saved. Review in Documents, then Send to notify the customer.`
       );
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Demand letter failed');
@@ -347,13 +340,10 @@ export default function FinancialsBookingPage() {
         mode: c.mode,
         reference: c.reference,
         instalmentLabel: instalmentLabelForSchedule(c.schedule_id)
-      });
+      }, { notify: false });
       if (!receiptRes.ok) throw new Error(receiptRes.error);
       toast.success(
-        formatDocumentDeliveryNotice(
-          'Payment receipt saved to Documents for this unit.',
-          receiptRes.notify
-        )
+        'Payment receipt saved. Review in Documents, then Send to notify the customer.'
       );
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Receipt failed');

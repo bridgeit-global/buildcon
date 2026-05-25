@@ -52,7 +52,10 @@ import {
   type BookingPrintPack
 } from '@/lib/booking/load-booking-print-pack';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
-import { formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import {
+  formatDocumentDeliveryNotice,
+  notifyGeneratedBookingDocument
+} from '@/lib/booking/notify-booking-document';
 import { formatDisplayDate } from '@/lib/format-display-date';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
@@ -511,9 +514,7 @@ export default function BookingDetailPage() {
           pageError(r.error);
           return;
         }
-        toast.success(
-          formatDocumentDeliveryNotice('Document generated and saved.', r.notify)
-        );
+        toast.success('Document generated. Review it, then click Send to notify the customer.');
         await refreshConfirmationGenerated();
       } catch (e) {
         pageError(e instanceof Error ? e.message : 'Generate failed');
@@ -522,6 +523,23 @@ export default function BookingDetailPage() {
       }
     },
     [confirmationPrintPack, supabase, refreshConfirmationGenerated]
+  );
+
+  const handleConfirmationDocNotify = useCallback(
+    async (generatedDocumentId: string) => {
+      if (!bookingId) return;
+      try {
+        const r = await notifyGeneratedBookingDocument(bookingId, generatedDocumentId);
+        if (!r.ok) {
+          pageError(r.error ?? 'Notification failed');
+          return;
+        }
+        toast.success(formatDocumentDeliveryNotice('Notification sent.', r));
+      } catch (e) {
+        pageError(e instanceof Error ? e.message : 'Send failed');
+      }
+    },
+    [bookingId]
   );
 
   const handleGenerateApplicationForm = useCallback(async () => {
@@ -545,9 +563,7 @@ export default function BookingDetailPage() {
         pageError(r.error);
         return;
       }
-      toast.success(
-        formatDocumentDeliveryNotice('Application form generated and saved.', r.notify)
-      );
+      toast.success('Application form generated. Review it, then click Send to notify the customer.');
 
       printApplicationFormFromPack(pack);
     } catch (e) {
@@ -1919,10 +1935,8 @@ export default function BookingDetailPage() {
                     <div>
                       <h3 className="text-sm font-semibold text-ds-gray-900">Booking documents</h3>
                       <p className="mt-1 text-xs text-ds-gray-500">
-                        Generate and store each document, download from the table, and notify the
-                        buyer (email when SMTP is configured; plain SMS when SMS_API_KEY and
-                        SMS_DOCUMENT_MESSAGE match your SMS Alert DLT template; WhatsApp when Cloud
-                        API is configured, or a prefilled share link otherwise).
+                        Generate each document, review/download the PDF, then click Send to notify
+                        the buyer (email, SMS, WhatsApp).
                       </p>
                     </div>
                     {confirmationDocsLoading ? (
@@ -1933,6 +1947,7 @@ export default function BookingDetailPage() {
                         kycComplete={confirmationPrintPack.kycComplete}
                         generatingKind={generatingDocKind}
                         onGenerate={handleConfirmationDocGenerate}
+                        onNotify={handleConfirmationDocNotify}
                         scheduleLabelById={scheduleLabelById}
                         outstandingTotal={outstandingTotal}
                       />
@@ -1961,6 +1976,7 @@ export default function BookingDetailPage() {
                         loading={confirmationDocsLoading || confirmationDocsLoadingGenerated}
                         variant="bookingFocus"
                         showDownload
+                        onNotify={(_bId, docId) => handleConfirmationDocNotify(docId)}
                         scheduleLabelById={scheduleLabelById}
                         onRefresh={() => void refreshConfirmationGenerated()}
                       />

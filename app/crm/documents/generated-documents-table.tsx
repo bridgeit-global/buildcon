@@ -13,7 +13,7 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Loader2, RefreshCw, Search, Send } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   parseKindFromBookingGeneratedPath,
@@ -149,6 +149,8 @@ type GeneratedDocumentsTableProps = {
   variant?: 'default' | 'bookingFocus';
   /** Signed URL download for rows backed by storage (e.g. `documents/…`). */
   showDownload?: boolean;
+  /** Notify (email/SMS/WhatsApp) for a specific generated document. */
+  onNotify?: (bookingId: string, generatedDocumentId: string) => void | Promise<void>;
   onRefresh?: () => void;
   scheduleLabelById?: Map<string, string>;
 };
@@ -158,12 +160,14 @@ export function GeneratedDocumentsTable({
   loading,
   variant = 'default',
   showDownload = false,
+  onNotify,
   onRefresh,
   scheduleLabelById
 }: GeneratedDocumentsTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [globalFilter, setGlobalFilter] = useState('');
   const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
+  const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null);
 
   const downloadRow = useCallback(
     async (row: GeneratedDocRow) => {
@@ -254,11 +258,45 @@ export function GeneratedDocumentsTable({
         );
       }
     };
+    const sendCol: ColumnDef<GeneratedDocRow, unknown> = {
+      id: 'send',
+      header: 'Send',
+      enableGlobalFilter: false,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const r = row.original;
+        const bucket = storageBucketForGeneratedPath(r.storage_path);
+        if (!onNotify || !r.booking_id || !bucket) {
+          return <span className="text-ds-gray-400">—</span>;
+        }
+        const busy = notifyBusyId === r.id;
+        return (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="gap-1"
+            disabled={busy}
+            onClick={async () => {
+              setNotifyBusyId(r.id);
+              try {
+                await onNotify(r.booking_id!, r.id);
+              } finally {
+                setNotifyBusyId(null);
+              }
+            }}
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {busy ? 'Sending…' : 'Send'}
+          </Button>
+        );
+      }
+    };
 
     if (variant === 'bookingFocus') {
       const cols: ColumnDef<GeneratedDocRow, unknown>[] = [kindCol, generatedCol];
       if (!showDownload) cols.push(pathCol);
-      else cols.push(pathCol, downloadCol);
+      else cols.push(pathCol, downloadCol, sendCol);
       return cols;
     }
 
@@ -303,9 +341,9 @@ export function GeneratedDocumentsTable({
       },
       generatedCol,
       pathCol,
-      ...(showDownload ? [downloadCol] : [])
+      ...(showDownload ? [downloadCol, sendCol] : [])
     ];
-  }, [variant, showDownload, downloadBusyId, downloadRow, scheduleLabelById]);
+  }, [variant, showDownload, downloadBusyId, downloadRow, notifyBusyId, onNotify, scheduleLabelById]);
 
   const table = useReactTable({
     data: rows,

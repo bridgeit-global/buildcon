@@ -60,7 +60,7 @@ export function BookingAddressFields({
   );
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="flex flex-col gap-2">
       <div className="sm:col-span-2">
         <Input
           value={addressLine}
@@ -69,36 +69,38 @@ export function BookingAddressFields({
           aria-invalid={addressLineInvalid || undefined}
         />
       </div>
-      <div className="relative">
-        <Input
-          value={pin}
-          placeholder="PIN code"
-          maxLength={6}
-          inputMode="numeric"
-          onChange={(e) => {
-            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-            onPinChange(val);
-            handlePinChange(val);
-          }}
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div className="relative">
+          <Input
+            value={pin}
+            placeholder="PIN code"
+            maxLength={6}
+            inputMode="numeric"
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+              onPinChange(val);
+              handlePinChange(val);
+            }}
+          />
+          {loading && (
+            <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ds-gray-400" />
+          )}
+        </div>
+        <SearchableSelect
+          value={city}
+          onValueChange={onCityChange}
+          options={cityOptions}
+          placeholder="Select city"
+          searchPlaceholder="Search city…"
         />
-        {loading && (
-          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ds-gray-400" />
-        )}
+        <SearchableSelect
+          value={state}
+          onValueChange={handleStateChange}
+          options={stateOptions}
+          placeholder="Select state"
+          searchPlaceholder="Search state…"
+        />
       </div>
-      <SearchableSelect
-        value={city}
-        onValueChange={onCityChange}
-        options={cityOptions}
-        placeholder="Select city"
-        searchPlaceholder="Search city…"
-      />
-      <SearchableSelect
-        value={state}
-        onValueChange={handleStateChange}
-        options={stateOptions}
-        placeholder="Select state"
-        searchPlaceholder="Search state…"
-      />
     </div>
   );
 }

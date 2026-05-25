@@ -9,13 +9,10 @@ import {
 import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
 import { generatedDemandExistsForSchedule } from '@/lib/booking/booking-generated-doc-kind';
-import { dispatchGeneratedDocumentNotification } from '@/lib/notifications/dispatch-notification';
-
 export type GenerateCldDemandLettersResult = {
   demandLettersGenerated: number;
   demandLettersSkipped: number;
-  notificationsSent: number;
-  notificationsFailed: number;
+  notificationsPending: number;
   errors: string[];
 };
 
@@ -34,8 +31,7 @@ export async function generateCldDemandLettersForProject(
     return {
       demandLettersGenerated: 0,
       demandLettersSkipped: 0,
-      notificationsSent: 0,
-      notificationsFailed: 0,
+      notificationsPending: 0,
       errors: ['CLD stage not found for this project']
     };
   }
@@ -53,16 +49,13 @@ export async function generateCldDemandLettersForProject(
     return {
       demandLettersGenerated: 0,
       demandLettersSkipped: 0,
-      notificationsSent: 0,
-      notificationsFailed: 0,
+      notificationsPending: 0,
       errors: [bErr.message]
     };
   }
 
   let demandLettersGenerated = 0;
   let demandLettersSkipped = 0;
-  let notificationsSent = 0;
-  let notificationsFailed = 0;
   const errors: string[] = [];
 
   for (const booking of bookings ?? []) {
@@ -145,21 +138,12 @@ export async function generateCldDemandLettersForProject(
     }
 
     demandLettersGenerated += 1;
-
-    const notify = await dispatchGeneratedDocumentNotification(admin, persisted.id);
-    if (notify.ok) {
-      notificationsSent += 1;
-    } else {
-      notificationsFailed += 1;
-      if (notify.error) errors.push(`${bookingId}: notify ${notify.error}`);
-    }
   }
 
   return {
     demandLettersGenerated,
     demandLettersSkipped,
-    notificationsSent,
-    notificationsFailed,
+    notificationsPending: demandLettersGenerated,
     errors
   };
 }

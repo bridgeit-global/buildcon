@@ -204,7 +204,7 @@ export async function POST(
     }
   }
 
-  const shouldNotify = body.notify !== false;
+  const shouldNotify = body.notify === true;
   let notify;
   if (shouldNotify) {
     notify = await notifyGeneratedBookingDocumentServer(admin, bookingId, persisted.id);

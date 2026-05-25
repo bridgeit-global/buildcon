@@ -6,14 +6,14 @@ import type { NotifyBookingDocumentResponse } from '@/lib/booking/notify-booking
 
 export type { NotifyBookingDocumentResponse };
 
-/** Persists PDF to Storage, inserts `generated_documents`, then email / SMS / WhatsApp (when configured). */
+/** Persists PDF to Storage + inserts `generated_documents`. Does NOT notify the customer. */
 export async function generateAndNotifyBookingDocument(opts: {
   supabase: SupabaseClient;
   bookingId: string;
   pack: BookingPrintPack;
   kind: BookingDocumentPrintKind;
 }): Promise<
-  | { ok: true; generatedDocumentId: string; notify: NotifyBookingDocumentResponse }
+  | { ok: true; generatedDocumentId: string; storagePath: string; notify?: NotifyBookingDocumentResponse }
   | { ok: false; error: string }
 > {
   void opts.supabase;
@@ -21,21 +21,14 @@ export async function generateAndNotifyBookingDocument(opts: {
 
   const result = await requestGenerateBookingDocument(opts.bookingId, {
     kind: opts.kind,
-    notify: true
+    notify: false
   });
 
   if (!result.ok) return { ok: false, error: result.error };
 
-  if (!result.notify) {
-    return {
-      ok: false,
-      error: 'Document was saved but notification response was missing.'
-    };
-  }
-
   return {
     ok: true,
     generatedDocumentId: result.generatedDocumentId,
-    notify: result.notify
+    storagePath: result.storagePath
   };
 }
