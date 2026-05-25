@@ -33,13 +33,13 @@ export function PdfViewerDialog({
 }: PdfViewerDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[90vh] max-w-5xl flex-col gap-0 p-0 sm:h-[85vh]">
+      <DialogContent className="flex h-[96vh] w-[96vw] max-w-[96vw] sm:max-w-[96vw] flex-col gap-0 rounded-xl p-0">
         <DialogHeader className="shrink-0 border-b border-ds-gray-200 px-5 py-3">
           <DialogTitle className="text-sm font-semibold text-ds-gray-800">
             {title}
           </DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 p-2">
           {url ? <PdfViewerInner src={url} /> : null}
         </div>
       </DialogContent>
