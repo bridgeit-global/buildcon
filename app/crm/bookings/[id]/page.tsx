@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, FileText, Upload } from 'lucide-react';
+import { ArrowLeft, Check, Eye, FileText, Loader2, Upload } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -84,6 +84,8 @@ import {
   type GeneratedDocRow
 } from '@/app/crm/documents/generated-documents-table';
 import { BookingAddressFields } from '../booking-address-fields';
+import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
+import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -124,6 +126,9 @@ type BuyerKyc = {
   hasPanDoc: boolean;
   hasAadhaarDoc: boolean;
   hasPhotoDoc: boolean;
+  panDocPath: string | null;
+  aadhaarDocPath: string | null;
+  photoDocPath: string | null;
   permanentAddress: BuyerAddress | null;
   communicationAddress: BuyerAddress | null;
 };
@@ -192,6 +197,11 @@ export default function BookingDetailPage() {
   const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
     useState(false);
   const [generatingApplicationForm, setGeneratingApplicationForm] = useState(false);
+  const [kycPreviewOpen, setKycPreviewOpen] = useState(false);
+  const [kycPreviewUrl, setKycPreviewUrl] = useState('');
+  const [kycPreviewTitle, setKycPreviewTitle] = useState('');
+  const [kycPreviewIsImage, setKycPreviewIsImage] = useState(false);
+  const [kycPreviewLoading, setKycPreviewLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -272,7 +282,7 @@ export default function BookingDetailPage() {
 
     const { data: kycRows } = await supabase
       .from('customer_kyc_documents')
-      .select('customer_id,doc_type')
+      .select('customer_id,doc_type,storage_path')
       .in(
         'customer_id',
         buyerIds.map((b) => b.id)
@@ -303,15 +313,21 @@ export default function BookingDetailPage() {
     }
 
     const docsByCustomer = new Map<string, Set<string>>();
+    const docPathsByCustomer = new Map<string, Record<string, string>>();
     for (const doc of kycRows ?? []) {
       const cid = doc.customer_id as string;
       if (!docsByCustomer.has(cid)) docsByCustomer.set(cid, new Set());
       docsByCustomer.get(cid)!.add(String(doc.doc_type));
+      if (doc.storage_path) {
+        if (!docPathsByCustomer.has(cid)) docPathsByCustomer.set(cid, {});
+        docPathsByCustomer.get(cid)![String(doc.doc_type)] = String(doc.storage_path);
+      }
     }
 
     const nextBuyerKyc = buyerIds.map((b) => {
         const c = custById.get(b.id);
         const docs = docsByCustomer.get(b.id) ?? new Set();
+        const paths = docPathsByCustomer.get(b.id) ?? {};
         const addrs = addrByCustomer.get(b.id) ?? [];
         const permAddr = addrs.find((a) => a.kind === 'permanent') ?? null;
         const commAddr = addrs.find((a) => a.kind === 'current') ?? addrs[0] ?? null;
@@ -333,6 +349,9 @@ export default function BookingDetailPage() {
           hasPanDoc: docs.has('pan'),
           hasAadhaarDoc: docs.has('aadhaar'),
           hasPhotoDoc: docs.has('photo'),
+          panDocPath: paths['pan'] ?? null,
+          aadhaarDocPath: paths['aadhaar'] ?? null,
+          photoDocPath: paths['photo'] ?? null,
           permanentAddress: permAddr ? { id: permAddr.id, kind: permAddr.kind, address_line1: permAddr.address_line1, city: permAddr.city, state: permAddr.state, pin: permAddr.pin } : null,
           communicationAddress: commAddr ? { id: commAddr.id, kind: commAddr.kind, address_line1: commAddr.address_line1, city: commAddr.city, state: commAddr.state, pin: commAddr.pin } : null
         };
@@ -909,6 +928,27 @@ export default function BookingDetailPage() {
       pageError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSavingBuyerAppForm(null);
+    }
+  }
+
+  async function previewKycDoc(storagePath: string, docType: string, buyerLabel: string) {
+    setKycPreviewLoading(true);
+    try {
+      const { data, error: urlErr } = await supabase.storage
+        .from(KYC_BUCKET)
+        .createSignedUrl(storagePath, 3600);
+      if (urlErr || !data?.signedUrl) throw urlErr ?? new Error('Could not generate preview URL');
+      const ext = storagePath.split('.').pop()?.toLowerCase() ?? '';
+      const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+      setKycPreviewUrl(data.signedUrl);
+      setKycPreviewIsImage(isImage);
+      const docLabel = docType === 'pan' ? 'PAN' : docType === 'aadhaar' ? 'Aadhaar' : 'Photo';
+      setKycPreviewTitle(`${docLabel} — ${buyerLabel}`);
+      setKycPreviewOpen(true);
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Preview failed');
+    } finally {
+      setKycPreviewLoading(false);
     }
   }
 
@@ -1620,30 +1660,48 @@ export default function BookingDetailPage() {
                       </div>
 
                       {/* KYC Documents Status & Upload */}
-                      <div className="flex items-center gap-3 border-t border-ds-gray-100 pt-3">
+                      <div className="flex flex-col gap-2 border-t border-ds-gray-100 pt-3">
                         <p className="text-xs text-ds-gray-500">
                           Docs: PAN {b.hasPanDoc ? '✓' : '—'} · Aadhaar{' '}
                           {b.hasAadhaarDoc ? '✓' : '—'} · Photo {b.hasPhotoDoc ? '✓' : '—'}
                         </p>
-                        <div className="flex flex-wrap gap-2 ml-auto">
-                          {!b.hasPanDoc ? (
+                        <div className="flex flex-wrap gap-2">
+                          {b.hasPanDoc && b.panDocPath ? (
+                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
+                              disabled={kycPreviewLoading}
+                              onClick={() => void previewKycDoc(b.panDocPath!, 'pan', b.label)}>
+                              <Eye className="h-3 w-3" /> PAN
+                            </Button>
+                          ) : (
                             <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
                               onClick={() => openKycFilePicker(b.customerId, 'pan')}>
                               <Upload className="h-3 w-3" /> PAN
                             </Button>
-                          ) : null}
-                          {!b.hasAadhaarDoc ? (
+                          )}
+                          {b.hasAadhaarDoc && b.aadhaarDocPath ? (
+                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
+                              disabled={kycPreviewLoading}
+                              onClick={() => void previewKycDoc(b.aadhaarDocPath!, 'aadhaar', b.label)}>
+                              <Eye className="h-3 w-3" /> Aadhaar
+                            </Button>
+                          ) : (
                             <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
                               onClick={() => openKycFilePicker(b.customerId, 'aadhaar')}>
                               <Upload className="h-3 w-3" /> Aadhaar
                             </Button>
-                          ) : null}
-                          {!b.hasPhotoDoc ? (
+                          )}
+                          {b.hasPhotoDoc && b.photoDocPath ? (
+                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
+                              disabled={kycPreviewLoading}
+                              onClick={() => void previewKycDoc(b.photoDocPath!, 'photo', b.label)}>
+                              <Eye className="h-3 w-3" /> Photo
+                            </Button>
+                          ) : (
                             <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
                               onClick={() => openKycFilePicker(b.customerId, 'photo')}>
                               <Upload className="h-3 w-3" /> Photo
                             </Button>
-                          ) : null}
+                          )}
                         </div>
                       </div>
 
@@ -2042,6 +2100,23 @@ export default function BookingDetailPage() {
             </div>
           ) : null}
         </>
+      )}
+
+      {/* KYC Document Preview — image or PDF */}
+      {kycPreviewIsImage ? (
+        <ImageViewerDialog
+          open={kycPreviewOpen}
+          onOpenChange={(open) => { setKycPreviewOpen(open); if (!open) setKycPreviewUrl(''); }}
+          url={kycPreviewUrl}
+          title={kycPreviewTitle || 'Document preview'}
+        />
+      ) : (
+        <PdfViewerDialog
+          open={kycPreviewOpen}
+          onOpenChange={(open) => { setKycPreviewOpen(open); if (!open) setKycPreviewUrl(''); }}
+          url={kycPreviewUrl}
+          title={kycPreviewTitle || 'Document preview'}
+        />
       )}
 
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
