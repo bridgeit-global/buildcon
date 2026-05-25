@@ -199,6 +199,10 @@ export default function BookingDetailPage() {
   const [viewingApplicationForm, setViewingApplicationForm] = useState(false);
   const [appFormPreviewOpen, setAppFormPreviewOpen] = useState(false);
   const [appFormPreviewUrl, setAppFormPreviewUrl] = useState('');
+  const [generatingAllotmentLetter, setGeneratingAllotmentLetter] = useState(false);
+  const [viewingAllotmentLetter, setViewingAllotmentLetter] = useState(false);
+  const [allotmentLetterPreviewOpen, setAllotmentLetterPreviewOpen] = useState(false);
+  const [allotmentLetterPreviewUrl, setAllotmentLetterPreviewUrl] = useState('');
   const [kycPreviewOpen, setKycPreviewOpen] = useState(false);
   const [kycPreviewUrl, setKycPreviewUrl] = useState('');
   const [kycPreviewTitle, setKycPreviewTitle] = useState('');
@@ -623,6 +627,69 @@ export default function BookingDetailPage() {
       pageError(e instanceof Error ? e.message : 'Failed to load application form');
     } finally {
       setViewingApplicationForm(false);
+    }
+  }, [bookingId, supabase]);
+
+  const handleGenerateAllotmentLetter = useCallback(async () => {
+    if (!booking) return;
+    setGeneratingAllotmentLetter(true);
+    try {
+      const packRes = await loadBookingPrintPack(supabase, bookingId);
+      if (!packRes.ok) {
+        pageError(packRes.error);
+        return;
+      }
+      const pack = packRes.pack;
+
+      const r = await generateAndNotifyBookingDocument({
+        supabase,
+        bookingId: pack.booking.id,
+        pack,
+        kind: 'allotment-letter'
+      });
+      if (!r.ok) {
+        pageError(r.error);
+        return;
+      }
+
+      toast.success('Allotment letter generated successfully.');
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Generate failed');
+    } finally {
+      setGeneratingAllotmentLetter(false);
+    }
+  }, [booking, bookingId, supabase]);
+
+  const handleViewAllotmentLetter = useCallback(async () => {
+    if (!bookingId) return;
+    setViewingAllotmentLetter(true);
+    try {
+      const { data, error } = await supabase
+        .from('generated_documents')
+        .select('storage_path')
+        .eq('booking_id', bookingId)
+        .like('storage_path', '%allotment-letter%')
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (error || !data?.storage_path) {
+        pageError('No allotment letter found. Please generate one first.');
+        return;
+      }
+      const bucket = data.storage_path.startsWith('documents/') ? 'documents' : 'kyc';
+      const { data: urlData, error: urlErr } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(data.storage_path, 3600);
+      if (urlErr || !urlData?.signedUrl) {
+        pageError('Could not load allotment letter preview.');
+        return;
+      }
+      setAllotmentLetterPreviewUrl(urlData.signedUrl);
+      setAllotmentLetterPreviewOpen(true);
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Failed to load allotment letter');
+    } finally {
+      setViewingAllotmentLetter(false);
     }
   }, [bookingId, supabase]);
 
@@ -1958,10 +2025,29 @@ export default function BookingDetailPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className="gap-1"
+                  disabled={generatingAllotmentLetter || saving}
+                  onClick={() => void handleGenerateAllotmentLetter()}
+                >
+                  <FileText className="h-4 w-4" />
+                  {generatingAllotmentLetter ? 'Generating…' : 'Generate allotment letter'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={viewingAllotmentLetter}
+                  onClick={() => void handleViewAllotmentLetter()}
+                >
+                  <Eye className="h-4 w-4" />
+                  {viewingAllotmentLetter ? 'Loading…' : 'View allotment letter'}
+                </Button>
                 <Button type="button" variant="outline" className="gap-1" asChild>
                   <Link href={`/crm/documents/${encodeURIComponent(booking.id)}`}>
                     <FileText className="h-4 w-4" />
-                    Allotment letter &amp; PDFs
+                    Agreements &amp; documents
                   </Link>
                 </Button>
                 <Button
@@ -2183,6 +2269,14 @@ export default function BookingDetailPage() {
         onOpenChange={(open) => { setAppFormPreviewOpen(open); if (!open) setAppFormPreviewUrl(''); }}
         url={appFormPreviewUrl}
         title="Application Form"
+      />
+
+      {/* Allotment Letter Preview */}
+      <PdfViewerDialog
+        open={allotmentLetterPreviewOpen}
+        onOpenChange={(open) => { setAllotmentLetterPreviewOpen(open); if (!open) setAllotmentLetterPreviewUrl(''); }}
+        url={allotmentLetterPreviewUrl}
+        title="Allotment Letter"
       />
 
       {/* KYC Document Preview — image or PDF */}
