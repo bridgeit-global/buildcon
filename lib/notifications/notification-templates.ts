@@ -73,6 +73,8 @@ function applySmsPlaceholders(
  *   {{4}} = link validity in days
  */
 function templateNameFor(kind: BookingDocumentPrintKind): string {
+
+  return 'buildcon_application_form';
   const env = process.env;
   const map: Record<BookingDocumentPrintKind, string> = {
     'application-form':

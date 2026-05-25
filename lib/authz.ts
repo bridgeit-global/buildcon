@@ -42,6 +42,9 @@ export async function getProfileRole(
     .eq('id', userId)
     .maybeSingle();
 
+  // #region agent log
+  fetch('http://127.0.0.1:7394/ingest/83773395-73ed-477b-81a1-3fe21e6007e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'182013'},body:JSON.stringify({sessionId:'182013',location:'lib/authz.ts:getProfileRole',message:'profiles query result',data:{userId,role:data?.role,errorCode:error?.code,errorMsg:error?.message},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
   if (error) return { ok: false, status: 500, error: error.message };
   return { ok: true, role: (data?.role ?? null) as ProfileRole | null };
 }
@@ -76,6 +79,9 @@ export async function requireProjectAccess(
   if (superAdmin) return { ok: true, userId: gate.userId, isSuperAdmin: true };
 
   const supabase = await createSupabaseServerClient();
+  // #region agent log
+  fetch('http://127.0.0.1:7394/ingest/83773395-73ed-477b-81a1-3fe21e6007e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'182013'},body:JSON.stringify({sessionId:'182013',location:'lib/authz.ts:requireProjectAccess',message:'Querying project_members with RLS-enabled client',data:{projectId,userId:gate.userId},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
   const { data, error } = await supabase
     .from('project_members')
     .select('project_id')
@@ -84,6 +90,9 @@ export async function requireProjectAccess(
     .eq('status', 'Active')
     .maybeSingle();
 
+  // #region agent log
+  fetch('http://127.0.0.1:7394/ingest/83773395-73ed-477b-81a1-3fe21e6007e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'182013'},body:JSON.stringify({sessionId:'182013',location:'lib/authz.ts:requireProjectAccess:result',message:'project_members query result',data:{hasData:!!data,errorCode:error?.code,errorMsg:error?.message,errorHint:error?.hint},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
   if (error) return { ok: false, status: 500, error: error.message };
   if (!data) return { ok: false, status: 403, error: 'Forbidden' };
 

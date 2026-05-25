@@ -102,6 +102,9 @@ create or replace function public.is_super_admin()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
+set row_security = off
 as $$
   select exists (
     select 1
@@ -115,6 +118,9 @@ create or replace function public.has_project_access(p_project_id uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
+set row_security = off
 as $$
   select public.is_super_admin()
   or exists (
