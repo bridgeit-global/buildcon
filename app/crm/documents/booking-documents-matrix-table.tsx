@@ -8,9 +8,10 @@ import {
   useReactTable,
   type ColumnDef
 } from '@tanstack/react-table';
-import { Download, Eye, Loader2, Send, Sparkles } from 'lucide-react';
+import { Eye, Loader2, Send, Sparkles } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import {
   BOOKING_DOCUMENT_KIND_LABEL,
@@ -145,8 +146,11 @@ export function BookingDocumentsMatrixTable({
   outstandingTotal
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [downloadBusyId, setDownloadBusyId] = useState<string | null>(null);
+  const [viewBusyId, setViewBusyId] = useState<string | null>(null);
   const [notifyBusyId, setNotifyBusyId] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState('');
+  const [viewerTitle, setViewerTitle] = useState('');
 
   const presentKinds = useMemo(() => {
     const set = new Set<BookingDocumentPrintKind>();
@@ -156,26 +160,28 @@ export function BookingDocumentsMatrixTable({
     return set;
   }, [rows]);
 
-  const downloadRow = useCallback(
-    async (row: GeneratedDocRow) => {
+  const viewRow = useCallback(
+    async (row: GeneratedDocRow, label: string) => {
       const bucket = storageBucketForGeneratedPath(row.storage_path);
       if (!bucket) {
         pageError('No file in storage for this row.');
         return;
       }
-            setDownloadBusyId(row.id);
+      setViewBusyId(row.id);
       try {
         const { data, error: urlErr } = await supabase.storage
           .from(bucket)
           .createSignedUrl(row.storage_path, 3600);
         if (urlErr || !data?.signedUrl) {
-          throw urlErr ?? new Error('No download URL');
+          throw urlErr ?? new Error('No preview URL');
         }
-        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+        setViewerUrl(data.signedUrl);
+        setViewerTitle(label);
+        setViewerOpen(true);
       } catch (e) {
-        pageError(e instanceof Error ? e.message : 'Download failed');
+        pageError(e instanceof Error ? e.message : 'Preview failed');
       } finally {
-        setDownloadBusyId(null);
+        setViewBusyId(null);
       }
     },
     [supabase]
@@ -269,7 +275,7 @@ export function BookingDocumentsMatrixTable({
           if (!latest) {
             return <span className="text-xs text-ds-gray-500">Generate first</span>;
           }
-          const busy = downloadBusyId === latest.id;
+          const busy = viewBusyId === latest.id;
           return (
             <Button
               type="button"
@@ -277,7 +283,7 @@ export function BookingDocumentsMatrixTable({
               size="sm"
               className="gap-1"
               disabled={busy}
-              onClick={() => void downloadRow(latest)}
+              onClick={() => void viewRow(latest, row.original.label)}
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
               {busy ? '…' : 'View'}
@@ -320,8 +326,8 @@ export function BookingDocumentsMatrixTable({
       }
     ],
     [
-      downloadBusyId,
-      downloadRow,
+      viewBusyId,
+      viewRow,
       generatingKind,
       kycComplete,
       notifyBusyId,
@@ -374,6 +380,15 @@ export function BookingDocumentsMatrixTable({
         Files are stored as PDF in Documents. After generating, use View to review the document,
         then Send to notify the customer via email / SMS / WhatsApp.
       </p>
+      <PdfViewerDialog
+        open={viewerOpen}
+        onOpenChange={(open) => {
+          setViewerOpen(open);
+          if (!open) setViewerUrl('');
+        }}
+        url={viewerUrl}
+        title={viewerTitle}
+      />
     </div>
   );
 }

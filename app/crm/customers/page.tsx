@@ -42,6 +42,8 @@ import {
   isKycFileAllowed,
   kycFileRejectMessage
 } from '@/lib/customer/kyc-file';
+import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
+import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 
 const CUSTOMER_SELECT =
   'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
@@ -215,6 +217,11 @@ export default function CustomersPage() {
   const [bankDefaults, setBankDefaults] = useState<BankFormValues>(EMPTY_BANK);
 
   const [kycFormOpen, setKycFormOpen] = useState(false);
+  const [kycPreviewOpen, setKycPreviewOpen] = useState(false);
+  const [kycPreviewUrl, setKycPreviewUrl] = useState('');
+  const [kycPreviewTitle, setKycPreviewTitle] = useState('');
+  const [kycPreviewIsImage, setKycPreviewIsImage] = useState(false);
+  const [kycPreviewLoading, setKycPreviewLoading] = useState(false);
 
   const fetchCustomerList = useCallback(
     async (opts: { reset: boolean }) => {
@@ -851,18 +858,27 @@ export default function CustomersPage() {
   }
 
   async function openKycFile(doc: KycDocRow) {
-        try {
+    setKycPreviewLoading(true);
+    try {
       const { data, error: urlErr } = await supabase.storage
         .from(KYC_BUCKET)
         .createSignedUrl(doc.storage_path, 3600);
       if (urlErr || !data?.signedUrl) {
         throw urlErr ?? new Error('No download URL');
       }
-      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      const ext = doc.storage_path.split('.').pop()?.toLowerCase() ?? '';
+      const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+      const docLabel = doc.doc_type === 'pan' ? 'PAN' : doc.doc_type === 'aadhaar' ? 'Aadhaar' : doc.doc_type === 'photo' ? 'Photo' : doc.doc_type;
+      setKycPreviewUrl(data.signedUrl);
+      setKycPreviewIsImage(isImage);
+      setKycPreviewTitle(`${docLabel} — ${selected?.full_name ?? 'Customer'}`);
+      setKycPreviewOpen(true);
     } catch (e) {
       pageError(
         e instanceof Error ? e.message : 'Could not open the file'
       );
+    } finally {
+      setKycPreviewLoading(false);
     }
   }
 
@@ -1276,10 +1292,10 @@ export default function CustomersPage() {
                                     size="sm"
                                     onClick={() => void openKycFile(d)}
                                     disabled={
-                                      extrasSaving || !d.storage_path
+                                      extrasSaving || kycPreviewLoading || !d.storage_path
                                     }
                                   >
-                                    Open
+                                    View
                                   </Button>
                                   <Button
                                     type="button"
@@ -1558,6 +1574,22 @@ export default function CustomersPage() {
           <div className="text-sm text-gray-500">Select a customer.</div>
         )}
       </Card>
+
+      {kycPreviewIsImage ? (
+        <ImageViewerDialog
+          open={kycPreviewOpen}
+          onOpenChange={(open) => { setKycPreviewOpen(open); if (!open) setKycPreviewUrl(''); }}
+          url={kycPreviewUrl}
+          title={kycPreviewTitle || 'Document preview'}
+        />
+      ) : (
+        <PdfViewerDialog
+          open={kycPreviewOpen}
+          onOpenChange={(open) => { setKycPreviewOpen(open); if (!open) setKycPreviewUrl(''); }}
+          url={kycPreviewUrl}
+          title={kycPreviewTitle || 'Document preview'}
+        />
+      )}
     </div>
   );
 }
