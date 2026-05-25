@@ -66,7 +66,8 @@ function salesDocBaseFromPack(
 export function buildBookingDocumentHtmlFromPack(
   kind: BookingDocumentPrintKind,
   pack: BookingPrintPack,
-  overrides?: BookingDocumentHtmlOverrides
+  overrides?: BookingDocumentHtmlOverrides,
+  applicantPhotoDataUris?: (string | null)[]
 ): string {
   switch (kind) {
     case 'receipt':
@@ -94,7 +95,8 @@ export function buildBookingDocumentHtmlFromPack(
         tokenReference: pack.stageData.token?.reference ?? null,
         loanFromBank: Boolean(booking.loan_bank),
         preferredBank: booking.loan_bank,
-        applicants
+        applicants,
+        applicantPhotoUrls: applicantPhotoDataUris
       });
     }
     case 'registration-deed':

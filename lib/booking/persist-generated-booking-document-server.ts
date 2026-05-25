@@ -16,6 +16,26 @@ export type PersistGeneratedBookingDocumentOpts = {
   generatedBy?: string | null;
 };
 
+async function loadApplicantPhotoDataUris(
+  admin: SupabaseClient,
+  paths: (string | null)[]
+): Promise<(string | null)[]> {
+  return Promise.all(
+    paths.map(async (p) => {
+      if (!p) return null;
+      try {
+        const { data, error } = await admin.storage.from('kyc').download(p);
+        if (error || !data) return null;
+        const buf = Buffer.from(await data.arrayBuffer());
+        const mime = data.type || 'image/jpeg';
+        return `data:${mime};base64,${buf.toString('base64')}`;
+      } catch {
+        return null;
+      }
+    })
+  );
+}
+
 /** Uploads printable PDF to the private `documents` bucket and inserts `generated_documents`. */
 export async function persistGeneratedBookingDocumentServer(
   admin: SupabaseClient,
@@ -23,7 +43,15 @@ export async function persistGeneratedBookingDocumentServer(
   kind: BookingDocumentPrintKind,
   opts?: PersistGeneratedBookingDocumentOpts
 ): Promise<{ ok: true; id: string; storagePath: string } | { ok: false; error: string }> {
-  const html = buildBookingDocumentHtmlFromPack(kind, pack, opts?.htmlOverrides);
+  let applicantPhotoDataUris: (string | null)[] | undefined;
+  if (kind === 'application-form') {
+    applicantPhotoDataUris = await loadApplicantPhotoDataUris(
+      admin,
+      pack.buyerPhotoStoragePaths
+    );
+  }
+
+  const html = buildBookingDocumentHtmlFromPack(kind, pack, opts?.htmlOverrides, applicantPhotoDataUris);
   let pdf: Buffer;
   try {
     pdf = await renderHtmlToPdfBuffer(html);

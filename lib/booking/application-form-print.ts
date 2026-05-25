@@ -17,6 +17,8 @@ export type ApplicationFormPrintInput = {
   loanFromBank?: boolean | null;
   preferredBank?: string | null;
   applicants: ApplicationFormApplicantRow[];
+  /** Base64 data-URI or URL for each applicant's passport photo (indexed 0–2). */
+  applicantPhotoUrls?: (string | null)[];
   generatedAt?: Date;
 };
 
@@ -24,8 +26,9 @@ const SECTION_HEADER_INDICES = new Set([
   10, 11, 46, 61, 69, 73, 77, 81, 84, 120, 151, 159, 201, 230, 271, 307, 325, 341
 ]);
 
-const CENTER_TITLE_INDICES = new Set([0, 2]);
+const CENTER_TITLE_INDICES = new Set([0]);
 const CENTER_SUBTITLE_INDICES = new Set([1]);
+const SKIP_INDICES = new Set([2, 7, 8, 9]);
 
 /** Docx blank line immediately after a label — filled with 1st / 2nd / 3rd applicant values */
 const APPLICANT_ANSWER_LINE: Record<
@@ -153,14 +156,22 @@ function textToHtml(text: string): string {
   return esc(text).replace(/\n/g, '<br>');
 }
 
-function renderPhotoRow(): string {
-  return `<p class="para photo-labels">${textToHtml(
-    'Photo of Sole/First ApplicantPhoto of Second Applicant\nPhoto of Third Applicant\n'
-  )}</p>
+function renderPhotoRow(photoUrls?: (string | null)[]): string {
+  const labels = ['Photo of Sole/First Applicant', 'Photo of Second Applicant', 'Photo of Third Applicant'];
+  const boxes = [0, 1, 2].map((i) => {
+    const url = photoUrls?.[i];
+    const inner = url
+      ? `<img src="${esc(url)}" alt="${labels[i]}" class="photo-img" />`
+      : '';
+    return `<div class="photo-box">${inner}</div>`;
+  });
+  return `<div class="photo-row">
+    <div class="photo-label">${labels[0]}</div>
+    <div class="photo-label">${labels[1]}</div>
+    <div class="photo-label">${labels[2]}</div>
+  </div>
   <div class="photo-row">
-    <div class="photo-box"></div>
-    <div class="photo-box"></div>
-    <div class="photo-box"></div>
+    ${boxes.join('\n    ')}
   </div>`;
 }
 
@@ -187,6 +198,17 @@ function renderParagraph(
   const tower = display(input.wingName, '_____');
   const tokenRef = display(input.tokenReference);
 
+  if (index === 6) {
+    const first = applicants[0];
+    const name = first ? display(first.fullName) : '';
+    const addr = first ? display(first.communicationAddress) : '';
+    return `<p class="para">To,<br><span class="filled">${esc(name || '_______________________')}</span><br><span class="filled">${esc(addr || '_______________________')}</span></p>`;
+  }
+
+  if (index === 12) {
+    return `<p class="fill-row applicant-col-headers"><span class="fill-cell col-header">1st Applicant</span><span class="fill-cell col-header">2nd Applicant</span><span class="fill-cell col-header">3rd Applicant</span></p>`;
+  }
+
   if (index === 3) {
     const body = text
       .replace('“________”', `“${project}”`)
@@ -198,7 +220,7 @@ function renderParagraph(
     return `<p class="para">Application Form No./ Customer ID: <span class="filled">${esc(formNo)}</span> Date: <span class="filled">${esc(dateStr)}</span></p>`;
   }
 
-  if (index === 5) return renderPhotoRow();
+  if (index === 5) return renderPhotoRow(input.applicantPhotoUrls);
 
   if (index === 70) {
     const yes = input.loanFromBank === true;
@@ -321,6 +343,8 @@ export function buildApplicationFormHtml(input: ApplicationFormPrintInput): stri
   const bodyParts: string[] = [];
 
   for (const { i, t } of DOCX_PARAS as { i: number; t: string }[]) {
+    if (SKIP_INDICES.has(i)) continue;
+
     if (i in SIGNATURE_ANSWER_LINE) {
       const slot = SIGNATURE_ANSWER_LINE[i]!;
       const name = display(input.applicants[slot]?.fullName);
@@ -415,16 +439,32 @@ export function buildApplicationFormHtml(input: ApplicationFormPrintInput): stri
       line-height: 1.3;
       word-break: break-word;
     }
-    .photo-labels { text-align: center; font-size: 9pt; margin-bottom: 4px; }
+    .applicant-col-headers { margin-bottom: 2px; }
+    .col-header {
+      font-weight: 700;
+      font-size: 10pt;
+      text-align: center;
+      border-bottom: none;
+    }
+    .photo-label { text-align: center; font-size: 9pt; }
     .photo-row {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
-      margin: 0 0 14px;
+      margin: 0 0 4px;
     }
     .photo-box {
       border: 1px solid #000;
-      min-height: 88px;
+      height: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .photo-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
     }
     @media print {
       .annexure-title { page-break-before: always; }

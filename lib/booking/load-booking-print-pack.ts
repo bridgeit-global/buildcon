@@ -46,6 +46,8 @@ export type BookingPrintPack = {
   buyerKyc: PrintPackBuyerKyc[];
   buyerProfiles: Map<string, CustomerApplicationProfile>;
   buyerAddresses: Map<string, CustomerAddressSnippet[]>;
+  /** Ordered photo storage paths matching buyerKyc order (null when no photo uploaded). */
+  buyerPhotoStoragePaths: (string | null)[];
   kycComplete: boolean;
 };
 
@@ -119,7 +121,7 @@ export async function loadBookingPrintPack(
 
   const { data: kycRows } = await supabase
     .from('customer_kyc_documents')
-    .select('customer_id,doc_type')
+    .select('customer_id,doc_type,storage_path')
     .in(
       'customer_id',
       buyerIds.map((b) => b.id)
@@ -160,10 +162,14 @@ export async function loadBookingPrintPack(
   }
 
   const docsByCustomer = new Map<string, Set<string>>();
+  const photoPathByCustomer = new Map<string, string>();
   for (const doc of kycRows ?? []) {
     const cid = doc.customer_id as string;
     if (!docsByCustomer.has(cid)) docsByCustomer.set(cid, new Set());
     docsByCustomer.get(cid)!.add(String(doc.doc_type));
+    if (String(doc.doc_type) === 'photo' && doc.storage_path) {
+      photoPathByCustomer.set(cid, String(doc.storage_path));
+    }
   }
 
   const buyerKyc: PrintPackBuyerKyc[] = buyerIds.map((b) => {
@@ -192,6 +198,8 @@ export async function loadBookingPrintPack(
     ])
   );
 
+  const buyerPhotoStoragePaths = buyerIds.map((b) => photoPathByCustomer.get(b.id) ?? null);
+
   return {
     ok: true,
     pack: {
@@ -202,6 +210,7 @@ export async function loadBookingPrintPack(
       buyerKyc,
       buyerProfiles: profiles,
       buyerAddresses: addrByCustomer,
+      buyerPhotoStoragePaths,
       kycComplete
     }
   };
