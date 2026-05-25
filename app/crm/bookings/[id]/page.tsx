@@ -778,6 +778,25 @@ export default function BookingDetailPage() {
     }
   }
 
+  async function revertStage() {
+    if (!booking || cancelled || stepIndex <= 0) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'revert' })
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error || 'Revert failed');
+      await load();
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Could not go back');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function applyBuyerKycFieldErrors(
     customerId: string,
     fieldErrors: { pan?: string; aadhaar?: string }
@@ -2101,14 +2120,27 @@ export default function BookingDetailPage() {
           ) : null}
 
           {!cancelled && workflowStage !== 'confirmation' ? (
-            <div className="flex flex-wrap justify-between gap-3">
-              <Button
-                variant="outline"
-                className="text-ds-error-700 border-ds-error-200"
-                onClick={() => setCancelOpen(true)}
-              >
-                Cancel booking
-              </Button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="text-ds-error-700 border-ds-error-200"
+                  onClick={() => setCancelOpen(true)}
+                >
+                  Cancel booking
+                </Button>
+                {stepIndex > 0 ? (
+                  <Button
+                    variant="outline"
+                    disabled={saving}
+                    onClick={() => void revertStage()}
+                    className="gap-1"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    {saving ? 'Saving…' : 'Previous step'}
+                  </Button>
+                ) : null}
+              </div>
               <Button onClick={() => void advanceStage()} disabled={saving}>
                 {saving
                   ? 'Saving…'

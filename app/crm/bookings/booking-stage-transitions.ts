@@ -12,6 +12,14 @@ export function nextWorkflowStage(
   return BOOKING_WORKFLOW_STAGES[idx + 1]!;
 }
 
+export function previousWorkflowStage(
+  current: BookingWorkflowStage
+): BookingWorkflowStage | null {
+  const idx = BOOKING_WORKFLOW_STAGES.indexOf(current);
+  if (idx <= 0) return null;
+  return BOOKING_WORKFLOW_STAGES[idx - 1]!;
+}
+
 export function canAdvanceWorkflowStage(
   current: BookingWorkflowStage,
   stageData: BookingStageData | null | undefined,

@@ -10,7 +10,8 @@ import {
   canAdvanceWorkflowStage,
   isTokenStageLocked,
   mergeStageData,
-  nextWorkflowStage
+  nextWorkflowStage,
+  previousWorkflowStage
 } from '@/app/crm/bookings/booking-stage-transitions';
 import type { BookingStageData, BookingWorkflowStage } from '@/app/crm/bookings/booking-types';
 import { loadBookingKycReport } from '@/lib/customer/server-kyc-loader';
@@ -18,7 +19,7 @@ import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amou
 import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type StageBody = {
-  action: 'advance' | 'save';
+  action: 'advance' | 'save' | 'revert';
   stageDataPatch?: Record<string, unknown>;
 };
 
@@ -117,6 +118,28 @@ export async function POST(
       .eq('id', bookingId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, workflowStage: current });
+  }
+
+  if (body.action === 'revert') {
+    const prev = previousWorkflowStage(current);
+    if (!prev) {
+      return NextResponse.json(
+        { error: 'Already at the first stage.' },
+        { status: 400 }
+      );
+    }
+    const { error: revertErr } = await admin
+      .from('bookings')
+      .update({
+        workflow_stage: prev,
+        stage_data: stageData,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', bookingId);
+    if (revertErr) {
+      return NextResponse.json({ error: revertErr.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, workflowStage: prev });
   }
 
   if (current === 'application') {
