@@ -4,6 +4,23 @@ export type PincodeLookupResult = {
   postOffices: string[];
 };
 
+const STATE_ALIAS: Record<string, string> = {
+  'Chattisgarh': 'Chhattisgarh',
+  'Orissa': 'Odisha',
+  'Pondicherry': 'Puducherry',
+  'Uttaranchal': 'Uttarakhand',
+  'Andaman & Nicobar Islands': 'Andaman and Nicobar Islands',
+  'Andaman & Nicobar': 'Andaman and Nicobar Islands',
+  'Dadra & Nagar Haveli': 'Dadra and Nagar Haveli and Daman and Diu',
+  'Daman & Diu': 'Dadra and Nagar Haveli and Daman and Diu',
+  'Dadra and Nagar Haveli': 'Dadra and Nagar Haveli and Daman and Diu',
+  'Jammu & Kashmir': 'Jammu and Kashmir',
+};
+
+function normalizeState(raw: string): string {
+  return STATE_ALIAS[raw] ?? raw;
+}
+
 /**
  * Fetches city and state for a 6-digit Indian PIN code using the
  * India Post public API (api.postalpincode.in).
@@ -31,7 +48,7 @@ export async function lookupPincode(
 
     return {
       city: offices[0].District,
-      state: offices[0].State,
+      state: normalizeState(offices[0].State),
       postOffices: offices.map((o) => o.Name)
     };
   } catch {

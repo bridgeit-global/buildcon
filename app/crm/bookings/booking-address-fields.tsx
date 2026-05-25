@@ -1,17 +1,12 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
 import { INDIAN_STATES } from '@/lib/address/pincode-lookup';
+import { getCitiesForState } from '@/lib/address/indian-state-cities';
 
 type Props = {
   addressLine: string;
@@ -25,11 +20,6 @@ type Props = {
   addressLineInvalid?: boolean;
 };
 
-/**
- * Reusable address fields block with PIN-code auto-fill.
- * When a valid 6-digit PIN is entered, city and state are fetched
- * from the India Post API and auto-populated.
- */
 export function BookingAddressFields({
   addressLine,
   city,
@@ -43,13 +33,31 @@ export function BookingAddressFields({
 }: Props) {
   const onPincodeResult = useCallback(
     (result: { city: string; state: string }) => {
-      onCityChange(result.city);
       onStateChange(result.state);
+      onCityChange(result.city);
     },
     [onCityChange, onStateChange]
   );
 
   const { loading, handlePinChange } = usePincodeLookup(onPincodeResult);
+
+  const stateOptions = useMemo(() => [...INDIAN_STATES], []);
+
+  const cityOptions = useMemo(() => {
+    const list = getCitiesForState(state);
+    if (city && !list.includes(city)) {
+      return [city, ...list].sort();
+    }
+    return list;
+  }, [state, city]);
+
+  const handleStateChange = useCallback(
+    (val: string) => {
+      onStateChange(val);
+      if (val !== state) onCityChange('');
+    },
+    [onStateChange, onCityChange, state]
+  );
 
   return (
     <div className="grid gap-2 sm:grid-cols-2">
@@ -77,23 +85,20 @@ export function BookingAddressFields({
           <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ds-gray-400" />
         )}
       </div>
-      <Input
+      <SearchableSelect
         value={city}
-        placeholder="City / District"
-        onChange={(e) => onCityChange(e.target.value)}
+        onValueChange={onCityChange}
+        options={cityOptions}
+        placeholder="Select city"
+        searchPlaceholder="Search city…"
       />
-      <Select value={state} onValueChange={onStateChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select state" />
-        </SelectTrigger>
-        <SelectContent>
-          {INDIAN_STATES.map((s) => (
-            <SelectItem key={s} value={s}>
-              {s}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <SearchableSelect
+        value={state}
+        onValueChange={handleStateChange}
+        options={stateOptions}
+        placeholder="Select state"
+        searchPlaceholder="Search state…"
+      />
     </div>
   );
 }

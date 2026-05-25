@@ -22,29 +22,28 @@ export function usePincodeLookup(
     result: null
   });
   const abortRef = useRef<AbortController | null>(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
 
-  const handlePinChange = useCallback(
-    (pin: string) => {
-      const cleaned = pin.replace(/\D/g, '');
-      if (cleaned.length !== 6) {
-        setState({ loading: false, result: null });
-        return;
-      }
+  const handlePinChange = useCallback((pin: string) => {
+    const cleaned = pin.replace(/\D/g, '');
+    if (cleaned.length !== 6) {
+      setState({ loading: false, result: null });
+      return;
+    }
 
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
 
-      setState((s) => ({ ...s, loading: true }));
+    setState((s) => ({ ...s, loading: true }));
 
-      lookupPincode(cleaned).then((res) => {
-        if (ctrl.signal.aborted) return;
-        setState({ loading: false, result: res });
-        if (res && onResult) onResult(res);
-      });
-    },
-    [onResult]
-  );
+    lookupPincode(cleaned).then((res) => {
+      if (ctrl.signal.aborted) return;
+      setState({ loading: false, result: res });
+      if (res && onResultRef.current) onResultRef.current(res);
+    });
+  }, []);
 
   return { ...state, handlePinChange };
 }

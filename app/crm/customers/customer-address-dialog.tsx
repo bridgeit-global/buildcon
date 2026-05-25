@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import {
   addressFormSchema,
@@ -30,6 +31,7 @@ import {
 } from '@/lib/customer/customer-forms.schema';
 import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
 import { INDIAN_STATES } from '@/lib/address/pincode-lookup';
+import { getCitiesForState } from '@/lib/address/indian-state-cities';
 
 type Props = {
   open: boolean;
@@ -54,7 +56,7 @@ export function CustomerAddressDialog({
     mode: 'onChange'
   });
 
-  const { control, handleSubmit, reset, register, setValue } = form;
+  const { control, handleSubmit, reset, register, setValue, watch } = form;
 
   useEffect(() => {
     if (open) reset(defaultValues);
@@ -62,14 +64,27 @@ export function CustomerAddressDialog({
 
   const onPincodeResult = useCallback(
     (result: { city: string; state: string }) => {
-      setValue('city', result.city, { shouldDirty: true });
       setValue('state', result.state, { shouldDirty: true });
+      setValue('city', result.city, { shouldDirty: true });
     },
     [setValue]
   );
 
   const { loading: pincodeLoading, handlePinChange } =
     usePincodeLookup(onPincodeResult);
+
+  const watchedState = watch('state');
+  const watchedCity = watch('city');
+
+  const stateOptions = useMemo(() => [...INDIAN_STATES], []);
+
+  const cityOptions = useMemo(() => {
+    const list = getCitiesForState(watchedState);
+    if (watchedCity && !list.includes(watchedCity)) {
+      return [watchedCity, ...list].sort();
+    }
+    return list;
+  }, [watchedState, watchedCity]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,41 +169,39 @@ export function CustomerAddressDialog({
               />
             </div>
             <div>
-              <Label>City</Label>
+              <Label>State</Label>
               <Controller
                 control={control}
-                name="city"
+                name="state"
                 render={({ field }) => (
-                  <Input
+                  <SearchableSelect
                     value={field.value}
-                    onChange={(e) => field.onChange(e.target.value)}
-                    placeholder="City / District"
+                    onValueChange={(val) => {
+                      field.onChange(val);
+                      if (val !== watchedState) setValue('city', '', { shouldDirty: true });
+                    }}
+                    options={stateOptions}
+                    placeholder="Select state"
+                    searchPlaceholder="Search state…"
                     className="mt-1"
                   />
                 )}
               />
             </div>
             <div>
-              <Label>State</Label>
+              <Label>City</Label>
               <Controller
                 control={control}
-                name="state"
+                name="city"
                 render={({ field }) => (
-                  <Select
+                  <SearchableSelect
                     value={field.value}
                     onValueChange={field.onChange}
-                  >
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue placeholder="Select state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INDIAN_STATES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={cityOptions}
+                    placeholder="Select city"
+                    searchPlaceholder="Search city…"
+                    className="mt-1"
+                  />
                 )}
               />
             </div>
