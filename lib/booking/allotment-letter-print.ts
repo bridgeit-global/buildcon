@@ -177,7 +177,7 @@ export function buildAllotmentLetterHtml(input: AllotmentLetterPrintInput): stri
     <p class="doc-title">Allotment Letter</p>
     <div class="meta">
       <span><strong>Ref:</strong> ${esc(letterRef)}</span>
-      <span><strong>Date:</strong> ${esc(letterDate)}</span>
+      <span><strong>Date:</strong> ${esc(formatDate(at))}</span>
     </div>
     <p class="para">To,</p>
     <p class="para"><strong>${esc(customer)}</strong></p>

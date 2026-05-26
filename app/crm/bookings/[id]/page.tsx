@@ -203,6 +203,7 @@ export default function BookingDetailPage() {
   const [appFormPreviewUrl, setAppFormPreviewUrl] = useState('');
   const [generatingAllotmentLetter, setGeneratingAllotmentLetter] = useState(false);
   const [viewingAllotmentLetter, setViewingAllotmentLetter] = useState(false);
+  const [allotmentLetterExists, setAllotmentLetterExists] = useState(false);
   const [allotmentLetterPreviewOpen, setAllotmentLetterPreviewOpen] = useState(false);
   const [allotmentLetterPreviewUrl, setAllotmentLetterPreviewUrl] = useState('');
   const [kycPreviewOpen, setKycPreviewOpen] = useState(false);
@@ -513,6 +514,23 @@ export default function BookingDetailPage() {
     return () => { ignore = true; };
   }, [bookingId, workflowStage, cancelled, supabase]);
 
+  useEffect(() => {
+    if (!bookingId || workflowStage !== 'allotment' || cancelled) {
+      setAllotmentLetterExists(false);
+      return;
+    }
+    let ignore = false;
+    (async () => {
+      const { count } = await supabase
+        .from('generated_documents')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_id', bookingId)
+        .like('storage_path', '%allotment-letter%');
+      if (!ignore) setAllotmentLetterExists((count ?? 0) > 0);
+    })();
+    return () => { ignore = true; };
+  }, [bookingId, workflowStage, cancelled, supabase]);
+
   const scheduleLabelById = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of paymentSchedules) {
@@ -653,11 +671,10 @@ export default function BookingDetailPage() {
   const handleGenerateAllotmentLetter = useCallback(async () => {
     if (!booking) return;
     const alParsed = bookingAllotmentSchema.safeParse({
-      allotment_date: String(stageData.allotment?.allotment_date ?? ''),
-      allotment_letter_ref: String(stageData.allotment?.allotment_letter_ref ?? '')
+      allotment_date: String(stageData.allotment?.allotment_date ?? '')
     });
     if (!alParsed.success) {
-      pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date and letter reference before generating.');
+      pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date before generating.');
       return;
     }
     setGeneratingAllotmentLetter(true);
@@ -668,8 +685,7 @@ export default function BookingDetailPage() {
         body: JSON.stringify({
           action: 'save',
           stageDataPatch: {
-            allotment_date: stageData.allotment?.allotment_date,
-            allotment_letter_ref: stageData.allotment?.allotment_letter_ref
+            allotment_date: stageData.allotment?.allotment_date
           }
         })
       });
@@ -697,6 +713,7 @@ export default function BookingDetailPage() {
         return;
       }
 
+      setAllotmentLetterExists(true);
       toast.success('Allotment letter generated successfully.');
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Generate failed');
@@ -813,8 +830,7 @@ export default function BookingDetailPage() {
     }
     if (workflowStage === 'allotment') {
       return {
-        allotment_date: stageData.allotment?.allotment_date,
-        allotment_letter_ref: stageData.allotment?.allotment_letter_ref
+        allotment_date: stageData.allotment?.allotment_date
       };
     }
     return {};
@@ -846,11 +862,10 @@ export default function BookingDetailPage() {
     }
     if (workflowStage === 'allotment') {
       const alParsed = bookingAllotmentSchema.safeParse({
-        allotment_date: String(patch.allotment_date ?? ''),
-        allotment_letter_ref: String(patch.allotment_letter_ref ?? '')
+        allotment_date: String(patch.allotment_date ?? '')
       });
       if (!alParsed.success) {
-        pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date and letter reference.');
+        pageError(alParsed.error.issues[0]?.message ?? 'Enter allotment date.');
         return;
       }
     }
@@ -2025,18 +2040,6 @@ export default function BookingDetailPage() {
                     }
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Letter reference <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={stageData.allotment?.allotment_letter_ref ?? ''}
-                    onChange={(e) =>
-                      setStageData((d) => ({
-                        ...d,
-                        allotment: { ...d.allotment, allotment_letter_ref: e.target.value }
-                      }))
-                    }
-                  />
-                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -2052,7 +2055,7 @@ export default function BookingDetailPage() {
                   type="button"
                   variant="outline"
                   className="gap-1"
-                  disabled={viewingAllotmentLetter}
+                  disabled={viewingAllotmentLetter || !allotmentLetterExists}
                   onClick={() => void handleViewAllotmentLetter()}
                 >
                   <Eye className="h-4 w-4" />
@@ -2063,17 +2066,6 @@ export default function BookingDetailPage() {
                     <FileText className="h-4 w-4" />
                     Agreements &amp; documents
                   </Link>
-                </Button>
-                <Button
-                  disabled={saving}
-                  onClick={() =>
-                    void saveStagePatch({
-                      allotment_date: stageData.allotment?.allotment_date,
-                      allotment_letter_ref: stageData.allotment?.allotment_letter_ref
-                    })
-                  }
-                >
-                  Save allotment
                 </Button>
               </div>
             </Card>
