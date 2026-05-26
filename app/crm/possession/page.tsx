@@ -225,38 +225,22 @@ export default function PossessionHandoverPage() {
   ).length;
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
-      <div>
-        <h1 className="text-xl font-bold text-ds-gray-900 sm:text-2xl">
-          Possession &amp; handover
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-ds-gray-600">
-          Track snag lists, fit-out NOCs, meter applications, society formation,
-          maintenance deposit, possession checklist, and key handover for units
-          marked <strong className="font-medium text-ds-gray-800">Possession ready</strong>.
-          When keys are handed to the customer, the unit moves to{' '}
-          <strong className="font-medium text-ds-gray-800">Possession given</strong>.
-        </p>
-      </div>
+    <div className="space-y-4 p-2">
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="border-ds-gray-200 p-4">
-          <div className="text-xs font-semibold uppercase text-ds-gray-500">
-            Possession ready
-          </div>
-          <div className="mt-1 text-2xl font-bold text-teal-700">{readyCount}</div>
-        </Card>
-        <Card className="border-ds-gray-200 p-4">
-          <div className="text-xs font-semibold uppercase text-ds-gray-500">
-            Possession given
-          </div>
-          <div className="mt-1 text-2xl font-bold text-ds-primary-700">
-            {givenCount}
-          </div>
-        </Card>
-      </div>
 
       <Card className="border-ds-gray-200 p-4 sm:p-5">
+        <div>
+          <h2 className="text-sm font-semibold text-ds-gray-900">
+            Possession &amp; handover
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-ds-gray-600">
+            Track snag lists, fit-out NOCs, meter applications, society formation,
+            maintenance deposit, possession checklist, and key handover for units
+            marked <strong className="font-medium text-ds-gray-800">Possession ready</strong>.
+            When keys are handed to the customer, the unit moves to{' '}
+            <strong className="font-medium text-ds-gray-800">Possession given</strong>.
+          </p>
+        </div>
         <PossessionListTable
           rows={rows}
           loading={loading}

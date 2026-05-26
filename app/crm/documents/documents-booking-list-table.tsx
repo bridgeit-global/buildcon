@@ -29,13 +29,13 @@ export type DocumentsBookingListRow = {
   workflow_stage: string;
   projects: { name: string } | { name: string }[] | null;
   customers:
-    | { full_name: string }
-    | { full_name: string }[]
-    | null;
+  | { full_name: string }
+  | { full_name: string }[]
+  | null;
   units:
-    | { unit_code: string }
-    | { unit_code: string }[]
-    | null;
+  | { unit_code: string }
+  | { unit_code: string }[]
+  | null;
 };
 
 function unwrapJoin<T>(x: T | T[] | null | undefined): T | null {
@@ -110,6 +110,15 @@ export function DocumentsBookingListTable({
           <span className="text-ds-gray-700">
             {unwrapJoin(row.original.customers)?.full_name ?? '—'}
           </span>
+        )
+      },
+      {
+        id: 'action',
+        header: 'Action',
+        cell: ({ row }) => (
+          <Button variant="outline" size="sm" onClick={() => goToBookingDocuments(row.original.id)}>
+            Open
+          </Button>
         )
       }
     ],
@@ -206,19 +215,10 @@ export function DocumentsBookingListTable({
                   <tr
                     key={row.id}
                     tabIndex={0}
-                    role="link"
-                    aria-label="Open documents for this booking"
                     className={cn(
-                      'cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60',
+                      'border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60',
                       isSelected && 'bg-ds-primary-50/70 hover:bg-ds-primary-50'
                     )}
-                    onClick={() => goToBookingDocuments(id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        goToBookingDocuments(id);
-                      }
-                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-4 py-3 align-top">

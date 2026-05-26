@@ -41,21 +41,21 @@ export type GeneratedDocRow = {
   generated_at: string;
   projects: { name: string } | { name: string }[] | null;
   bookings:
-    | {
-        id: string;
-        units:
-          | { unit_code: string }
-          | { unit_code: string }[]
-          | null;
-      }
-    | {
-        id: string;
-        units:
-          | { unit_code: string }
-          | { unit_code: string }[]
-          | null;
-      }[]
+  | {
+    id: string;
+    units:
+    | { unit_code: string }
+    | { unit_code: string }[]
     | null;
+  }
+  | {
+    id: string;
+    units:
+    | { unit_code: string }
+    | { unit_code: string }[]
+    | null;
+  }[]
+  | null;
   customers: { full_name: string } | { full_name: string }[] | null;
 };
 
@@ -182,7 +182,7 @@ export function GeneratedDocumentsTable({
         pageError('This row is a print log only; there is no file in storage yet.');
         return;
       }
-            setDownloadBusyId(row.id);
+      setDownloadBusyId(row.id);
       try {
         const { data, error: urlErr } = await supabase.storage
           .from(bucket)
@@ -261,7 +261,7 @@ export function GeneratedDocumentsTable({
       accessorKey: 'storage_path',
       cell: ({ getValue }) => (
         <span className="max-w-[220px] truncate font-mono text-[11px] text-ds-gray-600">
-          {String(getValue())}
+          {String(getValue()).slice(0, 10)}...
         </span>
       )
     };

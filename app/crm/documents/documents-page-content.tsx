@@ -22,19 +22,21 @@ import {
 } from './generated-documents-table';
 import { DocumentsBookingListTable } from './documents-booking-list-table';
 import { BookingDocumentsMatrixTable, buildMatrixRows } from './booking-documents-matrix-table';
+import { statusLabelForUnit } from '../inventory/unit-status';
+import { ArrowLeft } from 'lucide-react';
 
 type BookingPickRow = {
   id: string;
   workflow_stage: string;
   projects: { name: string } | { name: string }[] | null;
   customers:
-    | { full_name: string }
-    | { full_name: string }[]
-    | null;
+  | { full_name: string }
+  | { full_name: string }[]
+  | null;
   units:
-    | { unit_code: string }
-    | { unit_code: string }[]
-    | null;
+  | { unit_code: string }
+  | { unit_code: string }[]
+  | null;
 };
 
 function unwrapJoin<T>(x: T | T[] | null | undefined): T | null {
@@ -83,7 +85,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       return;
     }
     setLoadingBookings(true);
-        const { data, error: bErr } = await supabase
+    const { data, error: bErr } = await supabase
       .from('bookings')
       .select('id,workflow_stage,customers(full_name),units(unit_code),projects(name)')
       .in('project_id', projectIds)
@@ -108,7 +110,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         return;
       }
       setLoadingGenerated(true);
-            const { data, error: gErr } = await supabase
+      const { data, error: gErr } = await supabase
         .from('generated_documents')
         .select(GENERATED_DOCUMENTS_LIST_SELECT)
         .eq('booking_id', bookingId)
@@ -168,7 +170,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       return;
     }
     setLoadingPack(true);
-        const res = await loadBookingPrintPack(supabase, selectedBookingId);
+    const res = await loadBookingPrintPack(supabase, selectedBookingId);
     if (!res.ok) {
       pageError(res.error);
       setPrintPack(null);
@@ -239,13 +241,13 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const customer = printPack ? unwrapJoin(printPack.booking.customers) : null;
   const buyersNeedingKyc = printPack
     ? printPack.buyerKyc.filter(
-        (b) =>
-          !isCustomerKycComplete(b.pan, b.aadhaarLast4, [
-            ...(b.hasPanDoc ? ['pan'] : []),
-            ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
-            ...(b.hasPhotoDoc ? ['photo'] : [])
-          ])
-      )
+      (b) =>
+        !isCustomerKycComplete(b.pan, b.aadhaarLast4, [
+          ...(b.hasPanDoc ? ['pan'] : []),
+          ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
+          ...(b.hasPhotoDoc ? ['photo'] : [])
+        ])
+    )
     : [];
 
   return (
@@ -253,28 +255,26 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
 
       <Card className="space-y-4 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-ds-gray-900">
-            {lockedBookingId ? 'Booking documents' : 'Confirmed bookings'}
-          </h2>
+          <div className="flex items-center gap-2">
+            {lockedBookingId ?
+              <Button variant="ghost" size="sm" className="h-9 gap-1" asChild>
+                <Link href="/crm/documents">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to list
+                </Link>
+              </Button> : null
+            }
+            <h2 className="text-sm font-semibold text-ds-gray-900">
+              {lockedBookingId ? 'Booking documents' : 'Confirmed bookings'}
+            </h2>
+          </div>
           <p className="mt-1 text-sm text-ds-gray-600">
             {lockedBookingId ? (
               <>
                 All PDFs for this unit (including receipts and demands from Financials and CLD)
                 are listed below. Generate from the matrix or open Ledger &amp; collections to
-                post payments.{' '}
-                <Link
-                  className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
-                  href="/crm/documents"
-                >
-                  Back to list
-                </Link>
-                {' · '}
-                <Link
-                  className="font-medium text-ds-primary-600 underline-offset-2 hover:underline"
-                  href={`/crm/bookings/${encodeURIComponent(lockedBookingId)}`}
-                >
-                  Open booking
-                </Link>
+                post payments
+
               </>
             ) : (
               <>
@@ -348,7 +348,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                             <td className="py-2 pr-3">{unit.wing_name ?? '—'}</td>
                             <td className="py-2 pr-3 tabular-nums">{unit.floor ?? '—'}</td>
                             <td className="py-2 pr-3">{unit.unit_type ?? '—'}</td>
-                            <td className="py-2">{unit.status ?? '—'}</td>
+                            <td className="py-2">{statusLabelForUnit(unit.status) ?? '—'}</td>
                           </tr>
                         </tbody>
                       </table>
