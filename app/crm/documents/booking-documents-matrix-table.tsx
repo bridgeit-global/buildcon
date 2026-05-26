@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { shortId } from '@/lib/utils';
 import { pageError } from '@/lib/toast';
 import {
   flexRender,
@@ -133,7 +134,7 @@ function linkLabelForRow(
 ): string | null {
   const linkId = parseLinkIdFromBookingGeneratedPath(row.storage_path);
   if (!linkId) return null;
-  return scheduleLabelById?.get(linkId) ?? `Linked · ${linkId.slice(0, 8)}…`;
+  return scheduleLabelById?.get(linkId) ?? `Linked · ${shortId(linkId)}`;
 }
 
 export function BookingDocumentsMatrixTable({
@@ -351,12 +352,12 @@ export function BookingDocumentsMatrixTable({
         <table className="w-full min-w-xl caption-bottom text-sm">
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr
-                key={hg.id}
-                className="border-b border-ds-gray-200 bg-ds-gray-50 text-left text-xs font-semibold text-ds-gray-500"
-              >
+              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th key={h.id} className="px-4 py-3">
+                  <th
+                    key={h.id}
+                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
+                  >
                     {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                   </th>
                 ))}
@@ -365,9 +366,9 @@ export function BookingDocumentsMatrixTable({
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-ds-gray-100">
+              <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3 align-middle">
+                  <td key={cell.id} className="px-4 py-3 align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

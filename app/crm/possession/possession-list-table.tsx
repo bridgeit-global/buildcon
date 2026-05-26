@@ -237,7 +237,7 @@ export function PossessionListTable({
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-ds-gray-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
         <table className="w-full min-w-[56rem] caption-bottom text-sm">
           <thead>
             {table.getHeaderGroups().map((hg) => (
@@ -245,7 +245,7 @@ export function PossessionListTable({
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
-                    className="h-10 px-3 text-left text-xs font-semibold text-ds-gray-600"
+                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
                   >
                     {flexRender(h.column.columnDef.header, h.getContext())}
                   </th>
@@ -258,7 +258,7 @@ export function PossessionListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-3 py-10 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-ds-gray-500"
                 >
                   Loading possession cases…
                 </td>
@@ -267,7 +267,7 @@ export function PossessionListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-3 py-10 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-ds-gray-500"
                 >
                   No units in possession-ready or possession-given status for your
                   projects. Mark a registered unit as &quot;Possession ready&quot; in
@@ -278,10 +278,10 @@ export function PossessionListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 hover:bg-ds-gray-50/50"
+                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-3 align-middle">
+                    <td key={cell.id} className="px-4 py-3 align-top">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -292,8 +292,8 @@ export function PossessionListTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs text-ds-gray-600">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+        <div className="flex items-center gap-2">
           <span>Rows per page</span>
           <Select
             value={String(table.getState().pagination.pageSize)}
@@ -312,32 +312,32 @@ export function PossessionListTable({
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-9"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-          >
-            <ChevronLeft className="size-4" aria-hidden />
-            Prev
-          </Button>
-          <span className="text-xs text-ds-gray-600">
+          <span className="tabular-nums">
             Page {table.getState().pagination.pageIndex + 1} of{' '}
             {Math.max(table.getPageCount(), 1)}
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-9"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-          >
-            Next
-            <ChevronRight className="size-4" aria-hidden />
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              className="size-8 p-0"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="size-8 p-0"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

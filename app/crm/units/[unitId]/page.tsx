@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
+import { shortId } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -285,7 +286,7 @@ export default function UnitDetailPage() {
                 }
                 onClick={() => setActiveBookingId(b.id)}
               >
-                {unwrapJoin(b.customers)?.full_name ?? b.id.slice(0, 8)} · {b.workflow_stage}
+                {unwrapJoin(b.customers)?.full_name ?? shortId(b.id)} · {b.workflow_stage}
                 {b.status === 'cancelled' ? ' · cancelled' : ''}
               </button>
             ))}

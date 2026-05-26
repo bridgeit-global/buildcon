@@ -246,11 +246,11 @@ export function ProjectListTable({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-100">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
         <table className="w-full min-w-[56rem] caption-bottom text-sm">
-          <thead className="border-b border-ds-gray-100 bg-ds-gray-50 [&_tr]:border-ds-gray-100">
+          <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
+              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
@@ -294,7 +294,7 @@ export function ProjectListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3 align-top">

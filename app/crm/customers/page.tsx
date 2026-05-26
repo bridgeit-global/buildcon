@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { shortId } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1008,7 +1009,7 @@ export default function CustomersPage() {
                 <div className="text-lg font-semibold text-gray-900">
                   {selected.full_name}
                 </div>
-                <div className="text-sm text-gray-500">{selected.id}</div>
+                <div className="text-sm text-gray-500">{shortId(selected.id)}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {latestInquiry ? (
                     <span
@@ -1130,16 +1131,16 @@ export default function CustomersPage() {
                   <div className="text-xs text-gray-500">
                     Per-project leads; broker appears when source is Broker.
                   </div>
-                  <div className="mt-2 overflow-x-auto rounded-lg border bg-white">
+                  <div className="mt-2 overflow-x-auto rounded-lg border border-ds-gray-200">
                     <table className="w-full min-w-[640px] text-sm">
                       <thead>
-                        <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
-                          <th className="px-3 py-2 font-medium">When</th>
-                          <th className="px-3 py-2 font-medium">Project</th>
-                          <th className="px-3 py-2 font-medium">Unit</th>
-                          <th className="px-3 py-2 font-medium">Source</th>
-                          <th className="px-3 py-2 font-medium">Broker</th>
-                          <th className="px-3 py-2 font-medium">Interest</th>
+                        <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+                          <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">When</th>
+                          <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Project</th>
+                          <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Unit</th>
+                          <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Source</th>
+                          <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Broker</th>
+                          <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Interest</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1147,7 +1148,7 @@ export default function CustomersPage() {
                           <tr>
                             <td
                               colSpan={6}
-                              className="px-3 py-4 text-center text-gray-500"
+                              className="px-4 py-12 text-center text-ds-gray-500"
                             >
                               Loading…
                             </td>
@@ -1156,7 +1157,7 @@ export default function CustomersPage() {
                           <tr>
                             <td
                               colSpan={6}
-                              className="px-3 py-4 text-center text-gray-500"
+                              className="px-4 py-12 text-center text-ds-gray-500"
                             >
                               No inquiries yet.
                             </td>
@@ -1171,26 +1172,26 @@ export default function CustomersPage() {
                             return (
                               <tr
                                 key={row.id}
-                                className="border-b border-gray-100"
+                                className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                               >
-                                <td className="whitespace-nowrap px-3 py-2 text-gray-700">
+                                <td className="whitespace-nowrap px-4 py-3 text-ds-gray-700">
                                   {formatDisplayDateTime(row.created_at)}
                                 </td>
-                                <td className="px-3 py-2 text-gray-900">
+                                <td className="px-4 py-3 text-ds-gray-900">
                                   {embedOne(row.projects)?.name ?? '—'}
                                 </td>
-                                <td className="px-3 py-2 text-gray-900">
+                                <td className="px-4 py-3 text-ds-gray-900">
                                   {u
                                     ? `${u.unit_code} · ${u.wing_name}`
                                     : '—'}
                                 </td>
-                                <td className="px-3 py-2 text-gray-600">
+                                <td className="px-4 py-3 text-ds-gray-600">
                                   {row.lead_source}
                                 </td>
-                                <td className="px-3 py-2 text-gray-600">
+                                <td className="px-4 py-3 text-ds-gray-600">
                                   {showBroker ? brokerNm ?? '—' : '—'}
                                 </td>
-                                <td className="px-3 py-2 text-gray-600">
+                                <td className="px-4 py-3 text-ds-gray-600">
                                   {row.interested_in ?? '—'}
                                 </td>
                               </tr>
@@ -1257,14 +1258,14 @@ export default function CustomersPage() {
                       <code className="text-xs">kyc</code> bucket.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
                       <table className="w-full min-w-[560px] text-sm">
                         <thead>
-                          <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
-                            <th className="px-3 py-2 font-medium">Document</th>
-                            <th className="px-3 py-2 font-medium">Status</th>
-                            <th className="px-3 py-2 font-medium">Uploaded</th>
-                            <th className="px-3 py-2 font-medium text-right">
+                          <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+                            <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Document</th>
+                            <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Status</th>
+                            <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Uploaded</th>
+                            <th className="h-10 px-4 text-right align-middle text-xs font-semibold text-ds-gray-500">
                               Actions
                             </th>
                           </tr>
@@ -1273,18 +1274,18 @@ export default function CustomersPage() {
                           {kycDocs.map((d) => (
                             <tr
                               key={d.id}
-                              className="border-b border-gray-100"
+                              className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                             >
-                              <td className="px-3 py-2 font-medium text-gray-900">
+                              <td className="px-4 py-3 font-medium text-ds-gray-900">
                                 {d.doc_type}
                               </td>
-                              <td className="px-3 py-2 text-gray-600">
+                              <td className="px-4 py-3 text-ds-gray-600">
                                 {d.verified_status}
                               </td>
-                              <td className="whitespace-nowrap px-3 py-2 text-gray-600">
+                              <td className="whitespace-nowrap px-4 py-3 text-ds-gray-600">
                                 {formatDisplayDateTime(d.uploaded_at)}
                               </td>
-                              <td className="whitespace-nowrap px-3 py-2 text-right">
+                              <td className="whitespace-nowrap px-4 py-3 text-right">
                                 <div className="flex justify-end gap-1">
                                   <Button
                                     type="button"

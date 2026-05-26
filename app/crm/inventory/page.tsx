@@ -28,7 +28,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/format-display-date';
-import { cn } from '@/lib/utils';
+import { cn, shortId } from '@/lib/utils';
 import {
   formatInrCompactLacCr,
   formatUnitAgreementValueCompact,
@@ -499,7 +499,7 @@ function UnitDetailDialog({
                 <div>
                   <span className="text-slate-500">Booking ID</span>
                   <br />
-                  <strong className="break-all">{booking.id}</strong>
+                  <strong>{shortId(booking.id)}</strong>
                 </div>
                 <div>
                   <span className="text-slate-500">Booked on</span>
@@ -2018,10 +2018,10 @@ function InventoryPageContent() {
             </Button>
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto rounded-md border border-slate-100">
+          <div className="max-h-[420px] overflow-y-auto rounded-lg border border-ds-gray-200">
             <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-[1] bg-slate-50">
-                <tr>
+              <thead className="sticky top-0 z-[1] bg-ds-gray-50/80">
+                <tr className="border-b border-ds-gray-100">
                   {[
                     'Unit No.',
                     ...(isAllProjects ? (['Project'] as const) : []),
@@ -2037,7 +2037,7 @@ function InventoryPageContent() {
                   ].map((h) => (
                     <th
                       key={h}
-                      className="border-b border-slate-200 px-3 py-2 text-left text-[10px] font-semibold text-slate-500"
+                      className="px-3 py-2 text-left text-[10px] font-semibold text-ds-gray-500"
                     >
                       {h}
                     </th>
@@ -2048,27 +2048,27 @@ function InventoryPageContent() {
                 {filteredList.map((u) => (
                   <tr
                     key={u.id}
-                    className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+                    className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                     onClick={() => openDetail(u)}
                   >
-                    <td className="px-3 py-2 text-[11px] font-semibold text-slate-800">
+                    <td className="px-3 py-2 text-[11px] font-semibold text-ds-gray-800">
                       {u.unit_code}
                     </td>
                     {isAllProjects ? (
-                      <td className="max-w-[140px] px-3 py-2 text-[11px] text-slate-500">
+                      <td className="max-w-[140px] px-3 py-2 text-[11px] text-ds-gray-500">
                         {labelForUnitProject(u)}
                       </td>
                     ) : null}
-                    <td className="max-w-[140px] px-3 py-2 text-[11px] text-slate-500">
+                    <td className="max-w-[140px] px-3 py-2 text-[11px] text-ds-gray-500">
                       {u.wing_name}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
                       {formatFloorLabel(u.floor, u.unit_type)}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
                       {u.unit_type ?? '—'}
                     </td>
-                    <td className="max-w-[120px] px-3 py-2 text-[10px] leading-snug text-slate-700">
+                    <td className="max-w-[120px] px-3 py-2 text-[10px] leading-snug text-ds-gray-700">
                       {[
                         u.carpet_area != null && Number(u.carpet_area) > 0
                           ? `C ${u.carpet_area}`
@@ -2083,13 +2083,13 @@ function InventoryPageContent() {
                         .filter(Boolean)
                         .join(' · ') || (u.area ?? '—')}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-800">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-800">
                       {(Number(u.rate) || 0).toLocaleString('en-IN')}
                     </td>
-                    <td className="px-3 py-2 text-[11px] font-semibold text-blue-500">
+                    <td className="px-3 py-2 text-[11px] font-semibold text-ds-primary-600">
                       {formatUnitAgreementValueCompact(u)}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-600">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-600">
                       {u.parking_slots_included != null &&
                         Number(u.parking_slots_included) > 0
                         ? String(u.parking_slots_included)
@@ -2445,7 +2445,7 @@ function InventoryPageContent() {
           <div className={cn('overflow-hidden', tabCardClass())}>
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="bg-slate-50">
+                <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                   {[
                     'Unit No.',
                     'Type',
@@ -2456,7 +2456,7 @@ function InventoryPageContent() {
                   ].map((h) => (
                     <th
                       key={h}
-                      className="border-b border-slate-200 px-3 py-2 text-left text-[10px] font-semibold text-slate-500"
+                      className="px-3 py-2 text-left text-[10px] font-semibold text-ds-gray-500"
                     >
                       {h}
                     </th>
@@ -2467,29 +2467,29 @@ function InventoryPageContent() {
                 {blockedUnits.map((u) => (
                   <tr
                     key={u.id}
-                    className="border-b border-slate-100"
+                    className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                   >
-                    <td className="px-3 py-2 text-[11px] font-semibold text-slate-800">
+                    <td className="px-3 py-2 text-[11px] font-semibold text-ds-gray-800">
                       {u.unit_code}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
                       {u.unit_type ?? '—'}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
                       {unitBillableAreaSqft(u) || u.area || '—'} sq.ft
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-600">
+                      <span className="rounded-full bg-ds-error-50 px-2 py-0.5 text-[9px] font-bold text-ds-error-700">
                         {u.blocked_reason ?? '—'}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500">
+                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
                       {formatDisplayDate(u.blocked_on)}
                     </td>
                     <td className="px-3 py-2">
                       <button
                         type="button"
-                        className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
+                        className="rounded border border-ds-success-200 bg-ds-success-25 px-2 py-0.5 text-[10px] font-semibold text-ds-success-700 hover:bg-ds-success-50"
                         onClick={() => void unblock(u.id)}
                       >
                         Unblock
@@ -2501,7 +2501,7 @@ function InventoryPageContent() {
                   <tr>
                     <td
                       colSpan={6}
-                      className="px-3 py-10 text-center text-xs text-slate-300"
+                      className="px-4 py-12 text-center text-xs text-ds-gray-500"
                     >
                       No units are currently blocked.
                     </td>

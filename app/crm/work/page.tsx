@@ -287,17 +287,17 @@ export default function WorkQueuePage() {
 
       {tab === 'followups' ? (
         <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-700">
+          <div className="border-b border-ds-gray-100 bg-ds-gray-50/80 px-4 py-2 text-[11px] font-semibold text-ds-gray-700">
             Follow-up dates from enquiry pipeline (enquiry, qualified &amp; visit
             site). Rows highlighted when assigned to you and due today or overdue.
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
+              <thead>
+                <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                   {['Due', 'Project', 'Customer', 'Stage', 'Assignee', 'Note', ''].map(
                     (h) => (
-                    <th key={h} className="border-b px-3 py-2">
+                    <th key={h} className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">
                       {h}
                     </th>
                   ))}
@@ -308,7 +308,7 @@ export default function WorkQueuePage() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="px-3 py-8 text-center text-slate-500"
+                      className="px-4 py-12 text-center text-ds-gray-500"
                     >
                       {loading ? 'Loading…' : 'No open follow-ups.'}
                     </td>
@@ -322,12 +322,12 @@ export default function WorkQueuePage() {
                     <tr
                       key={r.followId}
                       className={cn(
-                        'border-b border-slate-100',
+                        'border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60',
                         highlight &&
                           'border-l-4 border-l-ds-primary-500 bg-ds-primary-50/80'
                       )}
                     >
-                      <td className="whitespace-nowrap px-3 py-2 text-xs">
+                      <td className="whitespace-nowrap px-4 py-3 text-xs">
                         <span
                           className={cn(
                             highlight && 'font-semibold text-ds-primary-800',
@@ -342,18 +342,18 @@ export default function WorkQueuePage() {
                           </span>
                         ) : null}
                       </td>
-                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
+                      <td className="max-w-[120px] truncate px-4 py-3 text-xs text-ds-gray-600">
                         {r.projectName}
                       </td>
-                      <td className="px-3 py-2 text-xs font-medium">
+                      <td className="px-4 py-3 text-xs font-medium">
                         {r.customerName}
                       </td>
-                      <td className="px-3 py-2 text-xs text-slate-600">
+                      <td className="px-4 py-3 text-xs text-ds-gray-600">
                         {r.stageKey === 'site_visit'
                           ? 'Visit site'
                           : r.funnelStage}
                       </td>
-                      <td className="px-3 py-2 text-xs text-slate-600">
+                      <td className="px-4 py-3 text-xs text-ds-gray-600">
                         {r.assignedToMe ? (
                           <span className="font-semibold text-ds-primary-700">
                             You
@@ -364,10 +364,10 @@ export default function WorkQueuePage() {
                           '—'
                         )}
                       </td>
-                      <td className="max-w-[280px] px-3 py-2 text-xs text-slate-600">
+                      <td className="max-w-[280px] px-4 py-3 text-xs text-ds-gray-600">
                         {r.note?.trim() || '—'}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
                         <Link
                           href={`/crm/inquiry/new?inquiry=${encodeURIComponent(r.inquiryId)}`}
                           className="text-xs font-semibold text-ds-primary-600 underline"
@@ -387,15 +387,15 @@ export default function WorkQueuePage() {
 
       {tab === 'visits' ? (
         <Card className="overflow-hidden p-0">
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-700">
+          <div className="border-b border-ds-gray-100 bg-ds-gray-50/80 px-4 py-2 text-[11px] font-semibold text-ds-gray-700">
             Scheduled site visits from today onward
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
-              <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
+              <thead>
+                <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                   {['When', 'Project', 'Customer', 'Status', ''].map((h) => (
-                    <th key={h} className="border-b px-3 py-2">
+                    <th key={h} className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">
                       {h}
                     </th>
                   ))}
@@ -406,27 +406,27 @@ export default function WorkQueuePage() {
                   <tr>
                     <td
                       colSpan={5}
-                      className="px-3 py-8 text-center text-slate-500"
+                      className="px-4 py-12 text-center text-ds-gray-500"
                     >
                       {loading ? 'Loading…' : 'No upcoming site visits.'}
                     </td>
                   </tr>
                 ) : (
                   visitRows.map((r) => (
-                    <tr key={r.visitId} className="border-b border-slate-100">
-                      <td className="whitespace-nowrap px-3 py-2 text-xs">
+                    <tr key={r.visitId} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
+                      <td className="whitespace-nowrap px-4 py-3 text-xs">
                         {formatDisplayDateTime(r.scheduledAt)}
                       </td>
-                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
+                      <td className="max-w-[120px] truncate px-4 py-3 text-xs text-ds-gray-600">
                         {r.projectName}
                       </td>
-                      <td className="px-3 py-2 text-xs font-medium">
+                      <td className="px-4 py-3 text-xs font-medium">
                         {r.customerName}
                       </td>
-                      <td className="px-3 py-2 text-xs text-slate-600">
+                      <td className="px-4 py-3 text-xs text-ds-gray-600">
                         {r.status}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
                         <Link
                           href={`/crm/inquiry/new?inquiry=${encodeURIComponent(r.inquiryId)}`}
                           className="text-xs font-semibold text-ds-primary-600 underline"
@@ -445,8 +445,8 @@ export default function WorkQueuePage() {
 
       {tab === 'overdue' ? (
         <Card className="overflow-hidden p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2">
-            <div className="text-[11px] font-semibold text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ds-gray-100 bg-ds-gray-50/80 px-4 py-2">
+            <div className="text-[11px] font-semibold text-ds-gray-700">
               Overdue schedule lines
             </div>
             <Link
@@ -458,11 +458,11 @@ export default function WorkQueuePage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
-              <thead className="bg-white text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
+              <thead>
+                <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                   {['Project', 'Booking', '#', 'Milestone', 'Due', 'Outstanding', ''].map(
                     (h) => (
-                      <th key={h} className="border-b px-3 py-2">
+                      <th key={h} className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">
                         {h}
                       </th>
                     )
@@ -474,34 +474,34 @@ export default function WorkQueuePage() {
                   <tr>
                     <td
                       colSpan={7}
-                      className="px-3 py-8 text-center text-slate-500"
+                      className="px-4 py-12 text-center text-ds-gray-500"
                     >
                       {loading ? 'Loading…' : 'No overdue lines.'}
                     </td>
                   </tr>
                 ) : (
                   overdueRows.map((r) => (
-                    <tr key={r.schedule_id} className="border-b border-slate-100">
-                      <td className="max-w-[120px] truncate px-3 py-2 text-xs text-slate-600">
+                    <tr key={r.schedule_id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
+                      <td className="max-w-[120px] truncate px-4 py-3 text-xs text-ds-gray-600">
                         {r.projectName}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[10px] text-slate-600">
+                      <td className="px-4 py-3 font-mono text-[10px] text-ds-gray-600">
                         {r.booking_id}
                       </td>
-                      <td className="px-3 py-2 text-xs">
+                      <td className="px-4 py-3 text-xs">
                         {r.instalment_no != null ? r.instalment_no : '—'}
                       </td>
-                      <td className="px-3 py-2 text-xs">{r.milestone}</td>
-                      <td className="px-3 py-2 text-xs text-slate-600">
+                      <td className="px-4 py-3 text-xs">{r.milestone}</td>
+                      <td className="px-4 py-3 text-xs text-ds-gray-600">
                         {formatDisplayDate(r.due_date)}
                       </td>
-                      <td className="px-3 py-2 text-xs font-semibold text-red-700">
+                      <td className="px-4 py-3 text-xs font-semibold text-ds-error-700">
                         ₹{' '}
                         {formatInr(Number(r.outstanding_amount), {
                           maximumFractionDigits: 0
                         })}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
                         <Link
                           href="/crm/financials"
                           className="text-xs font-semibold text-ds-primary-600 underline"

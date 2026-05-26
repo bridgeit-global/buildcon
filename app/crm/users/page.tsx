@@ -9,6 +9,7 @@ import {
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { shortId } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -535,7 +536,7 @@ export default function UsersPage() {
                                   {p.name}
                                 </div>
                                 <div className="text-xs text-gray-500 truncate">
-                                  {p.id}
+                                  {shortId(p.id)}
                                 </div>
                               </div>
                             </label>
@@ -732,7 +733,7 @@ export default function UsersPage() {
                       .filter((p) => !members.some((m) => m.user_id === p.id))
                       .map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name || p.id} ({p.role})
+                          {p.name || shortId(p.id)} ({p.role})
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -779,7 +780,7 @@ export default function UsersPage() {
                 <SelectContent>
                   {portalDirectory.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name || p.id} ({p.role})
+                      {p.name || shortId(p.id)} ({p.role})
                     </SelectItem>
                   ))}
                 </SelectContent>

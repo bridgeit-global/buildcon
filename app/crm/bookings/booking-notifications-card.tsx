@@ -102,31 +102,31 @@ export function BookingNotificationsCard({ bookingId }: Props) {
       ) : (
         <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
           <table className="w-full min-w-3xl caption-bottom text-sm">
-            <thead className="bg-ds-gray-50 text-left text-xs font-semibold text-ds-gray-500">
-              <tr>
-                <th className="px-3 py-2">When</th>
-                <th className="px-3 py-2">Channel</th>
-                <th className="px-3 py-2">Recipient</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Template</th>
-                <th className="px-3 py-2">Notes</th>
-                <th className="px-3 py-2">Action</th>
+            <thead>
+              <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">When</th>
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Channel</th>
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Recipient</th>
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Status</th>
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Template</th>
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Notes</th>
+                <th className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500">Action</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-ds-gray-100">
-                  <td className="px-3 py-2 text-xs text-ds-gray-600">
+                <tr key={r.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
+                  <td className="px-4 py-3 text-xs text-ds-gray-600">
                     {formatDisplayDateTime(r.processed_at ?? r.created_at)}
                   </td>
-                  <td className="px-3 py-2 capitalize">{r.channel}</td>
-                  <td className="px-3 py-2 text-xs text-ds-gray-700">{r.recipient ?? '—'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3 capitalize">{r.channel}</td>
+                  <td className="px-4 py-3 text-xs text-ds-gray-700">{r.recipient ?? '—'}</td>
+                  <td className="px-4 py-3">
                     <StatusBadge status={r.status} />
                   </td>
-                  <td className="px-3 py-2 text-xs text-ds-gray-700">{r.template_name ?? '—'}</td>
-                  <td className="px-3 py-2 text-xs text-ds-error-700">{r.error ?? '—'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-3 text-xs text-ds-gray-700">{r.template_name ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-ds-error-700">{r.error ?? '—'}</td>
+                  <td className="px-4 py-3">
                     {(r.status === 'failed' || r.status === 'skipped') &&
                     r.generated_document_id ? (
                       <Button

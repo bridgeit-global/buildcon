@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { cn, shortId } from '@/lib/utils';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -609,7 +609,7 @@ function MembersPanel({
                 .filter((p) => !members.some((m) => m.user_id === p.id))
                 .map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name || p.id} ({p.role})
+                    {p.name || shortId(p.id)} ({p.role})
                   </SelectItem>
                 ))}
             </SelectContent>

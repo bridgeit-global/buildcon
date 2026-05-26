@@ -33,15 +33,15 @@ export function PaymentScheduleTable({
   const cellPad = compact ? 'px-3 py-2' : 'px-4 py-3';
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-[56rem] w-full caption-bottom text-sm">
-        <thead className="bg-ds-gray-50 text-xs text-ds-gray-500">
-          <tr>
+    <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <table className="w-full min-w-[56rem] caption-bottom text-sm">
+        <thead>
+          <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
             {['#', 'Milestone', 'Due date', 'Amount', 'Received', 'Balance', 'Status'].map(
               (h) => (
                 <th
                   key={h}
-                  className={`${cellPad} border-b border-ds-gray-200 text-left font-semibold`}
+                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
                 >
                   {h}
                 </th>
@@ -54,7 +54,7 @@ export function PaymentScheduleTable({
             <tr>
               <td
                 colSpan={7}
-                className={`${cellPad} text-center text-ds-gray-500`}
+                className="px-4 py-12 text-center text-ds-gray-500"
               >
                 Loading schedule…
               </td>
@@ -67,7 +67,7 @@ export function PaymentScheduleTable({
                 const status =
                   bal <= 0 ? 'Paid' : rec > 0 ? 'Partially paid' : 'Pending';
                 return (
-                  <tr key={s.id ?? s.instalment_no} className="border-b border-ds-gray-100">
+                  <tr key={s.id ?? s.instalment_no} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                     <td className={`${cellPad} text-ds-gray-600`}>{s.instalment_no}</td>
                     <td className={`${cellPad} font-semibold text-ds-gray-900`}>
                       {s.milestone}
@@ -97,7 +97,7 @@ export function PaymentScheduleTable({
             <tr>
               <td
                 colSpan={7}
-                className={`${cellPad} py-10 text-center text-ds-gray-500`}
+                className="px-4 py-12 text-center text-ds-gray-500"
               >
                 No payment schedule yet. Confirm the booking or configure CLD stages
                 on the project.
@@ -107,20 +107,20 @@ export function PaymentScheduleTable({
         </tbody>
         {rows.length > 0 && !loading ? (
           <tfoot>
-            <tr className="bg-ds-gray-50">
+            <tr className="border-t border-ds-gray-100 bg-ds-gray-50/80">
               <td
                 colSpan={3}
-                className={`${cellPad} font-semibold text-ds-gray-900`}
+                className="px-4 py-3 font-semibold text-ds-gray-900"
               >
                 Total
               </td>
-              <td className={`${cellPad} font-semibold text-ds-gray-900`}>
+              <td className="px-4 py-3 font-semibold text-ds-gray-900">
                 ₹ {formatInr(totalAmount, { maximumFractionDigits: 0 })}
               </td>
-              <td className={`${cellPad} font-semibold text-ds-success-700`}>
+              <td className="px-4 py-3 font-semibold text-ds-success-700">
                 ₹ {formatInr(totalReceived, { maximumFractionDigits: 0 })}
               </td>
-              <td className={`${cellPad} font-semibold text-ds-error-700`}>
+              <td className="px-4 py-3 font-semibold text-ds-error-700">
                 ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
               </td>
               <td />

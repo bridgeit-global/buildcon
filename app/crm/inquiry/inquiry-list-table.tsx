@@ -433,15 +433,15 @@ export function InquiryListTable({
       : String(sourceFilterVal);
 
   return (
-    <Card className="border-slate-200/90 p-4 shadow-sm" id="inquiry-list">
+    <Card className="border-ds-gray-200 p-4 shadow-sm" id="inquiry-list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-foreground">
+          <div className="text-sm font-semibold text-ds-gray-900">
             Inquiry list
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">
+          <div className="mt-1 text-xs text-ds-gray-500">
             Table view with search, filters, and pagination.{' '}
-            <span className="tabular-nums text-foreground">
+            <span className="tabular-nums text-ds-gray-900">
               {loadingInquiries ? 'Loading…' : `${inquiries.length} loaded`}
             </span>
           </div>
@@ -458,7 +458,7 @@ export function InquiryListTable({
 
       <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="min-w-[12rem] flex-1">
-          <Label htmlFor="inquiry-search" className="text-xs text-muted-foreground">
+          <Label htmlFor="inquiry-search" className="text-xs text-ds-gray-500">
             Search
           </Label>
           <Input
@@ -471,7 +471,7 @@ export function InquiryListTable({
         </div>
         <div className="flex flex-wrap gap-3">
           <div className="min-w-[10rem]">
-            <Label className="text-xs text-muted-foreground">Stage</Label>
+            <Label className="text-xs text-ds-gray-500">Stage</Label>
             <Select
               value={stageFilter || '__all__'}
               onValueChange={(v) =>
@@ -495,7 +495,7 @@ export function InquiryListTable({
             </Select>
           </div>
           <div className="min-w-[10rem]">
-            <Label className="text-xs text-muted-foreground">Lead source</Label>
+            <Label className="text-xs text-ds-gray-500">Lead source</Label>
             <Select
               value={sourceFilter || '__all__'}
               onValueChange={(v) =>
@@ -516,7 +516,7 @@ export function InquiryListTable({
             </Select>
           </div>
           <div className="min-w-[8rem]">
-            <Label className="text-xs text-muted-foreground">Rows per page</Label>
+            <Label className="text-xs text-ds-gray-500">Rows per page</Label>
             <Select
               value={String(table.getState().pagination.pageSize)}
               onValueChange={(v) => table.setPageSize(Number(v))}
@@ -536,15 +536,15 @@ export function InquiryListTable({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
         <table className="w-full min-w-[56rem] caption-bottom text-sm">
-          <thead className="border-b border-border bg-muted/40 [&_tr]:border-border">
+          <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
+              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
-                    className="h-10 px-3 text-left align-middle text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
                   >
                     {h.isPlaceholder
                       ? null
@@ -559,7 +559,7 @@ export function InquiryListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-3 py-10 text-center text-muted-foreground"
+                  className="px-4 py-12 text-center text-ds-gray-500"
                 >
                   Loading…
                 </td>
@@ -568,7 +568,7 @@ export function InquiryListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-3 py-10 text-center text-muted-foreground"
+                  className="px-4 py-12 text-center text-ds-gray-500"
                 >
                   No enquiries match the current filters.
                 </td>
@@ -577,10 +577,10 @@ export function InquiryListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-border/80 transition-colors hover:bg-muted/25"
+                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-2.5 align-top">
+                    <td key={cell.id} className="px-4 py-3 align-top">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -594,7 +594,7 @@ export function InquiryListTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
         <span className="tabular-nums">
           {table.getFilteredRowModel().rows.length} row
           {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}

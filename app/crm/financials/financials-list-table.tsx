@@ -210,7 +210,7 @@ export function FinancialsListTable({
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="max-w-md"
         />
-        <div className="flex items-center gap-2 text-sm text-ds-gray-600">
+        <div className="flex items-center gap-2 text-xs text-ds-gray-500">
           <span>
             {table.getFilteredRowModel().rows.length} booking
             {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
@@ -233,15 +233,15 @@ export function FinancialsListTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-ds-gray-200 bg-white">
-        <table className="min-w-[56rem] w-full caption-bottom text-sm">
+      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+        <table className="w-full min-w-[56rem] caption-bottom text-sm">
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-200 bg-ds-gray-50">
+              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
-                    className="px-4 py-3 text-left text-xs font-semibold text-ds-gray-500"
+                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
                   >
                     {flexRender(h.column.columnDef.header, h.getContext())}
                   </th>
@@ -274,10 +274,10 @@ export function FinancialsListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 hover:bg-ds-primary-50/40"
+                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3">
+                    <td key={cell.id} className="px-4 py-3 align-top">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -288,31 +288,31 @@ export function FinancialsListTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+        <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
+            className="size-8 p-0"
             disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
+            aria-label="Previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
+            <ChevronLeft className="size-4" />
           </Button>
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
+            className="size-8 p-0"
             disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
+            aria-label="Next page"
           >
-            Next
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>

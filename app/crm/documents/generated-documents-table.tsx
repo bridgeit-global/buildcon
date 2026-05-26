@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { shortId } from '@/lib/utils';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { pageError } from '@/lib/toast';
 import { useCallback, useMemo, useState } from 'react';
@@ -388,7 +389,7 @@ export function GeneratedDocumentsTable({
               >
                 {code}
               </Link>
-              <div className="mt-0.5 font-mono text-[11px] text-ds-gray-500">{id.slice(0, 8)}…</div>
+              <div className="mt-0.5 font-mono text-[11px] text-ds-gray-500">{shortId(id)}</div>
             </div>
           );
         }
@@ -470,9 +471,12 @@ export function GeneratedDocumentsTable({
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-200 bg-ds-gray-50 text-left text-xs font-semibold text-ds-gray-500">
+              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th key={h.id} className="px-4 py-3">
+                  <th
+                    key={h.id}
+                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
+                  >
                     {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                   </th>
                 ))}
@@ -482,13 +486,13 @@ export function GeneratedDocumentsTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-10 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
                   Loading…
                 </td>
               </tr>
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-10 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
                   {rows.length === 0
                     ? 'No generated records yet.'
                     : 'No rows match your search.'}
@@ -496,7 +500,7 @@ export function GeneratedDocumentsTable({
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b border-ds-gray-100">
+                <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3 align-top">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -509,30 +513,31 @@ export function GeneratedDocumentsTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-ds-gray-500">
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
-        </p>
-        <div className="flex gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+        <span className="tabular-nums">
+          Page {table.getState().pagination.pageIndex + 1} of{' '}
+          {Math.max(1, table.getPageCount())}
+        </span>
+        <div className="flex gap-1">
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            className="size-8 p-0"
             disabled={!table.getCanPreviousPage()}
             onClick={() => table.previousPage()}
+            aria-label="Previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
+            <ChevronLeft className="size-4" />
           </Button>
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            className="size-8 p-0"
             disabled={!table.getCanNextPage()}
             onClick={() => table.nextPage()}
+            aria-label="Next page"
           >
-            Next
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>

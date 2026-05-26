@@ -193,12 +193,12 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
       <table className="w-full min-w-[40rem] caption-bottom text-sm">
         <thead>
           {table.getHeaderGroups().map((hg) => (
-            <tr
-              key={hg.id}
-              className="border-b border-ds-gray-200 bg-ds-gray-50 text-left text-xs font-semibold text-ds-gray-500"
-            >
+            <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
               {hg.headers.map((h) => (
-                <th key={h.id} className="px-3 py-2">
+                <th
+                  key={h.id}
+                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
+                >
                   {flexRender(h.column.columnDef.header, h.getContext())}
                 </th>
               ))}
@@ -208,22 +208,22 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-8 text-center text-ds-gray-500">
+              <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
                 Loading ledger…
               </td>
             </tr>
           ) : table.getRowModel().rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-8 text-center text-ds-gray-500">
+              <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
                 No ledger entries yet. Demands appear from the payment schedule; credits when you
                 post collections.
               </td>
             </tr>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-ds-gray-100 last:border-0">
+              <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-3 py-2 align-top">
+                  <td key={cell.id} className="px-4 py-3 align-top">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

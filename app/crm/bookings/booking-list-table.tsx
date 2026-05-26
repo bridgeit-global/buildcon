@@ -275,7 +275,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
-                    className="px-3 py-2.5 text-left text-xs font-semibold text-ds-gray-500"
+                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
                   >
                     {flexRender(h.column.columnDef.header, h.getContext())}
                   </th>
@@ -286,13 +286,13 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-10 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
                   Loading bookings…
                 </td>
               </tr>
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-10 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
                   No bookings match your search.
                 </td>
               </tr>
@@ -300,10 +300,10 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 hover:bg-ds-gray-50/50"
+                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-2.5 align-top">
+                    <td key={cell.id} className="px-4 py-3 align-top">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -314,30 +314,31 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
         </table>
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-xs text-ds-gray-500">
-        <span>
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+        <span className="tabular-nums">
+          Page {table.getState().pagination.pageIndex + 1} of{' '}
+          {Math.max(1, table.getPageCount())}
         </span>
         <div className="flex gap-1">
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="h-8"
-            onClick={() => table.previousPage()}
+            className="size-8 p-0"
             disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
+            aria-label="Previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="size-4" />
           </Button>
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="h-8"
-            onClick={() => table.nextPage()}
+            className="size-8 p-0"
             disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
+            aria-label="Next page"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { shortId } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -680,7 +681,7 @@ export default function CreateProjectPage() {
                           {p.name || 'Unnamed user'}
                         </div>
                         <div className="truncate text-xs text-gray-500">
-                          {p.role} · {p.id}
+                          {p.role} · {shortId(p.id)}
                         </div>
                       </div>
                     </label>
