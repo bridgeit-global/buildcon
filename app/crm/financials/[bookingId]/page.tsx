@@ -559,13 +559,24 @@ export default function FinancialsBookingPage() {
             </Select>
           </div>
           <div className="sm:col-span-2">
-            <Label>Reference</Label>
+            <Label>
+              Reference
+              {entryMode !== 'Cash' && (
+                <span className="text-ds-error-500"> *</span>
+              )}
+            </Label>
             <Input
               value={entryRef}
-              onChange={(e) => setEntryRef(e.target.value)}
+              onChange={(e) => {
+                setEntryRef(e.target.value);
+                touchCollectionField('entryRef');
+              }}
+              onBlur={() => touchCollectionField('entryRef')}
+              aria-invalid={collectionFieldError('entryRef') ? true : undefined}
               placeholder="UTR / Cheque No."
               disabled={loading}
             />
+            <FormFieldError message={collectionFieldError('entryRef')} />
           </div>
           <div className="flex items-end">
             <Button
