@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { pageError } from '@/lib/toast';
+import { pageError, toast } from '@/lib/toast';
 import {
   datetimeLocalValue,
-  todayIsoDate,
+  datetimeLocalValueNextWeek,
+  nextWeekIsoDate,
   withDateInputDefault
 } from '@/lib/date-input-value';
 import { negotiationDiscountApprovalSchemaWithUnitCap } from '@/lib/inquiry/inquiry-pipeline.schema';
@@ -21,7 +22,7 @@ import {
 import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { useRouter } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -207,12 +208,13 @@ export type OpportunityRow = InquiryPipelineRow;
 
 function emptyStageData(): StageData {
   const now = datetimeLocalValue();
-  const today = todayIsoDate();
+  const nextWeek = datetimeLocalValueNextWeek();
+  const closeDefault = nextWeekIsoDate();
   return {
-    enquiry: { follow_up_date: now },
-    qualified: { follow_up_date: now },
+    enquiry: { follow_up_date: nextWeek },
+    qualified: { follow_up_date: nextWeek },
     site_visit: { scheduled_at: now },
-    negotiation: { expected_close: today },
+    negotiation: { expected_close: closeDefault },
     token: {}
   };
 }
@@ -228,17 +230,18 @@ function mergeStageDataFromJson(
   const siteVisit = (r.site_visit ?? {}) as SiteVisitStageData;
   const negotiation = (r.negotiation ?? {}) as NegotiationStageData;
   const now = datetimeLocalValue();
-  const today = todayIsoDate();
+  const nextWeek = datetimeLocalValueNextWeek();
+  const closeDefault = nextWeekIsoDate();
   return {
     enquiry: {
       ...base.enquiry,
       ...enquiry,
-      follow_up_date: withDateInputDefault(enquiry.follow_up_date, now)
+      follow_up_date: withDateInputDefault(enquiry.follow_up_date, nextWeek)
     },
     qualified: {
       ...base.qualified,
       ...qualified,
-      follow_up_date: withDateInputDefault(qualified.follow_up_date, now)
+      follow_up_date: withDateInputDefault(qualified.follow_up_date, nextWeek)
     },
     site_visit: {
       ...base.site_visit,
@@ -248,7 +251,7 @@ function mergeStageDataFromJson(
     negotiation: {
       ...base.negotiation,
       ...negotiation,
-      expected_close: withDateInputDefault(negotiation.expected_close, today)
+      expected_close: withDateInputDefault(negotiation.expected_close, closeDefault)
     },
     token: { ...base.token, ...(r.token as TokenStageData) }
   };
@@ -791,6 +794,11 @@ function NegotiationForm({
         approval_status: 'pending',
         approval_id: json.approvalId
       });
+      toast.success({
+        title: 'Approval request sent',
+        description:
+          'A Super Admin will review the discount under CRM → Approvals.'
+      });
       onApprovalSubmitted?.();
     } catch (e) {
       pageError(
@@ -840,11 +848,18 @@ function NegotiationForm({
       )}
 
       {fieldsLocked ? (
-        <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-800">
-          {approvalStatus === 'approved'
-            ? 'Budget terms are approved and locked. Create a booking to continue.'
-            : 'Discount terms are locked while admin approval is pending.'}
-        </p>
+        approvalStatus === 'approved' ? (
+          <div className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2">
+            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-teal-600" />
+            <p className="text-teal-900">
+              Budget terms are approved and locked. Create a booking to continue.
+            </p>
+          </div>
+        ) : (
+          <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-800">
+            Discount terms are locked while admin approval is pending.
+          </p>
+        )
       ) : null}
       <div className="flex flex-wrap gap-2">
         {(['inr', 'pct'] as const).map((mode) => (
@@ -929,32 +944,17 @@ function NegotiationForm({
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Counter offer (₹)</Label>
-          <Input
-            type="number"
-            className="h-8 text-xs"
-            placeholder="72,00,000"
-            value={data.counter_offer ?? ''}
-            onChange={(e) =>
-              onChange({ ...data, counter_offer: e.target.value })
-            }
-            disabled={formDisabled}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label className="text-xs">Expected close</Label>
-          <Input
-            type="date"
-            className="h-8 text-xs"
-            value={data.expected_close ?? ''}
-            onChange={(e) =>
-              onChange({ ...data, expected_close: e.target.value })
-            }
-            disabled={formDisabled}
-          />
-        </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs">Expected close</Label>
+        <Input
+          type="date"
+          className="h-8 text-xs"
+          value={data.expected_close ?? ''}
+          onChange={(e) =>
+            onChange({ ...data, expected_close: e.target.value })
+          }
+          disabled={formDisabled}
+        />
       </div>
       <div className="grid gap-1.5">
         <Label className="text-xs">Notes</Label>
@@ -981,23 +981,39 @@ function NegotiationForm({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="min-h-11"
+                className="min-h-11 gap-1.5"
                 disabled={refreshing}
                 onClick={() => void refreshApprovalStatus()}
               >
-                {refreshing ? 'Checking…' : 'Refresh status'}
+                {refreshing ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Checking…
+                  </>
+                ) : (
+                  'Refresh status'
+                )}
               </Button>
             </div>
           ) : null}
           {approvalStatus === 'approved' ? (
-            <div className="space-y-2">
-              <p className="text-[11px] text-teal-900">
-                Budget approved. Create a booking to record token and continue.
-              </p>
+            <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-teal-600" />
+                <div>
+                  <p className="text-xs font-semibold text-teal-900">
+                    Budget approved
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-teal-800">
+                    The discount has been approved by admin. Create a booking to
+                    record the token and continue.
+                  </p>
+                </div>
+              </div>
               {onApprovedCreateBooking ? (
                 <Button
                   type="button"
-                  className="min-h-11 gap-1 bg-teal-600 hover:bg-teal-700"
+                  className="min-h-11 w-full gap-1 bg-teal-600 hover:bg-teal-700 sm:w-auto"
                   disabled={submitting || refreshing || formDisabled}
                   onClick={() => void onApprovedCreateBooking()}
                 >
@@ -1018,11 +1034,18 @@ function NegotiationForm({
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              className="min-h-11 gap-1.5"
               disabled={submitting || formDisabled}
               onClick={() => void sendForApproval()}
             >
-              {submitting ? 'Sending…' : 'Send for admin approval'}
+              {submitting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                'Send for admin approval'
+              )}
             </Button>
           ) : null}
           {!requiresApproval && approvalStatus !== 'pending' ? (

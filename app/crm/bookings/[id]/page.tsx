@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Eye, FileText, Upload } from 'lucide-react';
+import { ArrowLeft, Check, Eye, FileText, Loader2, Upload } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -163,6 +163,7 @@ export default function BookingDetailPage() {
   const prefilledBuyerFields = useRef<Record<string, Set<string>>>({});
   const [kycUploadCustomerId, setKycUploadCustomerId] = useState('');
   const [kycDocType, setKycDocType] = useState('pan');
+  const [uploadingKycKey, setUploadingKycKey] = useState<string | null>(null);
   const [buyerKycFieldErrors, setBuyerKycFieldErrors] = useState<
     Record<string, { pan?: string; aadhaar?: string }>
   >({});
@@ -197,6 +198,7 @@ export default function BookingDetailPage() {
     useState(false);
   const [generatingApplicationForm, setGeneratingApplicationForm] = useState(false);
   const [viewingApplicationForm, setViewingApplicationForm] = useState(false);
+  const [applicationFormExists, setApplicationFormExists] = useState(false);
   const [appFormPreviewOpen, setAppFormPreviewOpen] = useState(false);
   const [appFormPreviewUrl, setAppFormPreviewUrl] = useState('');
   const [generatingAllotmentLetter, setGeneratingAllotmentLetter] = useState(false);
@@ -494,6 +496,23 @@ export default function BookingDetailPage() {
     };
   }, [bookingId, workflowStage, cancelled, supabase]);
 
+  useEffect(() => {
+    if (!bookingId || workflowStage !== 'application' || cancelled) {
+      setApplicationFormExists(false);
+      return;
+    }
+    let ignore = false;
+    (async () => {
+      const { count } = await supabase
+        .from('generated_documents')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_id', bookingId)
+        .like('storage_path', '%application-form%');
+      if (!ignore) setApplicationFormExists((count ?? 0) > 0);
+    })();
+    return () => { ignore = true; };
+  }, [bookingId, workflowStage, cancelled, supabase]);
+
   const scheduleLabelById = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of paymentSchedules) {
@@ -589,6 +608,7 @@ export default function BookingDetailPage() {
         return;
       }
 
+      setApplicationFormExists(true);
       toast.success('Application form generated successfully.');
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Generate failed');
@@ -746,6 +766,13 @@ export default function BookingDetailPage() {
             ...(b.hasPhotoDoc ? ['photo'] : [])
           ])
       ),
+    [buyerKyc]
+  );
+
+  const allBuyerAppFormsValid = useMemo(
+    () =>
+      buyerKyc.length > 0 &&
+      buyerKyc.every((b) => Object.keys(validateBuyerAppFormFields(b)).length === 0),
     [buyerKyc]
   );
 
@@ -1111,15 +1138,17 @@ export default function BookingDetailPage() {
   async function uploadKyc() {
     const file = kycFileRef.current?.files?.[0];
     if (!file || !kycUploadCustomerId) return;
-    if (!isKycFileAllowed(file, kycDocType)) {
-      pageError(kycFileRejectMessage(kycDocType));
+    const uploadCustomerId = kycUploadCustomerId;
+    const uploadDocType = kycDocType;
+    if (!isKycFileAllowed(file, uploadDocType)) {
+      pageError(kycFileRejectMessage(uploadDocType));
       if (kycFileRef.current) kycFileRef.current.value = '';
       return;
     }
-    const buyer = buyerKyc.find((b) => b.customerId === kycUploadCustomerId);
+    const buyer = buyerKyc.find((b) => b.customerId === uploadCustomerId);
     if (!buyer) return;
     const uploadParsed = kycUploadSchema.safeParse({
-      docType: kycDocType,
+      docType: uploadDocType,
       pan_number: buyer.pan,
       aadhaar_last4: buyer.aadhaarLast4,
       hasFile: true
@@ -1141,9 +1170,10 @@ export default function BookingDetailPage() {
       if (kycFileRef.current) kycFileRef.current.value = '';
       return;
     }
-    setSaving(true);
+    const kycKey = `${uploadCustomerId}:${uploadDocType}`;
+    setUploadingKycKey(kycKey);
     const ext = extensionFromFile(file);
-    const path = `customer/${kycUploadCustomerId}/${kycDocType}/${crypto.randomUUID()}${ext}`;
+    const path = `customer/${uploadCustomerId}/${uploadDocType}/${crypto.randomUUID()}${ext}`;
     try {
       const {
         data: { user }
@@ -1153,8 +1183,8 @@ export default function BookingDetailPage() {
         .upload(path, file, { cacheControl: '3600', upsert: false });
       if (storageErr) throw storageErr;
       const { error: insErr } = await supabase.from('customer_kyc_documents').insert({
-        customer_id: kycUploadCustomerId,
-        doc_type: kycDocType,
+        customer_id: uploadCustomerId,
+        doc_type: uploadDocType,
         storage_path: path,
         uploaded_by: user?.id ?? null,
         verified_status: 'Pending'
@@ -1164,11 +1194,20 @@ export default function BookingDetailPage() {
         throw insErr;
       }
       if (kycFileRef.current) kycFileRef.current.value = '';
-      await load();
+      setBuyerKyc((rows) =>
+        rows.map((r) => {
+          if (r.customerId !== uploadCustomerId) return r;
+          if (uploadDocType === 'pan') return { ...r, hasPanDoc: true, panDocPath: path };
+          if (uploadDocType === 'aadhaar') return { ...r, hasAadhaarDoc: true, aadhaarDocPath: path };
+          if (uploadDocType === 'photo') return { ...r, hasPhotoDoc: true, photoDocPath: path };
+          return r;
+        })
+      );
+      toast.success(`${uploadDocType === 'pan' ? 'PAN' : uploadDocType === 'aadhaar' ? 'Aadhaar' : 'Photo'} uploaded.`);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
-      setSaving(false);
+      setUploadingKycKey(null);
     }
   }
 
@@ -1320,9 +1359,6 @@ export default function BookingDetailPage() {
                       </dd>
                     </div>
                   </dl>
-                  <Button disabled={saving} onClick={() => void advanceStage()}>
-                    Continue to application
-                  </Button>
                 </>
               ) : (
                 <>
@@ -1387,9 +1423,9 @@ export default function BookingDetailPage() {
               <div>
                 <h2 className="font-semibold text-ds-gray-900">Application form</h2>
                 <p className="mt-1 text-sm text-ds-gray-600">
-                  Fill all applicant details below. Fields already available from the customer
-                  profile are shown as read-only. Missing fields must be completed here before the
-                  application form document can be generated.
+                  Fill all applicant details below. Fields prefilled from the customer profile can
+                  be edited if needed. All required fields must be completed before the application
+                  form document can be generated.
                 </p>
               </div>
 
@@ -1407,218 +1443,197 @@ export default function BookingDetailPage() {
                       key={b.customerId}
                       className="rounded-lg border border-ds-gray-200 p-4 space-y-4"
                     >
-                      <p className="text-sm font-semibold text-ds-primary-700">
-                        {bIdx === 0 ? 'Sole/First' : bIdx === 1 ? 'Second' : `${bIdx + 1}th`} Applicant — {b.label}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-ds-primary-700">
+                          {bIdx === 0 ? 'Sole/First' : bIdx === 1 ? 'Second' : `${bIdx + 1}th`} Applicant — {b.label}
+                        </p>
+                        {isCustomerKycComplete(b.pan, b.aadhaarLast4, [
+                          ...(b.hasPanDoc ? ['pan'] : []),
+                          ...(b.hasAadhaarDoc ? ['aadhaar'] : []),
+                          ...(b.hasPhotoDoc ? ['photo'] : [])
+                        ]) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-ds-success-50 px-2 py-0.5 text-[11px] font-medium text-ds-success-700">
+                            <Check className="h-3 w-3" /> KYC Complete
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-ds-warning-50 px-2 py-0.5 text-[11px] font-medium text-ds-warning-700">
+                            KYC Incomplete
+                          </span>
+                        )}
+                      </div>
 
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {/* Full Name */}
                         <div className="space-y-1">
                           <FieldLabel required>Full Name</FieldLabel>
-                          {pre?.has('fullName') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm font-medium text-ds-gray-800">{b.fullName}</p>
-                          ) : (
-                            <Input
-                              value={b.fullName}
-                              placeholder="Full Name"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, fullName: e.target.value } : r
-                                  )
+                          <Input
+                            value={b.fullName}
+                            placeholder="Full Name"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, fullName: e.target.value } : r
                                 )
-                              }
-                              aria-invalid={!!errs.fullName}
-                            />
-                          )}
+                              )
+                            }
+                            aria-invalid={!!errs.fullName}
+                          />
                           <FormFieldError message={errs.fullName} />
                         </div>
 
                         {/* Guardian Name */}
                         <div className="space-y-1">
                           <FieldLabel required>Father&apos;s/Mother&apos;s/Spouse&apos;s Name</FieldLabel>
-                          {pre?.has('guardian_name') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.guardian_name}</p>
-                          ) : (
-                            <Input
-                              value={b.guardian_name ?? ''}
-                              placeholder="Guardian name"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, guardian_name: e.target.value } : r
-                                  )
+                          <Input
+                            value={b.guardian_name ?? ''}
+                            placeholder="Guardian name"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, guardian_name: e.target.value } : r
                                 )
-                              }
-                              aria-invalid={!!errs.guardian_name}
-                            />
-                          )}
+                              )
+                            }
+                            aria-invalid={!!errs.guardian_name}
+                          />
                           <FormFieldError message={errs.guardian_name} />
                         </div>
 
                         {/* Date of Birth */}
                         <div className="space-y-1">
                           <FieldLabel required>Date of Birth</FieldLabel>
-                          {pre?.has('dob') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{formatDisplayDate(b.dob)}</p>
-                          ) : (
-                            <Input
-                              type="date"
-                              value={b.dob ?? ''}
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, dob: e.target.value } : r
-                                  )
+                          <Input
+                            type="date"
+                            value={b.dob ?? ''}
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, dob: e.target.value } : r
                                 )
-                              }
-                              aria-invalid={!!errs.dob}
-                            />
-                          )}
+                              )
+                            }
+                            aria-invalid={!!errs.dob}
+                          />
                           <FormFieldError message={errs.dob} />
                         </div>
 
                         {/* PAN */}
                         <div className="space-y-1">
                           <FieldLabel required>PAN</FieldLabel>
-                          {pre?.has('pan') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm font-medium text-ds-gray-800 uppercase">{b.pan}</p>
-                          ) : (
-                            <Input
-                              value={b.pan}
-                              maxLength={10}
-                              className="uppercase"
-                              placeholder="ABCDE1234F"
-                              onChange={(e) => {
-                                const pan = normalizePan(e.target.value);
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, pan } : r
-                                  )
-                                );
-                                setBuyerKycBlurError(b.customerId, 'pan', parseBookingBuyerPanInlineError(pan));
-                              }}
-                              aria-invalid={!!errs.pan || !!buyerKycFieldErrors[b.customerId]?.pan}
-                            />
-                          )}
+                          <Input
+                            value={b.pan}
+                            maxLength={10}
+                            className="uppercase"
+                            placeholder="ABCDE1234F"
+                            onChange={(e) => {
+                              const pan = normalizePan(e.target.value);
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, pan } : r
+                                )
+                              );
+                              setBuyerKycBlurError(b.customerId, 'pan', parseBookingBuyerPanInlineError(pan));
+                            }}
+                            aria-invalid={!!errs.pan || !!buyerKycFieldErrors[b.customerId]?.pan}
+                          />
                           <FormFieldError message={errs.pan || buyerKycFieldErrors[b.customerId]?.pan} />
                         </div>
 
                         {/* Aadhaar */}
                         <div className="space-y-1">
                           <FieldLabel required>Aadhaar No.</FieldLabel>
-                          {pre?.has('aadhaarLast4') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm font-medium text-ds-gray-800">{b.aadhaarLast4}</p>
-                          ) : (
-                            <Input
-                              value={b.aadhaarLast4}
-                              maxLength={12}
-                              inputMode="numeric"
-                              placeholder="123456789012"
-                              onChange={(e) => {
-                                const aadhaarLast4 = normalizeAadhaar(e.target.value);
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, aadhaarLast4 } : r
-                                  )
-                                );
-                                setBuyerKycBlurError(b.customerId, 'aadhaar', parseBookingBuyerAadhaarInlineError(aadhaarLast4));
-                              }}
-                              aria-invalid={!!errs.aadhaar || !!buyerKycFieldErrors[b.customerId]?.aadhaar}
-                            />
-                          )}
+                          <Input
+                            value={b.aadhaarLast4}
+                            maxLength={12}
+                            inputMode="numeric"
+                            placeholder="123456789012"
+                            onChange={(e) => {
+                              const aadhaarLast4 = normalizeAadhaar(e.target.value);
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, aadhaarLast4 } : r
+                                )
+                              );
+                              setBuyerKycBlurError(b.customerId, 'aadhaar', parseBookingBuyerAadhaarInlineError(aadhaarLast4));
+                            }}
+                            aria-invalid={!!errs.aadhaar || !!buyerKycFieldErrors[b.customerId]?.aadhaar}
+                          />
                           <FormFieldError message={errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar} />
                         </div>
 
                         {/* Nationality */}
                         <div className="space-y-1">
                           <FieldLabel required>Nationality</FieldLabel>
-                          {pre?.has('nationality') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.nationality}</p>
-                          ) : (
-                            <Input
-                              value={b.nationality ?? ''}
-                              placeholder="Indian"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, nationality: e.target.value } : r
-                                  )
+                          <Input
+                            value={b.nationality ?? ''}
+                            placeholder="Indian"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, nationality: e.target.value } : r
                                 )
-                              }
-                              aria-invalid={!!errs.nationality}
-                            />
-                          )}
+                              )
+                            }
+                            aria-invalid={!!errs.nationality}
+                          />
                           <FormFieldError message={errs.nationality} />
                         </div>
 
                         {/* Residential Status */}
                         <div className="space-y-1">
                           <FieldLabel required>Residential Status</FieldLabel>
-                          {pre?.has('residential_status') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.residential_status}</p>
-                          ) : (
-                            <Select
-                              value={b.residential_status ?? ''}
-                              onValueChange={(v) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, residential_status: v } : r
-                                  )
+                          <Select
+                            value={b.residential_status ?? ''}
+                            onValueChange={(v) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, residential_status: v } : r
                                 )
-                              }
-                            >
-                              <SelectTrigger aria-invalid={!!errs.residential_status}>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {['Resident Indian', 'NRI', 'Foreign National'].map((s) => (
-                                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
+                              )
+                            }
+                          >
+                            <SelectTrigger aria-invalid={!!errs.residential_status}>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['Resident Indian', 'NRI', 'Foreign National'].map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormFieldError message={errs.residential_status} />
                         </div>
 
                         {/* Occupation / Profession */}
                         <div className="space-y-1">
                           <Label className="text-xs text-ds-gray-600">Profession / Occupation</Label>
-                          {pre?.has('occupation') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.occupation}</p>
-                          ) : (
-                            <Input
-                              value={b.occupation ?? ''}
-                              placeholder="e.g. Business, Service, Professional"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, occupation: e.target.value } : r
-                                  )
+                          <Input
+                            value={b.occupation ?? ''}
+                            placeholder="e.g. Business, Service, Professional"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, occupation: e.target.value } : r
                                 )
-                              }
-                            />
-                          )}
+                              )
+                            }
+                          />
                         </div>
 
                         {/* Passport No. */}
                         <div className="space-y-1">
                           <Label className="text-xs text-ds-gray-600">Passport No. (NRI/Foreign)</Label>
-                          {pre?.has('passport_number') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.passport_number}</p>
-                          ) : (
-                            <Input
-                              value={b.passport_number ?? ''}
-                              placeholder="Passport number"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, passport_number: e.target.value } : r
-                                  )
+                          <Input
+                            value={b.passport_number ?? ''}
+                            placeholder="Passport number"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, passport_number: e.target.value } : r
                                 )
-                              }
-                            />
-                          )}
+                              )
+                            }
+                          />
                         </div>
                       </div>
 
@@ -1626,45 +1641,37 @@ export default function BookingDetailPage() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1">
                           <FieldLabel required>Mobile No.</FieldLabel>
-                          {pre?.has('phone') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.phone}</p>
-                          ) : (
-                            <Input
-                              value={b.phone ?? ''}
-                              inputMode="tel"
-                              maxLength={10}
-                              placeholder="10-digit mobile"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, phone: e.target.value.replace(/\D/g, '') } : r
-                                  )
+                          <Input
+                            value={b.phone ?? ''}
+                            inputMode="tel"
+                            maxLength={10}
+                            placeholder="10-digit mobile"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, phone: e.target.value.replace(/\D/g, '') } : r
                                 )
-                              }
-                              aria-invalid={!!errs.phone}
-                            />
-                          )}
+                              )
+                            }
+                            aria-invalid={!!errs.phone}
+                          />
                           <FormFieldError message={errs.phone} />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-ds-gray-600">Email Id</Label>
-                          {pre?.has('email') ? (
-                            <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.email}</p>
-                          ) : (
-                            <Input
-                              value={b.email ?? ''}
-                              type="email"
-                              placeholder="email@example.com"
-                              onChange={(e) =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId ? { ...r, email: e.target.value } : r
-                                  )
+                          <Input
+                            value={b.email ?? ''}
+                            type="email"
+                            placeholder="email@example.com"
+                            onChange={(e) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId ? { ...r, email: e.target.value } : r
                                 )
-                              }
-                              aria-invalid={!!errs.email}
-                            />
-                          )}
+                              )
+                            }
+                            aria-invalid={!!errs.email}
+                          />
                           <FormFieldError message={errs.email} />
                         </div>
                       </div>
@@ -1672,136 +1679,114 @@ export default function BookingDetailPage() {
                       {/* Permanent Address */}
                       <div className="space-y-2">
                         <Label className="text-xs text-ds-gray-600 font-semibold">Permanent Address</Label>
-                        {pre?.has('permanentAddress') ? (
-                          <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">
-                            {b.permanentAddress?.address_line1}
-                            {b.permanentAddress?.city ? `, ${b.permanentAddress.city}` : ''}
-                            {b.permanentAddress?.state ? `, ${b.permanentAddress.state}` : ''}
-                            {b.permanentAddress?.pin ? ` - ${b.permanentAddress.pin}` : ''}
-                          </p>
-                        ) : (
-                          <BookingAddressFields
-                            addressLine={b.permanentAddress?.address_line1 ?? ''}
-                            city={b.permanentAddress?.city ?? ''}
-                            state={b.permanentAddress?.state ?? ''}
-                            pin={b.permanentAddress?.pin ?? ''}
-                            onAddressLineChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), address_line1: val } }
-                                    : r
-                                )
+                        <BookingAddressFields
+                          addressLine={b.permanentAddress?.address_line1 ?? ''}
+                          city={b.permanentAddress?.city ?? ''}
+                          state={b.permanentAddress?.state ?? ''}
+                          pin={b.permanentAddress?.pin ?? ''}
+                          onAddressLineChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), address_line1: val } }
+                                  : r
                               )
-                            }
-                            onCityChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), city: val } }
-                                    : r
-                                )
+                            )
+                          }
+                          onCityChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), city: val } }
+                                  : r
                               )
-                            }
-                            onStateChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), state: val } }
-                                    : r
-                                )
+                            )
+                          }
+                          onStateChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), state: val } }
+                                  : r
                               )
-                            }
-                            onPinChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), pin: val } }
-                                    : r
-                                )
+                            )
+                          }
+                          onPinChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), pin: val } }
+                                  : r
                               )
-                            }
-                          />
-                        )}
+                            )
+                          }
+                        />
                       </div>
 
                       {/* Communication Address */}
                       <div className="space-y-2">
                         <FieldLabel required>Address for Communication</FieldLabel>
-                        {pre?.has('communicationAddress') ? (
-                          <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">
-                            {b.communicationAddress?.address_line1}
-                            {b.communicationAddress?.city ? `, ${b.communicationAddress.city}` : ''}
-                            {b.communicationAddress?.state ? `, ${b.communicationAddress.state}` : ''}
-                            {b.communicationAddress?.pin ? ` - ${b.communicationAddress.pin}` : ''}
-                          </p>
-                        ) : (
-                          <BookingAddressFields
-                            addressLine={b.communicationAddress?.address_line1 ?? ''}
-                            city={b.communicationAddress?.city ?? ''}
-                            state={b.communicationAddress?.state ?? ''}
-                            pin={b.communicationAddress?.pin ?? ''}
-                            addressLineInvalid={!!errs.comm_address}
-                            onAddressLineChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), address_line1: val } }
-                                    : r
-                                )
+                        <BookingAddressFields
+                          addressLine={b.communicationAddress?.address_line1 ?? ''}
+                          city={b.communicationAddress?.city ?? ''}
+                          state={b.communicationAddress?.state ?? ''}
+                          pin={b.communicationAddress?.pin ?? ''}
+                          addressLineInvalid={!!errs.comm_address}
+                          onAddressLineChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), address_line1: val } }
+                                  : r
                               )
-                            }
-                            onCityChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), city: val } }
-                                    : r
-                                )
+                            )
+                          }
+                          onCityChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), city: val } }
+                                  : r
                               )
-                            }
-                            onStateChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), state: val } }
-                                    : r
-                                )
+                            )
+                          }
+                          onStateChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), state: val } }
+                                  : r
                               )
-                            }
-                            onPinChange={(val) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), pin: val } }
-                                    : r
-                                )
+                            )
+                          }
+                          onPinChange={(val) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), pin: val } }
+                                  : r
                               )
-                            }
-                          />
-                        )}
+                            )
+                          }
+                        />
                         <FormFieldError message={errs.comm_address} />
                       </div>
 
                       {/* Office Name & Address */}
                       <div className="space-y-1">
                         <Label className="text-xs text-ds-gray-600">Office Name &amp; Address</Label>
-                        {pre?.has('office_name_address') ? (
-                          <p className="rounded-md bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">{b.office_name_address}</p>
-                        ) : (
-                          <Textarea
-                            value={b.office_name_address ?? ''}
-                            placeholder="Office name and address"
-                            rows={2}
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, office_name_address: e.target.value } : r
-                                )
+                        <Textarea
+                          value={b.office_name_address ?? ''}
+                          placeholder="Office name and address"
+                          rows={2}
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, office_name_address: e.target.value } : r
                               )
-                            }
-                          />
-                        )}
+                            )
+                          }
+                        />
                       </div>
 
                       {/* KYC Documents Status & Upload */}
@@ -1817,8 +1802,13 @@ export default function BookingDetailPage() {
                               onClick={() => void previewKycDoc(b.panDocPath!, 'pan', b.label)}>
                               <Eye className="h-3 w-3" /> PAN
                             </Button>
+                          ) : uploadingKycKey === `${b.customerId}:pan` ? (
+                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7" disabled>
+                              <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
+                            </Button>
                           ) : (
                             <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
+                              disabled={!!uploadingKycKey}
                               onClick={() => openKycFilePicker(b.customerId, 'pan')}>
                               <Upload className="h-3 w-3" /> PAN
                             </Button>
@@ -1829,8 +1819,13 @@ export default function BookingDetailPage() {
                               onClick={() => void previewKycDoc(b.aadhaarDocPath!, 'aadhaar', b.label)}>
                               <Eye className="h-3 w-3" /> Aadhaar
                             </Button>
+                          ) : uploadingKycKey === `${b.customerId}:aadhaar` ? (
+                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7" disabled>
+                              <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
+                            </Button>
                           ) : (
                             <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
+                              disabled={!!uploadingKycKey}
                               onClick={() => openKycFilePicker(b.customerId, 'aadhaar')}>
                               <Upload className="h-3 w-3" /> Aadhaar
                             </Button>
@@ -1841,8 +1836,13 @@ export default function BookingDetailPage() {
                               onClick={() => void previewKycDoc(b.photoDocPath!, 'photo', b.label)}>
                               <Eye className="h-3 w-3" /> Photo
                             </Button>
+                          ) : uploadingKycKey === `${b.customerId}:photo` ? (
+                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7" disabled>
+                              <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
+                            </Button>
                           ) : (
                             <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
+                              disabled={!!uploadingKycKey}
                               onClick={() => openKycFilePicker(b.customerId, 'photo')}>
                               <Upload className="h-3 w-3" /> Photo
                             </Button>
@@ -1976,7 +1976,7 @@ export default function BookingDetailPage() {
                 <Button
                   type="button"
                   className="gap-1"
-                  disabled={generatingApplicationForm || saving}
+                  disabled={generatingApplicationForm || saving || !allBuyerAppFormsValid}
                   onClick={() => {
                     if (!validateAllBuyerAppForms()) {
                       pageError('Complete all required applicant details before generating.');
@@ -1992,7 +1992,7 @@ export default function BookingDetailPage() {
                   type="button"
                   variant="outline"
                   className="gap-1"
-                  disabled={viewingApplicationForm}
+                  disabled={viewingApplicationForm || !applicationFormExists}
                   onClick={() => void handleViewApplicationForm()}
                 >
                   <Eye className="h-4 w-4" />
@@ -2003,18 +2003,6 @@ export default function BookingDetailPage() {
                     <FileText className="h-4 w-4" />
                     Agreements &amp; documents
                   </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={saving}
-                  onClick={() =>
-                    void saveStagePatch({
-                      ...stageData.application,
-                      submitted_at: new Date().toISOString().slice(0, 10)
-                    })
-                  }
-                >
-                  Mark application submitted
                 </Button>
               </div>
             </Card>

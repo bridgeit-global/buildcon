@@ -14,6 +14,20 @@ export function datetimeLocalValue(at: Date = new Date()): string {
   return `${todayIsoDate(at)}T${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
 }
 
+/** `YYYY-MM-DDTHH:mm` one week from `at` (for follow-up date defaults). */
+export function datetimeLocalValueNextWeek(at: Date = new Date()): string {
+  const d = new Date(at);
+  d.setDate(d.getDate() + 7);
+  return datetimeLocalValue(d);
+}
+
+/** `YYYY-MM-DD` one week from `at` (for expected close date defaults). */
+export function nextWeekIsoDate(at: Date = new Date()): string {
+  const d = new Date(at);
+  d.setDate(d.getDate() + 7);
+  return todayIsoDate(d);
+}
+
 export function withDateInputDefault(
   value: string | null | undefined,
   fallback: string

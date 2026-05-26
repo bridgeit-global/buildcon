@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { datetimeLocalValue } from '@/lib/date-input-value';
+import { datetimeLocalValueNextWeek } from '@/lib/date-input-value';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
@@ -193,7 +193,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     parkingRequired: 'No' as 'Yes' | 'No',
     parkingCount: '1',
     selectedUnitId: '',
-    followUpDate: datetimeLocalValue(),
+    followUpDate: datetimeLocalValueNextWeek(),
     notes: ''
   });
 
@@ -806,7 +806,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       parkingRequired: 'No',
       parkingCount: '1',
       selectedUnitId: '',
-      followUpDate: datetimeLocalValue(),
+      followUpDate: datetimeLocalValueNextWeek(),
       notes: ''
     });
     setCreatedInquiryId('');
