@@ -16,8 +16,13 @@ import {
   buildBookingLedgerRows
 } from '../booking-ledger-table';
 import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
+import { notifyGeneratedBookingDocument, formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import { parseKindFromBookingGeneratedPath, parseLinkIdFromBookingGeneratedPath } from '@/lib/booking/booking-generated-doc-kind';
+import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
+import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { CollectionManageDialog } from '../collection-manage-dialog';
 import { CreateMilestoneDialog } from '../create-milestone-dialog';
+import { persistCollectionReceipt } from '@/lib/booking/persist-collection-receipt';
 
 type ScheduleRow = {
   id: string;
@@ -35,6 +40,14 @@ type CollectionRow = {
   mode: string | null;
   reference: string | null;
   created_at: string | null;
+};
+
+type GeneratedDocPickRow = {
+  id: string;
+  booking_id: string | null;
+  template_id: string | null;
+  storage_path: string;
+  generated_at: string;
 };
 
 export default function FinancialsBookingPage() {
@@ -55,12 +68,26 @@ export default function FinancialsBookingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generatingDemandFor, setGeneratingDemandFor] = useState<string | null>(null);
+  const [demandPreviewBusyId, setDemandPreviewBusyId] = useState<string | null>(null);
+  const [demandSendBusyId, setDemandSendBusyId] = useState<string | null>(null);
+  const [generatingReceiptFor, setGeneratingReceiptFor] = useState<string | null>(null);
+  const [receiptPreviewBusyId, setReceiptPreviewBusyId] = useState<string | null>(null);
+  const [receiptSendBusyId, setReceiptSendBusyId] = useState<string | null>(null);
+  const [generatedDocs, setGeneratedDocs] = useState<GeneratedDocPickRow[]>([]);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState('');
+  const [viewerTitle, setViewerTitle] = useState('Demand letter');
+  const [viewerSendDoc, setViewerSendDoc] = useState<{
+    kind: 'demand-letter' | 'receipt';
+    doc: GeneratedDocPickRow;
+  } | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageDefaultScheduleId, setManageDefaultScheduleId] = useState<string | null>(
     null
   );
   const [manageDefaultAmount, setManageDefaultAmount] = useState<number | null>(null);
   const [createMilestoneOpen, setCreateMilestoneOpen] = useState(false);
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
   async function loadFinancials() {
     if (!bookingId) return;
     setLoading(true);
@@ -78,7 +105,7 @@ export default function FinancialsBookingPage() {
 
     setProjectId(booking.project_id as string);
 
-    const [{ data: unit }, { data: customer }, schedRes, collRes] =
+    const [{ data: unit }, { data: customer }, schedRes, collRes, genRes] =
       await Promise.all([
         supabase
           .from('units')
@@ -99,7 +126,13 @@ export default function FinancialsBookingPage() {
           .from('collections')
           .select('id,schedule_id,received_amount,received_at,mode,reference,created_at')
           .eq('booking_id', bookingId)
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('generated_documents')
+          .select(GENERATED_DOCUMENTS_LIST_SELECT)
+          .eq('booking_id', bookingId)
+          .order('generated_at', { ascending: false })
+          .limit(200)
       ]);
 
     setUnitCode((unit?.unit_code as string) ?? '—');
@@ -109,6 +142,8 @@ export default function FinancialsBookingPage() {
     if (collRes.error) pageError(collRes.error.message);
     setSchedules((schedRes.data ?? []) as ScheduleRow[]);
     setCollections((collRes.data ?? []) as CollectionRow[]);
+    if (genRes?.error) pageError(genRes.error.message);
+    setGeneratedDocs((genRes.data ?? []) as GeneratedDocPickRow[]);
     setLoading(false);
   }
 
@@ -127,6 +162,149 @@ export default function FinancialsBookingPage() {
       }, {}),
     [collections]
   );
+
+  const receiptsBySchedule = useMemo(() => {
+    return collections.reduce<Record<string, CollectionRow[]>>((acc, c) => {
+      if (!c.schedule_id) return acc;
+      const sid = c.schedule_id;
+      (acc[sid] ||= []).push(c);
+      return acc;
+    }, {});
+  }, [collections]);
+
+  const latestDemandDocByScheduleId = useMemo(() => {
+    const m = new Map<string, GeneratedDocPickRow>();
+    for (const d of generatedDocs) {
+      const kind = parseKindFromBookingGeneratedPath(d.storage_path);
+      if (kind !== 'demand-letter') continue;
+      const sid = parseLinkIdFromBookingGeneratedPath(d.storage_path);
+      if (!sid) continue;
+      const existing = m.get(sid);
+      if (!existing || String(d.generated_at) > String(existing.generated_at)) {
+        m.set(sid, d);
+      }
+    }
+    return m;
+  }, [generatedDocs]);
+
+  const receiptDocByCollectionId = useMemo(() => {
+    const m = new Map<string, GeneratedDocPickRow>();
+    for (const d of generatedDocs) {
+      const kind = parseKindFromBookingGeneratedPath(d.storage_path);
+      if (kind !== 'receipt') continue;
+      const cid = parseLinkIdFromBookingGeneratedPath(d.storage_path);
+      if (!cid) continue;
+      const existing = m.get(cid);
+      if (!existing || String(d.generated_at) > String(existing.generated_at)) {
+        m.set(cid, d);
+      }
+    }
+    return m;
+  }, [generatedDocs]);
+
+  const latestCollectionByScheduleId = useMemo(() => {
+    const m = new Map<string, CollectionRow>();
+    for (const c of collections) {
+      if (!c.schedule_id) continue;
+      const key = c.schedule_id;
+      const existing = m.get(key);
+      if (!existing) {
+        m.set(key, c);
+        continue;
+      }
+      const a = existing.received_at || existing.created_at || '';
+      const b = c.received_at || c.created_at || '';
+      if (b > a) m.set(key, c);
+    }
+    return m;
+  }, [collections]);
+
+  const latestReceiptDocByScheduleId = useMemo(() => {
+    const m = new Map<string, GeneratedDocPickRow>();
+    for (const [scheduleId, c] of latestCollectionByScheduleId.entries()) {
+      const doc = receiptDocByCollectionId.get(c.id);
+      if (doc) m.set(scheduleId, doc);
+    }
+    return m;
+  }, [latestCollectionByScheduleId, receiptDocByCollectionId]);
+
+  async function previewDemandDoc(doc: GeneratedDocPickRow) {
+    const bucket = doc.storage_path.startsWith('documents/') ? 'documents' : null;
+    if (!bucket) {
+      pageError('This demand row has no stored PDF yet.');
+      return;
+    }
+    setDemandPreviewBusyId(doc.id);
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(doc.storage_path, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error('No preview URL');
+      setViewerTitle('Demand letter');
+      setViewerUrl(data.signedUrl);
+      setViewerSendDoc({ kind: 'demand-letter', doc });
+      setViewerOpen(true);
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Preview failed');
+    } finally {
+      setDemandPreviewBusyId(null);
+    }
+  }
+
+  async function previewReceiptDoc(doc: GeneratedDocPickRow) {
+    const bucket = doc.storage_path.startsWith('documents/') ? 'documents' : null;
+    if (!bucket) {
+      pageError('This receipt row has no stored PDF yet.');
+      return;
+    }
+    setReceiptPreviewBusyId(doc.id);
+    try {
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(doc.storage_path, 3600);
+      if (error || !data?.signedUrl) throw error ?? new Error('No preview URL');
+      setViewerTitle('Payment receipt');
+      setViewerUrl(data.signedUrl);
+      setViewerSendDoc({ kind: 'receipt', doc });
+      setViewerOpen(true);
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Preview failed');
+    } finally {
+      setReceiptPreviewBusyId(null);
+    }
+  }
+
+  async function sendDemandDoc(doc: GeneratedDocPickRow) {
+    setDemandSendBusyId(doc.id);
+    try {
+      const notify = await notifyGeneratedBookingDocument(bookingId, doc.id);
+      if (!notify.ok) {
+        pageError(typeof notify.error === 'string' ? notify.error : 'Send failed');
+        return;
+      }
+      toast.success(formatDocumentDeliveryNotice('Demand letter sent.', notify));
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setDemandSendBusyId(null);
+    }
+  }
+
+  async function sendReceiptDoc(doc: GeneratedDocPickRow) {
+    setReceiptSendBusyId(doc.id);
+    try {
+      const notify = await notifyGeneratedBookingDocument(bookingId, doc.id);
+      if (!notify.ok) {
+        pageError(typeof notify.error === 'string' ? notify.error : 'Send failed');
+        return;
+      }
+      toast.success(formatDocumentDeliveryNotice('Payment receipt sent.', notify));
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Send failed');
+    } finally {
+      setReceiptSendBusyId(null);
+    }
+  }
 
   const breakableSchedules = useMemo(() => {
     return schedules
@@ -200,12 +378,49 @@ export default function FinancialsBookingPage() {
       });
       if (!persisted.ok) throw new Error(persisted.error);
       toast.success(
-        `Demand letter for instalment ${schedule.instalment_no} saved. Review in Documents, then Send to notify the customer.`
+        `Demand letter for instalment ${schedule.instalment_no} saved. Preview it, then Send to notify the customer.`
       );
+      await loadFinancials();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Demand letter failed');
     } finally {
       setGeneratingDemandFor(null);
+    }
+  }
+
+  async function generateReceiptForSchedule(schedule: ScheduleRow) {
+    if (!bookingId) return;
+    if (!schedule.id) return;
+    const latestCollection = latestCollectionByScheduleId.get(schedule.id) ?? null;
+    if (!latestCollection) {
+      pageError('No collection recorded for this instalment yet. Use Collect first.');
+      return;
+    }
+    setGeneratingReceiptFor(schedule.id);
+    try {
+      const instalmentLabel = `${schedule.instalment_no}. ${schedule.milestone}`;
+      const receiptRes = await persistCollectionReceipt(
+        supabase,
+        bookingId,
+        {
+          collectionId: latestCollection.id,
+          receivedAmount: latestCollection.received_amount,
+          receivedAt: latestCollection.received_at,
+          mode: latestCollection.mode,
+          reference: latestCollection.reference,
+          instalmentLabel
+        },
+        { notify: false }
+      );
+      if (!receiptRes.ok) throw new Error(receiptRes.error);
+      toast.success(
+        `Payment receipt for instalment ${schedule.instalment_no} saved. Preview it, then Send to notify the customer.`
+      );
+      await loadFinancials();
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Receipt failed');
+    } finally {
+      setGeneratingReceiptFor(null);
     }
   }
 
@@ -269,7 +484,34 @@ export default function FinancialsBookingPage() {
               CLD stage is logged complete on the project.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-ds-gray-200 bg-white">
+              <button
+                type="button"
+                className={`h-8 px-3 text-xs font-semibold ${
+                  !showOnlyPending
+                    ? 'bg-ds-primary-600 text-white'
+                    : 'text-ds-gray-700 hover:bg-ds-gray-50'
+                }`}
+                onClick={() => setShowOnlyPending(false)}
+                disabled={loading || saving}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`h-8 px-3 text-xs font-semibold ${
+                  showOnlyPending
+                    ? 'bg-ds-primary-600 text-white'
+                    : 'text-ds-gray-700 hover:bg-ds-gray-50'
+                }`}
+                onClick={() => setShowOnlyPending(true)}
+                disabled={loading || saving}
+                title="Show only milestones with pending balance"
+              >
+                Pending
+              </button>
+            </div>
             <Button
               type="button"
               size="sm"
@@ -302,32 +544,82 @@ export default function FinancialsBookingPage() {
           <PaymentScheduleTable
             rows={schedules}
             receivedBySchedule={receivedBySchedule}
+            receiptsBySchedule={receiptsBySchedule}
             loading={loading}
-            onlyUnpaid
+            onlyUnpaid={showOnlyPending}
+            receiptCell={(row) => {
+              if (!row.id) return <span className="text-xs text-ds-gray-500">—</span>;
+              const latestCollection = latestCollectionByScheduleId.get(row.id) ?? null;
+              const doc = latestReceiptDocByScheduleId.get(row.id) ?? null;
+              const canGenerate = !saving && !loading && Boolean(latestCollection);
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={!canGenerate || generatingReceiptFor === row.id}
+                    onClick={() => void generateReceiptForSchedule(row as ScheduleRow)}
+                    title={
+                      latestCollection
+                        ? 'Generate a receipt PDF for the latest collection on this instalment'
+                        : 'Collect a payment first'
+                    }
+                  >
+                    {generatingReceiptFor === row.id ? 'Saving…' : doc ? 'Re-generate' : 'Generate'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={!doc || receiptPreviewBusyId === doc?.id}
+                    onClick={() => (doc ? void previewReceiptDoc(doc) : undefined)}
+                    title={doc ? 'Preview saved receipt' : 'Generate a receipt first'}
+                  >
+                    {receiptPreviewBusyId === doc?.id ? 'Opening…' : 'Preview'}
+                  </Button>
+                </div>
+              );
+            }}
+            demandCell={(row) => {
+              if (!row.id) return <span className="text-xs text-ds-gray-500">—</span>;
+              const doc = latestDemandDocByScheduleId.get(row.id) ?? null;
+              const canGenerate = !saving && !loading && row.balance > 0;
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={!canGenerate || generatingDemandFor === row.id}
+                    onClick={() => void generateDemandForSchedule(row as ScheduleRow)}
+                    title={
+                      row.balance <= 0
+                        ? 'No pending amount on this instalment'
+                        : `Generate demand for ₹ ${formatInr(row.balance, { maximumFractionDigits: 0 })}`
+                    }
+                  >
+                    {generatingDemandFor === row.id ? 'Saving…' : doc ? 'Re-generate' : 'Generate'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={!doc || demandPreviewBusyId === doc?.id}
+                    onClick={() => (doc ? void previewDemandDoc(doc) : undefined)}
+                    title={doc ? 'Preview saved demand letter' : 'Generate a demand first'}
+                  >
+                    {demandPreviewBusyId === doc?.id ? 'Opening…' : 'Preview'}
+                  </Button>
+                </div>
+              );
+            }}
             actions={(row) => (
               <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8"
-                  disabled={
-                    saving ||
-                    loading ||
-                    row.balance <= 0 ||
-                    generatingDemandFor === (row.id ?? '')
-                  }
-                  onClick={() =>
-                    row.id ? void generateDemandForSchedule(row as ScheduleRow) : undefined
-                  }
-                  title={
-                    row.balance <= 0
-                      ? 'No pending amount on this instalment'
-                      : `Demand for ₹ ${formatInr(row.balance, { maximumFractionDigits: 0 })}`
-                  }
-                >
-                  {generatingDemandFor === (row.id ?? '') ? 'Saving…' : 'Demand'}
-                </Button>
                 <Button
                   type="button"
                   size="sm"
@@ -387,6 +679,42 @@ export default function FinancialsBookingPage() {
         pendingAmount={Math.max(0, totalBalance)}
         breakableSchedules={breakableSchedules}
         onSaved={() => loadFinancials()}
+      />
+
+      <PdfViewerDialog
+        open={viewerOpen}
+        onOpenChange={(open) => {
+          setViewerOpen(open);
+          if (!open) {
+            setViewerUrl('');
+            setViewerSendDoc(null);
+          }
+        }}
+        url={viewerUrl}
+        title={viewerTitle}
+        primaryActionLabel={
+          viewerSendDoc?.kind === 'receipt'
+            ? 'Send receipt'
+            : viewerSendDoc?.kind === 'demand-letter'
+              ? 'Send demand'
+              : undefined
+        }
+        primaryActionLoading={
+          viewerSendDoc?.kind === 'receipt'
+            ? receiptSendBusyId === viewerSendDoc.doc.id
+            : viewerSendDoc?.kind === 'demand-letter'
+              ? demandSendBusyId === viewerSendDoc.doc.id
+              : false
+        }
+        primaryActionDisabled={!viewerSendDoc}
+        onPrimaryAction={() => {
+          if (!viewerSendDoc) return;
+          if (viewerSendDoc.kind === 'receipt') {
+            void sendReceiptDoc(viewerSendDoc.doc);
+            return;
+          }
+          void sendDemandDoc(viewerSendDoc.doc);
+        }}
       />
     </div>
   );

@@ -12,9 +12,22 @@ export type PaymentScheduleLine = {
   amount: number;
 };
 
+export type PaymentScheduleReceiptLine = {
+  id: string;
+  schedule_id: string | null;
+  received_amount: number;
+  received_at: string | null;
+  mode: string | null;
+  reference: string | null;
+  created_at: string | null;
+};
+
 type Props = {
   rows: PaymentScheduleLine[];
   receivedBySchedule?: Record<string, number>;
+  receiptsBySchedule?: Record<string, PaymentScheduleReceiptLine[]>;
+  receiptCell?: (row: PaymentScheduleLine & { received: number; balance: number }) => ReactNode;
+  demandCell?: (row: PaymentScheduleLine & { received: number; balance: number }) => ReactNode;
   loading?: boolean;
   compact?: boolean;
   onlyUnpaid?: boolean;
@@ -24,6 +37,9 @@ type Props = {
 export function PaymentScheduleTable({
   rows,
   receivedBySchedule = {},
+  receiptsBySchedule,
+  receiptCell,
+  demandCell,
   loading,
   compact,
   onlyUnpaid,
@@ -45,7 +61,8 @@ export function PaymentScheduleTable({
   }, 0);
   const totalBalance = totalAmount - totalReceived;
   const cellPad = compact ? 'px-3 py-2' : 'px-4 py-3';
-  const colCount = actions ? 8 : 7;
+  const colCount =
+    (actions ? 8 : 7) + (receiptsBySchedule ? 1 : 0) + (demandCell ? 1 : 0);
 
   return (
     <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
@@ -59,6 +76,8 @@ export function PaymentScheduleTable({
               'Amount',
               'Received',
               'Balance',
+              ...(receiptsBySchedule ? ['Receipts'] : []),
+              ...(demandCell ? ['Demand'] : []),
               'Status',
               ...(actions ? ['Actions'] : [])
             ].map((h) => (
@@ -88,6 +107,18 @@ export function PaymentScheduleTable({
                 const bal = (s.amount || 0) - rec;
                 const status =
                   bal <= 0 ? 'Paid' : rec > 0 ? 'Partially paid' : 'Pending';
+                const calcRow = { ...s, received: rec, balance: bal };
+                const receipts = s.id && receiptsBySchedule ? receiptsBySchedule[s.id] || [] : [];
+                const receiptsCount = receipts.length;
+                const latestReceipt =
+                  receiptsCount > 0
+                    ? receipts.reduce<PaymentScheduleReceiptLine | null>((latest, r) => {
+                        if (!latest) return r;
+                        const a = latest.received_at || latest.created_at || '';
+                        const b = r.received_at || r.created_at || '';
+                        return b > a ? r : latest;
+                      }, null)
+                    : null;
                 return (
                   <tr key={s.id ?? s.instalment_no} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                     <td className={`${cellPad} text-ds-gray-600`}>{s.instalment_no}</td>
@@ -106,6 +137,33 @@ export function PaymentScheduleTable({
                     <td className={`${cellPad} font-semibold text-ds-error-700`}>
                       ₹ {formatInr(bal, { maximumFractionDigits: 0 })}
                     </td>
+                    {receiptsBySchedule ? (
+                      <td className={cellPad}>
+                        {receiptCell ? (
+                          receiptCell(calcRow)
+                        ) : receiptsCount > 0 ? (
+                          <div className="space-y-0.5">
+                            <div className="text-xs font-semibold text-ds-gray-900">
+                              {receiptsCount} {receiptsCount === 1 ? 'receipt' : 'receipts'}
+                            </div>
+                            <div className="text-xs text-ds-gray-500">
+                              Latest:{' '}
+                              {formatDisplayDate(
+                                latestReceipt?.received_at || latestReceipt?.created_at || null
+                              )}
+                              {latestReceipt?.reference
+                                ? ` · ${latestReceipt.reference}`
+                                : latestReceipt?.mode
+                                  ? ` · ${latestReceipt.mode}`
+                                  : ''}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-ds-gray-500">—</span>
+                        )}
+                      </td>
+                    ) : null}
+                    {demandCell ? <td className={cellPad}>{demandCell(calcRow)}</td> : null}
                     <td className={cellPad}>
                       <span className="rounded-full border border-ds-gray-200 px-2 py-0.5 text-xs text-ds-gray-700">
                         {status}
@@ -113,7 +171,7 @@ export function PaymentScheduleTable({
                     </td>
                     {actions ? (
                       <td className={cellPad}>
-                        {actions({ ...s, received: rec, balance: bal })}
+                        {actions(calcRow)}
                       </td>
                     ) : null}
                   </tr>
@@ -151,7 +209,11 @@ export function PaymentScheduleTable({
               <td className="px-4 py-3 font-semibold text-ds-error-700">
                 ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
               </td>
-              <td colSpan={actions ? 2 : 1} />
+              <td
+                colSpan={
+                  (receiptsBySchedule ? 1 : 0) + (demandCell ? 1 : 0) + (actions ? 2 : 1)
+                }
+              />
             </tr>
           </tfoot>
         ) : null}
