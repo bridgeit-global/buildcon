@@ -395,14 +395,6 @@ export default function BookingDetailPage() {
   const loadPaymentSchedule = useCallback(async () => {
     if (!bookingId) return;
     setLoadingSchedule(true);
-    try {
-      await fetch(
-        `/api/crm/bookings/${encodeURIComponent(bookingId)}/sync-schedule`,
-        { method: 'POST', credentials: 'same-origin' }
-      );
-    } catch {
-      /* non-blocking */
-    }
     const [{ data: sData, error: sErr }, { data: cData, error: cErr }] =
       await Promise.all([
         supabase

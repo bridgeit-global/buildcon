@@ -109,23 +109,11 @@ export default function FinancialsBookingPage() {
     setCollectionTouched((t) => ({ ...t, [field]: true }));
   }
 
-  async function syncScheduleIfNeeded() {
-    try {
-      await fetch(`/api/crm/bookings/${encodeURIComponent(bookingId)}/sync-schedule`, {
-        method: 'POST',
-        credentials: 'same-origin'
-      });
-    } catch {
-      /* non-blocking; schedule may already be correct */
-    }
-  }
+
 
   async function loadFinancials() {
     if (!bookingId) return;
     setLoading(true);
-    
-    await syncScheduleIfNeeded();
-
     const { data: booking, error: bErr } = await supabase
       .from('bookings')
       .select('id,project_id,unit_id,customer_id')

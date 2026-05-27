@@ -81,24 +81,9 @@ export default function FinancialsPage() {
   const [totalOverdue, setTotalOverdue] = useState(0);
   const [tableRows, setTableRows] = useState<FinancialBookingRow[]>([]);
 
-  async function syncSchedulesForBookings(bookingIds: string[]) {
-    const batchSize = 8;
-    for (let i = 0; i < bookingIds.length; i += batchSize) {
-      const slice = bookingIds.slice(i, i + batchSize);
-      await Promise.all(
-        slice.map((id) =>
-          fetch(`/api/crm/bookings/${encodeURIComponent(id)}/sync-schedule`, {
-            method: 'POST',
-            credentials: 'same-origin'
-          }).catch(() => undefined)
-        )
-      );
-    }
-  }
-
   async function load() {
     setLoading(true);
-    
+
     const { data: bData, error: bErr } = await supabase
       .from('bookings')
       .select('id,project_id,unit_id,customer_id,created_at,status')
@@ -121,9 +106,6 @@ export default function FinancialsPage() {
       return true;
     });
     const bookingIds = bookings.map((b) => b.id);
-    if (bookingIds.length) {
-      await syncSchedulesForBookings(bookingIds);
-    }
     if (!bookingIds.length) {
       setTableRows([]);
       setTotalDemand(0);
@@ -233,7 +215,7 @@ export default function FinancialsPage() {
 
   async function downloadFinancialsExport(kind: 'ledger' | 'receipts') {
     setExporting(kind);
-        try {
+    try {
       const projectQ =
         exportProjectId !== 'all'
           ? `&projectId=${encodeURIComponent(exportProjectId)}`
