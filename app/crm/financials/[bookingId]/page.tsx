@@ -413,6 +413,7 @@ export default function FinancialsBookingPage() {
             rows={schedules}
             receivedBySchedule={receivedBySchedule}
             loading={loading}
+            onlyUnpaid
           />
         </div>
         {schedules.length > 0 ? (

@@ -2092,6 +2092,7 @@ export default function BookingDetailPage() {
                       receivedBySchedule={scheduleReceivedById}
                       loading={loadingSchedule}
                       compact
+                      onlyUnpaid
                     />
                   </div>
                 </div>

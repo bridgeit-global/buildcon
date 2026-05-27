@@ -16,16 +16,27 @@ type Props = {
   receivedBySchedule?: Record<string, number>;
   loading?: boolean;
   compact?: boolean;
+  onlyUnpaid?: boolean;
 };
 
 export function PaymentScheduleTable({
   rows,
   receivedBySchedule = {},
   loading,
-  compact
+  compact,
+  onlyUnpaid
 }: Props) {
-  const totalAmount = rows.reduce((s, r) => s + (r.amount || 0), 0);
-  const totalReceived = rows.reduce((s, r) => {
+  const displayRows = onlyUnpaid
+    ? rows.filter((r) => {
+        const key = r.id ?? '';
+        const rec = key ? receivedBySchedule[key] || 0 : 0;
+        const bal = (r.amount || 0) - rec;
+        return bal > 0;
+      })
+    : rows;
+
+  const totalAmount = displayRows.reduce((s, r) => s + (r.amount || 0), 0);
+  const totalReceived = displayRows.reduce((s, r) => {
     const key = r.id ?? '';
     return s + (key ? receivedBySchedule[key] || 0 : 0);
   }, 0);
@@ -61,7 +72,7 @@ export function PaymentScheduleTable({
             </tr>
           ) : null}
           {!loading
-            ? rows.map((s) => {
+            ? displayRows.map((s) => {
                 const rec = s.id ? receivedBySchedule[s.id] || 0 : 0;
                 const bal = (s.amount || 0) - rec;
                 const status =
@@ -93,26 +104,27 @@ export function PaymentScheduleTable({
                 );
               })
             : null}
-          {!loading && rows.length === 0 ? (
+          {!loading && displayRows.length === 0 ? (
             <tr>
               <td
                 colSpan={7}
                 className="px-4 py-12 text-center text-ds-gray-500"
               >
-                No payment schedule yet. Confirm the booking or configure CLD stages
-                on the project.
+                {onlyUnpaid
+                  ? 'No unpaid instalments in this schedule.'
+                  : 'No payment schedule yet. Confirm the booking or configure CLD stages on the project.'}
               </td>
             </tr>
           ) : null}
         </tbody>
-        {rows.length > 0 && !loading ? (
+        {displayRows.length > 0 && !loading ? (
           <tfoot>
             <tr className="border-t border-ds-gray-100 bg-ds-gray-50/80">
               <td
                 colSpan={3}
                 className="px-4 py-3 font-semibold text-ds-gray-900"
               >
-                Total
+                {onlyUnpaid ? 'Total (unpaid)' : 'Total'}
               </td>
               <td className="px-4 py-3 font-semibold text-ds-gray-900">
                 ₹ {formatInr(totalAmount, { maximumFractionDigits: 0 })}
