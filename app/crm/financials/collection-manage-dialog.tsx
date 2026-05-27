@@ -55,6 +55,7 @@ type Props = {
   collections: CollectionsListRow[];
   scheduleLabelById: Map<string, string>;
   defaultScheduleId?: string | null;
+  defaultAmount?: number | null;
   onSaved: () => void | Promise<void>;
 };
 
@@ -68,6 +69,7 @@ export function CollectionManageDialog({
   collections,
   scheduleLabelById,
   defaultScheduleId,
+  defaultAmount,
   onSaved
 }: Props) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -112,11 +114,19 @@ export function CollectionManageDialog({
     return `${row.instalment_no}. ${row.milestone}`;
   }
 
-  function resetForm(scheduleId?: string | null) {
+  function resetForm(scheduleId?: string | null, amount?: number | null) {
     setEntryScheduleId(scheduleId || '');
     const prefill =
       scheduleId && pendingSchedules.find((s) => s.id === scheduleId)?.pending;
-    setEntryAmount(prefill ? String(Math.round(prefill)) : '');
+    const amountPrefill =
+      amount != null && Number.isFinite(amount) && amount > 0 ? amount : null;
+    setEntryAmount(
+      prefill
+        ? String(Math.round(prefill))
+        : amountPrefill
+          ? String(Math.round(amountPrefill))
+          : ''
+    );
     setEntryDate(new Date().toISOString().slice(0, 10));
     setEntryMode('NEFT');
     setEntryRef('');
@@ -126,9 +136,9 @@ export function CollectionManageDialog({
 
   useEffect(() => {
     if (!open) return;
-    resetForm(defaultScheduleId ?? null);
+    resetForm(defaultScheduleId ?? null, defaultScheduleId ? null : defaultAmount ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultScheduleId]);
+  }, [open, defaultScheduleId, defaultAmount]);
 
   async function addCollection() {
     if (!bookingId) return;
@@ -266,15 +276,23 @@ export function CollectionManageDialog({
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="text-xs font-semibold text-ds-gray-500">Add collection</div>
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
-              <div className="sm:col-span-2">
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-12">
                 <Label>Instalment</Label>
                 <Select
                   value={entryScheduleId === '' ? FIN_SCHEDULE_UNASSIGNED : entryScheduleId}
                   onValueChange={(v) => {
                     if (v === FIN_SCHEDULE_UNASSIGNED) {
                       setEntryScheduleId('');
-                      setEntryAmount('');
+                      const amountPrefill =
+                        defaultAmount != null &&
+                        Number.isFinite(defaultAmount) &&
+                        defaultAmount > 0
+                          ? defaultAmount
+                          : null;
+                      setEntryAmount(
+                        amountPrefill ? String(Math.round(amountPrefill)) : ''
+                      );
                       return;
                     }
                     setEntryScheduleId(v);
@@ -285,7 +303,7 @@ export function CollectionManageDialog({
                   }}
                   disabled={loading || saving}
                 >
-                  <SelectTrigger className="mt-1 w-full">
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -302,7 +320,7 @@ export function CollectionManageDialog({
                 </Select>
               </div>
 
-              <div>
+              <div className="space-y-1.5 lg:col-span-4">
                 <Label>Amount (₹)</Label>
                 <Input
                   value={entryAmount}
@@ -318,10 +336,11 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryAmount')} />
               </div>
 
-              <div>
+              <div className="space-y-1.5 lg:col-span-4">
                 <Label>Date</Label>
                 <Input
                   type="date"
+                  className="min-w-42 pr-10"
                   value={entryDate}
                   onChange={(e) => {
                     setEntryDate(e.target.value);
@@ -334,7 +353,7 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryDate')} />
               </div>
 
-              <div>
+              <div className="space-y-1.5 lg:col-span-4">
                 <Label>Mode</Label>
                 <Select
                   value={entryMode}
@@ -344,7 +363,7 @@ export function CollectionManageDialog({
                   }}
                   disabled={loading || saving}
                 >
-                  <SelectTrigger className="mt-1 w-full">
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -358,7 +377,7 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryMode')} />
               </div>
 
-              <div className="sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-9">
                 <Label>
                   Reference
                   {entryMode !== 'Cash' && <span className="text-ds-error-500"> *</span>}
@@ -376,9 +395,10 @@ export function CollectionManageDialog({
                 />
                 <FormFieldError message={collectionFieldError('entryRef')} />
               </div>
-              <div className="flex items-end">
+
+              <div className="flex items-end sm:col-span-2 lg:col-span-12 lg:justify-end">
                 <Button
-                  className="w-full sm:w-auto"
+                  className="w-full whitespace-nowrap sm:w-auto lg:ml-auto"
                   onClick={() => void addCollection()}
                   disabled={saving || loading}
                 >
@@ -387,21 +407,7 @@ export function CollectionManageDialog({
               </div>
             </div>
 
-            <div className="mt-6">
-              <div className="text-xs font-semibold text-ds-gray-500">
-                Saved entries
-              </div>
-              <div className="mt-2">
-                <CollectionsListTable
-                  rows={collections}
-                  scheduleLabelById={scheduleLabelById}
-                  loading={loading}
-                  busy={saving}
-                  onDelete={deleteCollection}
-                  onGenerateReceipt={generateReceiptForCollection}
-                />
-              </div>
-            </div>
+
           </div>
 
           <DialogFooter className="shrink-0 border-t border-ds-gray-100 bg-white px-4 py-3 sm:px-6">

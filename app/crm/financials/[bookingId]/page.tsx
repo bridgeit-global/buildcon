@@ -17,6 +17,7 @@ import {
 } from '../booking-ledger-table';
 import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
 import { CollectionManageDialog } from '../collection-manage-dialog';
+import { CreateMilestoneDialog } from '../create-milestone-dialog';
 
 type ScheduleRow = {
   id: string;
@@ -58,6 +59,8 @@ export default function FinancialsBookingPage() {
   const [manageDefaultScheduleId, setManageDefaultScheduleId] = useState<string | null>(
     null
   );
+  const [manageDefaultAmount, setManageDefaultAmount] = useState<number | null>(null);
+  const [createMilestoneOpen, setCreateMilestoneOpen] = useState(false);
   async function loadFinancials() {
     if (!bookingId) return;
     setLoading(true);
@@ -125,6 +128,16 @@ export default function FinancialsBookingPage() {
     [collections]
   );
 
+  const breakableSchedules = useMemo(() => {
+    return schedules
+      .map((s) => {
+        const received = receivedBySchedule[s.id] || 0;
+        const balance = Math.max(0, (s.amount || 0) - received);
+        return { id: s.id, instalment_no: s.instalment_no, milestone: s.milestone, balance };
+      })
+      .filter((s) => s.balance > 0);
+  }, [schedules, receivedBySchedule]);
+
   const pendingSchedules = useMemo(
     () =>
       schedules
@@ -143,6 +156,11 @@ export default function FinancialsBookingPage() {
     0
   );
   const totalBalance = totalAmount - totalReceived;
+
+  const nextInstalmentNo = useMemo(() => {
+    const maxNo = schedules.reduce((m, s) => Math.max(m, s.instalment_no || 0), 0);
+    return maxNo + 1;
+  }, [schedules]);
 
   const scheduleLabelById = useMemo(() => {
     const m = new Map<string, string>();
@@ -243,11 +261,43 @@ export default function FinancialsBookingPage() {
       </Card>
 
       <Card className="p-4 sm:p-6">
-        <div className="text-sm font-semibold text-ds-gray-900">Payment schedule</div>
-        <p className="mt-1 text-xs text-ds-gray-500">
-          Seeded at booking confirmation; instalment due dates update when the matching
-          CLD stage is logged complete on the project.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-ds-gray-900">Payment schedule</div>
+            <p className="mt-1 text-xs text-ds-gray-500">
+              Seeded at booking confirmation; instalment due dates update when the matching
+              CLD stage is logged complete on the project.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={loading || saving}
+              onClick={() => setCreateMilestoneOpen(true)}
+              title="Add a new milestone/instalment row"
+            >
+              Create milestone
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8"
+              disabled={loading || saving || totalBalance <= 0}
+              onClick={() => {
+                setManageDefaultScheduleId(null);
+                setManageDefaultAmount(Math.max(0, totalBalance));
+                setManageOpen(true);
+              }}
+              title="Record a single receipt for the remaining balance (unassigned)"
+            >
+              Collect remaining
+            </Button>
+          </div>
+        </div>
         <div className="mt-3">
           <PaymentScheduleTable
             rows={schedules}
@@ -285,6 +335,7 @@ export default function FinancialsBookingPage() {
                   disabled={saving || loading || row.balance <= 0 || !row.id}
                   onClick={() => {
                     setManageDefaultScheduleId(row.id ?? null);
+                    setManageDefaultAmount(null);
                     setManageOpen(true);
                   }}
                   title="Record a receipt against this instalment"
@@ -300,30 +351,6 @@ export default function FinancialsBookingPage() {
           letter in Documents, and <span className="font-semibold text-ds-gray-900">Collect</span>{' '}
           to record a receipt (auto-saves a payment receipt PDF).
         </p>
-      </Card>
-
-      <Card className="p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-ds-gray-900">Collections</div>
-            <p className="mt-1 text-xs text-ds-gray-500">
-              Add, delete, and regenerate receipts for payment collections.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={loading}
-              onClick={() => {
-                setManageDefaultScheduleId(null);
-                setManageOpen(true);
-              }}
-            >
-              Manage
-            </Button>
-          </div>
-        </div>
       </Card>
 
       <Card className="p-4 sm:p-6">
@@ -347,6 +374,18 @@ export default function FinancialsBookingPage() {
         collections={collections}
         scheduleLabelById={scheduleLabelById}
         defaultScheduleId={manageDefaultScheduleId}
+        defaultAmount={manageDefaultAmount}
+        onSaved={() => loadFinancials()}
+      />
+
+      <CreateMilestoneDialog
+        open={createMilestoneOpen}
+        onOpenChange={setCreateMilestoneOpen}
+        bookingId={bookingId}
+        loading={loading}
+        nextInstalmentNo={nextInstalmentNo}
+        pendingAmount={Math.max(0, totalBalance)}
+        breakableSchedules={breakableSchedules}
         onSaved={() => loadFinancials()}
       />
     </div>
