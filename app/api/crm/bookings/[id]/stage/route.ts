@@ -85,12 +85,14 @@ export async function POST(
     stageData: stageData as Record<string, unknown>
   });
 
+  let resolvedSaleTotalInr: number | null = null;
   if (body.action === 'save' && current === 'token' && resolvedBookingAmount > 0) {
     const saleTotalInr = await resolveSaleTotalInrForBooking(admin, {
       unitId: booking.unit_id as string,
       projectId: booking.project_id as string,
       salesInquiryId: (booking.sales_inquiry_id as string | null) ?? null
     });
+    resolvedSaleTotalInr = saleTotalInr;
     const capMsg = bookingAmountExceedsUnitTotalMessage(
       resolvedBookingAmount,
       saleTotalInr
@@ -105,12 +107,16 @@ export async function POST(
       stage_data: BookingStageData;
       updated_at: string;
       booking_amount?: number;
+      sale_total_inr?: number;
     } = {
       stage_data: stageData,
       updated_at: new Date().toISOString()
     };
     if (resolvedBookingAmount > 0) {
       bookingPatch.booking_amount = resolvedBookingAmount;
+    }
+    if (resolvedSaleTotalInr != null && resolvedSaleTotalInr > 0) {
+      bookingPatch.sale_total_inr = resolvedSaleTotalInr;
     }
     const { error } = await admin
       .from('bookings')

@@ -277,6 +277,7 @@ export async function POST(request: Request) {
       payment_mode: body.paymentMode,
       loan_bank: body.loanBank ?? null,
       booking_amount: body.bookingAmount ?? null,
+      sale_total_inr: saleTotalInr,
       payment_detail: paymentDetailObj,
       created_by: gate.userId,
       updated_at: new Date().toISOString()
