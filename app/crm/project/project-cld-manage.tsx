@@ -98,26 +98,9 @@ export function ProjectCldManage({
       if (e) throw e;
       setName('');
       setSlab('');
-      const syncRes = await fetch(
-        `/api/crm/projects/${encodeURIComponent(projectId)}/cld/sync-schedules`,
-        { method: 'POST', credentials: 'same-origin' }
+      setSuccess(
+        'CLD stage added. Payment schedules will sync automatically in the background.'
       );
-      if (!syncRes.ok) {
-        const syncJson = (await syncRes.json()) as { error?: string };
-        throw new Error(
-          syncJson.error ?? 'Stage saved but payment schedules could not be updated'
-        );
-      }
-      const syncJson = (await syncRes.json()) as {
-        bookingsProcessed?: number;
-        schedulesUpdated?: number;
-      };
-      const n = syncJson.schedulesUpdated ?? 0;
-      if (n > 0) {
-        setSuccess(
-          `CLD stage added. Payment schedules updated for ${n} booking unit${n === 1 ? '' : 's'}.`
-        );
-      }
       await load();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save stage');
