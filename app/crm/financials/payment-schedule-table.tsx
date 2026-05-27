@@ -2,6 +2,7 @@
 
 import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr } from '../inr-format';
+import type { ReactNode } from 'react';
 
 export type PaymentScheduleLine = {
   id?: string;
@@ -17,6 +18,7 @@ type Props = {
   loading?: boolean;
   compact?: boolean;
   onlyUnpaid?: boolean;
+  actions?: (row: PaymentScheduleLine & { received: number; balance: number }) => ReactNode;
 };
 
 export function PaymentScheduleTable({
@@ -24,7 +26,8 @@ export function PaymentScheduleTable({
   receivedBySchedule = {},
   loading,
   compact,
-  onlyUnpaid
+  onlyUnpaid,
+  actions
 }: Props) {
   const displayRows = onlyUnpaid
     ? rows.filter((r) => {
@@ -42,29 +45,37 @@ export function PaymentScheduleTable({
   }, 0);
   const totalBalance = totalAmount - totalReceived;
   const cellPad = compact ? 'px-3 py-2' : 'px-4 py-3';
+  const colCount = actions ? 8 : 7;
 
   return (
     <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-      <table className="w-full min-w-[56rem] caption-bottom text-sm">
+      <table className="w-full min-w-4xl caption-bottom text-sm">
         <thead>
           <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
-            {['#', 'Milestone', 'Due date', 'Amount', 'Received', 'Balance', 'Status'].map(
-              (h) => (
+            {[
+              '#',
+              'Milestone',
+              'Due date',
+              'Amount',
+              'Received',
+              'Balance',
+              'Status',
+              ...(actions ? ['Actions'] : [])
+            ].map((h) => (
                 <th
                   key={h}
                   className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
                 >
                   {h}
                 </th>
-              )
-            )}
+              ))}
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
               <td
-                colSpan={7}
+                colSpan={colCount}
                 className="px-4 py-12 text-center text-ds-gray-500"
               >
                 Loading schedule…
@@ -100,6 +111,11 @@ export function PaymentScheduleTable({
                         {status}
                       </span>
                     </td>
+                    {actions ? (
+                      <td className={cellPad}>
+                        {actions({ ...s, received: rec, balance: bal })}
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })
@@ -107,7 +123,7 @@ export function PaymentScheduleTable({
           {!loading && displayRows.length === 0 ? (
             <tr>
               <td
-                colSpan={7}
+                colSpan={colCount}
                 className="px-4 py-12 text-center text-ds-gray-500"
               >
                 {onlyUnpaid
@@ -135,7 +151,7 @@ export function PaymentScheduleTable({
               <td className="px-4 py-3 font-semibold text-ds-error-700">
                 ₹ {formatInr(totalBalance, { maximumFractionDigits: 0 })}
               </td>
-              <td />
+              <td colSpan={actions ? 2 : 1} />
             </tr>
           </tfoot>
         ) : null}
