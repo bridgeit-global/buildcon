@@ -134,6 +134,27 @@ export function isUnitLinkedToBookingRecord(status: string | null | undefined): 
   );
 }
 
+/** Possession given — sale documents must not be generated for this unit. */
+export function isUnitPossessedStatus(status: string | null | undefined): boolean {
+  return normalizeUnitStatusCode(status) === 'POSSESSED';
+}
+
+export const UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE =
+  'This unit is marked as Possession given — documents cannot be generated.';
+
+/** Unit `status` from a Supabase `units (...)` join on bookings. */
+export function unitStatusFromBookingUnitsJoin(
+  units:
+    | { status: string }
+    | { status: string }[]
+    | null
+    | undefined
+): string | null {
+  if (units == null) return null;
+  const row = Array.isArray(units) ? units[0] : units;
+  return row?.status ?? null;
+}
+
 const GRID_ABBREV: Record<string, string> = {
   AVAILABLE: 'AV',
   BLOCKED: 'BL',

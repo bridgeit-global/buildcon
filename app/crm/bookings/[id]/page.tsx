@@ -85,6 +85,7 @@ import {
 import { BookingAddressFields } from '../booking-address-fields';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+import { isUnitPossessedStatus } from '@/app/crm/inventory/unit-status';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -1264,6 +1265,7 @@ export default function BookingDetailPage() {
   }
 
   const unit = booking ? unwrapJoin(booking.units) : null;
+  const unitPossessed = isUnitPossessedStatus(unit?.status);
   const customer = booking ? unwrapJoin(booking.customers) : null;
 
   return (
@@ -2162,6 +2164,7 @@ export default function BookingDetailPage() {
                         onNotify={handleConfirmationDocNotify}
                         scheduleLabelById={scheduleLabelById}
                         outstandingTotal={outstandingTotal}
+                        unitPossessed={unitPossessed}
                       />
                     ) : (
                       <p className="text-sm text-ds-warning-800">

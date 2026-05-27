@@ -3,6 +3,10 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
+import {
+  isUnitPossessedStatus,
+  unitStatusFromBookingUnitsJoin
+} from '@/app/crm/inventory/unit-status';
 
 type Body = {
   stage?: 'OC' | 'FinalDemand' | 'PossessionLetter' | 'Handover' | 'Closed';
@@ -36,7 +40,9 @@ export async function POST(
 
   const { data: caseRow, error: cErr } = await admin
     .from('possession_cases')
-    .select('id, project_id, unit_id, booking_id, workflow_stage, keys_handed_over_at')
+    .select(
+      'id, project_id, unit_id, booking_id, workflow_stage, keys_handed_over_at, units(status)'
+    )
     .eq('id', caseId)
     .maybeSingle();
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
@@ -93,8 +99,14 @@ export async function POST(
 
   // Auto-generate possession letter PDF when reaching PossessionLetter stage.
   // Notification is NOT sent automatically — review in Documents, then Send.
+  // Skip when unit is already Possession given.
+  const unitAlreadyPossessed = isUnitPossessedStatus(
+    unitStatusFromBookingUnitsJoin(
+      caseRow.units as { status: string } | { status: string }[] | null
+    )
+  );
   let generatedDocumentId: string | null = null;
-  if (stage === 'PossessionLetter' && bookingId) {
+  if (stage === 'PossessionLetter' && bookingId && !unitAlreadyPossessed) {
     const packRes = await loadBookingPrintPack(admin, bookingId);
     if (packRes.ok) {
       const persisted = await persistGeneratedBookingDocumentServer(

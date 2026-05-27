@@ -9,6 +9,10 @@ import {
 import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
 import { generatedDemandExistsForSchedule } from '@/lib/booking/booking-generated-doc-kind';
+import {
+  isUnitPossessedStatus,
+  unitStatusFromBookingUnitsJoin
+} from '@/app/crm/inventory/unit-status';
 export type GenerateCldDemandLettersResult = {
   demandLettersGenerated: number;
   demandLettersSkipped: number;
@@ -40,7 +44,7 @@ export async function generateCldDemandLettersForProject(
 
   const { data: bookings, error: bErr } = await admin
     .from('bookings')
-    .select('id')
+    .select('id,units(status)')
     .eq('project_id', opts.projectId)
     .eq('workflow_stage', 'confirmation')
     .neq('status', 'cancelled');
@@ -60,6 +64,17 @@ export async function generateCldDemandLettersForProject(
 
   for (const booking of bookings ?? []) {
     const bookingId = booking.id as string;
+
+    if (
+      isUnitPossessedStatus(
+        unitStatusFromBookingUnitsJoin(
+          booking.units as { status: string } | { status: string }[] | null
+        )
+      )
+    ) {
+      demandLettersSkipped += 1;
+      continue;
+    }
 
     const { data: schedule, error: sErr } = await admin
       .from('payment_schedules')

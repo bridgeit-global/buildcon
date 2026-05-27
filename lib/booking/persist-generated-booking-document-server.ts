@@ -8,6 +8,11 @@ import {
 } from '@/lib/booking/booking-document-html-from-pack';
 import { renderHtmlToPdfBuffer } from '@/lib/booking/html-to-pdf';
 import { bookingGeneratedStoragePath } from '@/lib/booking/booking-generated-storage-path';
+import {
+  isUnitPossessedStatus,
+  UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE,
+  unitStatusFromBookingUnitsJoin
+} from '@/app/crm/inventory/unit-status';
 
 export type PersistGeneratedBookingDocumentOpts = {
   /** Collection or schedule id — stored in filename so each payment/demand is a separate file. */
@@ -43,6 +48,10 @@ export async function persistGeneratedBookingDocumentServer(
   kind: BookingDocumentPrintKind,
   opts?: PersistGeneratedBookingDocumentOpts
 ): Promise<{ ok: true; id: string; storagePath: string } | { ok: false; error: string }> {
+  if (isUnitPossessedStatus(unitStatusFromBookingUnitsJoin(pack.booking.units))) {
+    return { ok: false, error: UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE };
+  }
+
   let applicantPhotoDataUris: (string | null)[] | undefined;
   if (kind === 'application-form') {
     applicantPhotoDataUris = await loadApplicantPhotoDataUris(

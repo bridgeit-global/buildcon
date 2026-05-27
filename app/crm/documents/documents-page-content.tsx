@@ -22,7 +22,7 @@ import {
 } from './generated-documents-table';
 import { DocumentsBookingListTable } from './documents-booking-list-table';
 import { BookingDocumentsMatrixTable, buildMatrixRows } from './booking-documents-matrix-table';
-import { statusLabelForUnit } from '../inventory/unit-status';
+import { isUnitPossessedStatus, statusLabelForUnit } from '../inventory/unit-status';
 import { ArrowLeft } from 'lucide-react';
 
 type BookingPickRow = {
@@ -238,6 +238,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const matrixRows = useMemo(() => buildMatrixRows(generated), [generated]);
 
   const unit = printPack ? unwrapJoin(printPack.booking.units) : null;
+  const unitPossessed = isUnitPossessedStatus(unit?.status);
   const customer = printPack ? unwrapJoin(printPack.booking.customers) : null;
   const buyersNeedingKyc = printPack
     ? printPack.buyerKyc.filter(
@@ -407,6 +408,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                     onNotify={handleMatrixNotify}
                     scheduleLabelById={docScheduleLabels}
                     outstandingTotal={outstandingTotal}
+                    unitPossessed={unitPossessed}
                   />
                 </div>
               </>

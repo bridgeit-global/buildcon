@@ -21,6 +21,7 @@ import {
   parseLinkIdFromBookingGeneratedPath
 } from '@/lib/booking/booking-generated-doc-kind';
 import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-date';
+import { UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE } from '../inventory/unit-status';
 import type { GeneratedDocRow } from './generated-documents-table';
 import { storageBucketForGeneratedPath } from './generated-documents-table';
 
@@ -78,6 +79,8 @@ type BookingDocumentsMatrixTableProps = {
   scheduleLabelById?: Map<string, string>;
   /** Outstanding rupee amount across the unit's payment schedule, if known. */
   outstandingTotal?: number | null;
+  /** Unit lifecycle is Possession given — block new generation. */
+  unitPossessed?: boolean;
 };
 
 const KIND_PREDECESSORS: Partial<Record<BookingDocumentPrintKind, BookingDocumentPrintKind[]>> = {
@@ -107,8 +110,12 @@ function generateDisabledReason(
     kycComplete: boolean;
     presentKinds: Set<BookingDocumentPrintKind>;
     outstandingTotal: number | null | undefined;
+    unitPossessed?: boolean;
   }
 ): string | null {
+  if (ctx.unitPossessed) {
+    return UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE;
+  }
   if (!ctx.kycComplete && KIND_REQUIRES_KYC.has(kind)) {
     return 'Complete KYC (PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads for each applicant) before generating this document.';
   }
@@ -144,7 +151,8 @@ export function BookingDocumentsMatrixTable({
   onGenerate,
   onNotify,
   scheduleLabelById,
-  outstandingTotal
+  outstandingTotal,
+  unitPossessed = false
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [viewBusyId, setViewBusyId] = useState<string | null>(null);
@@ -249,7 +257,8 @@ export function BookingDocumentsMatrixTable({
           const blocked = generateDisabledReason(k, {
             kycComplete,
             presentKinds,
-            outstandingTotal
+            outstandingTotal,
+            unitPossessed
           });
           return (
             <Button
@@ -336,7 +345,8 @@ export function BookingDocumentsMatrixTable({
       onNotify,
       outstandingTotal,
       presentKinds,
-      scheduleLabelById
+      scheduleLabelById,
+      unitPossessed
     ]
   );
 
@@ -377,10 +387,14 @@ export function BookingDocumentsMatrixTable({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-ds-gray-500">
-        Files are stored as PDF in Documents. After generating, use View to review the document,
-        then Send to notify the customer via email / SMS / WhatsApp.
-      </p>
+      {unitPossessed ? (
+        <p className="text-xs text-ds-warning-800">{UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE}</p>
+      ) : (
+        <p className="text-xs text-ds-gray-500">
+          Files are stored as PDF in Documents. After generating, use View to review the document,
+          then Send to notify the customer via email / SMS / WhatsApp.
+        </p>
+      )}
       <PdfViewerDialog
         open={viewerOpen}
         onOpenChange={(open) => {

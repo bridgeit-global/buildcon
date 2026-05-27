@@ -11,6 +11,11 @@ import {
   BOOKING_DOCUMENT_KIND_LABEL,
   parseKindFromBookingGeneratedPath
 } from '@/lib/booking/booking-generated-doc-kind';
+import {
+  isUnitPossessedStatus,
+  UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE,
+  unitStatusFromBookingUnitsJoin
+} from '@/app/crm/inventory/unit-status';
 
 function labelFor(kind: BookingDocumentPrintKind): string {
   return BOOKING_DOCUMENT_KIND_LABEL[kind] ?? kind;
@@ -77,7 +82,7 @@ export async function POST(
 
   const { data: booking, error: bErr } = await admin
     .from('bookings')
-    .select('id,project_id')
+    .select('id,project_id,units(status)')
     .eq('id', bookingId)
     .maybeSingle();
   if (bErr) {
@@ -85,6 +90,19 @@ export async function POST(
   }
   if (!booking) {
     return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+  }
+
+  if (
+    isUnitPossessedStatus(
+      unitStatusFromBookingUnitsJoin(
+        booking.units as { status: string } | { status: string }[] | null
+      )
+    )
+  ) {
+    return NextResponse.json(
+      { error: UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE },
+      { status: 409 }
+    );
   }
 
   const gate = await requireProjectAccess(booking.project_id as string);
