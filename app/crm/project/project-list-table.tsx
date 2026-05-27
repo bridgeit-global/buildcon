@@ -198,7 +198,7 @@ export function ProjectListTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
-      pagination: { pageSize: 15, pageIndex: 0 }
+      pagination: { pageSize: 10, pageIndex: 0 }
     }
   });
 

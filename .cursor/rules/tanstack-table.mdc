@@ -87,7 +87,7 @@ const columns = useMemo<ColumnDef<MyRow, unknown>[]>(
 
 ## Pagination and empty states
 
-- Default `pageSize: 15`; offer 10 / 15 / 25 / 50 via `Select` + `table.setPageSize`.
+- Default `pageSize: 10`; offer 10 / 15 / 25 / 50 via `Select` + `table.setPageSize`.
 - Prev/next with `table.previousPage()` / `table.nextPage()` and `getCanPreviousPage()` / `getCanNextPage()`.
 - Loading: single row, `colSpan={columns.length}`.
 - Empty filtered: message + primary CTA when relevant.

@@ -187,7 +187,7 @@ export function PossessionListTable({
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 15 } }
+    initialState: { pagination: { pageSize: 10 } }
   });
 
   return (

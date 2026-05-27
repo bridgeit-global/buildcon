@@ -211,7 +211,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: globalBookingFilter,
-    initialState: { pagination: { pageSize: 15 } }
+    initialState: { pagination: { pageSize: 10 } }
   });
 
   return (
