@@ -368,6 +368,8 @@ export default function CreateProjectPage() {
                     <SelectItem value="Redevelopment">Redevelopment</SelectItem>
                     <SelectItem value="Greenfield">Greenfield</SelectItem>
                     <SelectItem value="Mixed Use">Mixed Use</SelectItem>
+                    <SelectItem value="Development">Development</SelectItem>
+                    <SelectItem value="Ready">Ready</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

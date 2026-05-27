@@ -38,7 +38,13 @@ type ProjectMemberRow = {
   created_at: string;
 };
 
-const PROJECT_TYPES = ['Redevelopment', 'Greenfield', 'Mixed Use'] as const;
+const PROJECT_TYPES = [
+  'Redevelopment',
+  'Greenfield',
+  'Mixed Use',
+  'Development',
+  'Ready'
+] as const;
 const PROJECT_STATUSES = ['Active', 'Planning', 'On Hold', 'Inactive'] as const;
 
 type ManageTab = 'details' | 'members' | 'pricing';

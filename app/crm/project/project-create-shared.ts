@@ -18,7 +18,7 @@ export const WIZARD_STEPS = [
 export type CreateProjectDraft = {
   name: string;
   location: string;
-  type: 'Redevelopment' | 'Greenfield' | 'Mixed Use';
+  type: 'Redevelopment' | 'Greenfield' | 'Mixed Use' | 'Development' | 'Ready';
   status: 'Active' | 'Planning' | 'On Hold';
   fy: string;
   rera_no: string;

@@ -8,7 +8,9 @@ import { formatInr } from '../inr-format';
 const PROJECT_TYPE_ACCENT: Record<string, string> = {
   Redevelopment: '#8B5CF6',
   Greenfield: '#22C55E',
-  'Mixed Use': '#06B6D4'
+  'Mixed Use': '#06B6D4',
+  Development: '#0D9488',
+  Ready: '#0F766E'
 };
 
 const STATUS_BADGE: Record<
