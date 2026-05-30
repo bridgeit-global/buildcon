@@ -111,42 +111,22 @@ export function ProjectCldManage({
 
   async function logCompletion(stage: StageRow) {
     setSaving(true);
-        setSuccess('');
+    setSuccess('');
     try {
-      const res = await fetch(
-        `/api/crm/projects/${encodeURIComponent(stage.project_id)}/cld/completions`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stageId: stage.id })
-        }
-      );
-      const json = (await res.json()) as {
-        error?: string;
-        bookingsProcessed?: number;
-        schedulesUpdated?: number;
-        demandLettersGenerated?: number;
-        demandLettersSkipped?: number;
-        demandLetterErrors?: string[];
-      };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to log completion');
-      const n = json.bookingsProcessed ?? 0;
-      const generated = json.demandLettersGenerated ?? 0;
-      const skipped = json.demandLettersSkipped ?? 0;
-      const demandNote =
-        generated > 0
-          ? ` Demand letter PDFs created for ${generated} booking${generated === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped)` : ''}. Open Documents to review and send manually.`
-          : n > 0
-            ? ' No new demand PDFs (instalments may already be paid or letters already on file).'
-            : '';
-      const errNote =
-        json.demandLetterErrors?.length
-          ? ` Some units failed: ${json.demandLetterErrors.slice(0, 2).join('; ')}${json.demandLetterErrors.length > 2 ? '…' : ''}`
-          : '';
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      const completedOn = new Date().toISOString().slice(0, 10);
+      const { error: e } = await supabase.from('cld_stage_completions').insert({
+        project_id: stage.project_id,
+        stage_id: stage.id,
+        completed_on: completedOn,
+        notes: 'Marked complete from CRM',
+        created_by: user?.id ?? null
+      });
+      if (e) throw e;
       setSuccess(
-        n > 0
-          ? `Stage completed. Payment milestones updated for ${n} booking unit${n === 1 ? '' : 's'}.${demandNote} Review under Agreements & documents or Financials.${errNote}`
-          : `Stage completed. No active bookings yet; milestones will apply when units are booked.${demandNote}`
+        'Stage completed. Payment milestones for active bookings were updated automatically.'
       );
       await load();
     } catch (e) {
@@ -180,8 +160,8 @@ export function ProjectCldManage({
           Define slab-linked demand percentages or fixed amounts. Adding a stage
           automatically creates payment schedule entries for every active booking
           (database trigger). When you log a stage completion, the matching
-          instalment is activated and demand letter PDFs are generated — review
-          them in Documents and send manually when ready.
+          instalment due date and milestone are activated for every active booking.
+          Instalments stay pending until collections are recorded in Financials.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1 sm:col-span-2">

@@ -1,80 +1,13 @@
--- DB-driven CLD stage completion: activate payment milestones for all active bookings.
+-- Remove CLD auto demand-letter PDF queue (manual generation from Financials remains).
 
--- Resolve booking token amount from column or stage_data JSON.
-create or replace function public.cld_resolve_booking_amount_inr(
-  p_booking_amount numeric,
-  p_stage_data jsonb
-)
-returns numeric
-language sql
-immutable
-as $$
-  select greatest(
-    0,
-    round(
-      coalesce(
-        nullif(coalesce(p_booking_amount, 0), 0),
-        nullif(
-          regexp_replace(coalesce(p_stage_data #>> '{token,amount}', ''), ',', '', 'g')::numeric,
-          0
-        ),
-        0
-      )
-    )
-  );
-$$;
+drop function if exists public.pick_next_cld_demand_letter_job();
+drop function if exists public.complete_cld_demand_letter_job(uuid, int, int, text);
+drop function if exists public.claim_cld_demand_letter_job(uuid);
+drop function if exists public.cld_demand_letter_jobs_touch_updated_at() cascade;
 
-revoke all on function public.cld_resolve_booking_amount_inr(numeric, jsonb) from public;
-grant execute on function public.cld_resolve_booking_amount_inr(numeric, jsonb) to authenticated;
+drop table if exists public.cld_demand_letter_jobs;
 
--- Instalment number (1-based) for a stage within a project.
-create or replace function public.cld_instalment_no_for_stage(
-  p_project_id uuid,
-  p_stage_id uuid
-)
-returns int
-language sql
-stable
-security definer
-set search_path = public
-set row_security = off
-as $$
-  select s.rn::int
-  from (
-    select
-      st.id,
-      row_number() over (order by st.sort_order asc, st.created_at asc) as rn
-    from public.project_cld_stages st
-    where st.project_id = p_project_id
-  ) s
-  where s.id = p_stage_id;
-$$;
-
-revoke all on function public.cld_instalment_no_for_stage(uuid, uuid) from public;
-grant execute on function public.cld_instalment_no_for_stage(uuid, uuid) to authenticated;
-
-create or replace function public.cld_stage_demand_amount(
-  p_demand_kind text,
-  p_demand_value numeric,
-  p_target numeric,
-  p_instalment_no int,
-  p_booking_amount numeric
-)
-returns numeric
-language sql
-immutable
-as $$
-  select case
-    when p_instalment_no = 1 and p_booking_amount > 0 then p_booking_amount
-    when p_demand_kind = 'fixed' then greatest(0, round(coalesce(p_demand_value, 0)))
-    else greatest(0, round((p_target * coalesce(p_demand_value, 0)) / 100))
-  end;
-$$;
-
-revoke all on function public.cld_stage_demand_amount(text, numeric, numeric, int, numeric) from public;
-grant execute on function public.cld_stage_demand_amount(text, numeric, numeric, int, numeric) to authenticated;
-
--- Apply a logged CLD completion to every non-cancelled booking on the project.
+-- Re-apply completion handler without job enqueue (idempotent if 20260530150000 already ran).
 create or replace function public.apply_cld_stage_completion(p_completion_id uuid)
 returns jsonb
 language plpgsql
@@ -211,34 +144,3 @@ exception
     return jsonb_build_object('ok', false, 'error', sqlerrm);
 end;
 $$;
-
-revoke all on function public.apply_cld_stage_completion(uuid) from public;
-grant execute on function public.apply_cld_stage_completion(uuid) to authenticated;
-grant execute on function public.apply_cld_stage_completion(uuid) to service_role;
-
-create or replace function public.trg_cld_stage_completions_apply()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-set row_security = off
-as $$
-declare
-  v_result jsonb;
-begin
-  v_result := public.apply_cld_stage_completion(new.id);
-
-  if coalesce((v_result->>'ok')::boolean, false) is not true
-     and coalesce(v_result->>'skipped', 'false') <> 'true' then
-    raise exception 'apply_cld_stage_completion failed: %',
-      coalesce(v_result->>'error', v_result::text);
-  end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists cld_stage_completions_apply on public.cld_stage_completions;
-create trigger cld_stage_completions_apply
-after insert on public.cld_stage_completions
-for each row execute function public.trg_cld_stage_completions_apply();

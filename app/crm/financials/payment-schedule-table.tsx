@@ -104,9 +104,18 @@ export function PaymentScheduleTable({
           {!loading
             ? displayRows.map((s) => {
                 const rec = s.id ? receivedBySchedule[s.id] || 0 : 0;
-                const bal = (s.amount || 0) - rec;
+                const demand = Number(s.amount || 0);
+                const bal = demand - rec;
                 const status =
-                  bal <= 0 ? 'Paid' : rec > 0 ? 'Partially paid' : 'Pending';
+                  demand <= 0
+                    ? 'Scheduled'
+                    : bal <= 0
+                      ? 'Paid'
+                      : rec > 0
+                        ? 'Partially paid'
+                        : s.due_date
+                          ? 'Due'
+                          : 'Pending';
                 const calcRow = { ...s, received: rec, balance: bal };
                 const receipts = s.id && receiptsBySchedule ? receiptsBySchedule[s.id] || [] : [];
                 const receiptsCount = receipts.length;

@@ -20,7 +20,7 @@ export type PaymentScheduleInsertRow = {
   booking_id: string;
   instalment_no: number;
   milestone: string;
-  due_date: string;
+  due_date: string | null;
   amount: number;
 };
 
@@ -92,7 +92,7 @@ function fallbackScheduleRows(
       booking_id: bookingId,
       instalment_no: 1,
       milestone: 'Booking Amount',
-      due_date: addDaysISO(0),
+      due_date: null,
       amount: booking > 0 ? booking : total
     }
   ];
@@ -102,7 +102,7 @@ function fallbackScheduleRows(
       booking_id: bookingId,
       instalment_no: 2,
       milestone: 'Pending Amount',
-      due_date: addDaysISO(30),
+      due_date: null,
       amount: pending
     });
   }
@@ -184,7 +184,7 @@ export function buildPaymentScheduleRows(
         instalmentNo === 1 && bookingAmount > 0
           ? 'Booking Amount'
           : cldMilestoneLabel(stage),
-      due_date: addDaysISO(index * 30),
+      due_date: null,
       amount: cldStageDemandAmount(
         stage,
         saleTotalInr,
