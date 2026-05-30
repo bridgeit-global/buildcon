@@ -9,7 +9,9 @@ export async function POST(request: Request) {
   }
 
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.rpc('process_next_cld_schedule_sync_job');
+  const { data, error } = await admin.rpc('process_pending_cld_schedule_sync_jobs', {
+    p_limit: 25
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
