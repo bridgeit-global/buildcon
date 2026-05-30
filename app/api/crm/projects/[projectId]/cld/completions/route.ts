@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
-import {
-  applyCldStageCompletionToProjectBookings,
-  syncProjectBookingPaymentSchedules,
-  type CldStageWithId
-} from '@/lib/booking/booking-schedule';
-import { generateCldDemandLettersForProject } from '@/lib/booking/generate-cld-demand-letters';
+import { processCldDemandLetterJob } from '@/lib/booking/process-cld-demand-letter-jobs';
 
 type CompletionBody = {
   stageId: string;
@@ -42,7 +37,7 @@ export async function POST(
 
   const { data: stage, error: stageErr } = await admin
     .from('project_cld_stages')
-    .select('id,project_id,sort_order,name,demand_kind,demand_value,slab_label')
+    .select('id')
     .eq('id', stageId)
     .eq('project_id', projectId)
     .maybeSingle();
@@ -60,6 +55,7 @@ export async function POST(
       ? String(body.notes).trim()
       : 'Marked complete from CRM';
 
+  // DB trigger `cld_stage_completions_apply` runs apply_cld_stage_completion + enqueues demand letter job.
   const { data: completion, error: compErr } = await admin
     .from('cld_stage_completions')
     .insert({
@@ -75,70 +71,56 @@ export async function POST(
     return NextResponse.json({ error: compErr.message }, { status: 500 });
   }
 
-  let applyResult;
-  try {
-    applyResult = await applyCldStageCompletionToProjectBookings(admin, {
-      projectId,
-      stage: stage as CldStageWithId,
-      completedOn
-    });
-    await syncProjectBookingPaymentSchedules(admin, projectId);
-  } catch (e) {
-    await admin.from('cld_stage_completions').delete().eq('id', completion.id);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Failed to update payment schedules' },
-      { status: 500 }
-    );
+  const { data: jobRow, error: jobErr } = await admin
+    .from('cld_demand_letter_jobs')
+    .select(
+      'id,status,demand_letters_generated,demand_letters_skipped,last_error'
+    )
+    .eq('completion_id', completion.id)
+    .maybeSingle();
+  if (jobErr) {
+    return NextResponse.json({ error: jobErr.message }, { status: 500 });
   }
 
-  const { data: bookings } = await admin
+  const { data: bookingCount } = await admin
     .from('bookings')
-    .select('id')
+    .select('id', { count: 'exact', head: true })
     .eq('project_id', projectId)
     .neq('status', 'cancelled');
 
-  if (bookings?.length) {
-    const { error: qErr } = await admin.from('cld_notification_queue').insert(
-      bookings.map((b) => ({
-        project_id: projectId,
-        booking_id: b.id as string,
-        channel: 'email',
-        payload: {
-          stage_id: stageId,
-          completion_id: completion.id,
-          kind: 'cld_stage_complete',
-          completed_on: completedOn
-        },
-        status: 'pending'
-      }))
-    );
-    if (qErr) {
-      return NextResponse.json({ error: qErr.message }, { status: 500 });
+  let demandLettersGenerated = 0;
+  let demandLettersSkipped = 0;
+  let demandLetterErrors: string[] | undefined;
+
+  if (jobRow?.id) {
+    const jobResult = await processCldDemandLetterJob(admin, jobRow.id as string);
+    if (!jobResult.ok && jobResult.error) {
+      demandLetterErrors = [jobResult.error];
+    }
+
+    const { data: refreshedJob } = await admin
+      .from('cld_demand_letter_jobs')
+      .select('demand_letters_generated,demand_letters_skipped,status,last_error')
+      .eq('id', jobRow.id)
+      .maybeSingle();
+
+    if (refreshedJob) {
+      demandLettersGenerated = Number(refreshedJob.demand_letters_generated ?? 0);
+      demandLettersSkipped = Number(refreshedJob.demand_letters_skipped ?? 0);
+      if (refreshedJob.status === 'failed' && refreshedJob.last_error) {
+        demandLetterErrors = [String(refreshedJob.last_error)];
+      }
     }
   }
-
-  const demandResult = await generateCldDemandLettersForProject(admin, {
-    projectId,
-    stage: stage as CldStageWithId,
-    generatedBy: gate.userId
-  });
-
-  // Mark queue rows as generated (demand letters stored, pending manual Send).
-  await admin
-    .from('cld_notification_queue')
-    .update({ status: 'sent', processed_at: new Date().toISOString() })
-    .eq('project_id', projectId)
-    .eq('status', 'pending')
-    .filter('payload->>completion_id', 'eq', String(completion.id));
 
   return NextResponse.json({
     ok: true,
     completionId: completion.id,
     completedOn: completion.completed_on,
-    ...applyResult,
-    demandLettersGenerated: demandResult.demandLettersGenerated,
-    demandLettersSkipped: demandResult.demandLettersSkipped,
-    notificationsPending: demandResult.notificationsPending,
-    demandLetterErrors: demandResult.errors.length ? demandResult.errors : undefined
+    bookingsProcessed: bookingCount ?? 0,
+    demandLetterJobId: jobRow?.id,
+    demandLettersGenerated,
+    demandLettersSkipped,
+    demandLetterErrors
   });
 }

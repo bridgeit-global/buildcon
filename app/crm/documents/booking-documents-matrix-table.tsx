@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { shortId } from '@/lib/utils';
 import { pageError } from '@/lib/toast';
 import {
   flexRender,
@@ -17,10 +16,9 @@ import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-docu
 import {
   BOOKING_DOCUMENT_KIND_LABEL,
   BOOKING_DOCUMENT_MATRIX_KINDS,
-  parseKindFromBookingGeneratedPath,
-  parseLinkIdFromBookingGeneratedPath
+  parseKindFromBookingGeneratedPath
 } from '@/lib/booking/booking-generated-doc-kind';
-import { formatDisplayDate, formatDisplayDateTime } from '@/lib/format-display-date';
+import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE } from '../inventory/unit-status';
 import type { GeneratedDocRow } from './generated-documents-table';
 import { storageBucketForGeneratedPath } from './generated-documents-table';
@@ -135,15 +133,6 @@ function generateDisabledReason(
   return null;
 }
 
-function linkLabelForRow(
-  row: GeneratedDocRow,
-  scheduleLabelById?: Map<string, string>
-): string | null {
-  const linkId = parseLinkIdFromBookingGeneratedPath(row.storage_path);
-  if (!linkId) return null;
-  return scheduleLabelById?.get(linkId) ?? `Linked · ${shortId(linkId)}`;
-}
-
 export function BookingDocumentsMatrixTable({
   rows,
   kycComplete,
@@ -211,38 +200,15 @@ export function BookingDocumentsMatrixTable({
         header: 'Last generated',
         accessorFn: (r) => r.latest?.generated_at ?? '',
         cell: ({ row }) => {
-          const { latest, versions, kind } = row.original;
+          const { latest } = row.original;
           if (!latest) {
             return <span className="text-sm text-ds-gray-500">Not generated yet</span>;
           }
-          const multi = versions.length > 1;
-          const showLinked =
-            kind === 'receipt' || kind === 'demand-letter';
-          const recent =
-            showLinked && multi ? versions.slice(0, 3) : [latest];
           return (
             <div className="text-sm text-ds-gray-600">
               <span className="whitespace-nowrap">
                 Latest {formatDisplayDateTime(latest.generated_at)}
               </span>
-              {showLinked && recent.length > 0 ? (
-                <ul className="mt-1 space-y-0.5 text-xs text-ds-primary-800">
-                  {recent.map((v) => {
-                    const lbl = linkLabelForRow(v, scheduleLabelById);
-                    return (
-                      <li key={v.id}>
-                        {lbl ?? 'Saved PDF'} ·{' '}
-                        {formatDisplayDate(v.generated_at)}
-                      </li>
-                    );
-                  })}
-                  {multi && versions.length > 3 ? (
-                    <li className="text-ds-gray-500">
-                      +{versions.length - 3} more in History below
-                    </li>
-                  ) : null}
-                </ul>
-              ) : null}
             </div>
           );
         }
@@ -345,7 +311,6 @@ export function BookingDocumentsMatrixTable({
       onNotify,
       outstandingTotal,
       presentKinds,
-      scheduleLabelById,
       unitPossessed
     ]
   );

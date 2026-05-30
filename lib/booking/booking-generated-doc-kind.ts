@@ -1,10 +1,9 @@
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 
+/** Kinds shown in the booking documents matrix (generate / review / send). */
 export const BOOKING_DOCUMENT_MATRIX_KINDS: BookingDocumentPrintKind[] = [
   'application-form',
   'allotment-letter',
-  'receipt',
-  'demand-letter',
   'agreement',
   'registration-deed',
   'possession-letter'
@@ -20,6 +19,11 @@ export const BOOKING_DOCUMENT_KIND_LABEL: Record<BookingDocumentPrintKind, strin
   'possession-letter': 'Possession letter'
 };
 
+/** All stored kinds, including financial docs managed from Ledger & collections. */
+export const BOOKING_DOCUMENT_ALL_KINDS = Object.keys(
+  BOOKING_DOCUMENT_KIND_LABEL
+) as BookingDocumentPrintKind[];
+
 function fileBaseName(storagePath: string): string | null {
   const name = storagePath.split('/').pop() ?? '';
   if (name.endsWith('.html')) return name.slice(0, -'.html'.length);
@@ -33,7 +37,7 @@ export function parseKindFromBookingGeneratedPath(
 ): BookingDocumentPrintKind | null {
   const base = fileBaseName(storagePath);
   if (!base) return null;
-  for (const kind of BOOKING_DOCUMENT_MATRIX_KINDS) {
+  for (const kind of BOOKING_DOCUMENT_ALL_KINDS) {
     if (base.startsWith(`${kind}-`)) return kind;
   }
   return null;

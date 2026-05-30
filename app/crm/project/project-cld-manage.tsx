@@ -135,7 +135,7 @@ export function ProjectCldManage({
       const skipped = json.demandLettersSkipped ?? 0;
       const demandNote =
         generated > 0
-          ? ` Demand letter PDFs created for ${generated} booking${generated === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped)` : ''}. Review in Documents, then Send to notify customers.`
+          ? ` Demand letter PDFs created for ${generated} booking${generated === 1 ? '' : 's'}${skipped > 0 ? ` (${skipped} skipped)` : ''}. Open Documents to review and send manually.`
           : n > 0
             ? ' No new demand PDFs (instalments may already be paid or letters already on file).'
             : '';
@@ -177,10 +177,11 @@ export function ProjectCldManage({
           ) : null}
         </div>
         <p className="mt-1 text-xs text-ds-gray-500">
-          Define slab-linked demand percentages or fixed amounts. When you log a stage
-          completion, the matching instalment is activated on every active booking (due
-          date set to today) so finance can generate demand letters and post collections
-          under Financials.
+          Define slab-linked demand percentages or fixed amounts. Adding a stage
+          automatically creates payment schedule entries for every active booking
+          (database trigger). When you log a stage completion, the matching
+          instalment is activated and demand letter PDFs are generated — review
+          them in Documents and send manually when ready.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="grid gap-1 sm:col-span-2">
