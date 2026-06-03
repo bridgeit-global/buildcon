@@ -17,6 +17,14 @@ export type ToastRecord = ToastInput & {
 
 const DEFAULT_DURATION_MS = 5000;
 
+const DEFAULT_TOAST_TITLES: Record<ToastSeverity, string> = {
+  default: 'Notice',
+  success: 'Success',
+  error: 'Error',
+  warning: 'Warning',
+  info: 'Info'
+};
+
 type Listener = () => void;
 
 let toasts: ToastRecord[] = [];
@@ -30,11 +38,31 @@ function genId() {
   return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function normalizeInput(input: ToastInput | string): ToastInput {
+/** Ensures every toast has a title and description for consistent UI. */
+function normalizeInput(
+  input: ToastInput | string,
+  severity: ToastSeverity
+): Required<Pick<ToastInput, 'title' | 'description'>> {
+  const defaultTitle = DEFAULT_TOAST_TITLES[severity];
+
   if (typeof input === 'string') {
-    return { title: input };
+    const description = input.trim() || defaultTitle;
+    return { title: defaultTitle, description };
   }
-  return input;
+
+  const title = input.title?.trim() ?? '';
+  const description = input.description?.trim() ?? '';
+
+  if (title && description) {
+    return { title, description };
+  }
+  if (title) {
+    return { title, description: title };
+  }
+  if (description) {
+    return { title: defaultTitle, description };
+  }
+  return { title: defaultTitle, description: defaultTitle };
 }
 
 export function subscribeToToasts(listener: Listener) {
@@ -52,13 +80,16 @@ export function dismissToast(id: string) {
 }
 
 function pushToast(input: ToastInput | string, severity?: ToastSeverity) {
-  const normalized = normalizeInput(input);
+  const resolvedSeverity =
+    (typeof input === 'object' ? input.severity : undefined) ?? severity ?? 'default';
+  const { title, description } = normalizeInput(input, resolvedSeverity);
   const record: ToastRecord = {
-    id: normalized.id ?? genId(),
-    title: normalized.title,
-    description: normalized.description,
-    severity: normalized.severity ?? severity ?? 'default',
-    duration: normalized.duration ?? DEFAULT_DURATION_MS,
+    id: (typeof input === 'object' ? input.id : undefined) ?? genId(),
+    title,
+    description,
+    severity: resolvedSeverity,
+    duration:
+      (typeof input === 'object' ? input.duration : undefined) ?? DEFAULT_DURATION_MS,
     createdAt: Date.now()
   };
   toasts = [record, ...toasts].slice(0, 8);
@@ -83,11 +114,10 @@ type ToastCallable = {
 export function pageError(message: string, title?: string) {
   const description = String(message ?? '').trim();
   if (!description) return;
-  if (title?.trim()) {
-    toast.error({ title: title.trim(), description });
-    return;
-  }
-  toast.error(description);
+  toast.error({
+    title: title?.trim() || DEFAULT_TOAST_TITLES.error,
+    description
+  });
 }
 
 export const toast: ToastCallable = Object.assign(

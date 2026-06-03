@@ -3,10 +3,7 @@ import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
-import {
-  normalizeAadhaar,
-  isAadhaarValid
-} from '@/lib/customer/kyc-identifiers';
+import { normalizeAadhaar } from '@/lib/customer/kyc-identifiers';
 
 export type AadhaarInputFieldProps = {
   value: string;
@@ -22,21 +19,15 @@ export type AadhaarInputFieldProps = {
 
 function getRealtimeError(raw: string): string | undefined {
   const digits = normalizeAadhaar(raw);
-  if (!digits) return undefined;
-  if (/^[01]/.test(digits)) {
-    return 'Aadhaar cannot start with 0 or 1.';
-  }
-  if (digits.length === 12 && !isAadhaarValid(digits)) {
-    return 'Enter a valid 12-digit Aadhaar number.';
-  }
-  return undefined;
+  if (!digits || digits.length === 12) return undefined;
+  return 'Aadhaar must be 12 digits.';
 }
 
 export function AadhaarInputField({
   value,
   onChange,
   label = 'Aadhaar number',
-  placeholder = '1234 5678 9012',
+  placeholder = '123456789012',
   id,
   inputClassName,
   labelClassName,

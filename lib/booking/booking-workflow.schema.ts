@@ -66,7 +66,7 @@ export const bookingBuyerKycSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['aadhaar_last4'],
-        message: 'Enter a valid 12-digit Aadhaar number.'
+        message: 'Aadhaar must be 12 digits.'
       });
     }
   });
@@ -105,19 +105,13 @@ export function parseBookingBuyerPanInlineError(pan_number: string): string | un
   return undefined;
 }
 
-/** Inline Aadhaar validation while typing: required, length, then checksum. */
+/** Inline Aadhaar validation while typing: required, then 12 digits. */
 export function parseBookingBuyerAadhaarInlineError(
   aadhaar_last4: string
 ): string | undefined {
   const raw = String(aadhaar_last4 ?? '').replace(/\D/g, '');
   if (!raw) return 'Aadhaar number is required.';
-  if (/^[01]/.test(raw)) {
-    return 'Enter a valid 12-digit Aadhaar number.';
-  }
   if (raw.length < 12) return 'Aadhaar must be 12 digits.';
-  if (!isAadhaarValid(raw)) {
-    return 'Enter a valid 12-digit Aadhaar number.';
-  }
   return undefined;
 }
 

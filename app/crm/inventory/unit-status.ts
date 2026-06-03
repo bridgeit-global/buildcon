@@ -45,7 +45,7 @@ export const STATUS_COLOR: Record<string, string> = {
   AGREEMENT: '#8B5CF6',
   REGISTERED: '#6366F1',
   PRE_POSSESSION: '#14B8A6',
-  POSSESSED: '#059669',
+  POSSESSED: '#B54708',
   CANCELLED: '#EF4444',
   A: '#22C55E',
   BL: '#64748B',

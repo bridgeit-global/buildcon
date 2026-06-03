@@ -38,7 +38,7 @@ const optionalAadhaar = z.string().refine(
     const raw = String(v ?? '').trim();
     return !raw || isAadhaarValid(raw);
   },
-  { message: 'Enter a valid 12-digit Aadhaar number.' }
+  { message: 'Aadhaar must be 12 digits.' }
 );
 
 const pinOptional = z.string().refine(
@@ -100,7 +100,7 @@ const requiredAadhaar = z.string().superRefine((v, ctx) => {
   } else if (!isAadhaarValid(raw)) {
     ctx.addIssue({
       code: 'custom',
-      message: 'Enter a valid 12-digit Aadhaar number.'
+      message: 'Aadhaar must be 12 digits.'
     });
   }
 });
@@ -164,7 +164,7 @@ export const kycUploadSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['aadhaar_last4'],
-        message: 'Enter a valid 12-digit Aadhaar number.'
+        message: 'Aadhaar must be 12 digits.'
       });
     }
     if (!data.hasFile) {

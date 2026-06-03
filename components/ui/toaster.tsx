@@ -52,7 +52,8 @@ const SEVERITY_STYLES: Record<
 function ToastItem({ toast: item }: { toast: ToastRecord }) {
   const styles = SEVERITY_STYLES[item.severity];
   const Icon = styles.Icon;
-  const hasBody = Boolean(item.title || item.description);
+  const title = item.title?.trim() || 'Notice';
+  const description = item.description?.trim() || title;
 
   return (
     <div
@@ -65,22 +66,8 @@ function ToastItem({ toast: item }: { toast: ToastRecord }) {
     >
       <Icon className={cn('mt-0.5 size-5 shrink-0', styles.icon)} aria-hidden />
       <div className="min-w-0 flex-1">
-        {item.title ? (
-          <p className="text-sm font-semibold leading-snug">{item.title}</p>
-        ) : null}
-        {item.description ? (
-          <p
-            className={cn(
-              'text-sm leading-snug text-ds-gray-600',
-              item.title ? 'mt-1' : ''
-            )}
-          >
-            {item.description}
-          </p>
-        ) : null}
-        {!hasBody ? (
-          <p className="text-sm font-medium">Notification</p>
-        ) : null}
+        <p className="text-sm font-semibold leading-snug">{title}</p>
+        <p className="mt-1 text-sm leading-snug text-ds-gray-600">{description}</p>
       </div>
       <button
         type="button"
