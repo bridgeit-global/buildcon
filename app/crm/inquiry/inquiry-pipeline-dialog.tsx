@@ -34,6 +34,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
@@ -392,23 +393,21 @@ function QualifiedForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label className="text-xs">Budget min (₹)</Label>
-          <Input
-            type="number"
+          <InrAmountInput
             className="h-8 text-xs"
             placeholder="50,00,000"
             value={data.budget_min ?? ''}
-            onChange={(e) => onChange({ ...data, budget_min: e.target.value })}
+            onChange={(v) => onChange({ ...data, budget_min: v })}
             disabled={readOnly}
           />
         </div>
         <div className="grid gap-1.5">
           <Label className="text-xs">Budget max (₹)</Label>
-          <Input
-            type="number"
+          <InrAmountInput
             className="h-8 text-xs"
             placeholder="80,00,000"
             value={data.budget_max ?? ''}
-            onChange={(e) => onChange({ ...data, budget_max: e.target.value })}
+            onChange={(v) => onChange({ ...data, budget_max: v })}
             disabled={readOnly}
           />
         </div>
@@ -884,18 +883,12 @@ function NegotiationForm({
         {discountMode === 'inr' ? (
           <div className="grid gap-1.5">
             <Label className="text-xs">Discount amount (₹)</Label>
-            <Input
-              type="number"
+            <InrAmountInput
               className="h-8 text-xs"
               placeholder="2,00,000"
-              max={
-                listPrice != null
-                  ? (listPrice * MAX_NEGOTIATION_DISCOUNT_PCT) / 100
-                  : undefined
-              }
               value={data.discount_inr ?? ''}
-              onChange={(e) => {
-                applyDiscountPatch({ discount_inr: e.target.value, discount_pct: '' });
+              onChange={(v) => {
+                applyDiscountPatch({ discount_inr: v, discount_pct: '' });
                 approvalValidation.touch('discountInr');
               }}
               onBlur={() => approvalValidation.touch('discountInr')}

@@ -9,6 +9,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
@@ -52,8 +53,8 @@ import {
 } from '@/lib/booking/load-booking-print-pack';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
 import {
-  formatDocumentDeliveryNotice,
-  notifyGeneratedBookingDocument
+  notifyGeneratedBookingDocument,
+  toastDocumentDeliveryResults
 } from '@/lib/booking/notify-booking-document';
 import { formatDisplayDate } from '@/lib/format-display-date';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
@@ -589,7 +590,7 @@ export default function BookingDetailPage() {
           pageError(r.error ?? 'Notification failed');
           return;
         }
-        toast.success(formatDocumentDeliveryNotice('Notification sent.', r));
+        toastDocumentDeliveryResults(r, { lead: 'Notification sent.' });
       } catch (e) {
         pageError(e instanceof Error ? e.message : 'Send failed');
       }
@@ -1374,12 +1375,14 @@ export default function BookingDetailPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Amount (INR)</Label>
-                      <Input
-                        value={stageData.token?.amount ?? String(booking.booking_amount ?? '')}
-                        onChange={(e) =>
+                      <InrAmountInput
+                        value={
+                          stageData.token?.amount ?? String(booking.booking_amount ?? '')
+                        }
+                        onChange={(v) =>
                           setStageData((d) => ({
                             ...d,
-                            token: { ...d.token, amount: e.target.value }
+                            token: { ...d.token, amount: v }
                           }))
                         }
                       />

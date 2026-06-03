@@ -5,6 +5,7 @@ import { pageError, toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -322,15 +323,15 @@ export function CollectionManageDialog({
 
               <div className="space-y-1.5 lg:col-span-4">
                 <Label>Amount (₹)</Label>
-                <Input
+                <InrAmountInput
                   value={entryAmount}
-                  onChange={(e) => {
-                    setEntryAmount(e.target.value);
+                  onChange={(v) => {
+                    setEntryAmount(v);
                     touchCollectionField('entryAmount');
                   }}
                   onBlur={() => touchCollectionField('entryAmount')}
                   aria-invalid={collectionFieldError('entryAmount') ? true : undefined}
-                  placeholder="Amount"
+                  placeholder="1,00,000"
                   disabled={loading || saving}
                 />
                 <FormFieldError message={collectionFieldError('entryAmount')} />

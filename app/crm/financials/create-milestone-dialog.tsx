@@ -5,6 +5,7 @@ import { pageError, toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -218,11 +219,10 @@ export function CreateMilestoneDialog({
               <Label>
                 Amount (₹) <span className="text-ds-error-500">*</span>
               </Label>
-              <Input
+              <InrAmountInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                inputMode="numeric"
-                placeholder="Amount"
+                onChange={setAmount}
+                placeholder="1,00,000"
                 disabled={loading || saving}
                 aria-invalid={amountExceedsPending || amountExceedsBreakFrom ? true : undefined}
               />

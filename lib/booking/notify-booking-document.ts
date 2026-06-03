@@ -1,3 +1,5 @@
+import { toast } from '@/lib/toast';
+
 export type NotifyBookingDocumentResponse = {
   ok: boolean;
   docLabel?: string;
@@ -81,4 +83,46 @@ export function formatDocumentDeliveryNotice(
   }
 
   return bits.join(' ');
+}
+
+/** Per-channel success / skip / failure toasts (replaces a single combined banner). */
+export function toastDocumentDeliveryResults(
+  notify: NotifyBookingDocumentResponse,
+  opts?: { lead?: string; openWhatsApp?: boolean }
+): void {
+  const lead = opts?.lead?.trim();
+  if (lead) {
+    toast.success(lead);
+  }
+
+  if (notify.emailSent) {
+    toast.success('Email sent successfully');
+  } else if (notify.emailSkippedReason) {
+    toast.error({ title: 'Email not sent', description: notify.emailSkippedReason });
+  }
+
+  if (notify.smsSent) {
+    toast.success('SMS sent successfully');
+  } else if (notify.smsSkippedReason) {
+    toast.error({ title: 'SMS not sent', description: notify.smsSkippedReason });
+  }
+
+  if (notify.whatsappSent) {
+    toast.success('WhatsApp sent successfully');
+  } else if (notify.whatsappUrl) {
+    if (opts?.openWhatsApp !== false && typeof window !== 'undefined') {
+      window.open(notify.whatsappUrl, '_blank', 'noopener,noreferrer');
+    }
+    toast.info({
+      title: 'WhatsApp opened',
+      description:
+        'Prefilled message opened — press Send in WhatsApp to deliver to the customer.'
+    });
+  } else if (notify.whatsappSkippedReason) {
+    toast.error({ title: 'WhatsApp not sent', description: notify.whatsappSkippedReason });
+  }
+
+  if (!notify.ok && notify.error) {
+    toast.error(notify.error);
+  }
 }

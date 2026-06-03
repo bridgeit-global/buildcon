@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { pageError } from '@/lib/toast';
+import { pageError, toast } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -11,8 +11,8 @@ import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-
 import { isCustomerKycComplete } from '@/lib/customer/kyc-identifiers';
 import { generateAndNotifyBookingDocument } from '@/lib/booking/generate-and-notify-booking-document';
 import {
-  formatDocumentDeliveryNotice,
-  notifyGeneratedBookingDocument
+  notifyGeneratedBookingDocument,
+  toastDocumentDeliveryResults
 } from '@/lib/booking/notify-booking-document';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
@@ -65,7 +65,6 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const [printPack, setPrintPack] = useState<BookingPrintPack | null>(null);
   const [loadingPack, setLoadingPack] = useState(false);
   const [generatingKind, setGeneratingKind] = useState<BookingDocumentPrintKind | null>(null);
-  const [deliveryBanner, setDeliveryBanner] = useState('');
   const [docScheduleLabels, setDocScheduleLabels] = useState<Map<string, string>>(
     () => new Map()
   );
@@ -193,7 +192,6 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     async (kind: BookingDocumentPrintKind) => {
       if (!printPack) return;
       setGeneratingKind(kind);
-      setDeliveryBanner('');
       try {
         const r = await generateAndNotifyBookingDocument({
           supabase,
@@ -205,7 +203,9 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
           pageError(r.error);
           return;
         }
-        setDeliveryBanner('Document generated. Review it below, then click Send to notify the customer.');
+        toast.success(
+          'Document generated. Review it below, then click Send to notify the customer.'
+        );
         await refreshGenerated();
       } catch (e) {
         pageError(e instanceof Error ? e.message : 'Generate failed');
@@ -220,14 +220,13 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     async (generatedDocumentId: string) => {
       const bId = lockedBookingId || selectedBookingId;
       if (!bId) return;
-      setDeliveryBanner('');
       try {
         const r = await notifyGeneratedBookingDocument(bId, generatedDocumentId);
         if (!r.ok) {
           pageError(r.error ?? 'Notification failed');
           return;
         }
-        setDeliveryBanner(formatDocumentDeliveryNotice('Notification sent.', r));
+        toastDocumentDeliveryResults(r, { lead: 'Notification sent.' });
       } catch (e) {
         pageError(e instanceof Error ? e.message : 'Send failed');
       }
@@ -387,12 +386,6 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                         </Button>
                       ))}
                     </div>
-                  </div>
-                ) : null}
-
-                {deliveryBanner ? (
-                  <div className="rounded-lg border border-ds-primary-200 bg-ds-primary-50/70 px-3 py-2 text-sm text-ds-primary-900">
-                    {deliveryBanner}
                   </div>
                 ) : null}
 

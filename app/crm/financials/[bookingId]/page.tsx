@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../../_components/active-project-context';
 import { Card } from '@/components/ui/card';
@@ -16,12 +16,23 @@ import {
   buildBookingLedgerRows
 } from '../booking-ledger-table';
 import { requestGenerateBookingDocument } from '@/lib/booking/request-generate-booking-document';
-import { notifyGeneratedBookingDocument, formatDocumentDeliveryNotice } from '@/lib/booking/notify-booking-document';
+import {
+  notifyGeneratedBookingDocument,
+  toastDocumentDeliveryResults
+} from '@/lib/booking/notify-booking-document';
 import { parseKindFromBookingGeneratedPath, parseLinkIdFromBookingGeneratedPath } from '@/lib/booking/booking-generated-doc-kind';
 import { GENERATED_DOCUMENTS_LIST_SELECT } from '@/lib/crm/generated-documents-select';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { CollectionManageDialog } from '../collection-manage-dialog';
 import { CreateMilestoneDialog } from '../create-milestone-dialog';
+import {
+  EditMilestoneDialog,
+  type EditMilestoneSchedule
+} from '../edit-milestone-dialog';
+import {
+  DeleteMilestoneDialog,
+  type DeleteMilestoneSchedule
+} from '../delete-milestone-dialog';
 import { persistCollectionReceipt } from '@/lib/booking/persist-collection-receipt';
 
 type ScheduleRow = {
@@ -87,6 +98,10 @@ export default function FinancialsBookingPage() {
   );
   const [manageDefaultAmount, setManageDefaultAmount] = useState<number | null>(null);
   const [createMilestoneOpen, setCreateMilestoneOpen] = useState(false);
+  const [editMilestoneSchedule, setEditMilestoneSchedule] =
+    useState<EditMilestoneSchedule | null>(null);
+  const [deleteMilestoneSchedule, setDeleteMilestoneSchedule] =
+    useState<DeleteMilestoneSchedule | null>(null);
   const [showOnlyPending, setShowOnlyPending] = useState(false);
   async function loadFinancials() {
     if (!bookingId) return;
@@ -282,7 +297,7 @@ export default function FinancialsBookingPage() {
         pageError(typeof notify.error === 'string' ? notify.error : 'Send failed');
         return;
       }
-      toast.success(formatDocumentDeliveryNotice('Demand letter sent.', notify));
+      toastDocumentDeliveryResults(notify, { lead: 'Demand letter sent.' });
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Send failed');
     } finally {
@@ -298,7 +313,7 @@ export default function FinancialsBookingPage() {
         pageError(typeof notify.error === 'string' ? notify.error : 'Send failed');
         return;
       }
-      toast.success(formatDocumentDeliveryNotice('Payment receipt sent.', notify));
+      toastDocumentDeliveryResults(notify, { lead: 'Payment receipt sent.' });
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Send failed');
     } finally {
@@ -618,30 +633,87 @@ export default function FinancialsBookingPage() {
                 </div>
               );
             }}
-            actions={(row) => (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8"
-                  disabled={saving || loading || row.balance <= 0 || !row.id}
-                  onClick={() => {
-                    setManageDefaultScheduleId(row.id ?? null);
-                    setManageDefaultAmount(null);
-                    setManageOpen(true);
-                  }}
-                  title="Record a receipt against this instalment"
-                >
-                  Collect
-                </Button>
-              </div>
-            )}
+            actions={(row) => {
+              const received = row.received;
+              const canDelete = Boolean(row.id) && received === 0 && schedules.length > 1;
+              return (
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1"
+                    disabled={saving || loading || !row.id}
+                    onClick={() => {
+                      if (!row.id) return;
+                      setEditMilestoneSchedule({
+                        id: row.id,
+                        instalment_no: row.instalment_no,
+                        milestone: row.milestone,
+                        due_date: row.due_date,
+                        amount: row.amount,
+                        received,
+                        balance: row.balance
+                      });
+                    }}
+                    title="Edit milestone name, due date, or amount"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1 text-ds-error-700 hover:text-ds-error-800"
+                    disabled={saving || loading || !canDelete}
+                    onClick={() => {
+                      if (!row.id) return;
+                      setDeleteMilestoneSchedule({
+                        id: row.id,
+                        instalment_no: row.instalment_no,
+                        milestone: row.milestone,
+                        amount: row.amount,
+                        received
+                      });
+                    }}
+                    title={
+                      received > 0
+                        ? 'Cannot delete — collections exist on this instalment'
+                        : schedules.length <= 1
+                          ? 'Cannot delete the only instalment'
+                          : 'Delete milestone and return amount to another instalment'
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    disabled={saving || loading || row.balance <= 0 || !row.id}
+                    onClick={() => {
+                      setManageDefaultScheduleId(row.id ?? null);
+                      setManageDefaultAmount(null);
+                      setManageOpen(true);
+                    }}
+                    title="Record a receipt against this instalment"
+                  >
+                    Collect
+                  </Button>
+                </div>
+              );
+            }}
           />
         </div>
         <p className="mt-3 text-xs text-ds-gray-500">
-          Use <span className="font-semibold text-ds-gray-900">Demand</span> to store the demand
-          letter in Documents, and <span className="font-semibold text-ds-gray-900">Collect</span>{' '}
-          to record a receipt (auto-saves a payment receipt PDF).
+          Use <span className="font-semibold text-ds-gray-900">Edit</span> or{' '}
+          <span className="font-semibold text-ds-gray-900">Delete</span> on a milestone (delete only
+          when nothing has been collected). Use <span className="font-semibold text-ds-gray-900">Demand</span>{' '}
+          to store the demand letter in Documents, and{' '}
+          <span className="font-semibold text-ds-gray-900">Collect</span> to record a receipt
+          (auto-saves a payment receipt PDF).
         </p>
       </Card>
 
@@ -679,6 +751,44 @@ export default function FinancialsBookingPage() {
         pendingAmount={Math.max(0, totalBalance)}
         breakableSchedules={breakableSchedules}
         onSaved={() => loadFinancials()}
+      />
+
+      <EditMilestoneDialog
+        open={editMilestoneSchedule !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditMilestoneSchedule(null);
+        }}
+        bookingId={bookingId}
+        loading={loading}
+        schedule={editMilestoneSchedule}
+        takeFromSchedules={breakableSchedules.filter(
+          (s) => s.id !== editMilestoneSchedule?.id
+        )}
+        returnToSchedules={schedules
+          .filter((s) => s.id !== editMilestoneSchedule?.id)
+          .map((s) => ({
+            id: s.id,
+            instalment_no: s.instalment_no,
+            milestone: s.milestone
+          }))}
+        onSaved={() => loadFinancials()}
+      />
+
+      <DeleteMilestoneDialog
+        open={deleteMilestoneSchedule !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteMilestoneSchedule(null);
+        }}
+        loading={loading}
+        schedule={deleteMilestoneSchedule}
+        mergeTargets={schedules
+          .filter((s) => s.id !== deleteMilestoneSchedule?.id)
+          .map((s) => ({
+            id: s.id,
+            instalment_no: s.instalment_no,
+            milestone: s.milestone
+          }))}
+        onDeleted={() => loadFinancials()}
       />
 
       <PdfViewerDialog

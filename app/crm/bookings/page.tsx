@@ -26,6 +26,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { RequiredMark } from '@/components/ui/required-mark';
@@ -1737,15 +1738,15 @@ export default function BookingsPage() {
                 {unitSaleTotalInr.toLocaleString('en-IN')}
               </p>
             ) : null}
-            <Input
+            <InrAmountInput
               value={bookingAmount}
-              onChange={(e) => {
-                setBookingAmount(e.target.value);
+              onChange={(v) => {
+                setBookingAmount(v);
                 touchCreateField('bookingAmount');
               }}
               onBlur={() => touchCreateField('bookingAmount')}
               aria-invalid={createFieldError('bookingAmount') ? true : undefined}
-              placeholder="500000"
+              placeholder="5,00,000"
               className="mt-1"
             />
             <FormFieldError message={createFieldError('bookingAmount')} />
