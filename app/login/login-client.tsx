@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -134,6 +135,24 @@ export function LoginClient() {
             After sign-up, your admin should grant you access to projects via
             `project_members`.
           </div>
+
+          <p className="text-center text-xs text-gray-500">
+            By continuing, you agree to our{' '}
+            <Link
+              href="/terms-of-service"
+              className="font-medium text-ds-primary-600 hover:text-ds-primary-700"
+            >
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link
+              href="/privacy-policy"
+              className="font-medium text-ds-primary-600 hover:text-ds-primary-700"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>
