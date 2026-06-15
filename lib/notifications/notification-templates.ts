@@ -15,6 +15,8 @@ export type NotificationDocumentContext = {
   fileName: string;
   unitCode?: string | null;
   projectName?: string | null;
+  /** When set, overrides the WABA template name from document kind. */
+  whatsappTemplateName?: string | null;
 };
 
 export type WhatsappTemplateSpec = {
@@ -75,29 +77,15 @@ function applySmsPlaceholders(
 function templateNameFor(kind: BookingDocumentPrintKind): string {
 
   return 'buildcon_application_form';
-  const env = process.env;
-  const map: Record<BookingDocumentPrintKind, string> = {
-    'application-form':
-      env.WHATSAPP_TEMPLATE_APPLICATION_FORM ?? 'buildcon_application_form',
-    'allotment-letter':
-      env.WHATSAPP_TEMPLATE_ALLOTMENT_LETTER ?? 'buildcon_allotment_letter',
-    receipt: env.WHATSAPP_TEMPLATE_RECEIPT ?? 'buildcon_payment_receipt',
-    'demand-letter': env.WHATSAPP_TEMPLATE_DEMAND_LETTER ?? 'buildcon_demand_letter',
-    agreement: env.WHATSAPP_TEMPLATE_AGREEMENT ?? 'buildcon_sale_agreement',
-    'registration-deed':
-      env.WHATSAPP_TEMPLATE_REGISTRATION_DEED ?? 'buildcon_registration_deed',
-    'possession-letter':
-      env.WHATSAPP_TEMPLATE_POSSESSION_LETTER ?? 'buildcon_possession_letter'
-  };
-  return map[kind];
 }
 
 export function buildWhatsappTemplateSpec(
   recipient: NotificationRecipient,
   doc: NotificationDocumentContext
 ): WhatsappTemplateSpec {
+  // const templateOverride = doc.whatsappTemplateName?.trim();
   return {
-    name: templateNameFor(doc.kind),
+    name:  templateNameFor(doc.kind),
     languageCode: process.env.WHATSAPP_DEFAULT_LANGUAGE_CODE ?? 'en',
     bodyParams: [
       recipient.fullName || 'Customer',

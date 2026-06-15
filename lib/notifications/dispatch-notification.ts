@@ -98,24 +98,59 @@ export async function dispatchGeneratedDocumentNotification(
     projectName: unitInfo?.project_name ?? null
   };
 
+  return dispatchDocumentToRecipient(
+    admin,
+    {
+      generatedDocumentId,
+      projectId: gen.row.project_id,
+      bookingId: gen.row.booking_id,
+      unitId: unitInfo?.unit_id ?? null,
+      customerId: gen.row.customer_id,
+      recipient,
+      docCtx,
+      customerPhoneRaw: customer?.phone ?? null
+    },
+    opts
+  );
+}
+
+export type DispatchDocumentToRecipientInput = {
+  generatedDocumentId: string;
+  projectId: string;
+  bookingId: string | null;
+  unitId: string | null;
+  customerId: string | null;
+  recipient: NotificationRecipient;
+  docCtx: NotificationDocumentContext;
+  customerPhoneRaw?: string | null;
+};
+
+/** Sends a signed document to a recipient over email, SMS, and WhatsApp. */
+export async function dispatchDocumentToRecipient(
+  admin: SupabaseClient,
+  input: DispatchDocumentToRecipientInput,
+  opts?: DispatchNotificationOpts
+): Promise<DispatchNotificationResult> {
+  const { recipient, docCtx } = input;
+
   const emailResult = opts?.skipEmail
     ? skipped('Email channel disabled for this dispatch.')
     : await sendEmailChannel(recipient, docCtx);
 
   const smsResult = opts?.skipSms
     ? skipped('SMS channel disabled for this dispatch.')
-    : await sendSmsChannel(recipient, docCtx, customer?.phone ?? null);
+    : await sendSmsChannel(recipient, docCtx, input.customerPhoneRaw ?? null);
 
   const whatsappResult = opts?.skipWhatsapp
     ? { ...skipped('WhatsApp channel disabled for this dispatch.'), fallbackShareUrl: null }
     : await sendWhatsappChannel(recipient, docCtx, opts?.preferShareLink ?? false);
 
   await persistChannelOutcome(admin, {
-    generatedDocumentId,
-    projectId: gen.row.project_id,
-    bookingId: gen.row.booking_id,
-    unitId: unitInfo?.unit_id ?? null,
-    customerId: gen.row.customer_id,
+    generatedDocumentId: input.generatedDocumentId,
+    projectId: input.projectId,
+    bookingId: input.bookingId,
+    unitId: input.unitId,
+    customerId: input.customerId,
     templateName: null,
     channel: 'email',
     provider: 'smtp',
@@ -124,27 +159,25 @@ export async function dispatchGeneratedDocumentNotification(
   });
 
   await persistChannelOutcome(admin, {
-    generatedDocumentId,
-    projectId: gen.row.project_id,
-    bookingId: gen.row.booking_id,
-    unitId: unitInfo?.unit_id ?? null,
-    customerId: gen.row.customer_id,
+    generatedDocumentId: input.generatedDocumentId,
+    projectId: input.projectId,
+    bookingId: input.bookingId,
+    unitId: input.unitId,
+    customerId: input.customerId,
     templateName: null,
     channel: 'sms',
     provider: 'smsalert',
-    recipient: phoneToSmsMobileNo(customer?.phone ?? null),
+    recipient: phoneToSmsMobileNo(input.customerPhoneRaw ?? null),
     result: smsResult
   });
 
   await persistChannelOutcome(admin, {
-    generatedDocumentId,
-    projectId: gen.row.project_id,
-    bookingId: gen.row.booking_id,
-    unitId: unitInfo?.unit_id ?? null,
-    customerId: gen.row.customer_id,
-    templateName: docKind
-      ? buildWhatsappTemplateSpec(recipient, docCtx).name
-      : null,
+    generatedDocumentId: input.generatedDocumentId,
+    projectId: input.projectId,
+    bookingId: input.bookingId,
+    unitId: input.unitId,
+    customerId: input.customerId,
+    templateName: buildWhatsappTemplateSpec(recipient, docCtx).name,
     channel: 'whatsapp',
     provider: 'meta_cloud',
     recipient: recipient.phoneE164Digits,
@@ -156,8 +189,8 @@ export async function dispatchGeneratedDocumentNotification(
       emailResult.status !== 'failed' &&
       smsResult.status !== 'failed' &&
       whatsappResult.status !== 'failed',
-    docLabel,
-    signedUrl: signed.url,
+    docLabel: docCtx.docLabel,
+    signedUrl: docCtx.signedUrl,
     email: emailResult,
     sms: smsResult,
     whatsapp: whatsappResult

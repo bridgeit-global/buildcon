@@ -183,9 +183,14 @@ export function computeBookingCostBreakdown(
     }
   }
 
+  let gstAmountInr = 0;
+  let stampDutyEstimateInr = 0;
+  let registrationEstimateInr = 0;
+
   if (pricing?.gst_registered && (pricing.gst_percent ?? 0) > 0) {
     const pct = Number(pricing.gst_percent) || 0;
     const gstAmt = Math.round(grandTotalInr * (pct / 100));
+    gstAmountInr = gstAmt;
     pricingRows.push([
       `GST (est. ${pct}%)`,
       gstAmt > 0 ? `₹ ${formatInr(gstAmt)}` : '—'
@@ -193,6 +198,7 @@ export function computeBookingCostBreakdown(
     grandTotalInr += gstAmt;
   } else if (options?.applyDefaultGst && agreementDwellingInr > 0) {
     const gstAmt = Math.round(agreementDwellingInr * 0.05);
+    gstAmountInr = gstAmt;
     pricingRows.push([
       'GST (est. 5%)',
       `₹ ${formatInr(gstAmt)} (₹ ${gstAmt.toLocaleString('en-IN')})`
@@ -203,6 +209,7 @@ export function computeBookingCostBreakdown(
   if (pricing && (pricing.stamp_duty_percent ?? 0) > 0) {
     const pct = Number(pricing.stamp_duty_percent) || 0;
     const stamp = Math.round(agreementDwellingInr * (pct / 100));
+    stampDutyEstimateInr = stamp;
     pricingRows.push([
       `Stamp duty (est. ${pct}% of dwelling)`,
       stamp > 0 ? `₹ ${formatInr(stamp)}` : '—'
@@ -212,6 +219,7 @@ export function computeBookingCostBreakdown(
 
   if (pricing && (pricing.registration_fee ?? 0) > 0) {
     const reg = Math.round(Number(pricing.registration_fee));
+    registrationEstimateInr = reg;
     pricingRows.push(['Registration (est.)', `₹ ${formatInr(reg)}`]);
     grandTotalInr += reg;
   }
@@ -230,6 +238,9 @@ export function computeBookingCostBreakdown(
     lac,
     parkingExtraInr,
     grandTotalInr,
+    gstAmountInr,
+    stampDutyEstimateInr,
+    registrationEstimateInr,
     slotsAsked,
     slotRate,
     rows,

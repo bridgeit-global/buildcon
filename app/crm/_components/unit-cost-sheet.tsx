@@ -1,7 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Loader2, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { sendInquiryCostSheetWithToasts } from '@/lib/inquiry/notify-inquiry-cost-sheet';
 import {
   computeBookingCostBreakdown,
   type ProjectParkingMeta,
@@ -10,6 +13,16 @@ import {
 } from '../booking-cost-utils';
 import { formatInrCompactLacCr } from '../inr-format';
 import { BookingCostRows } from './booking-cost-rows';
+
+export type CostSheetSendContext = {
+  inquiryId: string;
+  unitId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  disabled?: boolean;
+  disabledReason?: string;
+};
 
 type UnitCostSheetProps = {
   unit: UnitCostInput;
@@ -20,6 +33,7 @@ type UnitCostSheetProps = {
   /** When project has no GST config, show 5% GST estimate on dwelling (inquiry / quotation). */
   applyDefaultGst?: boolean;
   className?: string;
+  sendContext?: CostSheetSendContext | null;
 };
 
 export function UnitCostSheet({
@@ -29,8 +43,11 @@ export function UnitCostSheet({
   projectParking,
   projectPricing = null,
   applyDefaultGst = true,
-  className
+  className,
+  sendContext = null
 }: UnitCostSheetProps) {
+  const [sending, setSending] = useState(false);
+
   const breakdown = useMemo(() => {
     const slotRate =
       projectParking?.parking_rate != null && projectParking.parking_rate > 0
@@ -59,6 +76,41 @@ export function UnitCostSheet({
 
   const projectLabel = String(unit.project_name || '').trim();
 
+  const sendDisabledReason = useMemo(() => {
+    if (!sendContext) return null;
+    if (sendContext.disabled && sendContext.disabledReason) {
+      return sendContext.disabledReason;
+    }
+    if (!String(sendContext.inquiryId || '').trim()) {
+      return 'Save enquiry details first to send the cost sheet.';
+    }
+    if (
+      !String(sendContext.customerPhone || '').trim() &&
+      !String(sendContext.customerEmail || '').trim()
+    ) {
+      return 'Add customer mobile or email before sending.';
+    }
+    if (sendContext.disabled) return 'Sending is disabled for this enquiry.';
+    return null;
+  }, [sendContext]);
+
+  async function handleSendCostSheet() {
+    if (!sendContext || sendDisabledReason || sending) return;
+    setSending(true);
+    try {
+      await sendInquiryCostSheetWithToasts(sendContext.inquiryId, {
+        unitId: sendContext.unitId,
+        parkingRequired,
+        parkingCount,
+        customerName: sendContext.customerName,
+        customerEmail: sendContext.customerEmail,
+        customerPhone: sendContext.customerPhone
+      });
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -67,7 +119,7 @@ export function UnitCostSheet({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ds-gray-100 pb-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-wide text-ds-gray-500">
             Cost sheet
           </p>
@@ -79,17 +131,44 @@ export function UnitCostSheet({
             {unit.wing_name || '—'}
           </p>
         </div>
-        {breakdown.grandTotalInr > 0 ? (
-          <div className="rounded-lg bg-ds-primary-50 px-3 py-2 text-right ring-1 ring-ds-primary-100">
-            <p className="text-[10px] font-semibold uppercase text-ds-primary-700">
-              Est. total
-            </p>
-            <p className="text-sm font-bold text-ds-primary-800">
-              {formatInrCompactLacCr(breakdown.grandTotalInr)}
-            </p>
-          </div>
-        ) : null}
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          {breakdown.grandTotalInr > 0 ? (
+            <div className="rounded-lg bg-ds-primary-50 px-3 py-2 text-right ring-1 ring-ds-primary-100">
+              <p className="text-[10px] font-semibold uppercase text-ds-primary-700">
+                Est. total
+              </p>
+              <p className="text-sm font-bold text-ds-primary-800">
+                {formatInrCompactLacCr(breakdown.grandTotalInr)}
+              </p>
+            </div>
+          ) : null}
+          {sendContext ? (
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-10 gap-1.5"
+              disabled={Boolean(sendDisabledReason) || sending}
+              title={sendDisabledReason ?? undefined}
+              onClick={() => void handleSendCostSheet()}
+            >
+              {sending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Send className="size-4" aria-hidden />
+              )}
+              {sending ? 'Sending…' : 'Send cost sheet'}
+            </Button>
+          ) : null}
+        </div>
       </div>
+
+      {sendContext && sendDisabledReason ? (
+        <p className="mt-2 text-[11px] text-ds-gray-500">{sendDisabledReason}</p>
+      ) : sendContext ? (
+        <p className="mt-2 text-[11px] text-ds-gray-500">
+          Sends the PDF to the customer via email, SMS, and WhatsApp (when configured).
+        </p>
+      ) : null}
 
       <section className="mt-4">
         <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-ds-gray-500">

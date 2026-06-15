@@ -36,7 +36,7 @@ import type {
   ProjectParkingMeta,
   ProjectPricingMeta
 } from '../booking-cost-utils';
-import { UnitCostSheet } from '../_components/unit-cost-sheet';
+import { UnitCostSheet, type CostSheetSendContext } from '../_components/unit-cost-sheet';
 import {
   formatInrCompactLacCr,
   formatUnitAgreementValueCompact,
@@ -567,6 +567,7 @@ type InquiryUnitPickerProps = {
   parkingCount?: string;
   /** Unit already linked to this enquiry — blocked units may be re-selected. */
   inquiryHeldUnitId?: string | null;
+  costSheetSend?: CostSheetSendContext | null;
 };
 
 export function InquiryUnitPicker({
@@ -586,7 +587,8 @@ export function InquiryUnitPicker({
   projectPricing = null,
   parkingRequired = 'No',
   parkingCount = '1',
-  inquiryHeldUnitId = null
+  inquiryHeldUnitId = null,
+  costSheetSend = null
 }: InquiryUnitPickerProps) {
   const [previewUnit, setPreviewUnit] = useState<UnitRow | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -710,6 +712,11 @@ export function InquiryUnitPicker({
                   projectParking={projectParking}
                   projectPricing={projectPricing}
                   className="border-0 p-0 shadow-none"
+                  sendContext={
+                    costSheetSend
+                      ? { ...costSheetSend, unitId: previewUnit.id }
+                      : null
+                  }
                 />
                 <p className="mt-3 text-[11px] leading-snug text-ds-gray-600">
                   {unitStatusInquiryStageHint(previewUnit.status)}
@@ -1087,6 +1094,11 @@ export function InquiryUnitPicker({
               parkingCount={parkingCount}
               projectParking={projectParking}
               projectPricing={projectPricing}
+              sendContext={
+                costSheetSend
+                  ? { ...costSheetSend, unitId: selectedUnit.id }
+                  : null
+              }
             />
           </div>
         )

@@ -1979,6 +1979,19 @@ export const NewInquiryWizard = forwardRef<
             projectPricing={projectPricing}
             parkingRequired={sellerForm.parkingRequired}
             parkingCount={sellerForm.parkingCount}
+            costSheetSend={{
+              inquiryId: activeInquiryId,
+              unitId: sellerForm.selectedUnitId,
+              customerName: sellerForm.customerName,
+              customerEmail: sellerForm.email,
+              customerPhone: sellerForm.phone,
+              disabled: stagesReadOnly || !activeInquiryId,
+              disabledReason: !activeInquiryId
+                ? 'Save enquiry details first to send the cost sheet.'
+                : stagesReadOnly
+                  ? INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE
+                  : undefined
+            }}
           />
           <FormFieldError message={step2Validation.fieldError('selectedUnitId')} />
         </div>
