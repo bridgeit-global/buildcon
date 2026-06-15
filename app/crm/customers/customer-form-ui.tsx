@@ -2,11 +2,10 @@
 
 import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
-import { Input } from '@/components/ui/input';
-import { FieldLabel } from '@/components/ui/field-label';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
+import { TextareaField } from '@/components/ui/textarea-field';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { PanInputField } from '@/components/ui/pan-input-field';
@@ -24,10 +23,7 @@ import { cn } from '@/lib/utils';
 export const CUSTOMER_FORM_DIALOG_CLASS =
   'flex max-h-[min(90vh,720px)] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
 
-export function FormFieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return <p className="mt-1 text-xs text-red-600">{message}</p>;
-}
+export { FormFieldError } from '@/components/ui/form-field-error';
 
 type BaseProps<T extends FieldValues> = {
   control: Control<T>;
@@ -54,17 +50,16 @@ export function RhfTextInput<T extends FieldValues>({
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <div className={className}>
-          <FieldLabel required={required}>{label}</FieldLabel>
-          <Input
-            {...field}
-            value={field.value ?? ''}
-            aria-invalid={fieldState.error ? true : undefined}
-            placeholder={placeholder}
-            className={cn(formControlFieldGapClass, inputClassName)}
-          />
-          <FormFieldError message={fieldState.error?.message} />
-        </div>
+        <TextInputField
+          {...field}
+          value={field.value ?? ''}
+          label={label}
+          required={required}
+          placeholder={placeholder}
+          inputClassName={inputClassName}
+          className={className}
+          error={fieldState.error?.message}
+        />
       )}
     />
   );
@@ -174,17 +169,14 @@ export function RhfTextarea<T extends FieldValues>({
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <div className={className}>
-          <Label>{label}</Label>
-          <Textarea
-            {...field}
-            value={field.value ?? ''}
-            aria-invalid={fieldState.error ? true : undefined}
-            rows={rows}
-            className="mt-1"
-          />
-          <FormFieldError message={fieldState.error?.message} />
-        </div>
+        <TextareaField
+          {...field}
+          value={field.value ?? ''}
+          label={label}
+          rows={rows}
+          className={className}
+          error={fieldState.error?.message}
+        />
       )}
     />
   );
@@ -223,17 +215,13 @@ export function CustomerProfileFields<T extends FieldValues>({
         control={control}
         name={'dob' as FieldPath<T>}
         render={({ field, fieldState }) => (
-          <div>
-            <Label>Date of birth</Label>
-            <Input
-              type="date"
-              {...field}
-              value={field.value ?? ''}
-              aria-invalid={fieldState.error ? true : undefined}
-              className={formControlFieldGapClass}
-            />
-            <FormFieldError message={fieldState.error?.message} />
-          </div>
+          <TextInputField
+            {...field}
+            value={field.value ?? ''}
+            label="Date of birth"
+            type="date"
+            error={fieldState.error?.message}
+          />
         )}
       />
       <RhfTextInput

@@ -6,6 +6,9 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
+import { FieldLabel } from '@/components/ui/field-label';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -56,6 +59,7 @@ export function CreateMilestoneDialog({
   const [dueDate, setDueDate] = useState('');
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -64,6 +68,7 @@ export function CreateMilestoneDialog({
     setDueDate('');
     setAmount('');
     setSaving(false);
+    setSubmitAttempted(false);
   }, [open, breakableSchedules]);
 
   const milestoneTrim = milestone.trim();
@@ -73,6 +78,30 @@ export function CreateMilestoneDialog({
   const breakFromBalance = Math.max(0, breakFrom?.balance ?? 0);
   const amountExceedsPending = Number.isFinite(amountNum) && amountNum > pending;
   const amountExceedsBreakFrom = Number.isFinite(amountNum) && amountNum > breakFromBalance;
+
+  function fieldError(field: 'breakFrom' | 'milestone' | 'amount') {
+    if (!submitAttempted) return undefined;
+    if (field === 'breakFrom' && !breakFromScheduleId) {
+      return 'Select an instalment to split.';
+    }
+    if (field === 'milestone' && !milestoneTrim) {
+      return 'Milestone name is required.';
+    }
+    if (field === 'amount') {
+      if (!Number.isFinite(amountNum) || amountNum <= 0) {
+        return 'Enter a valid amount.';
+      }
+      if (amountExceedsPending) {
+        return `Amount cannot exceed pending balance (₹ ${Math.round(pending)}).`;
+      }
+      if (amountExceedsBreakFrom) {
+        return `Amount cannot exceed selected instalment pending (₹ ${Math.round(
+          breakFromBalance
+        )}).`;
+      }
+    }
+    return undefined;
+  }
 
   const canSave =
     !loading &&
@@ -87,6 +116,7 @@ export function CreateMilestoneDialog({
     !amountExceedsBreakFrom;
 
   async function save() {
+    setSubmitAttempted(true);
     if (!canSave) {
       pageError(
         amountExceedsPending
@@ -156,15 +186,16 @@ export function CreateMilestoneDialog({
         <div className="px-4 py-4 sm:px-6">
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-1.5">
-              <Label>
-                Break from <span className="text-ds-error-500">*</span>
-              </Label>
+              <FieldLabel required>Break from</FieldLabel>
               <Select
                 value={breakFromScheduleId}
                 onValueChange={(v) => setBreakFromScheduleId(v)}
                 disabled={loading || saving || breakableSchedules.length === 0}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className="w-full"
+                  aria-invalid={fieldError('breakFrom') ? true : undefined}
+                >
                   <SelectValue placeholder="Select an instalment to split" />
                 </SelectTrigger>
                 <SelectContent>
@@ -179,6 +210,7 @@ export function CreateMilestoneDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <FormFieldError message={fieldError('breakFrom')} />
               <p className="text-xs text-ds-gray-500">
                 The entered amount will be deducted from the selected instalment’s pending.
               </p>
@@ -189,50 +221,40 @@ export function CreateMilestoneDialog({
               <Input value={String(nextInstalmentNo)} disabled />
             </div>
 
-            <div className="space-y-1.5">
-              <Label>
-                Milestone <span className="text-ds-error-500">*</span>
-              </Label>
-              <Input
-                value={milestone}
-                onChange={(e) => setMilestone(e.target.value)}
-                placeholder="e.g. Plinth complete"
-                disabled={loading || saving}
-              />
-            </div>
+            <TextInputField
+              label="Milestone"
+              required
+              value={milestone}
+              onChange={(e) => setMilestone(e.target.value)}
+              error={fieldError('milestone')}
+              placeholder="e.g. Plinth complete"
+              disabled={loading || saving}
+            />
+
+            <TextInputField
+              label="Due date"
+              type="date"
+              inputClassName="min-w-42 pr-10"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              disabled={loading || saving}
+            />
+            <p className="text-xs text-ds-gray-500">
+              Optional. CLD stage completion may update due dates later.
+            </p>
 
             <div className="space-y-1.5">
-              <Label>Due date</Label>
-              <Input
-                type="date"
-                className="min-w-42 pr-10"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                disabled={loading || saving}
-              />
-              <p className="text-xs text-ds-gray-500">
-                Optional. CLD stage completion may update due dates later.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Amount (₹) <span className="text-ds-error-500">*</span>
-              </Label>
+              <FieldLabel required>Amount (₹)</FieldLabel>
               <InrAmountInput
                 value={amount}
                 onChange={setAmount}
                 placeholder="1,00,000"
                 disabled={loading || saving}
-                aria-invalid={amountExceedsPending || amountExceedsBreakFrom ? true : undefined}
+                aria-invalid={fieldError('amount') ? true : undefined}
               />
+              <FormFieldError message={fieldError('amount')} />
               {pending > 0 ? (
-                <p
-                  className={`text-xs ${amountExceedsPending || amountExceedsBreakFrom
-                    ? 'text-ds-error-600'
-                    : 'text-ds-gray-500'
-                    }`}
-                >
+                <p className="text-xs text-ds-gray-500">
                   Max allowed: ₹ {Math.round(Math.min(pending, breakFromBalance || pending))}{' '}
                   (pending)
                 </p>

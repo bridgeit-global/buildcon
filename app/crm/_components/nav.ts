@@ -123,6 +123,13 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         icon: FileText
       },
       {
+        id: 'financials',
+        pageTitle: 'Collections & accounts',
+        label: 'Financials',
+        href: '/crm/financials',
+        icon: HandCoins
+      },
+      {
         id: 'possession',
         pageTitle: 'Possession & handover',
         label: 'Possession & handover',
@@ -148,20 +155,6 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         label: 'Inventory',
         href: '/crm/inventory',
         icon: LayoutGrid
-      }
-    ]
-  },
-
-  {
-    id: 'moneyConstruction',
-    label: 'Money & construction',
-    items: [
-      {
-        id: 'financials',
-        pageTitle: 'Collections & accounts',
-        label: 'Financials',
-        href: '/crm/financials',
-        icon: HandCoins
       }
     ]
   },

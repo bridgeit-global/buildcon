@@ -456,6 +456,8 @@ function SelectedUnitCard({
 }
 
 type InquiryUnitPickerProps = {
+  /** All CRM projects for grid project picker (falls back to projects inferred from units). */
+  projects?: { id: string; name: string }[];
   /** Full project inventory — only available (and this enquiry's held) units are selectable. */
   units: UnitRow[];
   loadingUnits: boolean;
@@ -478,6 +480,7 @@ type InquiryUnitPickerProps = {
 };
 
 export function InquiryUnitPicker({
+  projects: projectsProp,
   units,
   loadingUnits,
   selectedUnit,
@@ -505,10 +508,22 @@ export function InquiryUnitPicker({
     return units.filter((u) => u.project_id === pid);
   }, [units, filters.projectId]);
 
-  const projectFilterOptions = useMemo(
-    () => buildProjectFilterOptions(units),
-    [units]
-  );
+  const projectFilterOptions = useMemo((): [string, string][] => {
+    if (projectsProp && projectsProp.length > 0) {
+      return projectsProp
+        .map(
+          (p): [string, string] => [
+            String(p.id || '').trim(),
+            String(p.name || '').trim() || 'Untitled project'
+          ]
+        )
+        .filter(([id]) => Boolean(id))
+        .sort((a, b) =>
+          a[1].localeCompare(b[1], undefined, { sensitivity: 'base' })
+        );
+    }
+    return buildProjectFilterOptions(units);
+  }, [projectsProp, units]);
 
   const filterOptions = useMemo(
     () => buildUnitPickFilterOptions(unitsAfterProject),
@@ -534,10 +549,9 @@ export function InquiryUnitPicker({
   const gridProjectId = useMemo(() => {
     const fromFilter = String(filters.projectId || '').trim();
     if (fromFilter) return fromFilter;
-    const projects = buildProjectFilterOptions(units);
-    if (projects.length === 1) return projects[0][0];
+    if (projectFilterOptions.length === 1) return projectFilterOptions[0][0];
     return '';
-  }, [filters.projectId, units]);
+  }, [filters.projectId, projectFilterOptions]);
 
   const gridUnits = useMemo(() => {
     if (!gridProjectId) return [];
@@ -854,19 +868,47 @@ export function InquiryUnitPicker({
 
       {/* Results */}
       <div>
+        {viewMode === 'grid' && projectFilterOptions.length > 1 ? (
+          <div className="mb-3 max-w-md">
+            <FilterSelect
+              label="Project"
+              value={gridProjectId || UNIT_FILTER_ALL}
+              onValueChange={(v) =>
+                setFilters((f) => ({
+                  ...f,
+                  projectId: v === UNIT_FILTER_ALL ? '' : v,
+                  unitType: '',
+                  floor: '',
+                  structure: '',
+                  unitNo: ''
+                }))
+              }
+              allLabel="Select a project…"
+              options={projectFilterOptions.map(([id, name]) => ({
+                value: id,
+                label: name
+              }))}
+            />
+          </div>
+        ) : null}
         <p className="mb-2 text-[11px] text-ds-gray-500">
           {viewMode === 'grid'
-            ? hasActivePickFilters
-              ? 'Inventory grid — only available units can be selected; others stay visible but disabled. Units that do not match filters are dimmed.'
-              : 'Inventory grid by wing and floor. Available units can be selected; all other statuses are shown disabled with full details.'
+            ? !gridProjectId
+              ? 'Choose a project, then pick a unit from the inventory grid.'
+              : hasActivePickFilters
+                ? 'Inventory grid — only available units can be selected; others stay visible but disabled. Units that do not match filters are dimmed.'
+                : 'Inventory grid by wing and floor. Available units can be selected; all other statuses are shown disabled with full details.'
             : 'Available units can be selected. Other statuses are listed disabled — tap to preview, not to book.'}
         </p>
         <div className="max-h-[min(400px,52vh)] overflow-y-auto rounded-xl border border-ds-gray-200 bg-ds-gray-50/40 p-2">
           {viewMode === 'grid' ? (
             !gridProjectId ? (
               <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-4 text-xs text-ds-gray-600">
-                Select a project (or narrow to a single project) to show the
-                inventory grid.
+                {projectFilterOptions.length === 0
+                  ? 'No projects available — check project access or inventory setup.'
+                  : projectFilterOptions.length === 1
+                    ? 'Loading project inventory…'
+                    : 'Select a project above to load the wing and floor grid.'}
               </div>
             ) : gridUnits.length === 0 ? (
               <div className="rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-4 text-xs text-ds-warning-900">

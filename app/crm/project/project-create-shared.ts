@@ -1,4 +1,5 @@
 import type { FloorProvisionDraft, StructureNode } from './project-structure-utils';
+import { z } from 'zod';
 import {
   countProjectUnits,
   deriveLegacyWingsFromStructures,
@@ -49,6 +50,34 @@ export function parseUnitTypesCsv(csv: string): string[] {
   }
   return out;
 }
+
+export const createProjectStep0Schema = z.object({
+  name: z.string().trim().min(1, 'Project name is required.'),
+  location: z.string().trim().min(1, 'Location is required.')
+});
+
+export const createProjectStep1FieldsSchema = z.object({
+  unitTypesCsv: z.string().superRefine((val, ctx) => {
+    if (!parseUnitTypesCsv(val).length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Add at least one unit type (comma-separated, e.g. 1BHK, 2BHK).'
+      });
+    }
+  })
+});
+
+export const createProjectStep3Schema = z.object({
+  base_rate: z.number().min(0, 'Rate cannot be negative.'),
+  min_rate: z.number().min(0, 'Rate cannot be negative.'),
+  max_rate: z.number().min(0, 'Rate cannot be negative.')
+});
+
+export type CreateProjectStep0Values = z.infer<typeof createProjectStep0Schema>;
+export type CreateProjectStep1FieldValues = z.infer<
+  typeof createProjectStep1FieldsSchema
+>;
+export type CreateProjectStep3Values = z.infer<typeof createProjectStep3Schema>;
 
 /** First unit type from step 2 CSV (default for step 3 unit rows). */
 export function firstUnitTypeFromCsv(csv: string): string {
@@ -128,6 +157,7 @@ export function validateCreateStep(
 ): string | null {
   if (step === 0) {
     if (!draft.name.trim()) return 'Project name is required.';
+    if (!draft.location.trim()) return 'Location is required.';
     return null;
   }
   if (step === 1) {

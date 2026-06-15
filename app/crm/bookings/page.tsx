@@ -25,6 +25,7 @@ import {
 } from '../inventory/unit-status';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { FieldLabel } from '@/components/ui/field-label';
@@ -94,7 +95,7 @@ import {
 } from '@/lib/booking/booking-create.schema';
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
 import { zodFieldErrors } from '@/lib/form/zod-field-errors';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
 
 type UnitOption = {
   id: string;
@@ -1371,7 +1372,10 @@ export default function BookingsPage() {
               itemCount={units.length}
               items={units}
               selectedId={unitId}
-              onSelect={setUnitId}
+              onSelect={(id) => {
+                setUnitId(id);
+                touchCreateField('unitId');
+              }}
               emptyMessage="No blocked units match your search."
               searchPlaceholder="Search by code, wing, floor, type…"
               triggerPlaceholder="Choose a blocked unit…"
@@ -1404,6 +1408,7 @@ export default function BookingsPage() {
                 </span>
               )}
             />
+            <FormFieldError message={createFieldError('unitId')} />
           </div>
 
           <div className="col-span-2">
@@ -1413,7 +1418,10 @@ export default function BookingsPage() {
               itemCount={customers.length}
               items={customers}
               selectedId={customerId}
-              onSelect={setCustomerId}
+              onSelect={(id) => {
+                setCustomerId(id);
+                touchCreateField('customerId');
+              }}
               emptyMessage="No customers match your search."
               emptyFooter={({ query, closePopover }) => (
                 <Button
@@ -1482,6 +1490,7 @@ export default function BookingsPage() {
                 </span>
               )}
             />
+            <FormFieldError message={createFieldError('customerId')} />
           </div>
 
           <div className="col-span-2 space-y-3 rounded-xl border border-border bg-muted/30 p-4">
@@ -1677,58 +1686,49 @@ export default function BookingsPage() {
             <FormFieldError message={createFieldError('loanBank')} />
           </div>
           {paymentMode === 'UPI' ? (
-            <div className="col-span-2">
-              <Label>UPI UTR</Label>
-              <Input
-                value={upiUtr}
-                onChange={(e) => {
-                  setUpiUtr(e.target.value);
-                  touchCreateField('upiUtr');
-                }}
-                onBlur={() => touchCreateField('upiUtr')}
-                aria-invalid={createFieldError('upiUtr') ? true : undefined}
-                placeholder="Bank reference / UTR"
-                className="mt-1"
-                autoComplete="off"
-              />
-              <FormFieldError message={createFieldError('upiUtr')} />
-            </div>
+            <TextInputField
+              className="col-span-2"
+              label="UPI UTR"
+              value={upiUtr}
+              onChange={(e) => {
+                setUpiUtr(e.target.value);
+                touchCreateField('upiUtr');
+              }}
+              onBlur={() => touchCreateField('upiUtr')}
+              error={createFieldError('upiUtr')}
+              placeholder="Bank reference / UTR"
+              autoComplete="off"
+            />
           ) : null}
           {paymentMode === 'Cheque' ? (
-            <div className="col-span-2">
-              <Label>Cheque number</Label>
-              <Input
-                value={chequeNo}
-                onChange={(e) => {
-                  setChequeNo(e.target.value);
-                  touchCreateField('chequeNo');
-                }}
-                onBlur={() => touchCreateField('chequeNo')}
-                aria-invalid={createFieldError('chequeNo') ? true : undefined}
-                placeholder="Cheque no."
-                className="mt-1"
-                autoComplete="off"
-              />
-              <FormFieldError message={createFieldError('chequeNo')} />
-            </div>
+            <TextInputField
+              className="col-span-2"
+              label="Cheque number"
+              value={chequeNo}
+              onChange={(e) => {
+                setChequeNo(e.target.value);
+                touchCreateField('chequeNo');
+              }}
+              onBlur={() => touchCreateField('chequeNo')}
+              error={createFieldError('chequeNo')}
+              placeholder="Cheque no."
+              autoComplete="off"
+            />
           ) : null}
           {paymentMode === 'NEFT/RTGS' ? (
-            <div className="col-span-2">
-              <Label>NEFT / RTGS reference</Label>
-              <Input
-                value={neftRef}
-                onChange={(e) => {
-                  setNeftRef(e.target.value);
-                  touchCreateField('neftRef');
-                }}
-                onBlur={() => touchCreateField('neftRef')}
-                aria-invalid={createFieldError('neftRef') ? true : undefined}
-                placeholder="Transaction reference"
-                className="mt-1"
-                autoComplete="off"
-              />
-              <FormFieldError message={createFieldError('neftRef')} />
-            </div>
+            <TextInputField
+              className="col-span-2"
+              label="NEFT / RTGS reference"
+              value={neftRef}
+              onChange={(e) => {
+                setNeftRef(e.target.value);
+                touchCreateField('neftRef');
+              }}
+              onBlur={() => touchCreateField('neftRef')}
+              error={createFieldError('neftRef')}
+              placeholder="Transaction reference"
+              autoComplete="off"
+            />
           ) : null}
           <div className="col-span-2">
             <Label>Booking amount (₹)</Label>
@@ -1921,27 +1921,23 @@ export default function BookingsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <div className="space-y-1.5">
-              <FieldLabel htmlFor="new-cust-name" required>
-                Full name
-              </FieldLabel>
-              <Input
-                id="new-cust-name"
-                value={newCustomerDraft.full_name}
-                onChange={(e) => {
-                  setNewCustomerDraft((d) => ({
-                    ...d,
-                    full_name: e.target.value
-                  }));
-                  touchNewCustomerField('full_name');
-                }}
-                onBlur={() => touchNewCustomerField('full_name')}
-                aria-invalid={newCustomerFieldError('full_name') ? true : undefined}
-                placeholder="Name as on records"
-                autoComplete="name"
-              />
-              <FormFieldError message={newCustomerFieldError('full_name')} />
-            </div>
+            <TextInputField
+              id="new-cust-name"
+              label="Full name"
+              required
+              value={newCustomerDraft.full_name}
+              onChange={(e) => {
+                setNewCustomerDraft((d) => ({
+                  ...d,
+                  full_name: e.target.value
+                }));
+                touchNewCustomerField('full_name');
+              }}
+              onBlur={() => touchNewCustomerField('full_name')}
+              error={newCustomerFieldError('full_name')}
+              placeholder="Name as on records"
+              autoComplete="name"
+            />
             <PhoneInputField
               value={newCustomerDraft.phone}
               onChange={(v) => {

@@ -8,10 +8,12 @@ import { ArrowLeft, Check, Eye, FileText, Loader2, Upload } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldLabel } from '@/components/ui/field-label';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -64,7 +66,11 @@ import {
   buildMatrixRows
 } from '@/app/crm/documents/booking-documents-matrix-table';
 import { BookingNotificationsCard } from '@/app/crm/bookings/booking-notifications-card';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextareaField } from '@/components/ui/textarea-field';
+import { PanInputField } from '@/components/ui/pan-input-field';
+import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
+import { EmailInputField } from '@/components/ui/email-input-field';
 import {
   bookingAllotmentSchema,
   bookingCancelSchema,
@@ -146,6 +152,8 @@ export default function BookingDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNotes, setCancelNotes] = useState('');
+  const [cancelSubmitAttempted, setCancelSubmitAttempted] = useState(false);
+  const [allotmentDateTouched, setAllotmentDateTouched] = useState(false);
   const [refundPreview, setRefundPreview] = useState<{
     refund_amount: number;
     deduction_amount: number;
@@ -442,6 +450,20 @@ export default function BookingDetailPage() {
 
   const workflowStage = (booking?.workflow_stage ?? 'token') as BookingWorkflowStage;
   const cancelled = booking?.status === 'cancelled';
+
+  const allotmentDateError = useMemo(() => {
+    if (!allotmentDateTouched) return undefined;
+    const parsed = bookingAllotmentSchema.safeParse({
+      allotment_date: String(stageData.allotment?.allotment_date ?? '')
+    });
+    return parsed.success ? undefined : parsed.error.issues[0]?.message;
+  }, [allotmentDateTouched, stageData.allotment?.allotment_date]);
+
+  const cancelReasonError = useMemo(() => {
+    if (!cancelSubmitAttempted) return undefined;
+    const parsed = bookingCancelSchema.safeParse({ cancelReason });
+    return parsed.success ? undefined : parsed.error.issues[0]?.message;
+  }, [cancelSubmitAttempted, cancelReason]);
 
   const refreshConfirmationGenerated = useCallback(async () => {
     if (!bookingId) return;
@@ -1222,9 +1244,9 @@ export default function BookingDetailPage() {
 
   async function submitCancellation() {
     if (!booking) return;
+    setCancelSubmitAttempted(true);
     const parsed = bookingCancelSchema.safeParse({ cancelReason });
     if (!parsed.success) {
-      pageError(parsed.error.issues[0]?.message ?? 'Select a cancellation reason.');
       return;
     }
     setSaving(true);
@@ -1387,19 +1409,17 @@ export default function BookingDetailPage() {
                         }
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Date</Label>
-                      <Input
-                        type="date"
-                        value={stageData.token?.date ?? ''}
-                        onChange={(e) =>
-                          setStageData((d) => ({
-                            ...d,
-                            token: { ...d.token, date: e.target.value }
-                          }))
-                        }
-                      />
-                    </div>
+                    <TextInputField
+                      label="Date"
+                      type="date"
+                      value={stageData.token?.date ?? ''}
+                      onChange={(e) =>
+                        setStageData((d) => ({
+                          ...d,
+                          token: { ...d.token, date: e.target.value }
+                        }))
+                      }
+                    />
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Payment mode</Label>
                       <Input
@@ -1475,121 +1495,109 @@ export default function BookingDetailPage() {
                       </div>
 
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {/* Full Name */}
-                        <div className="space-y-1">
-                          <FieldLabel required>Full Name</FieldLabel>
-                          <Input
-                            value={b.fullName}
-                            placeholder="Full Name"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, fullName: e.target.value } : r
-                                )
+                        <TextInputField
+                          label="Full Name"
+                          required
+                          value={b.fullName}
+                          placeholder="Full Name"
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, fullName: e.target.value } : r
                               )
-                            }
-                            aria-invalid={!!errs.fullName}
-                          />
-                          <FormFieldError message={errs.fullName} />
-                        </div>
+                            )
+                          }
+                          error={errs.fullName}
+                        />
 
-                        {/* Guardian Name */}
-                        <div className="space-y-1">
-                          <FieldLabel required>Father&apos;s/Mother&apos;s/Spouse&apos;s Name</FieldLabel>
-                          <Input
-                            value={b.guardian_name ?? ''}
-                            placeholder="Guardian name"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, guardian_name: e.target.value } : r
-                                )
+                        <TextInputField
+                          label="Father's/Mother's/Spouse's Name"
+                          required
+                          value={b.guardian_name ?? ''}
+                          placeholder="Guardian name"
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, guardian_name: e.target.value } : r
                               )
-                            }
-                            aria-invalid={!!errs.guardian_name}
-                          />
-                          <FormFieldError message={errs.guardian_name} />
-                        </div>
+                            )
+                          }
+                          error={errs.guardian_name}
+                        />
 
-                        {/* Date of Birth */}
-                        <div className="space-y-1">
-                          <FieldLabel required>Date of Birth</FieldLabel>
-                          <Input
-                            type="date"
-                            value={b.dob ?? ''}
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, dob: e.target.value } : r
-                                )
+                        <TextInputField
+                          label="Date of Birth"
+                          required
+                          type="date"
+                          value={b.dob ?? ''}
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, dob: e.target.value } : r
                               )
-                            }
-                            aria-invalid={!!errs.dob}
-                          />
-                          <FormFieldError message={errs.dob} />
-                        </div>
+                            )
+                          }
+                          error={errs.dob}
+                        />
 
-                        {/* PAN */}
-                        <div className="space-y-1">
-                          <FieldLabel required>PAN</FieldLabel>
-                          <Input
-                            value={b.pan}
-                            maxLength={10}
-                            className="uppercase"
-                            placeholder="ABCDE1234F"
-                            onChange={(e) => {
-                              const pan = normalizePan(e.target.value);
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, pan } : r
-                                )
-                              );
-                              setBuyerKycBlurError(b.customerId, 'pan', parseBookingBuyerPanInlineError(pan));
-                            }}
-                            aria-invalid={!!errs.pan || !!buyerKycFieldErrors[b.customerId]?.pan}
-                          />
-                          <FormFieldError message={errs.pan || buyerKycFieldErrors[b.customerId]?.pan} />
-                        </div>
-
-                        {/* Aadhaar */}
-                        <div className="space-y-1">
-                          <FieldLabel required>Aadhaar No.</FieldLabel>
-                          <Input
-                            value={b.aadhaarLast4}
-                            maxLength={12}
-                            inputMode="numeric"
-                            placeholder="123456789012"
-                            onChange={(e) => {
-                              const aadhaarLast4 = normalizeAadhaar(e.target.value);
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, aadhaarLast4 } : r
-                                )
-                              );
-                              setBuyerKycBlurError(b.customerId, 'aadhaar', parseBookingBuyerAadhaarInlineError(aadhaarLast4));
-                            }}
-                            aria-invalid={!!errs.aadhaar || !!buyerKycFieldErrors[b.customerId]?.aadhaar}
-                          />
-                          <FormFieldError message={errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar} />
-                        </div>
-
-                        {/* Nationality */}
-                        <div className="space-y-1">
-                          <FieldLabel required>Nationality</FieldLabel>
-                          <Input
-                            value={b.nationality ?? ''}
-                            placeholder="Indian"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, nationality: e.target.value } : r
-                                )
+                        <PanInputField
+                          label="PAN"
+                          required
+                          value={b.pan}
+                          placeholder="ABCDE1234F"
+                          onChange={(pan) => {
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, pan } : r
                               )
-                            }
-                            aria-invalid={!!errs.nationality}
-                          />
-                          <FormFieldError message={errs.nationality} />
-                        </div>
+                            );
+                            setBuyerKycBlurError(
+                              b.customerId,
+                              'pan',
+                              parseBookingBuyerPanInlineError(pan)
+                            );
+                          }}
+                          error={errs.pan || buyerKycFieldErrors[b.customerId]?.pan}
+                        />
+
+                        <AadhaarInputField
+                          label="Aadhaar No."
+                          required
+                          value={b.aadhaarLast4}
+                          placeholder="123456789012"
+                          onChange={(aadhaarLast4) => {
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, aadhaarLast4 }
+                                  : r
+                              )
+                            );
+                            setBuyerKycBlurError(
+                              b.customerId,
+                              'aadhaar',
+                              parseBookingBuyerAadhaarInlineError(aadhaarLast4)
+                            );
+                          }}
+                          error={
+                            errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar
+                          }
+                        />
+
+                        <TextInputField
+                          label="Nationality"
+                          required
+                          value={b.nationality ?? ''}
+                          placeholder="Indian"
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, nationality: e.target.value } : r
+                              )
+                            )
+                          }
+                          error={errs.nationality}
+                        />
 
                         {/* Residential Status */}
                         <div className="space-y-1">
@@ -1616,76 +1624,64 @@ export default function BookingDetailPage() {
                           <FormFieldError message={errs.residential_status} />
                         </div>
 
-                        {/* Occupation / Profession */}
-                        <div className="space-y-1">
-                          <Label className="text-xs text-ds-gray-600">Profession / Occupation</Label>
-                          <Input
-                            value={b.occupation ?? ''}
-                            placeholder="e.g. Business, Service, Professional"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, occupation: e.target.value } : r
-                                )
+                        <TextInputField
+                          label="Profession / Occupation"
+                          labelClassName="text-xs text-ds-gray-600"
+                          value={b.occupation ?? ''}
+                          placeholder="e.g. Business, Service, Professional"
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, occupation: e.target.value } : r
                               )
-                            }
-                          />
-                        </div>
+                            )
+                          }
+                        />
 
-                        {/* Passport No. */}
-                        <div className="space-y-1">
-                          <Label className="text-xs text-ds-gray-600">Passport No. (NRI/Foreign)</Label>
-                          <Input
-                            value={b.passport_number ?? ''}
-                            placeholder="Passport number"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, passport_number: e.target.value } : r
-                                )
+                        <TextInputField
+                          label="Passport No. (NRI/Foreign)"
+                          labelClassName="text-xs text-ds-gray-600"
+                          value={b.passport_number ?? ''}
+                          placeholder="Passport number"
+                          onChange={(e) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, passport_number: e.target.value } : r
                               )
-                            }
-                          />
-                        </div>
+                            )
+                          }
+                        />
                       </div>
 
                       {/* Contact Details */}
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1">
-                          <FieldLabel required>Mobile No.</FieldLabel>
-                          <Input
-                            value={b.phone ?? ''}
-                            inputMode="tel"
-                            maxLength={10}
-                            placeholder="10-digit mobile"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, phone: e.target.value.replace(/\D/g, '') } : r
-                                )
+                        <PhoneInputField
+                          label="Mobile No."
+                          required
+                          value={b.phone ?? ''}
+                          placeholder="10-digit mobile"
+                          onChange={(v) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, phone: v } : r
                               )
-                            }
-                            aria-invalid={!!errs.phone}
-                          />
-                          <FormFieldError message={errs.phone} />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-ds-gray-600">Email Id</Label>
-                          <Input
-                            value={b.email ?? ''}
-                            type="email"
-                            placeholder="email@example.com"
-                            onChange={(e) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, email: e.target.value } : r
-                                )
+                            )
+                          }
+                          error={errs.phone}
+                        />
+                        <EmailInputField
+                          label="Email Id"
+                          value={b.email ?? ''}
+                          placeholder="email@example.com"
+                          onChange={(email) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId ? { ...r, email } : r
                               )
-                            }
-                            aria-invalid={!!errs.email}
-                          />
-                          <FormFieldError message={errs.email} />
-                        </div>
+                            )
+                          }
+                          error={errs.email}
+                        />
                       </div>
 
                       {/* Permanent Address */}
@@ -1743,7 +1739,7 @@ export default function BookingDetailPage() {
                           city={b.communicationAddress?.city ?? ''}
                           state={b.communicationAddress?.state ?? ''}
                           pin={b.communicationAddress?.pin ?? ''}
-                          addressLineInvalid={!!errs.comm_address}
+                          addressLineError={errs.comm_address}
                           onAddressLineChange={(val) =>
                             setBuyerKyc((rows) =>
                               rows.map((r) =>
@@ -1781,25 +1777,22 @@ export default function BookingDetailPage() {
                             )
                           }
                         />
-                        <FormFieldError message={errs.comm_address} />
                       </div>
 
-                      {/* Office Name & Address */}
-                      <div className="space-y-1">
-                        <Label className="text-xs text-ds-gray-600">Office Name &amp; Address</Label>
-                        <Textarea
-                          value={b.office_name_address ?? ''}
-                          placeholder="Office name and address"
-                          rows={2}
-                          onChange={(e) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, office_name_address: e.target.value } : r
-                              )
+                      <TextareaField
+                        label="Office Name & Address"
+                        labelClassName="text-xs text-ds-gray-600"
+                        value={b.office_name_address ?? ''}
+                        placeholder="Office name and address"
+                        rows={2}
+                        onChange={(e) =>
+                          setBuyerKyc((rows) =>
+                            rows.map((r) =>
+                              r.customerId === b.customerId ? { ...r, office_name_address: e.target.value } : r
                             )
-                          }
-                        />
-                      </div>
+                          )
+                        }
+                      />
 
                       {/* KYC Documents Status & Upload */}
                       <div className="flex flex-col gap-2 border-t border-ds-gray-100 pt-3">
@@ -2024,19 +2017,21 @@ export default function BookingDetailPage() {
             <Card className="space-y-4 p-4">
               <h2 className="font-semibold text-ds-gray-900">Allotment</h2>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Allotment date <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="date"
-                    value={stageData.allotment?.allotment_date ?? ''}
-                    onChange={(e) =>
-                      setStageData((d) => ({
-                        ...d,
-                        allotment: { ...d.allotment, allotment_date: e.target.value }
-                      }))
-                    }
-                  />
-                </div>
+                <TextInputField
+                  label="Allotment date"
+                  required
+                  type="date"
+                  value={stageData.allotment?.allotment_date ?? ''}
+                  onChange={(e) => {
+                    setStageData((d) => ({
+                      ...d,
+                      allotment: { ...d.allotment, allotment_date: e.target.value }
+                    }));
+                    setAllotmentDateTouched(true);
+                  }}
+                  onBlur={() => setAllotmentDateTouched(true)}
+                  error={allotmentDateError}
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -2301,7 +2296,13 @@ export default function BookingDetailPage() {
         />
       )}
 
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+      <Dialog
+        open={cancelOpen}
+        onOpenChange={(open) => {
+          setCancelOpen(open);
+          if (!open) setCancelSubmitAttempted(false);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel booking</DialogTitle>
@@ -2315,10 +2316,12 @@ export default function BookingDetailPage() {
               <FieldLabel required>Reason</FieldLabel>
               <Select
                 value={cancelReason}
-                onValueChange={setCancelReason}
-                aria-invalid={!cancelReason ? true : undefined}
+                onValueChange={(v) => {
+                  setCancelReason(v);
+                  setCancelSubmitAttempted(true);
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-invalid={cancelReasonError ? true : undefined}>
                   <SelectValue placeholder="Select reason" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2335,11 +2338,13 @@ export default function BookingDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <FormFieldError message={cancelReasonError} />
             </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Input value={cancelNotes} onChange={(e) => setCancelNotes(e.target.value)} />
-            </div>
+            <TextInputField
+              label="Notes"
+              value={cancelNotes}
+              onChange={(e) => setCancelNotes(e.target.value)}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCancelOpen(false)}>

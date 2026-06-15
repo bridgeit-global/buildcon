@@ -6,7 +6,8 @@ import {
   projectDetailsSchema,
   projectPricingSchema
 } from '@/lib/project/project-manage.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { TextInputField } from '@/components/ui/text-input-field';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CrmProjectListItem } from '../_components/types';
@@ -314,24 +315,23 @@ export function ProjectManageDialog({
           {!loading && tab === 'details' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-1 sm:col-span-2">
-                <Label className="text-xs text-ds-gray-500">Project name</Label>
-                <Input
+                <TextInputField
+                  label="Project name"
+                  labelClassName="text-xs text-ds-gray-500"
                   value={name}
                   onChange={(e) => {
                     setName(e.target.value);
                     detailsValidation.touch('name');
                   }}
                   onBlur={() => detailsValidation.touch('name')}
-                  aria-invalid={
-                    detailsValidation.fieldError('name') ? true : undefined
-                  }
+                  error={detailsValidation.fieldError('name')}
                   disabled={!canEditDetails}
                 />
-                <FormFieldError message={detailsValidation.fieldError('name')} />
               </div>
               <div className="grid gap-1 sm:col-span-2">
-                <Label className="text-xs text-ds-gray-500">Location</Label>
-                <Input
+                <TextInputField
+                  label="Location"
+                  labelClassName="text-xs text-ds-gray-500"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   disabled={!canEditDetails}

@@ -6,6 +6,9 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
+import { FieldLabel } from '@/components/ui/field-label';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -70,6 +73,7 @@ export function EditMilestoneDialog({
   const [amount, setAmount] = useState('');
   const [adjustScheduleId, setAdjustScheduleId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     if (!open || !schedule) return;
@@ -77,6 +81,7 @@ export function EditMilestoneDialog({
     setDueDate(schedule.due_date ?? '');
     setAmount(String(Math.round(schedule.amount || 0)));
     setSaving(false);
+    setSubmitAttempted(false);
   }, [open, schedule]);
 
   const milestoneTrim = milestone.trim();
@@ -101,6 +106,30 @@ export function EditMilestoneDialog({
   const amountIncreaseExceedsAdjust =
     delta > 0 && Number.isFinite(amountNum) && delta > adjustBalance;
 
+  function fieldError(
+    field: 'milestone' | 'amount' | 'adjustScheduleId'
+  ): string | undefined {
+    if (!submitAttempted) return undefined;
+    if (field === 'milestone' && !milestoneTrim) {
+      return 'Milestone name is required.';
+    }
+    if (field === 'amount') {
+      if (!Number.isFinite(amountNum)) return 'Enter a valid amount.';
+      if (amountBelowReceived) {
+        return `Amount cannot be less than received (₹ ${Math.round(received)}).`;
+      }
+      if (amountIncreaseExceedsAdjust) {
+        return `Increase cannot exceed selected instalment pending (₹ ${Math.round(
+          adjustBalance
+        )}).`;
+      }
+    }
+    if (field === 'adjustScheduleId' && needsAdjust && !adjustScheduleId) {
+      return 'Select an instalment for the adjustment.';
+    }
+    return undefined;
+  }
+
   const canSave =
     !loading &&
     !saving &&
@@ -114,6 +143,7 @@ export function EditMilestoneDialog({
     (!needsAdjust || delta <= 0 || !amountIncreaseExceedsAdjust);
 
   async function save() {
+    setSubmitAttempted(true);
     if (!schedule?.id || !canSave) {
       pageError(
         amountBelowReceived
@@ -199,39 +229,34 @@ export function EditMilestoneDialog({
 
         <div className="px-4 py-4 sm:px-6">
           <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1.5">
-              <Label>
-                Milestone <span className="text-ds-error-500">*</span>
-              </Label>
-              <Input
-                value={milestone}
-                onChange={(e) => setMilestone(e.target.value)}
-                disabled={loading || saving || !schedule}
-              />
-            </div>
+            <TextInputField
+              label="Milestone"
+              required
+              value={milestone}
+              onChange={(e) => setMilestone(e.target.value)}
+              error={fieldError('milestone')}
+              disabled={loading || saving || !schedule}
+            />
+
+            <TextInputField
+              label="Due date"
+              type="date"
+              inputClassName="min-w-42 pr-10"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              disabled={loading || saving || !schedule}
+            />
 
             <div className="space-y-1.5">
-              <Label>Due date</Label>
-              <Input
-                type="date"
-                className="min-w-42 pr-10"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                disabled={loading || saving || !schedule}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Amount (₹) <span className="text-ds-error-500">*</span>
-              </Label>
+              <FieldLabel required>Amount (₹)</FieldLabel>
               <InrAmountInput
                 value={amount}
                 onChange={setAmount}
                 placeholder="1,00,000"
                 disabled={loading || saving || !schedule}
-                aria-invalid={amountBelowReceived || amountIncreaseExceedsAdjust ? true : undefined}
+                aria-invalid={fieldError('amount') ? true : undefined}
               />
+              <FormFieldError message={fieldError('amount')} />
               {received > 0 ? (
                 <p className="text-xs text-ds-gray-500">
                   Min amount: ₹ {Math.round(received)} (already received on this instalment).
@@ -241,16 +266,18 @@ export function EditMilestoneDialog({
 
             {needsAdjust && adjustOptions.length > 0 ? (
               <div className="space-y-1.5">
-                <Label>
-                  {delta > 0 ? 'Take increase from' : 'Return decrease to'}{' '}
-                  <span className="text-ds-error-500">*</span>
-                </Label>
+                <FieldLabel required>
+                  {delta > 0 ? 'Take increase from' : 'Return decrease to'}
+                </FieldLabel>
                 <Select
                   value={adjustScheduleId}
                   onValueChange={setAdjustScheduleId}
                   disabled={loading || saving}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger
+                    className="w-full"
+                    aria-invalid={fieldError('adjustScheduleId') ? true : undefined}
+                  >
                     <SelectValue placeholder="Select an instalment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -266,6 +293,7 @@ export function EditMilestoneDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <FormFieldError message={fieldError('adjustScheduleId')} />
                 <p className="text-xs text-ds-gray-500">
                   {delta > 0
                     ? `₹ ${Math.abs(delta)} will be deducted from the selected instalment.`

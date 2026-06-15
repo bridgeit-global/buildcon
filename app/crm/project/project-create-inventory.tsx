@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { applyDefaultUnitTypeToFloorProvisions } from './project-create-shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -752,10 +753,9 @@ function UnitConfigBlock({
           />
         </div>
         <div>
-          <Label className="text-[10px] text-muted-foreground">
-            Unit {uCfg.unitNo} type{' '}
-            <span className="text-ds-error-600">*</span>
-          </Label>
+          <FieldLabel className="text-[10px] text-muted-foreground" required>
+            Unit {uCfg.unitNo} type
+          </FieldLabel>
           <Select
             value={uCfg.type ? uCfg.type : UNIT_TYPE_UNSET_VALUE}
             onValueChange={(v) => {

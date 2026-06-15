@@ -19,7 +19,8 @@ import {
   resolveNegotiationDiscount,
   syncNegotiationDiscountFields
 } from '@/lib/inquiry/negotiation-discount';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
@@ -902,29 +903,23 @@ function NegotiationForm({
             />
           </div>
         ) : (
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Discount (%)</Label>
-            <Input
-              type="number"
-              className="h-8 text-xs"
-              placeholder="5"
-              step="0.01"
-              max={MAX_NEGOTIATION_DISCOUNT_PCT}
-              value={data.discount_pct ?? ''}
-              onChange={(e) => {
-                applyDiscountPatch({ discount_pct: e.target.value, discount_inr: '' });
-                approvalValidation.touch('discountPct');
-              }}
-              onBlur={() => approvalValidation.touch('discountPct')}
-              aria-invalid={
-                approvalValidation.fieldError('discountPct') ? true : undefined
-              }
-              disabled={formDisabled}
-            />
-            <FormFieldError
-              message={approvalValidation.fieldError('discountPct')}
-            />
-          </div>
+          <TextInputField
+            label="Discount (%)"
+            labelClassName="text-xs"
+            type="number"
+            inputClassName="h-8 text-xs"
+            placeholder="5"
+            step="0.01"
+            max={MAX_NEGOTIATION_DISCOUNT_PCT}
+            value={data.discount_pct ?? ''}
+            onChange={(e) => {
+              applyDiscountPatch({ discount_pct: e.target.value, discount_inr: '' });
+              approvalValidation.touch('discountPct');
+            }}
+            onBlur={() => approvalValidation.touch('discountPct')}
+            error={approvalValidation.fieldError('discountPct')}
+            disabled={formDisabled}
+          />
         )}
         <div className="grid gap-1.5">
           <Label className="text-xs">Price after discount (₹)</Label>

@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { EmailInputField } from '@/components/ui/email-input-field';
+import { TextInputField } from '@/components/ui/text-input-field';
+import { TextareaField } from '@/components/ui/textarea-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { Textarea } from '@/components/ui/textarea';
@@ -84,7 +86,7 @@ import {
   inquiryWizardStep2Schema,
   type InquiryWizardStep1Values
 } from '@/lib/inquiry/inquiry-wizard.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { InquiryFollowUpBanner } from './inquiry-follow-up-banner';
 import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
@@ -185,6 +187,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     email: '',
     leadSource: 'Direct' as (typeof LEAD_SOURCES)[number],
     brokerId: '',
+    projectId: '',
     interestedIn: '',
     preferredLocation: '',
     preferredWing: '',
@@ -245,6 +248,28 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }, [unitPickFilters.minBudget, unitPickFilters.maxBudget]);
 
   useEffect(() => {
+    if (accessibleProjects.length !== 1) return;
+    const onlyId = accessibleProjects[0].id;
+    setSellerForm((s) => (s.projectId ? s : { ...s, projectId: onlyId }));
+  }, [accessibleProjects]);
+
+  useEffect(() => {
+    const pid = String(sellerForm.projectId || '').trim();
+    if (!pid) return;
+    setUnitPickFilters((f) =>
+      f.projectId === pid
+        ? f
+        : { ...f, projectId: pid, unitType: '', floor: '', structure: '', unitNo: '' }
+    );
+  }, [sellerForm.projectId]);
+
+  useEffect(() => {
+    const pid = String(unitPickFilters.projectId || '').trim();
+    if (!pid) return;
+    setSellerForm((s) => (s.projectId === pid ? s : { ...s, projectId: pid }));
+  }, [unitPickFilters.projectId]);
+
+  useEffect(() => {
     const id = String(inquiryIdProp || '').trim();
     if (!id) return;
     let cancelled = false;
@@ -288,6 +313,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         setSellerForm((s) => ({
           ...s,
           ...(unitId ? { selectedUnitId: unitId } : {}),
+          projectId: String(row.project_id ?? '').trim() || s.projectId,
           ...(cust
             ? {
               customerName: String(cust.full_name ?? '').trim(),
@@ -489,17 +515,23 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }, [sellerForm, userLabel.id]);
 
   const applySellerPrefsToUnitFilters = useCallback(() => {
-    setUnitPickFilters(
-      unitPickFiltersFromSellerPreferences(units, {
+    setUnitPickFilters(() => {
+      const fromPrefs = unitPickFiltersFromSellerPreferences(units, {
         interestedIn: sellerForm.interestedIn,
         preferredLocation: sellerForm.preferredLocation,
         preferredWing: sellerForm.preferredWing,
         budgetMin: sellerForm.budgetMin,
         budgetMax: sellerForm.budgetMax
-      })
-    );
+      });
+      const explicitProject = String(sellerForm.projectId || '').trim();
+      return {
+        ...fromPrefs,
+        projectId: explicitProject || fromPrefs.projectId
+      };
+    });
   }, [
     units,
+    sellerForm.projectId,
     sellerForm.interestedIn,
     sellerForm.preferredLocation,
     sellerForm.preferredWing,
@@ -518,6 +550,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (fromPersisted) return fromPersisted;
     const fromUnit = String(selectedUnit?.project_id || '').trim();
     if (fromUnit) return fromUnit;
+    const fromForm = String(sellerForm.projectId || '').trim();
+    if (fromForm) return fromForm;
     const fromFilters = String(unitPickFilters.projectId || '').trim();
     if (fromFilters) return fromFilters;
     const prefFilters = unitPickFiltersFromSellerPreferences(units, {
@@ -536,6 +570,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
   }, [
     persistedInquiryProjectId,
     selectedUnit?.project_id,
+    sellerForm.projectId,
     unitPickFilters.projectId,
     sellerForm.interestedIn,
     sellerForm.preferredLocation,
@@ -733,6 +768,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         pageError('Fix the highlighted fields before continuing.');
         return;
       }
+      if (accessibleProjects.length > 1 && !String(sellerForm.projectId || '').trim()) {
+        pageError('Select a project before continuing.');
+        return;
+      }
     }
     if (!stepValid[step]) return;
     if (step === 1) {
@@ -771,6 +810,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         changeStep(1);
         return;
       }
+      if (accessibleProjects.length > 1 && !String(sellerForm.projectId || '').trim()) {
+        pageError('Select a project before continuing.');
+        return;
+      }
       setSaving(true);
       try {
         const customerId = await persistCustomerToDb();
@@ -798,6 +841,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       email: '',
       leadSource: 'Direct',
       brokerId: '',
+      projectId: accessibleProjects.length === 1 ? accessibleProjects[0].id : '',
       interestedIn: '',
       preferredLocation: '',
       preferredWing: '',
@@ -848,7 +892,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     const inquiryProjectId = resolveEnquiryProjectId();
     if (!inquiryProjectId) {
       pageError(
-        'Could not determine project. Enter a preferred location matching a project name, or pick a unit on the next step.'
+        accessibleProjects.length > 1
+          ? 'Select a project before continuing.'
+          : 'Could not determine project. Select a project or pick a unit.'
       );
       return false;
     }
@@ -945,7 +991,9 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       String(selectedUnit?.project_id || '').trim() || resolveEnquiryProjectId();
     if (!inquiryProjectId) {
       pageError(
-        'Could not determine project. Pick a unit or enter a preferred location matching a project name.'
+        accessibleProjects.length > 1
+          ? 'Select a project from the dropdown before continuing.'
+          : 'Could not determine project. Select a project or pick a unit.'
       );
       return;
     }
@@ -1307,6 +1355,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         <StepEnquiry
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
+          projects={accessibleProjects}
           brokers={brokers}
           signedIn={Boolean(userLabel.id)}
           fieldError={step1Validation.fieldError}
@@ -1329,6 +1378,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
             blocks inventory.
           </p>
           <InquiryUnitPicker
+            projects={accessibleProjects}
             units={units}
             inquiryHeldUnitId={inquiryHeldUnitId || null}
             loadingUnits={loadingUnits}
@@ -1443,6 +1493,7 @@ type SellerForm = {
   email: string;
   leadSource: (typeof LEAD_SOURCES)[number];
   brokerId: string;
+  projectId: string;
   interestedIn: string;
   preferredLocation: string;
   preferredWing: string;
@@ -1466,6 +1517,7 @@ const WIZARD_STEPS = STEPS.map((s) => ({
 function StepEnquiry({
   sellerForm,
   setSellerForm,
+  projects,
   brokers,
   signedIn,
   fieldError,
@@ -1474,12 +1526,16 @@ function StepEnquiry({
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
+  projects: { id: string; name: string }[];
   brokers: { id: string; full_name: string }[];
   signedIn: boolean;
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
   touch: (field: keyof InquiryWizardStep1Values) => void;
   readOnly?: boolean;
 }) {
+  const showProjectPicker = projects.length > 1;
+  const singleProject =
+    projects.length === 1 ? projects[0] : null;
   return (
     <div
       className={cn(
@@ -1494,23 +1550,20 @@ function StepEnquiry({
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
-          <FieldLabel className={wizardLabelClass} required>
-            Customer name
-          </FieldLabel>
-          <Input
-            className={wizardFieldClass}
-            value={sellerForm.customerName}
-            onChange={(e) => {
-              setSellerForm((s) => ({ ...s, customerName: e.target.value }));
-              touch('customerName');
-            }}
-            onBlur={() => touch('customerName')}
-            aria-invalid={fieldError('customerName') ? true : undefined}
-            placeholder="Full name"
-          />
-          <FormFieldError message={fieldError('customerName')} />
-        </div>
+        <TextInputField
+          label="Customer name"
+          labelClassName={wizardLabelClass}
+          inputClassName={wizardFieldClass}
+          value={sellerForm.customerName}
+          onChange={(e) => {
+            setSellerForm((s) => ({ ...s, customerName: e.target.value }));
+            touch('customerName');
+          }}
+          onBlur={() => touch('customerName')}
+          required
+          error={fieldError('customerName')}
+          placeholder="Full name"
+        />
         <PhoneInputField
           value={sellerForm.phone}
           onChange={(v) => {
@@ -1555,7 +1608,10 @@ function StepEnquiry({
               touch('leadSource');
             }}
           >
-            <SelectTrigger className={wizardSelectTriggerClass}>
+            <SelectTrigger
+              className={wizardSelectTriggerClass}
+              aria-invalid={fieldError('leadSource') ? true : undefined}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1566,6 +1622,7 @@ function StepEnquiry({
               ))}
             </SelectContent>
           </Select>
+          <FormFieldError message={fieldError('leadSource')} />
         </div>
 
         <div>
@@ -1615,33 +1672,71 @@ function StepEnquiry({
           What are they looking for?
         </p>
         <p className="mt-0.5 text-[11px] text-ds-gray-500">
-          Unit type, budget, location, and parking — before you pick a unit.
+          Project, unit type, budget, location, and parking — before you pick a
+          unit.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <Label className={wizardLabelClass}>Unit type / layout</Label>
-            <Input
-              className={wizardFieldClass}
-              placeholder="e.g. 2 BHK, corner, higher floor"
-              value={sellerForm.interestedIn}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <Label className={wizardLabelClass}>Preferred location / area</Label>
-            <Input
-              className={wizardFieldClass}
-              value={sellerForm.preferredLocation}
-              onChange={(e) =>
-                setSellerForm((s) => ({
-                  ...s,
-                  preferredLocation: e.target.value
-                }))
-              }
-            />
-          </div>
+          {showProjectPicker ? (
+            <div className="sm:col-span-2">
+              <FieldLabel className={wizardLabelClass} required>
+                Project
+              </FieldLabel>
+              <Select
+                value={
+                  sellerForm.projectId === '' ? undefined : sellerForm.projectId
+                }
+                onValueChange={(v) =>
+                  setSellerForm((s) => ({ ...s, projectId: v }))
+                }
+              >
+                <SelectTrigger className={wizardSelectTriggerClass}>
+                  <SelectValue placeholder="Select project…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!sellerForm.projectId.trim() ? (
+                <p className="mt-1 text-[10px] text-ds-warning-700">
+                  Required to save the enquiry.
+                </p>
+              ) : null}
+            </div>
+          ) : singleProject ? (
+            <div className="sm:col-span-2">
+              <Label className={wizardLabelClass}>Project</Label>
+              <p className="mt-1 rounded-lg border border-ds-gray-200 bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">
+                {singleProject.name}
+              </p>
+            </div>
+          ) : null}
+          <TextInputField
+            label="Unit type / layout"
+            labelClassName={wizardLabelClass}
+            inputClassName={wizardFieldClass}
+            placeholder="e.g. 2 BHK, corner, higher floor"
+            value={sellerForm.interestedIn}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
+            }
+          />
+          <TextInputField
+            label="Preferred area / locality"
+            labelClassName={wizardLabelClass}
+            inputClassName={wizardFieldClass}
+            placeholder="Optional — neighbourhood or landmark"
+            value={sellerForm.preferredLocation}
+            onChange={(e) =>
+              setSellerForm((s) => ({
+                ...s,
+                preferredLocation: e.target.value
+              }))
+            }
+          />
           <div>
             <Label className={wizardLabelClass}>Budget (₹)</Label>
             <div className="mt-1 grid grid-cols-2 gap-2">
@@ -1671,16 +1766,15 @@ function StepEnquiry({
               />
             </div>
           </div>
-          <div>
-            <Label className={wizardLabelClass}>Preferred wing / tower</Label>
-            <Input
-              className={wizardFieldClass}
-              value={sellerForm.preferredWing}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, preferredWing: e.target.value }))
-              }
-            />
-          </div>
+          <TextInputField
+            label="Preferred wing / tower"
+            labelClassName={wizardLabelClass}
+            inputClassName={wizardFieldClass}
+            value={sellerForm.preferredWing}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, preferredWing: e.target.value }))
+            }
+          />
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
@@ -1707,17 +1801,16 @@ function StepEnquiry({
             </div>
           </div>
         </div>
-        <div className="mt-3">
-          <Label className={wizardLabelClass}>Other requirements</Label>
-          <Textarea
-            value={sellerForm.notes}
-            onChange={(e) =>
-              setSellerForm((s) => ({ ...s, notes: e.target.value }))
-            }
-            rows={3}
-            className={wizardTextareaClass}
-          />
-        </div>
+        <TextareaField
+          label="Other requirements"
+          labelClassName={wizardLabelClass}
+          textareaClassName={wizardTextareaClass}
+          value={sellerForm.notes}
+          onChange={(e) =>
+            setSellerForm((s) => ({ ...s, notes: e.target.value }))
+          }
+          rows={3}
+        />
       </div>
     </div>
   );
@@ -1917,29 +2010,28 @@ function StepVisitSite({
           (Closed stage) and releases the unit.
         </p>
         <div className="mt-3 grid gap-3">
-          <div>
-            <Label className={wizardLabelClass}>Follow-up date</Label>
-            <Input
-              type="datetime-local"
-              className={cn(
-                wizardFieldClass,
-                followUpAssignedToMe &&
+          <TextInputField
+            label="Follow-up date"
+            labelClassName={wizardLabelClass}
+            type="datetime-local"
+            inputClassName={cn(
+              wizardFieldClass,
+              followUpAssignedToMe &&
                 followUpNeedsAttention(sellerForm.followUpDate) &&
                 'border-ds-primary-400 ring-1 ring-ds-primary-200'
-              )}
-              value={sellerForm.followUpDate}
-              onChange={(e) =>
-                setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
-              }
-              onBlur={() => onFollowUpBlur?.()}
-              disabled={formDisabled}
-            />
+            )}
+            value={sellerForm.followUpDate}
+            onChange={(e) =>
+              setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
+            }
+            onBlur={() => onFollowUpBlur?.()}
+            disabled={formDisabled}
+          />
             {followUpAssignedToMe ? (
-              <p className="mt-1 text-[11px] text-ds-primary-700">
+              <p className="text-[11px] text-ds-primary-700">
                 Shown on your Work queue follow-ups when due.
               </p>
             ) : null}
-          </div>
           <div>
             <Label className={wizardLabelClass}>After visit</Label>
             <div className="mt-1">

@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { unitBlockSchema, unitEditSchema } from '@/lib/inventory/unit-edit.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -689,41 +690,40 @@ function UnitEditDialog({
           <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
             Identification
           </div>
-          <div className="col-span-2 flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Unit code</Label>
-            <Input
-              value={form.unit_code}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, unit_code: e.target.value }));
-                editValidation.touch('unit_code');
-              }}
-              onBlur={() => editValidation.touch('unit_code')}
-              aria-invalid={
-                editValidation.fieldError('unit_code') ? true : undefined
-              }
-              className="h-9 text-xs"
-            />
-            <FormFieldError message={editValidation.fieldError('unit_code')} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Type</Label>
-            <Input
-              value={form.unit_type}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, unit_type: e.target.value }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
+          <TextInputField
+            label="Unit code"
+            labelClassName="text-[10px] text-slate-500"
+            value={form.unit_code}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, unit_code: e.target.value }));
+              editValidation.touch('unit_code');
+            }}
+            onBlur={() => editValidation.touch('unit_code')}
+            error={editValidation.fieldError('unit_code')}
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Type"
+            labelClassName="text-[10px] text-slate-500"
+            value={form.unit_type}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, unit_type: e.target.value }))
+            }
+            inputClassName="h-9 text-xs"
+          />
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Status</Label>
             <Select
               value={form.status}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, status: v }))
-              }
+              onValueChange={(v) => {
+                setForm((f) => ({ ...f, status: v }));
+                editValidation.touch('status');
+              }}
             >
-              <SelectTrigger className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs shadow-none">
+              <SelectTrigger
+                className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs shadow-none"
+                aria-invalid={editValidation.fieldError('status') ? true : undefined}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -734,224 +734,219 @@ function UnitEditDialog({
                 ))}
               </SelectContent>
             </Select>
+            <FormFieldError message={editValidation.fieldError('status')} />
           </div>
           <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
             Areas (sq.ft)
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Legacy / sale area</Label>
-            <Input
-              type="number"
-              min={1}
-              value={form.area}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  area: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Carpet</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.carpet_area || ''}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  carpet_area: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">BUA</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.bua_area || ''}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  bua_area: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">RERA</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.rera_area || ''}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  rera_area: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Terrace</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.terrace_sqft || ''}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  terrace_sqft: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Deck</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.deck_sqft || ''}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  deck_sqft: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Loading</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.loading_sqft || ''}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  loading_sqft: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
+          <TextInputField
+            label="Legacy / sale area"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={1}
+            value={String(form.area)}
+            onChange={(e) => {
+              setForm((f) => ({
+                ...f,
+                area: Number(e.target.value) || 0
+              }));
+              editValidation.touch('area');
+            }}
+            onBlur={() => editValidation.touch('area')}
+            error={editValidation.fieldError('area')}
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Carpet"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.carpet_area || '')}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                carpet_area: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="BUA"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.bua_area || '')}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                bua_area: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="RERA"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.rera_area || '')}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                rera_area: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Terrace"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.terrace_sqft || '')}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                terrace_sqft: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Deck"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.deck_sqft || '')}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                deck_sqft: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Loading"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.loading_sqft || '')}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                loading_sqft: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
           <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
             Pricing (₹)
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Rate (₹/sq.ft)</Label>
-            <Input
-              type="number"
-              min={1}
-              value={form.rate}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  rate: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Floor-rise (lump)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.floor_rise_charge}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  floor_rise_charge: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">PLC (lump)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.plc_charge}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  plc_charge: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Parking slots (unit)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={form.parking_slots_included}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  parking_slots_included: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
+          <TextInputField
+            label="Rate (₹/sq.ft)"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={1}
+            value={String(form.rate)}
+            onChange={(e) => {
+              setForm((f) => ({
+                ...f,
+                rate: Number(e.target.value) || 0
+              }));
+              editValidation.touch('rate');
+            }}
+            onBlur={() => editValidation.touch('rate')}
+            error={editValidation.fieldError('rate')}
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Floor-rise (lump)"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.floor_rise_charge)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                floor_rise_charge: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="PLC (lump)"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.plc_charge)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                plc_charge: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Parking slots (unit)"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={0}
+            value={String(form.parking_slots_included)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                parking_slots_included: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
           <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
             Position
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Floor</Label>
-            <Input
-              type="number"
-              value={form.floor}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  floor: Number(e.target.value) || 0
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Unit slot</Label>
-            <Input
-              type="number"
-              min={1}
-              value={form.unit_no}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  unit_no: Number(e.target.value) || 1
-                }))
-              }
-              className="h-9 text-xs"
-            />
-          </div>
+          <TextInputField
+            label="Floor"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            value={String(form.floor)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                floor: Number(e.target.value) || 0
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
+          <TextInputField
+            label="Unit slot"
+            labelClassName="text-[10px] text-slate-500"
+            type="number"
+            min={1}
+            value={String(form.unit_no)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                unit_no: Number(e.target.value) || 1
+              }))
+            }
+            inputClassName="h-9 text-xs"
+          />
           {isUnitBlockedStatus(form.status) ? (
-            <div className="col-span-2 flex flex-col gap-1">
-              <Label className="text-[10px] text-slate-500">
-                Blocked reason
-              </Label>
-              <Input
-                value={form.blocked_reason}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, blocked_reason: e.target.value }))
-                }
-                placeholder="Reason for blocking"
-                className="h-9 text-xs"
-              />
-            </div>
+            <TextInputField
+              className="col-span-2"
+              label="Blocked reason"
+              labelClassName="text-[10px] text-slate-500"
+              value={form.blocked_reason}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, blocked_reason: e.target.value }));
+                editValidation.touch('blocked_reason');
+              }}
+              onBlur={() => editValidation.touch('blocked_reason')}
+              error={editValidation.fieldError('blocked_reason')}
+              placeholder="Reason for blocking"
+              inputClassName="h-9 text-xs"
+            />
           ) : null}
         </div>
         <DialogFooter className="border-t border-slate-200 bg-slate-50 px-4 py-3">
@@ -2396,7 +2391,12 @@ function InventoryPageContent() {
                       blockValidation.touch('blockUnitId');
                     }}
                   >
-                    <SelectTrigger className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none">
+                    <SelectTrigger
+                      className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none"
+                      aria-invalid={
+                        blockValidation.fieldError('blockUnitId') ? true : undefined
+                      }
+                    >
                       <SelectValue placeholder="Select available unit…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2409,6 +2409,7 @@ function InventoryPageContent() {
                         ))}
                     </SelectContent>
                   </Select>
+                  <FormFieldError message={blockValidation.fieldError('blockUnitId')} />
                 </div>
                 <div className="min-w-[200px] flex-[3]">
                   <Label className="text-[10px] text-orange-900">Reason</Label>
@@ -2419,7 +2420,12 @@ function InventoryPageContent() {
                       blockValidation.touch('blockReason');
                     }}
                   >
-                    <SelectTrigger className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none">
+                    <SelectTrigger
+                      className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none"
+                      aria-invalid={
+                        blockValidation.fieldError('blockReason') ? true : undefined
+                      }
+                    >
                       <SelectValue placeholder="Select reason…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2430,6 +2436,7 @@ function InventoryPageContent() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormFieldError message={blockValidation.fieldError('blockReason')} />
                 </div>
                 <Button
                   className="bg-orange-900 hover:bg-orange-950"

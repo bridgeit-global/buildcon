@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 import {
@@ -64,9 +65,7 @@ export function PanInputField({
         maxLength={10}
         autoComplete="off"
       />
-      {displayError ? (
-        <p className="mt-0.5 text-xs text-red-600">{displayError}</p>
-      ) : null}
+      <FormFieldError message={displayError} />
     </div>
   );
 }

@@ -13,8 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
 import { Controller } from 'react-hook-form';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { TextInputField } from '@/components/ui/text-input-field';
 import {
   nomineeFormSchema,
   type NomineeFormValues
@@ -43,7 +42,7 @@ export function CustomerNomineeDialog({
     mode: 'onChange'
   });
 
-  const { control, handleSubmit, reset, register } = form;
+  const { control, handleSubmit, reset } = form;
 
   useEffect(() => {
     if (open) reset(defaultValues);
@@ -72,24 +71,36 @@ export function CustomerNomineeDialog({
               placeholder="Nominee name"
               className="col-span-2"
             />
-            <div className="col-span-2">
-              <Label>Relationship</Label>
-              <Input
-                className="mt-1"
-                placeholder="e.g. Spouse, Father"
-                {...register('relationship')}
-              />
-            </div>
-            <div className="col-span-2">
-              <Label>Date of birth</Label>
-              <Controller
-                control={control}
-                name="nominee_dob"
-                render={({ field }) => (
-                  <Input type="date" className="mt-1" {...field} />
-                )}
-              />
-            </div>
+            <Controller
+              control={control}
+              name="relationship"
+              render={({ field, fieldState }) => (
+                <TextInputField
+                  className="col-span-2"
+                  label="Relationship"
+                  placeholder="e.g. Spouse, Father"
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="nominee_dob"
+              render={({ field, fieldState }) => (
+                <TextInputField
+                  className="col-span-2"
+                  label="Date of birth"
+                  type="date"
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
           </div>
 
           <div className="mt-4 flex justify-end gap-2">

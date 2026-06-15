@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { TextareaField } from '@/components/ui/textarea-field';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -27,7 +27,8 @@ import {
 } from '@/lib/possession/possession-trackers';
 import { pageError, toast } from '@/lib/toast';
 import { possessionSnagSchema } from '@/lib/possession/possession-case.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { normalizeUnitStatusCode, statusLabelForUnit } from '../inventory/unit-status';
 import type { PossessionListRow } from './possession-list-table';
@@ -273,26 +274,25 @@ export function PossessionCaseDialog({
               )}
             </ul>
             <div className="flex gap-2">
-              <Input
-                placeholder="Add snag item…"
-                value={newSnag}
-                onChange={(e) => {
-                  setNewSnag(e.target.value);
-                  snagValidation.touch('description');
-                }}
-                onBlur={() => snagValidation.touch('description')}
-                aria-invalid={
-                  snagValidation.fieldError('description') ? true : undefined
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void onAddSnag();
-                  }
-                }}
-                disabled={saving}
-              />
-              <FormFieldError message={snagValidation.fieldError('description')} />
+              <div className="min-w-0 flex-1">
+                <TextInputField
+                  value={newSnag}
+                  onChange={(e) => {
+                    setNewSnag(e.target.value);
+                    snagValidation.touch('description');
+                  }}
+                  onBlur={() => snagValidation.touch('description')}
+                  error={snagValidation.fieldError('description')}
+                  placeholder="Add snag item…"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void onAddSnag();
+                    }
+                  }}
+                  disabled={saving}
+                />
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -307,20 +307,17 @@ export function PossessionCaseDialog({
             </div>
           </section>
 
-          <section>
-            <Label htmlFor="possession-notes" className="text-xs font-semibold uppercase text-ds-gray-500">
-              Notes
-            </Label>
-            <Textarea
-              id="possession-notes"
-              className="mt-1.5 min-h-[72px]"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={() => void onSaveNotes()}
-              disabled={saving}
-              placeholder="Internal notes for this handover…"
-            />
-          </section>
+          <TextareaField
+            id="possession-notes"
+            label="Notes"
+            labelClassName="text-xs font-semibold uppercase text-ds-gray-500"
+            textareaClassName="min-h-[72px]"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={() => void onSaveNotes()}
+            disabled={saving}
+            placeholder="Internal notes for this handover…"
+          />
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch">

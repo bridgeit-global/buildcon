@@ -6,7 +6,8 @@ import {
   portalLinksSchema,
   userInviteSchema
 } from '@/lib/admin/user-invite.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { shortId } from '@/lib/utils';
@@ -386,25 +387,30 @@ export default function UsersPage() {
                         placeholder="user@company.com"
                       />
                     </div>
-                    <div className="col-span-2">
-                      <Label>Name (optional)</Label>
-                      <Input
-                        value={invite.name}
-                        onChange={(e) =>
-                          setInvite((s) => ({ ...s, name: e.target.value }))
-                        }
-                        placeholder="Full name"
-                      />
-                    </div>
+                    <TextInputField
+                      className="col-span-2"
+                      label="Name (optional)"
+                      value={invite.name}
+                      onChange={(e) =>
+                        setInvite((s) => ({ ...s, name: e.target.value }))
+                      }
+                      placeholder="Full name"
+                    />
                     <div>
                       <Label>Profile role</Label>
                       <Select
                         value={invite.profileRole}
-                        onValueChange={(v) =>
-                          setInvite((s) => ({ ...s, profileRole: v }))
-                        }
+                        onValueChange={(v) => {
+                          setInvite((s) => ({ ...s, profileRole: v }));
+                          inviteValidation.touch('profileRole');
+                        }}
                       >
-                        <SelectTrigger className="mt-1 w-full">
+                        <SelectTrigger
+                          className="mt-1 w-full"
+                          aria-invalid={
+                            inviteValidation.fieldError('profileRole') ? true : undefined
+                          }
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -421,19 +427,28 @@ export default function UsersPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormFieldError message={inviteValidation.fieldError('profileRole')} />
                     </div>
                     <div>
                       <Label>Project member role</Label>
                       <Select
                         value={invite.projectMemberRole}
-                        onValueChange={(v) =>
+                        onValueChange={(v) => {
                           setInvite((s) => ({
                             ...s,
                             projectMemberRole: v
-                          }))
-                        }
+                          }));
+                          inviteValidation.touch('projectMemberRole');
+                        }}
                       >
-                        <SelectTrigger className="mt-1 w-full">
+                        <SelectTrigger
+                          className="mt-1 w-full"
+                          aria-invalid={
+                            inviteValidation.fieldError('projectMemberRole')
+                              ? true
+                              : undefined
+                          }
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -444,6 +459,9 @@ export default function UsersPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormFieldError
+                        message={inviteValidation.fieldError('projectMemberRole')}
+                      />
                     </div>
 
                     <div className="col-span-2">
@@ -559,11 +577,7 @@ export default function UsersPage() {
                         <span className="font-mono">profiles</span> and{' '}
                         <span className="font-mono">project_members</span>.
                       </div>
-                      {inviteValidation.fieldError('projectIds') ? (
-                        <p className="mt-2 text-xs text-red-600">
-                          {inviteValidation.fieldError('projectIds')}
-                        </p>
-                      ) : null}
+                      <FormFieldError message={inviteValidation.fieldError('projectIds')} />
                     </div>
                   </div>
 
@@ -787,42 +801,33 @@ export default function UsersPage() {
               </Select>
               <FormFieldError message={portalValidation.fieldError('portalUserId')} />
             </div>
-            <div className="grid gap-1">
-              <Label className="text-xs">Linked customer id (UUID)</Label>
-              <Input
-                value={portalCustomerId}
-                onChange={(e) => {
-                  setPortalCustomerId(e.target.value);
-                  portalValidation.touch('portalCustomerId');
-                }}
-                onBlur={() => portalValidation.touch('portalCustomerId')}
-                aria-invalid={
-                  portalValidation.fieldError('portalCustomerId') ? true : undefined
-                }
-                placeholder="00000000-0000-0000-0000-000000000000"
-                className="font-mono text-xs"
-              />
-              <FormFieldError
-                message={portalValidation.fieldError('portalCustomerId')}
-              />
-            </div>
-            <div className="grid gap-1 sm:col-span-2">
-              <Label className="text-xs">Linked broker id (UUID, optional)</Label>
-              <Input
-                value={portalBrokerId}
-                onChange={(e) => {
-                  setPortalBrokerId(e.target.value);
-                  portalValidation.touch('portalBrokerId');
-                }}
-                onBlur={() => portalValidation.touch('portalBrokerId')}
-                aria-invalid={
-                  portalValidation.fieldError('portalBrokerId') ? true : undefined
-                }
-                placeholder="Optional"
-                className="font-mono text-xs"
-              />
-              <FormFieldError message={portalValidation.fieldError('portalBrokerId')} />
-            </div>
+            <TextInputField
+              label="Linked customer id (UUID)"
+              labelClassName="text-xs"
+              value={portalCustomerId}
+              onChange={(e) => {
+                setPortalCustomerId(e.target.value);
+                portalValidation.touch('portalCustomerId');
+              }}
+              onBlur={() => portalValidation.touch('portalCustomerId')}
+              error={portalValidation.fieldError('portalCustomerId')}
+              placeholder="00000000-0000-0000-0000-000000000000"
+              inputClassName="font-mono text-xs"
+            />
+            <TextInputField
+              className="sm:col-span-2"
+              label="Linked broker id (UUID, optional)"
+              labelClassName="text-xs"
+              value={portalBrokerId}
+              onChange={(e) => {
+                setPortalBrokerId(e.target.value);
+                portalValidation.touch('portalBrokerId');
+              }}
+              onBlur={() => portalValidation.touch('portalBrokerId')}
+              error={portalValidation.fieldError('portalBrokerId')}
+              placeholder="Optional"
+              inputClassName="font-mono text-xs"
+            />
           </div>
           <Button
             className="mt-3"

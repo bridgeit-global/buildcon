@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { EmailInputField } from '@/components/ui/email-input-field';
-import { Input } from '@/components/ui/input';
+import { TextInputField } from '@/components/ui/text-input-field';
 
 export function LoginClient() {
   const router = useRouter();
@@ -100,28 +100,24 @@ export function LoginClient() {
             placeholder="name@company.com"
           />
 
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-600">Password</span>
-            <Input
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (passwordError) setPasswordError(undefined);
-              }}
-              onBlur={() => {
-                if (password) validateLoginFields();
-              }}
-              aria-invalid={passwordError ? true : undefined}
-              placeholder="••••••••"
-              type="password"
-              autoComplete={
-                mode === 'sign_in' ? 'current-password' : 'new-password'
-              }
-            />
-            {passwordError ? (
-              <p className="text-xs text-red-600">{passwordError}</p>
-            ) : null}
-          </label>
+          <TextInputField
+            label="Password"
+            labelClassName="text-xs font-medium text-gray-600"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (passwordError) setPasswordError(undefined);
+            }}
+            onBlur={() => {
+              if (password) validateLoginFields();
+            }}
+            error={passwordError}
+            placeholder="••••••••"
+            type="password"
+            autoComplete={
+              mode === 'sign_in' ? 'current-password' : 'new-password'
+            }
+          />
 
           <Button
             onClick={submit}

@@ -12,15 +12,14 @@ import {
   EMPTY_BROKER_FORM,
   type BrokerFormValues
 } from '@/lib/broker/broker-forms.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { FieldLabel } from '@/components/ui/field-label';
+import { TextInputField } from '@/components/ui/text-input-field';
+import { TextareaField } from '@/components/ui/textarea-field';
 import { Label } from '@/components/ui/label';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -209,16 +208,14 @@ export default function BrokersPage() {
                 </DialogHeader>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <FieldLabel required>Full name</FieldLabel>
-                    <Input
-                      {...register('full_name')}
-                      aria-invalid={errors.full_name ? true : undefined}
-                      placeholder="Broker / agency name"
-                      className="mt-1"
-                    />
-                    <FormFieldError message={errors.full_name?.message} />
-                  </div>
+                  <TextInputField
+                    className="col-span-2"
+                    label="Full name"
+                    required
+                    placeholder="Broker / agency name"
+                    error={errors.full_name?.message}
+                    {...register('full_name')}
+                  />
                   <PhoneInputField
                     value={watch('phone')}
                     onChange={(v) =>
@@ -233,13 +230,11 @@ export default function BrokersPage() {
                     }
                     error={errors.email?.message}
                   />
-                  <div className="col-span-2">
-                    <Label>RERA / license no.</Label>
-                    <Input
-                      {...register('license_no')}
-                      className="mt-1"
-                    />
-                  </div>
+                  <TextInputField
+                    className="col-span-2"
+                    label="RERA / license no."
+                    {...register('license_no')}
+                  />
                   <div>
                     <Label>Status</Label>
                     <Select
@@ -259,14 +254,12 @@ export default function BrokersPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-2">
-                    <Label>Notes</Label>
-                    <Textarea
-                      {...register('notes')}
-                      rows={3}
-                      className="mt-1"
-                    />
-                  </div>
+                  <TextareaField
+                    className="col-span-2"
+                    label="Notes"
+                    rows={3}
+                    {...register('notes')}
+                  />
                 </div>
 
                 <div className="mt-4 flex justify-end gap-2">

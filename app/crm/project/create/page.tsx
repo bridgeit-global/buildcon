@@ -12,6 +12,9 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TextInputField } from '@/components/ui/text-input-field';
+import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import {
   Select,
   SelectContent,
@@ -37,6 +40,9 @@ import {
 import {
   WIZARD_STEPS,
   type CreateProjectDraft,
+  createProjectStep0Schema,
+  createProjectStep1FieldsSchema,
+  createProjectStep3Schema,
   wingsFromDraft,
   validateCreateStep,
   validateCreateDraft,
@@ -206,6 +212,28 @@ export default function CreateProjectPage() {
   }
 
   function goNext() {
+    if (createStep === 0) {
+      const parsed = step0Validation.validate();
+      if (!parsed.success) {
+        pageError('Fix the highlighted fields before continuing.');
+        return;
+      }
+    }
+    if (createStep === 1) {
+      const parsed = step1FieldsValidation.validate();
+      if (!parsed.success) {
+        pageError('Fix the highlighted fields before continuing.');
+        return;
+      }
+    }
+    if (createStep === 3) {
+      const parsed = step3Validation.validate();
+      if (!parsed.success) {
+        pageError('Fix the highlighted fields before continuing.');
+        return;
+      }
+    }
+
     const err = validateCreateStep(createStep, draft);
     if (err) {
       pageError(err);
@@ -281,6 +309,33 @@ export default function CreateProjectPage() {
     )}/slot · ₹${parkingValueInr.toLocaleString('en-IN')} total`;
   }, [parkingAvgRate, parkingSlots, parkingValueInr]);
 
+  const step0Values = useMemo(
+    () => ({
+      name: draft.name,
+      location: draft.location
+    }),
+    [draft.name, draft.location]
+  );
+  const step1FieldValues = useMemo(
+    () => ({ unitTypesCsv: draft.unitTypesCsv }),
+    [draft.unitTypesCsv]
+  );
+  const step3Values = useMemo(
+    () => ({
+      base_rate: draft.base_rate,
+      min_rate: draft.min_rate,
+      max_rate: draft.max_rate
+    }),
+    [draft.base_rate, draft.min_rate, draft.max_rate]
+  );
+
+  const step0Validation = useFieldValidation(createProjectStep0Schema, step0Values);
+  const step1FieldsValidation = useFieldValidation(
+    createProjectStep1FieldsSchema,
+    step1FieldValues
+  );
+  const step3Validation = useFieldValidation(createProjectStep3Schema, step3Values);
+
   if (loading || !canCreateProject) {
     return (
       <div className="flex flex-col gap-4 p-4">
@@ -330,26 +385,32 @@ export default function CreateProjectPage() {
 
           {createStep === 0 ? (
             <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label>Project name</Label>
-                <Input
-                  value={draft.name}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, name: e.target.value }))
-                  }
-                  placeholder="e.g. Sunrise Residency"
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Location</Label>
-                <Input
-                  value={draft.location}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, location: e.target.value }))
-                  }
-                  placeholder="e.g. Pune, Maharashtra"
-                />
-              </div>
+              <TextInputField
+                className="col-span-2"
+                label="Project name"
+                required
+                value={draft.name}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, name: e.target.value }));
+                  step0Validation.touch('name');
+                }}
+                onBlur={() => step0Validation.touch('name')}
+                error={step0Validation.fieldError('name')}
+                placeholder="e.g. Sunrise Residency"
+              />
+              <TextInputField
+                className="col-span-2"
+                label="Location"
+                required
+                value={draft.location}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, location: e.target.value }));
+                  step0Validation.touch('location');
+                }}
+                onBlur={() => step0Validation.touch('location')}
+                error={step0Validation.fieldError('location')}
+                placeholder="e.g. Pune, Maharashtra"
+              />
               <div>
                 <Label>Type</Label>
                 <Select
@@ -394,26 +455,22 @@ export default function CreateProjectPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>FY</Label>
-                <Input
-                  value={draft.fy}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, fy: e.target.value }))
-                  }
-                  placeholder="2026-27"
-                />
-              </div>
-              <div>
-                <Label>RERA No.</Label>
-                <Input
-                  value={draft.rera_no}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, rera_no: e.target.value }))
-                  }
-                  placeholder="e.g. P52100012345"
-                />
-              </div>
+              <TextInputField
+                label="FY"
+                value={draft.fy}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, fy: e.target.value }))
+                }
+                placeholder="2026-27"
+              />
+              <TextInputField
+                label="RERA No."
+                value={draft.rera_no}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, rera_no: e.target.value }))
+                }
+                placeholder="e.g. P52100012345"
+              />
             </div>
           ) : null}
 
@@ -437,25 +494,22 @@ export default function CreateProjectPage() {
                   setDraft((d) => ({ ...d, units_per_floor: n }))
                 }
               />
-              <div>
-                <Label>
-                  Unit types (comma-separated){' '}
-                  <span className="text-ds-error-600">*</span>
-                </Label>
-                <Input
-                  className="mt-1"
-                  value={draft.unitTypesCsv}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }))
-                  }
-                  placeholder="1BHK,2BHK,3BHK"
-                  required
-                />
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Required. Used as dropdown options when configuring each unit
-                  on the floor step.
-                </p>
-              </div>
+              <TextInputField
+                label="Unit types (comma-separated)"
+                required
+                value={draft.unitTypesCsv}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }));
+                  step1FieldsValidation.touch('unitTypesCsv');
+                }}
+                onBlur={() => step1FieldsValidation.touch('unitTypesCsv')}
+                error={step1FieldsValidation.fieldError('unitTypesCsv')}
+                placeholder="1BHK,2BHK,3BHK"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Required. Used as dropdown options when configuring each unit
+                on the floor step.
+              </p>
               <div className="font-semibold text-slate-900">Structure tree</div>
               <StructureTreeFields
                 nodes={draft.structures}
@@ -547,48 +601,52 @@ export default function CreateProjectPage() {
                 Carpet/BUA, floor-rise, PLC, and bundled parking are configured
                 on the Inventory floor step (previous step).
               </div>
-              <div className="col-span-2">
-                <Label>Base rate (₹/sq.ft)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.base_rate}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      base_rate: Number(e.target.value)
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label>Min rate</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.min_rate}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      min_rate: Number(e.target.value)
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <Label>Max rate</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.max_rate}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      max_rate: Number(e.target.value)
-                    }))
-                  }
-                />
-              </div>
+              <TextInputField
+                className="col-span-2"
+                label="Base rate (₹/sq.ft)"
+                type="number"
+                min={0}
+                value={String(draft.base_rate)}
+                onChange={(e) => {
+                  setDraft((d) => ({
+                    ...d,
+                    base_rate: Number(e.target.value) || 0
+                  }));
+                  step3Validation.touch('base_rate');
+                }}
+                onBlur={() => step3Validation.touch('base_rate')}
+                error={step3Validation.fieldError('base_rate')}
+              />
+              <TextInputField
+                label="Min rate"
+                type="number"
+                min={0}
+                value={String(draft.min_rate)}
+                onChange={(e) => {
+                  setDraft((d) => ({
+                    ...d,
+                    min_rate: Number(e.target.value) || 0
+                  }));
+                  step3Validation.touch('min_rate');
+                }}
+                onBlur={() => step3Validation.touch('min_rate')}
+                error={step3Validation.fieldError('min_rate')}
+              />
+              <TextInputField
+                label="Max rate"
+                type="number"
+                min={0}
+                value={String(draft.max_rate)}
+                onChange={(e) => {
+                  setDraft((d) => ({
+                    ...d,
+                    max_rate: Number(e.target.value) || 0
+                  }));
+                  step3Validation.touch('max_rate');
+                }}
+                onBlur={() => step3Validation.touch('max_rate')}
+                error={step3Validation.fieldError('max_rate')}
+              />
             </div>
           ) : null}
 
@@ -628,6 +686,7 @@ export default function CreateProjectPage() {
               <div>
                 <Label>Search users</Label>
                 <Input
+                  className={formControlFieldGapClass}
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
                   placeholder="Search by name, role, or id…"
@@ -771,7 +830,10 @@ export default function CreateProjectPage() {
                 type="button"
                 onClick={() => void createProject()}
                 disabled={
-                  creating || !draft.name.trim() || Boolean(createBlockedReason)
+                  creating ||
+                  !draft.name.trim() ||
+                  !draft.location.trim() ||
+                  Boolean(createBlockedReason)
                 }
               >
                 {creating ? 'Creating…' : 'Create project'}

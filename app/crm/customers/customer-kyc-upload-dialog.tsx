@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { PanInputField } from '@/components/ui/pan-input-field';
 import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
 import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';

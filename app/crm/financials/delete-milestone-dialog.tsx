@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { pageError, toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { FieldLabel } from '@/components/ui/field-label';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -56,11 +58,13 @@ export function DeleteMilestoneDialog({
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [mergeToId, setMergeToId] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setMergeToId(mergeTargets[0]?.id ?? '');
     setDeleting(false);
+    setSubmitAttempted(false);
   }, [open, mergeTargets]);
 
   const received = Math.max(0, schedule?.received ?? 0);
@@ -75,6 +79,7 @@ export function DeleteMilestoneDialog({
     mergeTargets.length > 0;
 
   async function confirmDelete() {
+    setSubmitAttempted(true);
     if (!schedule?.id || !canDelete) {
       pageError(
         received > 0
@@ -144,15 +149,18 @@ export function DeleteMilestoneDialog({
                 instalment you select below.
               </p>
               <div className="space-y-1.5">
-                <Label>
-                  Return amount to <span className="text-ds-error-500">*</span>
-                </Label>
+                <FieldLabel required>Return amount to</FieldLabel>
                 <Select
                   value={mergeToId}
                   onValueChange={setMergeToId}
                   disabled={loading || deleting || mergeTargets.length === 0}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger
+                    className="w-full"
+                    aria-invalid={
+                      submitAttempted && !mergeToId ? true : undefined
+                    }
+                  >
                     <SelectValue placeholder="Select an instalment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -163,6 +171,13 @@ export function DeleteMilestoneDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <FormFieldError
+                  message={
+                    submitAttempted && !mergeToId
+                      ? 'Select an instalment to return this amount to.'
+                      : undefined
+                  }
+                />
               </div>
             </div>
           )}

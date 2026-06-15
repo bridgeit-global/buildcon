@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
@@ -17,6 +18,8 @@ type Props = {
   onCityChange: (value: string) => void;
   onStateChange: (value: string) => void;
   onPinChange: (value: string) => void;
+  addressLineError?: string;
+  /** @deprecated Use addressLineError */
   addressLineInvalid?: boolean;
 };
 
@@ -29,6 +32,7 @@ export function BookingAddressFields({
   onCityChange,
   onStateChange,
   onPinChange,
+  addressLineError,
   addressLineInvalid
 }: Props) {
   const onPincodeResult = useCallback(
@@ -59,6 +63,8 @@ export function BookingAddressFields({
     [onStateChange, onCityChange, state]
   );
 
+  const lineError = addressLineError ?? (addressLineInvalid ? 'Address is required.' : undefined);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="sm:col-span-2">
@@ -66,8 +72,9 @@ export function BookingAddressFields({
           value={addressLine}
           placeholder="Address line"
           onChange={(e) => onAddressLineChange(e.target.value)}
-          aria-invalid={addressLineInvalid || undefined}
+          aria-invalid={lineError ? true : undefined}
         />
+        <FormFieldError message={lineError} />
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="relative">

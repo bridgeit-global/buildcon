@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 
@@ -41,7 +42,7 @@ export function EmailInputField({
         placeholder={placeholder}
         autoComplete="email"
       />
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      <FormFieldError message={error} />
     </div>
   );
 }

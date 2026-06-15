@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { cldStageSchema } from '@/lib/project/cld-stage.schema';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -164,19 +165,18 @@ export function ProjectCldManage({
           Instalments stay pending until collections are recorded in Financials.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="grid gap-1 sm:col-span-2">
-            <Label className="text-xs text-ds-gray-500">Stage name</Label>
-            <Input
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                stageValidation.touch('name');
-              }}
-              onBlur={() => stageValidation.touch('name')}
-              aria-invalid={stageValidation.fieldError('name') ? true : undefined}
-            />
-            <FormFieldError message={stageValidation.fieldError('name')} />
-          </div>
+          <TextInputField
+            className="sm:col-span-2"
+            label="Stage name"
+            labelClassName="text-xs text-ds-gray-500"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              stageValidation.touch('name');
+            }}
+            onBlur={() => stageValidation.touch('name')}
+            error={stageValidation.fieldError('name')}
+          />
           <div className="grid gap-1">
             <Label className="text-xs text-ds-gray-500">Kind</Label>
             <select

@@ -6,9 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { pageError } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { TextInputField } from '@/components/ui/text-input-field';
+import { TextareaField } from '@/components/ui/textarea-field';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,6 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
 import {
   addressFormSchema,
   EMPTY_ADDRESS,
@@ -56,7 +55,7 @@ export function CustomerAddressDialog({
     mode: 'onChange'
   });
 
-  const { control, handleSubmit, reset, register, setValue, watch } = form;
+  const { control, handleSubmit, reset, setValue, watch } = form;
 
   useEffect(() => {
     if (open) reset(defaultValues);
@@ -120,33 +119,30 @@ export function CustomerAddressDialog({
                 )}
               />
             </div>
+            <Controller
+              control={control}
+              name="address_line1"
+              render={({ field, fieldState }) => (
+                <TextareaField
+                  className="col-span-2"
+                  label="Address line"
+                  rows={2}
+                  placeholder="Street, building, landmark…"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
             <div className="col-span-2">
-              <Label>Address line</Label>
-              <Controller
-                control={control}
-                name="address_line1"
-                render={({ field, fieldState }) => (
-                  <>
-                    <Textarea
-                      {...field}
-                      rows={2}
-                      placeholder="Street, building, landmark…"
-                      className="mt-1"
-                      aria-invalid={fieldState.error ? true : undefined}
-                    />
-                    <FormFieldError message={fieldState.error?.message} />
-                  </>
-                )}
-              />
-            </div>
-            <div className="col-span-2">
-              <Label>PIN Code</Label>
               <Controller
                 control={control}
                 name="pin"
                 render={({ field, fieldState }) => (
                   <div className="relative">
-                    <Input
+                    <TextInputField
+                      label="PIN Code"
                       value={field.value}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -157,13 +153,11 @@ export function CustomerAddressDialog({
                       placeholder="e.g. 400001"
                       inputMode="numeric"
                       maxLength={6}
-                      className="mt-1"
-                      aria-invalid={fieldState.error ? true : undefined}
+                      error={fieldState.error?.message}
                     />
                     {pincodeLoading && (
-                      <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ds-gray-400" />
+                      <Loader2 className="absolute right-3 top-8 h-4 w-4 animate-spin text-ds-gray-400" />
                     )}
-                    <FormFieldError message={fieldState.error?.message} />
                   </div>
                 )}
               />

@@ -27,7 +27,8 @@ import {
   type CollectionEntryValues
 } from '@/lib/financials/collection-entry.schema';
 import { zodFieldErrors } from '@/lib/form/zod-field-errors';
-import { FormFieldError } from '@/app/crm/customers/customer-form-ui';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { TextInputField } from '@/components/ui/text-input-field';
 import {
   generatedReceiptExistsForCollection,
   persistCollectionReceipt
@@ -337,22 +338,19 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryAmount')} />
               </div>
 
-              <div className="space-y-1.5 lg:col-span-4">
-                <Label>Date</Label>
-                <Input
-                  type="date"
-                  className="min-w-42 pr-10"
-                  value={entryDate}
-                  onChange={(e) => {
-                    setEntryDate(e.target.value);
-                    touchCollectionField('entryDate');
-                  }}
-                  onBlur={() => touchCollectionField('entryDate')}
-                  aria-invalid={collectionFieldError('entryDate') ? true : undefined}
-                  disabled={loading || saving}
-                />
-                <FormFieldError message={collectionFieldError('entryDate')} />
-              </div>
+              <TextInputField
+                label="Date"
+                type="date"
+                inputClassName="min-w-42 pr-10"
+                value={entryDate}
+                onChange={(e) => {
+                  setEntryDate(e.target.value);
+                  touchCollectionField('entryDate');
+                }}
+                onBlur={() => touchCollectionField('entryDate')}
+                error={collectionFieldError('entryDate')}
+                disabled={loading || saving}
+              />
 
               <div className="space-y-1.5 lg:col-span-4">
                 <Label>Mode</Label>
@@ -378,24 +376,20 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryMode')} />
               </div>
 
-              <div className="space-y-1.5 sm:col-span-2 lg:col-span-9">
-                <Label>
-                  Reference
-                  {entryMode !== 'Cash' && <span className="text-ds-error-500"> *</span>}
-                </Label>
-                <Input
-                  value={entryRef}
-                  onChange={(e) => {
-                    setEntryRef(e.target.value);
-                    touchCollectionField('entryRef');
-                  }}
-                  onBlur={() => touchCollectionField('entryRef')}
-                  aria-invalid={collectionFieldError('entryRef') ? true : undefined}
-                  placeholder="UTR / Cheque No."
-                  disabled={loading || saving}
-                />
-                <FormFieldError message={collectionFieldError('entryRef')} />
-              </div>
+              <TextInputField
+                className="sm:col-span-2 lg:col-span-9"
+                label="Reference"
+                required={entryMode !== 'Cash'}
+                value={entryRef}
+                onChange={(e) => {
+                  setEntryRef(e.target.value);
+                  touchCollectionField('entryRef');
+                }}
+                onBlur={() => touchCollectionField('entryRef')}
+                error={collectionFieldError('entryRef')}
+                placeholder="UTR / Cheque No."
+                disabled={loading || saving}
+              />
 
               <div className="flex items-end sm:col-span-2 lg:col-span-12 lg:justify-end">
                 <Button

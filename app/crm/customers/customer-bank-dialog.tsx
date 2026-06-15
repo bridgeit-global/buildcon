@@ -13,10 +13,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import {
-  FormFieldError,
-  RhfTextInput
-} from '@/app/crm/customers/customer-form-ui';
+import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
+import { TextInputField } from '@/components/ui/text-input-field';
 import {
   bankFormSchema,
   type BankFormValues
@@ -74,36 +72,27 @@ export function CustomerBankDialog({
               placeholder="Bank name"
               className="col-span-2"
             />
-            <div className="col-span-2">
-              <Label>Account number</Label>
-              <Input className="mt-1" {...register('account_no')} />
-            </div>
-            <div>
-              <Label>IFSC</Label>
-              <Controller
-                control={control}
-                name="ifsc"
-                render={({ field, fieldState }) => (
-                  <>
-                    <Input
-                      value={field.value}
-                      onChange={(e) =>
-                        field.onChange(e.target.value.toUpperCase())
-                      }
-                      onBlur={field.onBlur}
-                      placeholder="IFSC code"
-                      className="mt-1 uppercase"
-                      aria-invalid={fieldState.error ? true : undefined}
-                    />
-                    <FormFieldError message={fieldState.error?.message} />
-                  </>
-                )}
-              />
-            </div>
-            <div>
-              <Label>Branch</Label>
-              <Input className="mt-1" {...register('branch')} />
-            </div>
+            <TextInputField
+              className="col-span-2"
+              label="Account number"
+              {...register('account_no')}
+            />
+            <Controller
+              control={control}
+              name="ifsc"
+              render={({ field, fieldState }) => (
+                <TextInputField
+                  label="IFSC"
+                  value={field.value}
+                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                  onBlur={field.onBlur}
+                  placeholder="IFSC code"
+                  inputClassName="uppercase"
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <TextInputField label="Branch" {...register('branch')} />
           </div>
 
           <div className="mt-4 flex justify-end gap-2">
