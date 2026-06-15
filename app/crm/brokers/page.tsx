@@ -337,7 +337,9 @@ export default function BrokersPage() {
                 <div className="text-lg font-semibold text-gray-900">
                   {selected.full_name}
                 </div>
-                <div className="text-sm text-gray-500">{selected.id}</div>
+                <div className="text-sm text-gray-500">
+                  {selected.phone ?? selected.email ?? '—'}
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button

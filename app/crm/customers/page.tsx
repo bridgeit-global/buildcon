@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { shortId } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1009,7 +1008,9 @@ export default function CustomersPage() {
                 <div className="text-lg font-semibold text-gray-900">
                   {selected.full_name}
                 </div>
-                <div className="text-sm text-gray-500">{shortId(selected.id)}</div>
+                <div className="text-sm text-gray-500">
+                  {selected.phone ?? selected.email ?? '—'}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {latestInquiry ? (
                     <span

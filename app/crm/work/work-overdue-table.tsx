@@ -22,6 +22,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/format-display-date';
+import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { formatInr } from '../inr-format';
 
 export type WorkOverdueRow = {
@@ -80,9 +81,12 @@ export function WorkOverdueTable({ rows, loading }: Props) {
         header: 'Booking',
         accessorKey: 'booking_id',
         cell: ({ row }) => (
-          <span className="font-mono text-[10px] text-ds-gray-600">
-            {row.original.booking_id}
-          </span>
+          <Link
+            href={`/crm/bookings/${row.original.booking_id}`}
+            className="text-[10px] font-semibold text-ds-primary-600 hover:underline"
+          >
+            {formatBookingDisplayId(row.original.booking_id)}
+          </Link>
         )
       },
       {

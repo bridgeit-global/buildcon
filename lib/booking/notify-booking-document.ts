@@ -1,4 +1,5 @@
 import { toast } from '@/lib/toast';
+import { userFacingError } from '@/lib/utils';
 
 export type NotifyBookingDocumentResponse = {
   ok: boolean;
@@ -123,6 +124,6 @@ export function toastDocumentDeliveryResults(
   }
 
   if (!notify.ok && notify.error) {
-    toast.error(notify.error);
+    toast.error(userFacingError(notify.error, 'Notification failed.'));
   }
 }

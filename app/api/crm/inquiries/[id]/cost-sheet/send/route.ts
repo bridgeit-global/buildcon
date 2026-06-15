@@ -28,7 +28,10 @@ export async function POST(
 
   const unitId = String(body.unitId ?? '').trim();
   if (!unitId) {
-    return NextResponse.json({ error: 'unitId is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Select a unit before sending the cost sheet.' },
+      { status: 400 }
+    );
   }
 
   const admin = createSupabaseAdminClient();
@@ -39,7 +42,7 @@ export async function POST(
     .maybeSingle();
 
   if (inqErr) {
-    return NextResponse.json({ error: inqErr.message }, { status: 500 });
+    return NextResponse.json({ error: 'Could not load enquiry.' }, { status: 500 });
   }
   if (!inquiry) {
     return NextResponse.json({ error: 'Inquiry not found' }, { status: 404 });

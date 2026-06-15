@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { pageError } from '@/lib/toast';
+import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { Check, ChevronDown, Search, Sparkles, UserPlus, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
@@ -1361,7 +1362,8 @@ export default function BookingsPage() {
 
         {createdBookingId ? (
           <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-            Booking created: <strong>{createdBookingId}</strong>
+            Booking created:{' '}
+            <strong>{formatBookingDisplayId(createdBookingId)}</strong>
           </div>
         ) : null}
 

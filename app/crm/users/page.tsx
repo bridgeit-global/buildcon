@@ -10,7 +10,6 @@ import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { shortId } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -352,10 +351,6 @@ export default function UsersPage() {
               <span className="text-gray-500">Name:</span>{' '}
               <strong>{profile?.name ?? '—'}</strong>
             </div>
-            <div className="mt-1">
-              <span className="text-gray-500">User id:</span>{' '}
-              <span className="font-mono text-xs">{profile?.id ?? '—'}</span>
-            </div>
           </div>
 
           {profile?.role === 'Super Admin' ? (
@@ -515,7 +510,7 @@ export default function UsersPage() {
                               className="rounded-full border bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
                               title="Remove"
                             >
-                              {projects.find((p) => p.id === id)?.name ?? id} ×
+                              {projects.find((p) => p.id === id)?.name ?? 'Unknown project'} ×
                             </button>
                           ))}
                           {invite.projectIds.length > 8 ? (
@@ -552,9 +547,6 @@ export default function UsersPage() {
                               <div className="min-w-0">
                                 <div className="font-semibold text-gray-900 truncate">
                                   {p.name}
-                                </div>
-                                <div className="text-xs text-gray-500 truncate">
-                                  {shortId(p.id)}
                                 </div>
                               </div>
                             </label>
@@ -617,7 +609,7 @@ export default function UsersPage() {
             <table className="min-w-[520px] w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
-                  {['Project', 'User id', 'Role', 'Status', 'Actions'].map(
+                  {['Project', 'User', 'Role', 'Status', 'Actions'].map(
                     (h) => (
                     <th key={h} className="px-3 py-2 text-left font-semibold border-b">
                       {h}
@@ -630,10 +622,11 @@ export default function UsersPage() {
                 {members.map((m) => (
                   <tr key={`${m.project_id}-${m.user_id}`} className="border-b">
                     <td className="max-w-[140px] truncate px-3 py-2 text-xs text-gray-600">
-                      {projectNameById.get(m.project_id) ?? m.project_id}
+                      {projectNameById.get(m.project_id) ?? 'Unknown project'}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-gray-700">
-                      {m.user_id}
+                    <td className="px-3 py-2 text-xs text-gray-700">
+                      {profiles.find((p) => p.id === m.user_id)?.name ??
+                        'Unknown user'}
                     </td>
                     <td className="px-3 py-2 text-gray-700">
                       {canManageProject(m.project_id) ? (
@@ -747,7 +740,7 @@ export default function UsersPage() {
                       .filter((p) => !members.some((m) => m.user_id === p.id))
                       .map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name || shortId(p.id)} ({p.role})
+                          {p.name || 'Unnamed user'} ({p.role})
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -794,7 +787,7 @@ export default function UsersPage() {
                 <SelectContent>
                   {portalDirectory.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name || shortId(p.id)} ({p.role})
+                      {p.name || 'Unnamed user'} ({p.role})
                     </SelectItem>
                   ))}
                 </SelectContent>

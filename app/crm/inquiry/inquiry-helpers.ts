@@ -29,7 +29,7 @@ export function inquiryUnitLabelFromRow(
   row: Pick<InquiryRowDb, 'unit_id' | 'units'>
 ): string {
   const u = embedOne(row.units);
-  if (!u) return row.unit_id || '—';
+  if (!u) return '—';
   const pn = String(embedOne(u.projects)?.name ?? '').trim() || null;
   return unitDisplayName({
     unit_code: u.unit_code,

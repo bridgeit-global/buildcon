@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { shortId } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -703,7 +702,7 @@ export default function CreateProjectPage() {
                       className="border bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
                       title="Remove"
                     >
-                      {profiles.find((p) => p.id === id)?.name ?? id} ×
+                      {profiles.find((p) => p.id === id)?.name ?? 'Unnamed user'} ×
                     </button>
                   ))}
                   {draft.memberIds.length > 8 ? (
@@ -741,9 +740,7 @@ export default function CreateProjectPage() {
                         <div className="truncate font-semibold text-gray-900">
                           {p.name || 'Unnamed user'}
                         </div>
-                        <div className="truncate text-xs text-gray-500">
-                          {p.role} · {shortId(p.id)}
-                        </div>
+                        <div className="truncate text-xs text-gray-500">{p.role}</div>
                       </div>
                     </label>
                   );

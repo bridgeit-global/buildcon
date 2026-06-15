@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { cn, shortId } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -534,9 +534,11 @@ function MembersPanel({
                 <tr key={m.user_id} className="border-t border-ds-gray-100">
                   <td className="px-3 py-2">
                     <div className="font-semibold text-ds-gray-900">
-                      {prof?.name || m.user_id}
+                      {prof?.name || 'Unknown user'}
                     </div>
-                    <div className="text-xs text-ds-gray-500">{m.user_id}</div>
+                    {prof?.role ? (
+                      <div className="text-xs text-ds-gray-500">{prof.role}</div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">
                     {canManageMembers ? (
@@ -615,7 +617,7 @@ function MembersPanel({
                 .filter((p) => !members.some((m) => m.user_id === p.id))
                 .map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name || shortId(p.id)} ({p.role})
+                    {p.name || 'Unnamed user'} ({p.role})
                   </SelectItem>
                 ))}
             </SelectContent>

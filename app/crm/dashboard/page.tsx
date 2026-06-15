@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { formatInrCompactLacCr } from '../inr-format';
+import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { formatFloorLabel } from '../inventory/inventory-utils';
 import {
   ChartPanel,
@@ -35,6 +36,7 @@ import {
 
 type RecentBooking = {
   id: string;
+  created_at: string;
   booking_amount: number | null;
   units:
     | { unit_code: string; wing_name: string; floor: number; unit_type: string | null }
@@ -100,6 +102,7 @@ export default function DashboardPage() {
           .select(
             `
             id,
+            created_at,
             booking_amount,
             units ( unit_code, wing_name, floor, unit_type ),
             customers ( full_name )
@@ -301,7 +304,7 @@ export default function DashboardPage() {
                 <table className="w-full min-w-[480px] border-collapse text-[11px]">
                   <thead>
                     <tr className="text-left text-ds-gray-400">
-                      <th className="px-2 py-1.5 font-semibold">ID</th>
+                      <th className="px-2 py-1.5 font-semibold">Booking</th>
                       <th className="px-2 py-1.5 font-semibold">Unit</th>
                       <th className="px-2 py-1.5 font-semibold">Customer</th>
                       <th className="px-2 py-1.5 text-right font-semibold">Amount</th>
@@ -315,7 +318,12 @@ export default function DashboardPage() {
                       return (
                         <tr key={b.id} className="border-t border-ds-gray-100">
                           <td className="px-2 py-2 font-semibold text-ds-primary-700">
-                            {b.id}
+                            <Link
+                              href={`/crm/bookings/${b.id}`}
+                              className="hover:underline"
+                            >
+                              {formatBookingDisplayId(b.id, b.created_at)}
+                            </Link>
                           </td>
                           <td className="px-2 py-2 text-ds-gray-500">{unitDisplayLine(u)}</td>
                           <td className="px-2 py-2 text-ds-gray-800">

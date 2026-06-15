@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
-import { shortId } from '@/lib/utils';
+import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -286,7 +286,9 @@ export default function UnitDetailPage() {
                 }
                 onClick={() => setActiveBookingId(b.id)}
               >
-                {unwrapJoin(b.customers)?.full_name ?? shortId(b.id)} · {b.workflow_stage}
+                {unwrapJoin(b.customers)?.full_name ??
+                  formatBookingDisplayId(b.id, b.created_at)}{' '}
+                · {b.workflow_stage}
                 {b.status === 'cancelled' ? ' · cancelled' : ''}
               </button>
             ))}
@@ -354,7 +356,13 @@ export default function UnitDetailPage() {
                 <span className="text-ds-gray-500">Active booking:</span>{' '}
                 <span className="font-medium">
                   {activeBookingId
-                    ? `${activeBookingId.slice(0, 8)}… · ${bookings.find((b) => b.id === activeBookingId)?.workflow_stage ?? '—'}`
+                    ? `${formatBookingDisplayId(
+                        activeBookingId,
+                        bookings.find((b) => b.id === activeBookingId)?.created_at
+                      )} · ${
+                        bookings.find((b) => b.id === activeBookingId)?.workflow_stage ??
+                        '—'
+                      }`
                     : 'No active booking'}
                 </span>
               </li>

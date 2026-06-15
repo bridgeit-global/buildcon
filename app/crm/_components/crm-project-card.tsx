@@ -155,7 +155,7 @@ export function CrmProjectCard({
             {p.member_preview.map((u, i) => (
               <span
                 key={u.user_id}
-                title={u.name || u.user_id}
+                title={u.name || 'Team member'}
                 className="flex size-[22px] items-center justify-center rounded-full border-2 border-white bg-blue-500 text-[9px] font-bold text-white"
                 style={{ marginLeft: i ? -6 : 0, zIndex: 4 - i }}
               >

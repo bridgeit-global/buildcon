@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { shortId } from '@/lib/utils';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { pageError } from '@/lib/toast';
 import { useCallback, useMemo, useState } from 'react';
@@ -389,7 +388,6 @@ export function GeneratedDocumentsTable({
               >
                 {code}
               </Link>
-              <div className="mt-0.5 font-mono text-[11px] text-ds-gray-500">{shortId(id)}</div>
             </div>
           );
         }

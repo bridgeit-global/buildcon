@@ -29,7 +29,8 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { formatDisplayDate } from '@/lib/format-display-date';
-import { cn, shortId } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import {
   formatInrCompactLacCr,
   formatUnitAgreementValueCompact,
@@ -498,9 +499,11 @@ function UnitDetailDialog({
                 )}
               >
                 <div>
-                  <span className="text-slate-500">Booking ID</span>
+                  <span className="text-slate-500">Booking ref</span>
                   <br />
-                  <strong>{shortId(booking.id)}</strong>
+                  <strong>
+                    {formatBookingDisplayId(booking.id, booking.created_at)}
+                  </strong>
                 </div>
                 <div>
                   <span className="text-slate-500">Booked on</span>

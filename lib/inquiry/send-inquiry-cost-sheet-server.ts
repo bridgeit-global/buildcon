@@ -102,7 +102,7 @@ async function signDocumentUrl(
     .from('documents')
     .createSignedUrl(storagePath, SIGNED_URL_VALID_SECONDS);
   if (error || !data?.signedUrl) {
-    return { ok: false, error: error?.message ?? 'Could not sign download URL' };
+    return { ok: false, error: 'Could not sign download URL.' };
   }
   return { ok: true, url: data.signedUrl };
 }
@@ -127,7 +127,7 @@ export async function sendInquiryCostSheetServer(
     .eq('id', inquiryId)
     .maybeSingle();
 
-  if (inqErr) return { ok: false, error: inqErr.message };
+  if (inqErr) return { ok: false, error: 'Could not load enquiry.' };
   if (!inquiry) return { ok: false, error: 'Inquiry not found' };
 
   const projectId = String(inquiry.project_id || '').trim();
@@ -170,7 +170,7 @@ export async function sendInquiryCostSheetServer(
     .eq('id', unitId)
     .maybeSingle();
 
-  if (unitErr) return { ok: false, error: unitErr.message };
+  if (unitErr) return { ok: false, error: 'Could not load unit.' };
   if (!unitRow) return { ok: false, error: 'Unit not found' };
   if (String(unitRow.project_id) !== projectId) {
     return { ok: false, error: 'Unit does not belong to this enquiry project.' };
@@ -184,7 +184,7 @@ export async function sendInquiryCostSheetServer(
     .eq('id', projectId)
     .maybeSingle();
 
-  if (projErr) return { ok: false, error: projErr.message };
+  if (projErr) return { ok: false, error: 'Could not load project.' };
   if (!projectRow) return { ok: false, error: 'Project not found' };
 
   const unit = unitFromDb(unitRow as UnitDbRow);
@@ -236,7 +236,7 @@ export async function sendInquiryCostSheetServer(
     contentType: 'application/pdf',
     upsert: false
   });
-  if (upErr) return { ok: false, error: upErr.message };
+  if (upErr) return { ok: false, error: 'Could not save the cost sheet PDF.' };
 
   const { data: genRow, error: genErr } = await admin
     .from('generated_documents')
@@ -254,7 +254,7 @@ export async function sendInquiryCostSheetServer(
   if (genErr || !genRow?.id) {
     return {
       ok: false,
-      error: genErr?.message ?? 'Could not save generated document record'
+      error: 'Could not save generated document record.'
     };
   }
 
@@ -286,7 +286,7 @@ export async function sendInquiryCostSheetServer(
   });
 
   if (quoteErr) {
-    return { ok: false, error: quoteErr.message };
+    return { ok: false, error: 'Could not save quotation record.' };
   }
 
   const signed = await signDocumentUrl(admin, storagePath);

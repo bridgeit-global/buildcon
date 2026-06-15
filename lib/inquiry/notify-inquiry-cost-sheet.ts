@@ -3,6 +3,7 @@ import {
   type NotifyBookingDocumentResponse
 } from '@/lib/booking/notify-booking-document';
 import { pageError } from '@/lib/toast';
+import { userFacingError } from '@/lib/utils';
 
 export type SendInquiryCostSheetBody = {
   unitId: string;
@@ -39,10 +40,10 @@ export async function sendInquiryCostSheet(
   if (!res.ok) {
     return {
       ok: false,
-      error:
-        typeof json.error === 'string'
-          ? json.error
-          : 'Sending the cost sheet failed.'
+      error: userFacingError(
+        typeof json.error === 'string' ? json.error : null,
+        'Sending the cost sheet failed.'
+      )
     };
   }
 
