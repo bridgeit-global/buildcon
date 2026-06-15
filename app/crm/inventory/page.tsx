@@ -210,8 +210,11 @@ function inventoryTabLabel(t: InventoryTab) {
 }
 
 function tabCardClass() {
-  return 'rounded-lg border border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]';
+  return 'rounded-lg border border-ds-gray-200 bg-white shadow-sm';
 }
+
+const filterLabelClass = 'text-xs text-ds-gray-500';
+const filterSelectClass = 'mt-1 w-full min-w-[10rem]';
 
 function StatusBadge({
   code,
@@ -720,7 +723,7 @@ function UnitEditDialog({
               }}
             >
               <SelectTrigger
-                className="h-9 rounded-md border border-slate-200 bg-white px-2 text-xs shadow-none"
+                className="w-full"
                 aria-invalid={editValidation.fieldError('status') ? true : undefined}
               >
                 <SelectValue />
@@ -1438,23 +1441,28 @@ function InventoryPageContent() {
           </p>
         </div>
         {projects.length > 0 ? (
-        <SearchableSelect
-          value={projects.find((p) => p.id === inventoryProjectId)?.name ?? ''}
-          onValueChange={(name) => {
-            const project = projects.find((p) => p.name === name);
-            if (project) setInventoryProjectId(project.id);
-          }}
-          options={projects.map((p) => p.name)}
-          placeholder="Select project…"
-          searchPlaceholder="Search project…"
-          className="min-w-[200px] max-w-[min(100%,320px)] h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
-        />
+          <div className="min-w-[12rem] max-w-[min(100%,320px)]">
+            <Label className={filterLabelClass}>Project</Label>
+            <SearchableSelect
+              value={
+                projects.find((p) => p.id === inventoryProjectId)?.name ?? ''
+              }
+              onValueChange={(name) => {
+                const project = projects.find((p) => p.name === name);
+                if (project) setInventoryProjectId(project.id);
+              }}
+              options={projects.map((p) => p.name)}
+              placeholder="Select project…"
+              searchPlaceholder="Search project…"
+              className={cn(filterSelectClass, 'min-w-[12rem]')}
+            />
+          </div>
         ) : null}
       </div>
 
       <div
         className={cn(
-          'flex flex-wrap gap-0 rounded-lg px-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]',
+          'flex flex-wrap gap-0 rounded-lg px-4',
           tabCardClass()
         )}
       >
@@ -1466,14 +1474,9 @@ function InventoryPageContent() {
             className={cn(
               'cursor-pointer whitespace-nowrap border-b-2 border-transparent px-3.5 py-3 text-[11px]',
               tab === t
-                ? 'border-b-2 border-blue-500 font-semibold text-blue-500'
-                : 'font-normal text-slate-500 hover:text-slate-700'
+                ? 'border-ds-primary-500 font-semibold text-ds-primary-600'
+                : 'font-normal text-ds-gray-500 hover:text-ds-gray-700'
             )}
-            style={
-              tab === t
-                ? { borderBottomColor: '#3B82F6', color: '#3B82F6' }
-                : undefined
-            }
           >
             {inventoryTabLabel(t)}
           </button>
@@ -1637,36 +1640,42 @@ function InventoryPageContent() {
           </div>
           <div
             className={cn(
-              'flex flex-wrap items-center gap-2.5 px-4 py-3',
+              'flex flex-wrap items-end gap-3 px-4 py-3',
               tabCardClass()
             )}
           >
-            <SearchableSelect
-              value={structFilter === 'All' ? 'All structures' : structFilter}
-              onValueChange={(v) =>
-                setStructFilter(v === 'All structures' ? 'All' : v)
-              }
-              options={['All structures', ...structureOptions]}
-              placeholder="All structures"
-              searchPlaceholder="Search wing…"
-              className="max-w-[220px] h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
-            />
-            <SearchableSelect
-              value={
-                floorOptions.find((f) => f.value === floorFilter)?.label ??
-                'All Floors'
-              }
-              onValueChange={(label) => {
-                const opt = floorOptions.find((f) => f.label === label);
-                if (opt) setFloorFilter(opt.value);
-              }}
-              options={floorOptions.map((f) => f.label)}
-              placeholder="All Floors"
-              searchPlaceholder="Search floor…"
-              className="h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
-            />
-            <div className="flex-1" />
-            {UNIT_STATUS_CODES.map((k) => {
+            <div className="min-w-[10rem] max-w-[220px]">
+              <Label className={filterLabelClass}>Wing</Label>
+              <SearchableSelect
+                value={structFilter === 'All' ? 'All structures' : structFilter}
+                onValueChange={(v) =>
+                  setStructFilter(v === 'All structures' ? 'All' : v)
+                }
+                options={['All structures', ...structureOptions]}
+                placeholder="All structures"
+                searchPlaceholder="Search wing…"
+                className={filterSelectClass}
+              />
+            </div>
+            <div className="min-w-[10rem]">
+              <Label className={filterLabelClass}>Floor</Label>
+              <SearchableSelect
+                value={
+                  floorOptions.find((f) => f.value === floorFilter)?.label ??
+                  'All Floors'
+                }
+                onValueChange={(label) => {
+                  const opt = floorOptions.find((f) => f.label === label);
+                  if (opt) setFloorFilter(opt.value);
+                }}
+                options={floorOptions.map((f) => f.label)}
+                placeholder="All Floors"
+                searchPlaceholder="Search floor…"
+                className={filterSelectClass}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
+          {UNIT_STATUS_CODES.map((k) => {
               const v = STATUS_LABEL[k] ?? k;
               return (
                 <div key={k} className="flex items-center gap-1">
@@ -1681,6 +1690,10 @@ function InventoryPageContent() {
               );
             })}
           </div>
+          </div>
+
+          
+         
 
           <div className="flex gap-3">
             <div
@@ -1709,7 +1722,7 @@ function InventoryPageContent() {
                 );
                 return (
                   <div key={wing} className="mb-4">
-                    <div className="mb-2 inline-block rounded bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-500">
+                    <div className="mb-2 inline-block rounded bg-ds-primary-50 px-2.5 py-1 text-[11px] font-bold text-ds-primary-600">
                       {wing}
                     </div>
                     <table className="border-collapse">
@@ -1910,57 +1923,80 @@ function InventoryPageContent() {
 
       {tab === 'Unit List' && (
         <div className={cn('relative p-4', tabCardClass())}>
-          <div className="mb-3 flex flex-wrap items-center gap-2.5">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search unit name / wing…"
-              className="h-8 max-w-[180px] text-[11px]"
-            />
-            <SearchableSelect
-              value={structListF === 'All' ? 'All structures' : structListF}
-              onValueChange={(v) =>
-                setStructListF(v === 'All structures' ? 'All' : v)
-              }
-              options={['All structures', ...structureOptions]}
-              placeholder="All structures"
-              searchPlaceholder="Search wing…"
-              className="max-w-[200px] h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
-            />
-            <Select
-              value={statusF}
-              onValueChange={setStatusF}
-            >
-              <SelectTrigger
-                size="sm"
-                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Status</SelectItem>
-                {UNIT_STATUS_CODES.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {STATUS_LABEL[k] ?? k}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <SearchableSelect
-              value={typeF === 'All' ? 'All Types' : typeF}
-              onValueChange={(v) => setTypeF(v === 'All Types' ? 'All' : v)}
-              options={['All Types', ...typeOptions]}
-              placeholder="All Types"
-              searchPlaceholder="Search type…"
-              className="h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
-            />
-            <div className="flex-1" />
-            <span className="text-[11px] text-slate-400">
-              {filteredList.length} units
-            </span>
-            <Button variant="outline" size="sm" onClick={() => void load()}>
-              {loading ? 'Loading…' : 'Refresh'}
-            </Button>
+          <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+            <div className="min-w-[12rem] flex-1">
+              <Label htmlFor="inventory-unit-search" className={filterLabelClass}>
+                Search
+              </Label>
+              <Input
+                id="inventory-unit-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Unit code or wing…"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[10rem]">
+                <Label className={filterLabelClass}>Wing</Label>
+                <SearchableSelect
+                  value={structListF === 'All' ? 'All structures' : structListF}
+                  onValueChange={(v) =>
+                    setStructListF(v === 'All structures' ? 'All' : v)
+                  }
+                  options={['All structures', ...structureOptions]}
+                  placeholder="All structures"
+                  searchPlaceholder="Search wing…"
+                  className={filterSelectClass}
+                />
+              </div>
+              <div className="min-w-[10rem]">
+                <Label className={filterLabelClass}>Status</Label>
+                <SearchableSelect
+                  value={
+                    statusF === 'All'
+                      ? 'All Status'
+                      : (STATUS_LABEL[statusF] ?? statusF)
+                  }
+                  onValueChange={(label) => {
+                    if (label === 'All Status') {
+                      setStatusF('All');
+                      return;
+                    }
+                    const code = UNIT_STATUS_CODES.find(
+                      (k) => (STATUS_LABEL[k] ?? k) === label
+                    );
+                    setStatusF(code ?? 'All');
+                  }}
+                  options={[
+                    'All Status',
+                    ...UNIT_STATUS_CODES.map((k) => STATUS_LABEL[k] ?? k)
+                  ]}
+                  placeholder="All Status"
+                  searchPlaceholder="Search status…"
+                  className={filterSelectClass}
+                />
+              </div>
+              <div className="min-w-[10rem]">
+                <Label className={filterLabelClass}>Type</Label>
+                <SearchableSelect
+                  value={typeF === 'All' ? 'All Types' : typeF}
+                  onValueChange={(v) => setTypeF(v === 'All Types' ? 'All' : v)}
+                  options={['All Types', ...typeOptions]}
+                  placeholder="All Types"
+                  searchPlaceholder="Search type…"
+                  className={filterSelectClass}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+              <span className="text-xs text-ds-gray-500">
+                {filteredList.length} units
+              </span>
+              <Button variant="outline" onClick={() => void load()}>
+                {loading ? 'Loading…' : 'Refresh'}
+              </Button>
+            </div>
           </div>
 
           <div className="max-h-[420px] overflow-y-auto rounded-lg border border-ds-gray-200">
@@ -2078,8 +2114,8 @@ function InventoryPageContent() {
                 className={cn(
                   'rounded-md border px-4 py-1.5 text-[11px]',
                   effectiveFloorPlanWing === o
-                    ? 'border-blue-500 bg-blue-50 font-semibold text-blue-500'
-                    : 'border-slate-200 bg-white text-slate-500'
+                    ? 'border-ds-primary-500 bg-ds-primary-50 font-semibold text-ds-primary-600'
+                    : 'border-ds-gray-200 bg-white text-ds-gray-500'
                 )}
               >
                 {o}
@@ -2100,8 +2136,8 @@ function InventoryPageContent() {
                   className={cn(
                     'rounded-md border px-1 py-1.5 text-center text-[11px]',
                     displayFloorFp === f
-                      ? 'border-blue-500 bg-blue-50 font-bold text-blue-500'
-                      : 'border-slate-200 bg-slate-50 text-slate-500'
+                      ? 'border-ds-primary-500 bg-ds-primary-50 font-bold text-ds-primary-600'
+                      : 'border-ds-gray-200 bg-ds-gray-50 text-ds-gray-500'
                   )}
                 >
                   {formatFloorChipLabel(f, undefined)}
@@ -2327,7 +2363,7 @@ function InventoryPageContent() {
               </div>
               <div className="flex flex-wrap items-end gap-2.5">
                 <div className="min-w-[200px] flex-[2]">
-                  <Label className="text-[10px] text-orange-900">Unit</Label>
+                  <Label className="text-xs text-orange-900">Unit</Label>
                   <SearchableSelect
                     value={selectedBlockUnitLabel}
                     onValueChange={(label) => {
@@ -2341,12 +2377,12 @@ function InventoryPageContent() {
                     options={blockUnitOptions}
                     placeholder="Select available unit…"
                     searchPlaceholder="Search unit…"
-                    className="mt-1 h-9 rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none"
+                    className={cn(filterSelectClass, 'min-w-[12rem]')}
                   />
                   <FormFieldError message={blockValidation.fieldError('blockUnitId')} />
                 </div>
                 <div className="min-w-[200px] flex-[3]">
-                  <Label className="text-[10px] text-orange-900">Reason</Label>
+                  <Label className="text-xs text-orange-900">Reason</Label>
                   <Select
                     value={blockReason === '' ? undefined : blockReason}
                     onValueChange={(v) => {
@@ -2355,7 +2391,7 @@ function InventoryPageContent() {
                     }}
                   >
                     <SelectTrigger
-                      className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none"
+                      className={cn(filterSelectClass, 'min-w-[12rem]')}
                       aria-invalid={
                         blockValidation.fieldError('blockReason') ? true : undefined
                       }
