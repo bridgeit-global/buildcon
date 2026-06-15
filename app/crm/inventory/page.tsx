@@ -53,12 +53,6 @@ import {
 } from './inventory-utils';
 import { writeBookingPrefill } from '../booking-prefill-storage';
 
-type UnitProjectMeta = {
-  name: string;
-  parking_slots: number | null;
-  parking_rate: number | null;
-};
-
 type UnitRow = {
   id: string;
   project_id: string;
@@ -81,19 +75,20 @@ type UnitRow = {
   status: string;
   blocked_reason: string | null;
   blocked_on: string | null;
-  projects?: UnitProjectMeta | UnitProjectMeta[] | null;
 };
 
-const INVENTORY_ALL_PROJECTS = 'all';
+function resolveInventoryProjectId(
+  projects: { id: string }[],
+  urlProjectId: string | null
+): string {
+  if (urlProjectId && projects.some((p) => p.id === urlProjectId)) {
+    return urlProjectId;
+  }
+  return projects[0]?.id ?? '';
+}
 
 const UNIT_SELECT =
   'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
-
-function unitProjectMeta(unit: UnitRow): UnitProjectMeta | null {
-  const p = unit.projects;
-  if (!p) return null;
-  return Array.isArray(p) ? p[0] ?? null : p;
-}
 
 type ProjectRow = {
   name: string;
@@ -1012,15 +1007,9 @@ function InventoryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { projects } = useCrmProjectsContext();
-  const projectNameById = useMemo(
-    () => new Map(projects.map((p) => [p.id, p.name])),
-    [projects]
+  const [inventoryProjectId, setInventoryProjectId] = useState(() =>
+    resolveInventoryProjectId(projects, searchParams.get('projectId'))
   );
-  const [inventoryProjectId, setInventoryProjectId] = useState<
-    string | typeof INVENTORY_ALL_PROJECTS
-  >(INVENTORY_ALL_PROJECTS);
-  const isAllProjects = inventoryProjectId === INVENTORY_ALL_PROJECTS;
-  const singleProjectId = isAllProjects ? null : inventoryProjectId;
 
   const [tab, setTab] = useState<InventoryTab>('Grid View');
   const [units, setUnits] = useState<UnitRow[]>([]);
@@ -1058,37 +1047,36 @@ function InventoryPageContent() {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
-    const id = searchParams.get('projectId');
-    if (id && projects.some((p) => p.id === id)) {
-      setInventoryProjectId(id);
+    const urlId = searchParams.get('projectId');
+    if (urlId && projects.some((p) => p.id === urlId)) {
+      setInventoryProjectId(urlId);
+      return;
     }
-  }, [searchParams, projects]);
+    if (
+      inventoryProjectId &&
+      projects.some((p) => p.id === inventoryProjectId)
+    ) {
+      return;
+    }
+    setInventoryProjectId(projects[0]?.id ?? '');
+  }, [searchParams, projects, inventoryProjectId]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    
-    if (isAllProjects) {
-      const { data, error: unitsErr } = await supabase
-        .from('units')
-        .select(`${UNIT_SELECT}, projects ( name, parking_slots, parking_rate )`)
-        .order('wing_name', { ascending: true })
-        .order('floor', { ascending: false })
-        .order('unit_no', { ascending: true });
-
-      if (unitsErr) pageError(unitsErr.message);
-      setUnits((data ?? []) as UnitRow[]);
+    if (!inventoryProjectId) {
+      setUnits([]);
       setProject(null);
       setWingNames([]);
       setUnitTypeNames([]);
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
 
     const [unitsRes, projRes, wingsRes, typesRes] = await Promise.all([
       supabase
         .from('units')
         .select(UNIT_SELECT)
-        .eq('project_id', singleProjectId!)
+        .eq('project_id', inventoryProjectId)
         .order('wing_name', { ascending: true })
         .order('floor', { ascending: false })
         .order('unit_no', { ascending: true }),
@@ -1097,17 +1085,17 @@ function InventoryPageContent() {
         .select(
           'name, location, rera_no, floors_per_wing, units_per_floor, parking_slots, parking_rate'
         )
-        .eq('id', singleProjectId!)
+        .eq('id', inventoryProjectId)
         .maybeSingle(),
       supabase
         .from('project_wings')
         .select('name')
-        .eq('project_id', singleProjectId!)
+        .eq('project_id', inventoryProjectId)
         .order('sort_order', { ascending: true }),
       supabase
         .from('project_unit_types')
         .select('name')
-        .eq('project_id', singleProjectId!)
+        .eq('project_id', inventoryProjectId)
         .order('sort_order', { ascending: true })
     ]);
 
@@ -1126,10 +1114,10 @@ function InventoryPageContent() {
     setUnitTypeNames(typeList);
 
     setLoading(false);
-  }, [isAllProjects, singleProjectId, supabase]);
+  }, [inventoryProjectId, supabase]);
 
   const runBulkImport = useCallback(async () => {
-    if (isAllProjects || !singleProjectId || !bulkCsv.trim()) return;
+    if (!inventoryProjectId || !bulkCsv.trim()) return;
     setBulkBusy(true);
     const rows = parseCsvRows(bulkCsv);
     if (!rows.length) {
@@ -1140,7 +1128,7 @@ function InventoryPageContent() {
     const payloads: Record<string, unknown>[] = [];
     let skipped = 0;
     for (const r of rows) {
-      const p = csvRowToUnitUpsert(singleProjectId, r);
+      const p = csvRowToUnitUpsert(inventoryProjectId, r);
       if (p) payloads.push(p);
       else skipped++;
     }
@@ -1170,7 +1158,7 @@ function InventoryPageContent() {
     } finally {
       setBulkBusy(false);
     }
-  }, [isAllProjects, singleProjectId, bulkCsv, load, supabase]);
+  }, [inventoryProjectId, bulkCsv, load, supabase]);
 
   useEffect(() => {
     void load();
@@ -1191,16 +1179,16 @@ function InventoryPageContent() {
   }, [units]);
 
   useEffect(() => {
-    if (isAllProjects || !singleProjectId) return;
+    if (!inventoryProjectId) return;
     const channel = supabase
-      .channel(`units-inv-${singleProjectId}`)
+      .channel(`units-inv-${inventoryProjectId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'units',
-          filter: `project_id=eq.${singleProjectId}`
+          filter: `project_id=eq.${inventoryProjectId}`
         },
         () => {
           void load();
@@ -1210,7 +1198,7 @@ function InventoryPageContent() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [isAllProjects, singleProjectId, supabase, load]);
+  }, [inventoryProjectId, supabase, load]);
 
   useEffect(() => {
     try {
@@ -1226,22 +1214,9 @@ function InventoryPageContent() {
 
   const projectName = project?.name ?? '';
 
-  const labelForUnitProject = useCallback(
-    (unit: UnitRow) => {
-      if (!isAllProjects) return projectName;
-      return (
-        unitProjectMeta(unit)?.name ??
-        projectNameById.get(unit.project_id) ??
-        unit.project_id
-      );
-    },
-    [isAllProjects, projectName, projectNameById]
-  );
-
   const navigateToBookingForUnit = useCallback(
     (unit: UnitRow) => {
       if (!isUnitAvailableForBooking(unit.status)) return;
-      const meta = unitProjectMeta(unit);
       writeBookingPrefill({
         projectId: unit.project_id,
         inquiryId: null,
@@ -1250,16 +1225,12 @@ function InventoryPageContent() {
         unitId: unit.id,
         parkingRequired: 'No',
         parkingCount: '1',
-        parkingSlotsAvailable: isAllProjects
-          ? meta?.parking_slots ?? null
-          : project?.parking_slots ?? null,
-        parkingRateSnapshot: isAllProjects
-          ? meta?.parking_rate ?? null
-          : project?.parking_rate ?? null
+        parkingSlotsAvailable: project?.parking_slots ?? null,
+        parkingRateSnapshot: project?.parking_rate ?? null
       });
       router.push('/crm/bookings');
     },
-    [isAllProjects, project?.parking_rate, project?.parking_slots, router]
+    [project?.parking_rate, project?.parking_slots, router]
   );
 
   const structureOptions = useMemo(() => {
@@ -1444,11 +1415,10 @@ function InventoryPageContent() {
         <div>
           <h1 className="text-base font-semibold text-slate-800">Inventory</h1>
           <p className="text-[11px] text-slate-500">
-            {isAllProjects
-              ? 'All projects — unit list and filters; pick one project for grid, floor plan, and bulk import.'
-              : projectName || 'Single project view'}
+            {projectName || 'Select a project to view inventory'}
           </p>
         </div>
+        {projects.length > 0 ? (
         <Select
           value={inventoryProjectId}
           onValueChange={(v) => setInventoryProjectId(v)}
@@ -1457,10 +1427,9 @@ function InventoryPageContent() {
             size="sm"
             className="min-w-[200px] max-w-[min(100%,320px)] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
           >
-            <SelectValue placeholder="Filter by project" />
+            <SelectValue placeholder="Select project" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={INVENTORY_ALL_PROJECTS}>All projects</SelectItem>
             {projects.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.name}
@@ -1468,6 +1437,7 @@ function InventoryPageContent() {
             ))}
           </SelectContent>
         </Select>
+        ) : null}
       </div>
 
       <div
@@ -1500,13 +1470,6 @@ function InventoryPageContent() {
 
       {tab === 'Inventory Info' && (
         <div className="flex flex-col gap-3.5">
-          {isAllProjects ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-600">
-              Select a single project from the filter above to view project
-              configuration, live summary for one site, and bulk CSV import.
-            </div>
-          ) : (
-            <>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-[11px] text-blue-600">
             <span>
               Inventory configuration is set during{' '}
@@ -1645,20 +1608,16 @@ function InventoryPageContent() {
               </Button>
             </div>
           </div>
-            </>
-          )}
         </div>
       )}
 
       {tab === 'Grid View' && (
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
-            {!isAllProjects ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                Live
-              </span>
-            ) : null}
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              Live
+            </span>
             <span className="font-semibold text-slate-800">Sales matrix: </span>
             filter by wing and floor; cells align to unit slots on each floor.
             Colours follow the legend; carpet/BUA and floor-rise + PLC roll into
@@ -2022,7 +1981,6 @@ function InventoryPageContent() {
                 <tr className="border-b border-ds-gray-100">
                   {[
                     'Unit No.',
-                    ...(isAllProjects ? (['Project'] as const) : []),
                     'Wing',
                     'Floor',
                     'Type',
@@ -2052,11 +2010,6 @@ function InventoryPageContent() {
                     <td className="px-3 py-2 text-[11px] font-semibold text-ds-gray-800">
                       {u.unit_code}
                     </td>
-                    {isAllProjects ? (
-                      <td className="max-w-[140px] px-3 py-2 text-[11px] text-ds-gray-500">
-                        {labelForUnitProject(u)}
-                      </td>
-                    ) : null}
                     <td className="max-w-[140px] px-3 py-2 text-[11px] text-ds-gray-500">
                       {u.wing_name}
                     </td>
@@ -2525,8 +2478,8 @@ function InventoryPageContent() {
 
       <UnitDetailDialog
         unit={selected}
-        projectId={selected?.project_id ?? singleProjectId}
-        projectName={selected ? labelForUnitProject(selected) : projectName}
+        projectId={selected?.project_id ?? inventoryProjectId}
+        projectName={projectName}
         open={detailOpen}
         onOpenChange={(o) => {
           setDetailOpen(o);
