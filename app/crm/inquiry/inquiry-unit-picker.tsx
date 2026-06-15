@@ -111,6 +111,12 @@ export type UnitPickSort =
   | 'agreement_desc'
   | 'agreement_asc';
 
+export type InquiryProjectPickOption = {
+  id: string;
+  name: string;
+  location?: string | null;
+};
+
 export const DEFAULT_UNIT_PICK_FILTERS: UnitPickFilters = {
   projectId: '',
   unitType: '',
@@ -172,7 +178,7 @@ function normalizeFilterToken(s: string): string {
 
 function mergeProjectFilterOptions(
   units: UnitRow[],
-  accessibleProjects?: { id: string; name: string }[]
+  accessibleProjects?: InquiryProjectPickOption[]
 ): [string, string][] {
   const map = new Map(buildProjectFilterOptions(units));
   for (const p of accessibleProjects ?? []) {
@@ -183,6 +189,51 @@ function mergeProjectFilterOptions(
   return [...map.entries()].sort((a, b) =>
     a[1].localeCompare(b[1], undefined, { sensitivity: 'base' })
   );
+}
+
+function buildProjectPickMeta(
+  units: UnitRow[],
+  accessibleProjects?: InquiryProjectPickOption[]
+): InquiryProjectPickOption[] {
+  const map = new Map<string, InquiryProjectPickOption>();
+  for (const p of accessibleProjects ?? []) {
+    const id = String(p.id || '').trim();
+    if (!id) continue;
+    map.set(id, {
+      id,
+      name: String(p.name || '').trim() || 'Untitled project',
+      location: p.location ?? null
+    });
+  }
+  for (const u of units) {
+    const id = String(u.project_id || '').trim();
+    if (!id || map.has(id)) continue;
+    map.set(id, {
+      id,
+      name: String(u.project_name || '').trim() || 'Untitled project',
+      location: null
+    });
+  }
+  return [...map.values()];
+}
+
+function textMatchesPreference(pref: string, candidate: string): boolean {
+  const prefLower = pref.toLowerCase();
+  const candLower = candidate.toLowerCase().trim();
+  if (!candLower) return false;
+  return candLower.includes(prefLower) || prefLower.includes(candLower);
+}
+
+function findProjectIdByPreferredLocation(
+  loc: string,
+  projects: InquiryProjectPickOption[]
+): string {
+  const match = projects.find(
+    (p) =>
+      textMatchesPreference(loc, p.name) ||
+      (p.location && textMatchesPreference(loc, p.location))
+  );
+  return match?.id ?? '';
 }
 
 /** Map step-1 “What are they looking for?” fields onto unit-picker filters. */
@@ -755,26 +806,37 @@ export function InquiryUnitPicker({
           </Button>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <FilterSelect
-            label="Project"
-            value={filters.projectId === '' ? UNIT_FILTER_ALL : filters.projectId}
-            onValueChange={(v) =>
-              setFilters((f) => ({
-                ...f,
-                projectId: v === UNIT_FILTER_ALL ? '' : v,
-                unitType: '',
-                floor: '',
-                structure: '',
-                unitNo: ''
-              }))
-            }
-            allLabel="All projects"
-            options={projectFilterOptions.map(([id, name]) => ({
-              value: id,
-              label: name
-            }))}
-          />
+        <div
+          className={cn(
+            'mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2',
+            viewMode === 'grid' && projectFilterOptions.length > 1
+              ? 'lg:grid-cols-3'
+              : 'lg:grid-cols-4'
+          )}
+        >
+          {viewMode === 'list' || projectFilterOptions.length <= 1 ? (
+            <FilterSelect
+              label="Project"
+              value={
+                filters.projectId === '' ? UNIT_FILTER_ALL : filters.projectId
+              }
+              onValueChange={(v) =>
+                setFilters((f) => ({
+                  ...f,
+                  projectId: v === UNIT_FILTER_ALL ? '' : v,
+                  unitType: '',
+                  floor: '',
+                  structure: '',
+                  unitNo: ''
+                }))
+              }
+              allLabel="All projects"
+              options={projectFilterOptions.map(([id, name]) => ({
+                value: id,
+                label: name
+              }))}
+            />
+          ) : null}
           <FilterSelect
             label="Type"
             value={filters.unitType === '' ? UNIT_FILTER_ALL : filters.unitType}

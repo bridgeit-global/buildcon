@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { WizardStepper } from '@/components/ui/wizard-stepper';
 import { pageError, toast } from '@/lib/toast';
 import {
@@ -9,6 +9,7 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState
 } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
@@ -40,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
 import {
   type ProjectParkingMeta,
@@ -123,6 +125,13 @@ const LEAD_SOURCES = [
 function normalizePhone(p: string) {
   return String(p || '').replace(/\D/g, '');
 }
+
+type ExistingCustomerMatch = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+};
 
 const STEPS = [
   { id: 1, label: 'Enquiry' },
@@ -265,6 +274,18 @@ export const NewInquiryWizard = forwardRef<
     useState<ProjectParkingMeta | null>(null);
   const [projectPricing, setProjectPricing] =
     useState<ProjectPricingMeta | null>(null);
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [existingCustomerMatches, setExistingCustomerMatches] = useState<
+    ExistingCustomerMatch[]
+  >([]);
+  const [existingCustomerPickerOpen, setExistingCustomerPickerOpen] =
+    useState(false);
+  const [existingCustomerLookupLoading, setExistingCustomerLookupLoading] =
+    useState(false);
+  const phoneLookupAttemptedRef = useRef('');
+  const phoneLookupInFlightRef = useRef('');
+  const phoneLookupSuppressedRef = useRef(false);
 
   const [sellerForm, setSellerForm] = useState({
     customerName: '',
@@ -588,6 +609,9 @@ export const NewInquiryWizard = forwardRef<
           : siteOutcome === 'Interested'
             ? 'Interested'
             : '';
+      if (custPhone) {
+        phoneLookupSuppressedRef.current = true;
+      }
       hydrateSnapshots({
         1: {
           customerName: custName,
@@ -873,6 +897,110 @@ export const NewInquiryWizard = forwardRef<
     visitInterest: visitInterest || ''
   });
 
+  const lookupExistingCustomers = useCallback(
+    async (digits: string) => {
+      if (phoneLookupAttemptedRef.current === digits) return;
+      if (phoneLookupInFlightRef.current === digits) return;
+      phoneLookupInFlightRef.current = digits;
+      setExistingCustomerLookupLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id, full_name, email, phone')
+          .or(`phone.eq.${digits},phone.ilike.%${digits}`)
+          .order('full_name', { ascending: true })
+          .limit(50);
+
+        if (error) throw error;
+        const matches = ((data ?? []) as ExistingCustomerMatch[]).filter(
+          (row) => {
+            const normalized = normalizePhone(row.phone ?? '');
+            return (
+              normalized === digits ||
+              (normalized.length > 10 && normalized.endsWith(digits))
+            );
+          }
+        );
+        phoneLookupAttemptedRef.current = digits;
+        if (matches.length > 0) {
+          setExistingCustomerMatches(matches);
+          setExistingCustomerPickerOpen(true);
+        }
+      } catch {
+        phoneLookupAttemptedRef.current = '';
+      } finally {
+        if (phoneLookupInFlightRef.current === digits) {
+          phoneLookupInFlightRef.current = '';
+        }
+        setExistingCustomerLookupLoading(false);
+      }
+    },
+    [supabase]
+  );
+
+  const enquiryPhoneDigits = useMemo(
+    () => normalizePhone(sellerForm.phone),
+    [sellerForm.phone]
+  );
+
+  useEffect(() => {
+    if (step !== 1 || stagesReadOnly) return;
+    if (enquiryPhoneDigits.length < 10) {
+      if (enquiryPhoneDigits.length === 0) {
+        phoneLookupAttemptedRef.current = '';
+      }
+      return;
+    }
+    if (phoneLookupSuppressedRef.current) {
+      phoneLookupAttemptedRef.current = enquiryPhoneDigits;
+      phoneLookupSuppressedRef.current = false;
+      return;
+    }
+    if (phoneLookupAttemptedRef.current === enquiryPhoneDigits) return;
+
+    const timer = window.setTimeout(() => {
+      void lookupExistingCustomers(enquiryPhoneDigits);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    enquiryPhoneDigits,
+    step,
+    stagesReadOnly,
+    lookupExistingCustomers
+  ]);
+
+  const handleEnquiryPhoneChange = useCallback(
+    (value: string) => {
+      const digits = normalizePhone(value);
+      const prevDigits = normalizePhone(sellerForm.phone);
+      if (digits.length < 10) {
+        phoneLookupAttemptedRef.current = '';
+        setSelectedCustomerId('');
+      } else if (digits !== prevDigits) {
+        setSelectedCustomerId('');
+        phoneLookupAttemptedRef.current = '';
+      }
+      setSellerForm((s) => ({ ...s, phone: value }));
+    },
+    [sellerForm.phone]
+  );
+
+  const handleSelectExistingCustomer = useCallback(
+    (customer: ExistingCustomerMatch) => {
+      setSelectedCustomerId(customer.id);
+      setSellerForm((s) => ({
+        ...s,
+        customerName: String(customer.full_name || '').trim(),
+        email: String(customer.email || '').trim()
+      }));
+      step1Validation.touch('customerName');
+      step1Validation.touch('email');
+      setExistingCustomerPickerOpen(false);
+    },
+    [step1Validation]
+  );
+
   const stepValid = useMemo(() => {
     const step1Ok =
       inquiryWizardStep1Schema.safeParse(step1Values).success &&
@@ -894,6 +1022,24 @@ export const NewInquiryWizard = forwardRef<
     const email = String(sellerForm.email || '').trim() || null;
 
     try {
+      if (selectedCustomerId) {
+        const { data: selected, error: selErr } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('id', selectedCustomerId)
+          .eq('phone_normalized', digits)
+          .maybeSingle();
+        if (!selErr && selected?.id) {
+          const customerId = selected.id;
+          const { error: upErr } = await supabase
+            .from('customers')
+            .update({ full_name: fullName, email, phone: digits })
+            .eq('id', customerId);
+          if (upErr) throw upErr;
+          return customerId;
+        }
+      }
+
       const { data: existing, error: findErr } = await supabase
         .from('customers')
         .select('id')
@@ -931,6 +1077,7 @@ export const NewInquiryWizard = forwardRef<
   }, [
     supabase,
     userLabel.id,
+    selectedCustomerId,
     sellerForm.customerName,
     sellerForm.phone,
     sellerForm.email
@@ -1167,6 +1314,12 @@ export const NewInquiryWizard = forwardRef<
   }
 
   function resetForm() {
+    setSelectedCustomerId('');
+    phoneLookupAttemptedRef.current = '';
+    phoneLookupInFlightRef.current = '';
+    phoneLookupSuppressedRef.current = false;
+    setExistingCustomerMatches([]);
+    setExistingCustomerPickerOpen(false);
     setSellerForm({
       customerName: '',
       phone: '',
@@ -1704,6 +1857,8 @@ export const NewInquiryWizard = forwardRef<
           fieldError={step1Validation.fieldError}
           touch={step1Validation.touch}
           readOnly={stagesReadOnly}
+          onPhoneChange={handleEnquiryPhoneChange}
+          customerLookupLoading={existingCustomerLookupLoading}
         />
       ) : null}
 
@@ -1830,6 +1985,14 @@ export const NewInquiryWizard = forwardRef<
         </div>
       </div>
 
+      <ExistingCustomerPickerDialog
+        open={existingCustomerPickerOpen}
+        onOpenChange={setExistingCustomerPickerOpen}
+        matches={existingCustomerMatches}
+        phone={sellerForm.phone}
+        onSelect={handleSelectExistingCustomer}
+      />
+
       <Dialog open={navConfirmOpen} onOpenChange={(open) => !open && handleNavCancel()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -1897,6 +2060,67 @@ const WIZARD_STEPS = STEPS.map((s) => ({
   label: s.label
 }));
 
+function ExistingCustomerPickerDialog({
+  open,
+  onOpenChange,
+  matches,
+  phone,
+  onSelect
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  matches: ExistingCustomerMatch[];
+  phone: string;
+  onSelect: (customer: ExistingCustomerMatch) => void;
+}) {
+  const digits = normalizePhone(phone);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md border-ds-gray-200 sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-ds-gray-900">
+            Existing customer found
+          </DialogTitle>
+          <DialogDescription className="text-left text-ds-gray-600">
+            Mobile <span className="font-medium text-ds-gray-800">{digits}</span>{' '}
+            matches {matches.length === 1 ? 'an existing' : `${matches.length} existing`}{' '}
+            customer{matches.length === 1 ? '' : 's'}. Select one to fill name and
+            email, or close to enter new details.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[min(50vh,20rem)] space-y-2 overflow-y-auto pr-1">
+          {matches.map((customer) => (
+            <button
+              key={customer.id}
+              type="button"
+              className="w-full rounded-lg border border-ds-gray-200 bg-white px-3 py-3 text-left transition-colors hover:border-ds-primary-300 hover:bg-ds-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary-500/40"
+              onClick={() => onSelect(customer)}
+            >
+              <p className="text-sm font-medium text-ds-gray-900">
+                {String(customer.full_name || '').trim() || 'Unnamed customer'}
+              </p>
+              <p className="mt-0.5 text-xs text-ds-gray-500">
+                {String(customer.email || '').trim() || 'No email on file'}
+              </p>
+            </button>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 w-full sm:w-auto"
+            onClick={() => onOpenChange(false)}
+          >
+            Enter new details
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Step 1: Enquiry (customer + unit preferences) ───────────────────────────
 
 function StepEnquiry({
@@ -1906,7 +2130,9 @@ function StepEnquiry({
   signedIn,
   fieldError,
   touch,
-  readOnly
+  readOnly,
+  onPhoneChange,
+  customerLookupLoading
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
@@ -1915,6 +2141,8 @@ function StepEnquiry({
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
   touch: (field: keyof InquiryWizardStep1Values) => void;
   readOnly?: boolean;
+  onPhoneChange?: (value: string) => void;
+  customerLookupLoading?: boolean;
 }) {
   return (
     <div
@@ -1930,6 +2158,32 @@ function StepEnquiry({
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div>
+          <PhoneInputField
+            value={sellerForm.phone}
+            onChange={(v) => {
+              if (onPhoneChange) {
+                onPhoneChange(v);
+              } else {
+                setSellerForm((s) => ({ ...s, phone: v }));
+              }
+              touch('phone');
+            }}
+            label="Phone"
+            required
+            placeholder="10-digit mobile"
+            mode="digits10"
+            inputClassName={wizardInputClass}
+            labelClassName={wizardLabelClass}
+            error={fieldError('phone')}
+          />
+          {customerLookupLoading ? (
+            <p className="mt-1 flex items-center gap-1.5 text-[11px] text-ds-gray-500">
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+              Checking for existing customer…
+            </p>
+          ) : null}
+        </div>
         <TextInputField
           label="Customer name"
           labelClassName={wizardLabelClass}
@@ -1944,20 +2198,7 @@ function StepEnquiry({
           error={fieldError('customerName')}
           placeholder="Full name"
         />
-        <PhoneInputField
-          value={sellerForm.phone}
-          onChange={(v) => {
-            setSellerForm((s) => ({ ...s, phone: v }));
-            touch('phone');
-          }}
-          label="Phone"
-          required
-          placeholder="10-digit mobile"
-          mode="digits10"
-          inputClassName={wizardInputClass}
-          labelClassName={wizardLabelClass}
-          error={fieldError('phone')}
-        />
+      
         <EmailInputField
           value={sellerForm.email}
           onChange={(v) => {
@@ -1971,7 +2212,12 @@ function StepEnquiry({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-3',
+          sellerForm.leadSource === 'Broker' && 'sm:grid-cols-2'
+        )}
+      >
         <div>
           <FieldLabel className={wizardLabelClass} required>
             Lead source
@@ -2005,46 +2251,34 @@ function StepEnquiry({
           <FormFieldError message={fieldError('leadSource')} />
         </div>
 
-        <div>
-          <FieldLabel
-            className={wizardLabelClass}
-            required={sellerForm.leadSource === 'Broker'}
-          >
-            Broker
-          </FieldLabel>
-          <Select
-            value={
-              sellerForm.brokerId === '' ? undefined : sellerForm.brokerId
-            }
-            onValueChange={(v) => {
-              setSellerForm((s) => ({ ...s, brokerId: v }));
-              touch('brokerId');
-            }}
-            disabled={sellerForm.leadSource !== 'Broker'}
-          >
-            <SelectTrigger
-              className={cn(
-                wizardSelectTriggerClass,
-                sellerForm.leadSource !== 'Broker' && 'opacity-50'
-              )}
-            >
-              <SelectValue placeholder="Select broker…" />
-            </SelectTrigger>
-            <SelectContent>
-              {brokers.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {sellerForm.leadSource === 'Broker' && brokers.length === 0 ? (
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              No active brokers — add one under CRM → Brokers.
-            </p>
-          ) : null}
-          <FormFieldError message={fieldError('brokerId')} />
-        </div>
+        {sellerForm.leadSource === 'Broker' ? (
+          <div>
+            <FieldLabel className={wizardLabelClass} required>
+              Broker
+            </FieldLabel>
+            <SearchableSelect
+              value={
+                brokers.find((b) => b.id === sellerForm.brokerId)?.full_name ??
+                ''
+              }
+              onValueChange={(name) => {
+                const broker = brokers.find((b) => b.full_name === name);
+                setSellerForm((s) => ({ ...s, brokerId: broker?.id ?? '' }));
+                touch('brokerId');
+              }}
+              options={brokers.map((b) => b.full_name)}
+              placeholder="Select broker…"
+              searchPlaceholder="Search broker…"
+              className={wizardSelectTriggerClass}
+            />
+            {brokers.length === 0 ? (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                No active brokers — add one under CRM → Brokers.
+              </p>
+            ) : null}
+            <FormFieldError message={fieldError('brokerId')} />
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">

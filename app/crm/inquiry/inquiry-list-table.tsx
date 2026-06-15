@@ -483,9 +483,6 @@ export function InquiryListTable({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All stages</SelectItem>
-                <SelectItem value={STAGE_FILTER_NEW_LEADS}>
-                  Enquiry
-                </SelectItem>
                 {stageOptions.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
