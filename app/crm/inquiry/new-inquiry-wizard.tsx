@@ -89,6 +89,7 @@ import {
   InquiryUnitPicker,
   isUnitSelectableForQualifyPick,
   type UnitPickFilters,
+  type InquiryProjectPickOption,
   unitPickFiltersFromSellerPreferences
 } from './inquiry-unit-picker';
 import {
@@ -102,6 +103,11 @@ import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { InquiryFollowUpBanner } from './inquiry-follow-up-banner';
 import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
 import { normalizeLeadSource } from '@/lib/inquiry/lead-source';
+import {
+  buildWizardUiDraftPayload,
+  parseInquiryWizardUi,
+  saveInquiryWizardUi
+} from './inquiry-wizard-ui';
 import {
   useInquiryWizardStore,
   type WizardNavigationRequest
@@ -202,7 +208,7 @@ type NewInquiryWizardProps = {
   hideStepper?: boolean;
   onFunnelStageChange?: (stage: string) => void;
   onStageDataSaved?: () => void;
-  onSkipToStage?: (stage: InquiryFunnelStage) => void;
+  onSkipToStage?: (stage: InquiryFunnelStage) => void | Promise<void>;
   /** Persisted funnel stage from the parent (for pipeline step mapping). */
   funnelStage?: string;
   /** When unit inventory is TOKEN — all wizard stages are view-only. */
@@ -245,10 +251,13 @@ export const NewInquiryWizard = forwardRef<
   const navConfirmOpen = useInquiryWizardStore((s) => s.navConfirmOpen);
   const navConfirmSaving = useInquiryWizardStore((s) => s.navConfirmSaving);
   const savedSnapshots = useInquiryWizardStore((s) => s.savedSnapshots);
+  const draftSnapshots = useInquiryWizardStore((s) => s.draftSnapshots);
   const syncDraftStep1 = useInquiryWizardStore((s) => s.syncDraftStep1);
   const syncDraftStep2 = useInquiryWizardStore((s) => s.syncDraftStep2);
   const syncDraftStep3 = useInquiryWizardStore((s) => s.syncDraftStep3);
-  const hydrateSnapshots = useInquiryWizardStore((s) => s.hydrateSnapshots);
+  const hydrateWithPersistedDrafts = useInquiryWizardStore(
+    (s) => s.hydrateWithPersistedDrafts
+  );
   const markStepSaved = useInquiryWizardStore((s) => s.markStepSaved);
   const resetWizardState = useInquiryWizardStore((s) => s.resetWizardState);
   const openNavConfirm = useInquiryWizardStore((s) => s.openNavConfirm);
@@ -268,7 +277,7 @@ export const NewInquiryWizard = forwardRef<
 
   const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>([]);
   const [accessibleProjects, setAccessibleProjects] = useState<
-    { id: string; name: string }[]
+    InquiryProjectPickOption[]
   >([]);
   const [projectParking, setProjectParking] =
     useState<ProjectParkingMeta | null>(null);
@@ -286,6 +295,7 @@ export const NewInquiryWizard = forwardRef<
   const phoneLookupAttemptedRef = useRef('');
   const phoneLookupInFlightRef = useRef('');
   const phoneLookupSuppressedRef = useRef(false);
+  const wizardUiHydratingRef = useRef(false);
 
   const [sellerForm, setSellerForm] = useState({
     customerName: '',
@@ -361,9 +371,11 @@ export const NewInquiryWizard = forwardRef<
     });
   }, [visitInterest, sellerForm.followUpDate, sellerForm.notes, syncDraftStep3]);
 
-  const revertStepToSaved = useCallback(
-    (target: StepId) => {
-      const snap = savedSnapshots[target];
+  const applySnapshotToForm = useCallback(
+    (
+      target: StepId,
+      snap: WizardStep1Snapshot | WizardStep2Snapshot | WizardStep3Snapshot
+    ) => {
       if (target === 1) {
         const s1 = snap as WizardStep1Snapshot;
         setSellerForm((s) => ({
@@ -402,7 +414,14 @@ export const NewInquiryWizard = forwardRef<
         notes: s3.notes
       }));
     },
-    [savedSnapshots]
+    []
+  );
+
+  const revertStepToSaved = useCallback(
+    (target: StepId) => {
+      applySnapshotToForm(target, savedSnapshots[target]);
+    },
+    [savedSnapshots, applySnapshotToForm]
   );
 
   const isStepDirty = useCallback(
@@ -413,6 +432,21 @@ export const NewInquiryWizard = forwardRef<
   useEffect(() => {
     onDirtyChange?.(stepDirty);
   }, [onDirtyChange, stepDirty]);
+
+  useEffect(() => {
+    if (!activeInquiryId) return;
+    const timer = window.setTimeout(() => {
+      if (wizardUiHydratingRef.current) return;
+      const state = useInquiryWizardStore.getState();
+      const payload = buildWizardUiDraftPayload(
+        state.savedSnapshots,
+        state.draftSnapshots,
+        state.stepDirty
+      );
+      void saveInquiryWizardUi(supabase, activeInquiryId, payload);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [activeInquiryId, supabase, draftSnapshots, stepDirty]);
 
   const [unitPickFilters, setUnitPickFilters] =
     useState<UnitPickFilters>(DEFAULT_UNIT_PICK_FILTERS);
@@ -452,6 +486,7 @@ export const NewInquiryWizard = forwardRef<
     if (!id) return;
     let cancelled = false;
     void (async () => {
+      wizardUiHydratingRef.current = true;
       const { data, error: loadErr } = await supabase
         .from('sales_inquiries')
         .select(
@@ -461,6 +496,7 @@ export const NewInquiryWizard = forwardRef<
           funnel_stage,
           assigned_to,
           stage_data,
+          wizard_ui,
           lead_source,
           broker_id,
           interested_in,
@@ -612,7 +648,7 @@ export const NewInquiryWizard = forwardRef<
       if (custPhone) {
         phoneLookupSuppressedRef.current = true;
       }
-      hydrateSnapshots({
+      const savedSnapshotsPayload = {
         1: {
           customerName: custName,
           phone: custPhone,
@@ -638,13 +674,37 @@ export const NewInquiryWizard = forwardRef<
           followUpDate: siteFollowUp || datetimeLocalValueNextWeek(),
           notes: notesValue
         }
+      } as const;
+      const wizardUi = parseInquiryWizardUi(
+        (data as { wizard_ui?: unknown }).wizard_ui
+      );
+      hydrateWithPersistedDrafts({
+        saved: savedSnapshotsPayload,
+        drafts: wizardUi.drafts,
+        dirty: wizardUi.dirty
       });
+      const { draftSnapshots: restoredDrafts, stepDirty: restoredDirty } =
+        useInquiryWizardStore.getState();
+      for (const step of [1, 2, 3] as const) {
+        if (restoredDirty[step]) {
+          applySnapshotToForm(step, restoredDrafts[step]);
+        }
+      }
+      wizardUiHydratingRef.current = false;
       if (forcedStep == null) changeStep(3);
     })();
     return () => {
       cancelled = true;
+      wizardUiHydratingRef.current = false;
     };
-  }, [inquiryIdProp, supabase, forcedStep, changeStep]);
+  }, [
+    inquiryIdProp,
+    supabase,
+    forcedStep,
+    changeStep,
+    hydrateWithPersistedDrafts,
+    applySnapshotToForm
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -681,13 +741,18 @@ export const NewInquiryWizard = forwardRef<
     void (async () => {
       const { data } = await supabase
         .from('projects')
-        .select('id, name')
+        .select('id, name, location')
         .order('name', { ascending: true });
       if (!cancelled) {
         setAccessibleProjects(
-          ((data ?? []) as { id: string; name: string }[]).map((p) => ({
+          ((data ?? []) as {
+            id: string;
+            name: string;
+            location?: string | null;
+          }[]).map((p) => ({
             id: String(p.id || '').trim(),
-            name: String(p.name || '').trim() || 'Untitled project'
+            name: String(p.name || '').trim() || 'Untitled project',
+            location: String(p.location ?? '').trim() || null
           }))
         );
       }
@@ -1750,6 +1815,20 @@ export const NewInquiryWizard = forwardRef<
     return id;
   }
 
+  async function handleSkipToNegotiation() {
+    if (saving) return;
+    if (stagesReadOnly) {
+      pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSkipToStage?.('Negotiation');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleCreateBookingFromVisit() {
     if (!activeInquiryId || saving) return;
     if (stagesReadOnly) {
@@ -1931,7 +2010,7 @@ export const NewInquiryWizard = forwardRef<
               site_visit: buildSiteVisitStagePayload()
             });
           }}
-          onSkipToNegotiation={() => onSkipToStage?.('Negotiation')}
+          onSkipToNegotiation={() => void handleSkipToNegotiation()}
           onCreateBooking={() => void handleCreateBookingFromVisit()}
         />
       ) : null}
@@ -2540,7 +2619,7 @@ function StepVisitSite({
   tokenBlockedByApproval: boolean;
   saving: boolean;
   stagesReadOnly?: boolean;
-  onSkipToNegotiation?: () => void;
+  onSkipToNegotiation?: () => void | Promise<void>;
   onCreateBooking?: () => void;
 }) {
   const formDisabled = inquiryClosed || stagesReadOnly;
@@ -2649,9 +2728,9 @@ function StepVisitSite({
               variant="outline"
               className="flex-1 border-ds-primary-300 text-ds-primary-700"
               disabled={saving}
-              onClick={onSkipToNegotiation}
+              onClick={() => void onSkipToNegotiation?.()}
             >
-              Negotiation
+              {saving ? 'Opening…' : 'Negotiation'}
             </Button>
             <Button
               type="button"

@@ -13,6 +13,7 @@ export type WizardStepperProps = {
   currentIndex: number;
   maxReachableIndex?: number;
   stepsWithData?: Set<string>;
+  stepsWithUnsaved?: Set<string>;
   isStepDone?: (index: number, step: WizardStepDef) => boolean;
   canSelectStep?: (index: number, step: WizardStepDef) => boolean;
   onSelectStep?: (index: number, step: WizardStepDef) => void;
@@ -44,6 +45,7 @@ export function WizardStepper({
   currentIndex,
   maxReachableIndex,
   stepsWithData,
+  stepsWithUnsaved,
   isStepDone,
   canSelectStep,
   onSelectStep,
@@ -86,6 +88,7 @@ export function WizardStepper({
             : idx < safeCurrent;
           const isActive = idx === safeCurrent;
           const hasData = stepsWithData?.has(step.id) ?? false;
+          const hasUnsaved = stepsWithUnsaved?.has(step.id) ?? false;
           const selectable = canSelectStep
             ? canSelectStep(idx, step)
             : defaultCanSelect(idx, step, {
@@ -105,9 +108,11 @@ export function WizardStepper({
                     ? 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-200'
                     : done
                       ? 'border-teal-500 bg-teal-50 text-teal-700'
-                      : hasData
-                        ? 'border-teal-300 bg-white text-teal-600'
-                        : 'border-border bg-background text-muted-foreground'
+                      : hasUnsaved
+                        ? 'border-amber-400 bg-amber-50 text-amber-800'
+                        : hasData
+                          ? 'border-teal-300 bg-white text-teal-600'
+                          : 'border-border bg-background text-muted-foreground'
                 )}
               >
                 {done ? (
@@ -123,7 +128,9 @@ export function WizardStepper({
                     ? 'text-teal-700'
                     : done || hasData
                       ? 'text-teal-600'
-                      : 'text-muted-foreground'
+                      : hasUnsaved
+                        ? 'text-amber-800'
+                        : 'text-muted-foreground'
                 )}
               >
                 {step.label}

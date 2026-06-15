@@ -246,7 +246,7 @@ export function unitPickFiltersFromSellerPreferences(
     budgetMin?: string;
     budgetMax?: string;
   },
-  accessibleProjects?: { id: string; name: string }[]
+  accessibleProjects?: InquiryProjectPickOption[]
 ): UnitPickFilters {
   const filters: UnitPickFilters = { ...DEFAULT_UNIT_PICK_FILTERS };
 
@@ -255,7 +255,7 @@ export function unitPickFiltersFromSellerPreferences(
   if (minBudget) filters.minBudget = minBudget;
   if (maxBudget) filters.maxBudget = maxBudget;
 
-  const projectOpts = mergeProjectFilterOptions(units, accessibleProjects);
+  const projectPickMeta = buildProjectPickMeta(units, accessibleProjects);
   const filterOpts = buildUnitPickFilterOptions(units);
 
   const interested = String(prefs.interestedIn || '').trim();
@@ -296,17 +296,15 @@ export function unitPickFiltersFromSellerPreferences(
 
   const loc = String(prefs.preferredLocation || '').trim();
   if (loc) {
-    const locLower = loc.toLowerCase();
-    const proj = projectOpts.find(
-      ([, name]) =>
-        name.toLowerCase().includes(locLower) ||
-        locLower.includes(name.toLowerCase())
+    const matchedProjectId = findProjectIdByPreferredLocation(
+      loc,
+      projectPickMeta
     );
-    if (proj) {
-      filters.projectId = proj[0];
+    if (matchedProjectId) {
+      filters.projectId = matchedProjectId;
     } else if (!filters.search) {
       filters.search = loc;
-    } else if (!filters.search.toLowerCase().includes(locLower)) {
+    } else if (!filters.search.toLowerCase().includes(loc.toLowerCase())) {
       filters.search = `${filters.search} ${loc}`;
     }
   }
@@ -326,7 +324,7 @@ export function unitPickFiltersFromSellerPreferences(
 /** Best-effort project id from enquiry preferences (location name, single project, etc.). */
 export function resolveMatchedProjectId(
   units: UnitRow[],
-  accessibleProjects: { id: string; name: string }[],
+  accessibleProjects: InquiryProjectPickOption[],
   prefs: {
     interestedIn?: string;
     preferredLocation?: string;
@@ -549,7 +547,7 @@ function SelectedUnitCard({
 
 type InquiryUnitPickerProps = {
   /** All CRM projects for grid project picker (falls back to projects inferred from units). */
-  projects?: { id: string; name: string }[];
+  projects?: InquiryProjectPickOption[];
   /** Full project inventory — only available (and this enquiry's held) units are selectable. */
   units: UnitRow[];
   loadingUnits: boolean;

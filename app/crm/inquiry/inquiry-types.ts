@@ -36,6 +36,7 @@ export type InquiryRowDb = {
   funnel_stage: string;
   assigned_to: string | null;
   stage_data: InquiryStageData | Record<string, unknown> | null;
+  wizard_ui?: Record<string, unknown> | null;
   customer_id: string;
   unit_id: string;
   customers: CustomerEmbed | CustomerEmbed[] | null;

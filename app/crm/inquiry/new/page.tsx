@@ -39,6 +39,11 @@ import {
   loadInquiryStageData,
   stageHasMeaningfulData
 } from '../inquiry-stage-store';
+import {
+  parseInquiryWizardUi,
+  pipelineStagesWithUnsavedChanges,
+  saveInquiryWizardUi
+} from '../inquiry-wizard-ui';
 type InquiryFetchRow = {
   id: string;
   project_id: string;
@@ -47,6 +52,7 @@ type InquiryFetchRow = {
   funnel_stage: string;
   assigned_to: string | null;
   stage_data: InquiryPipelineRow['stage_data'];
+  wizard_ui?: Record<string, unknown> | null;
   customers: { full_name: string } | null;
   units: { unit_code: string; status?: string | null } | null;
 };
@@ -78,6 +84,9 @@ function NewInquiryPageInner() {
     () => new Set()
   );
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
+  const [stagesWithUnsaved, setStagesWithUnsaved] = useState<
+    Set<InquiryPipelineUiStage>
+  >(() => new Set());
   const [resumeReady, setResumeReady] = useState(() => !resumeInquiryId);
   const [resumeError, setResumeError] = useState(false);
   const prevResumeInquiryRef = useRef('');
@@ -97,6 +106,7 @@ function NewInquiryPageInner() {
           funnel_stage,
           assigned_to,
           stage_data,
+          wizard_ui,
           customers ( full_name ),
           units ( unit_code, status )
         `
@@ -110,6 +120,7 @@ function NewInquiryPageInner() {
       const fs = String(row.funnel_stage || 'Enquiry').trim();
       if (isInquiryClosed(stageData, fs)) return 'closed';
       const uiStage = pipelineUiStage(fs);
+      const wizardUi = parseInquiryWizardUi(row.wizard_ui);
 
       setInquiry({
         id: row.id,
@@ -131,13 +142,40 @@ function NewInquiryPageInner() {
         atOrPastNegotiation && !negotiationLocked
           ? inquiryWizardStepForView('Negotiation', fs)
           : inquiryWizardStepForView(uiStage, fs);
+      const restoredViewStage =
+        wizardUi.view_stage &&
+        (wizardUi.view_stage !== 'Negotiation' ||
+          (atOrPastNegotiation && !negotiationLocked))
+          ? wizardUi.view_stage
+          : null;
+      const restoredWizardStep = wizardUi.wizard_step ?? null;
+
       if (atOrPastNegotiation && !negotiationLocked) {
-        setViewStage('Negotiation');
-        setWizardStep((prev) => Math.max(prev, nextWizardStep));
+        if (restoredViewStage === 'Negotiation') {
+          setViewStage('Negotiation');
+        } else {
+          setViewStage(restoredViewStage ?? 'Negotiation');
+        }
+        setWizardStep((prev) =>
+          Math.max(prev, restoredWizardStep ?? nextWizardStep)
+        );
       } else {
-        setViewStage(uiStage);
-        // Do not downgrade wizard step on refresh (e.g. after Save & next on Enquiry).
-        setWizardStep((prev) => Math.max(prev, nextWizardStep));
+        setViewStage(restoredViewStage ?? uiStage);
+        setWizardStep((prev) =>
+          Math.max(prev, restoredWizardStep ?? nextWizardStep)
+        );
+      }
+
+      if (wizardUi.dirty) {
+        setStagesWithUnsaved(
+          pipelineStagesWithUnsavedChanges({
+            1: Boolean(wizardUi.dirty['1']),
+            2: Boolean(wizardUi.dirty['2']),
+            3: Boolean(wizardUi.dirty['3'])
+          })
+        );
+      } else {
+        setStagesWithUnsaved(new Set());
       }
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
@@ -179,6 +217,7 @@ function NewInquiryPageInner() {
         setProjectId('');
         setStagesWithData(new Set());
         setLinkedBookingId(null);
+        setStagesWithUnsaved(new Set());
         resetWizardState();
       }
       prevResumeInquiryRef.current = '';
@@ -215,6 +254,7 @@ function NewInquiryPageInner() {
         setProjectId('');
         setStagesWithData(new Set());
         setLinkedBookingId(null);
+        setStagesWithUnsaved(new Set());
       }
       setResumeReady(true);
     })();
@@ -244,6 +284,11 @@ function NewInquiryPageInner() {
           pageError(result.error ?? 'Could not open negotiate stage');
           return;
         }
+        // Persist Negotiation view before reload — loadInquiry restores wizard_ui.view_stage.
+        await saveInquiryWizardUi(supabase, inquiryId, {
+          view_stage: 'Negotiation'
+        });
+        setViewStage('Negotiation');
         await loadInquiry(inquiryId);
         return;
       }
@@ -297,6 +342,13 @@ function NewInquiryPageInner() {
     if (inquiryId) void loadInquiry(inquiryId);
   }, [inquiryId, loadInquiry]);
 
+  const handleWizardDirtyChange = useCallback(
+    (dirty: Record<1 | 2 | 3, boolean>) => {
+      setStagesWithUnsaved(pipelineStagesWithUnsavedChanges(dirty));
+    },
+    []
+  );
+
   const handlePipelineStageChange = useCallback(
     (stage: InquiryPipelineUiStage) => {
       if (inquiryNegotiationStageLocked(stage, Boolean(linkedBookingId))) return;
@@ -342,6 +394,14 @@ function NewInquiryPageInner() {
     ? maxReachablePipelineUiIndex(funnelStage, wizardStep)
     : Math.min(wizardStep - 1, INQUIRY_PIPELINE_UI_STAGES.length - 1);
 
+  useEffect(() => {
+    if (!inquiryId || resuming) return;
+    void saveInquiryWizardUi(supabase, inquiryId, {
+      view_stage: viewStage,
+      wizard_step: wizardStep as 1 | 2 | 3
+    });
+  }, [inquiryId, viewStage, wizardStep, resuming, supabase]);
+
   const showPipelinePanel =
     Boolean(inquiryId) && viewStage === 'Negotiation';
 
@@ -384,6 +444,7 @@ function NewInquiryPageInner() {
             currentStage={stepperHighlightStage}
             maxReachableIndex={maxReachableIndex}
             stagesWithData={stagesWithData}
+            stagesWithUnsaved={stagesWithUnsaved}
             disabled={resuming}
             onSelect={inquiryId || wizardStep > 1 ? handleStageSelect : undefined}
           />
@@ -435,6 +496,7 @@ function NewInquiryPageInner() {
                   onFunnelStageChange={handleFunnelStageChange}
                   onStageDataSaved={handleStageDataSaved}
                   onSkipToStage={handleSkipToStage}
+                  onDirtyChange={handleWizardDirtyChange}
                 />
               ) : null}
 
