@@ -231,11 +231,7 @@ export function CustomerKycUploadDialog({
               <p className="mt-1 text-xs text-gray-500">
                 {docType === 'photo'
                   ? 'JPEG, PNG, or WebP only.'
-                  : 'PDF or image (JPEG, PNG, WebP).'}{' '}
-                Path:{' '}
-                <code className="text-[11px]">
-                  customer/&lt;id&gt;/&lt;type&gt;/&lt;uuid&gt;
-                </code>
+                  : 'PDF or image (JPEG, PNG, WebP).'}
               </p>
             </div>
           </div>
