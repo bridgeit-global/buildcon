@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { pageError } from '@/lib/toast';
+import { pageError, toast } from '@/lib/toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,9 @@ export function LoginClient() {
           password
         });
         if (error) throw error;
+        toast.info(
+          'After sign-up, your admin should grant you access to projects via project_members.'
+        );
       }
       router.replace(redirectTo);
       router.refresh();
@@ -126,11 +129,6 @@ export function LoginClient() {
           >
             {busy ? 'Please wait…' : mode === 'sign_in' ? 'Sign in' : 'Sign up'}
           </Button>
-
-          <div className="text-xs text-gray-500">
-            After sign-up, your admin should grant you access to projects via
-            `project_members`.
-          </div>
 
           <p className="text-center text-xs text-gray-500">
             By continuing, you agree to our{' '}
