@@ -15,14 +15,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatInr } from '../inr-format';
+
+function mergeTargetLabel(s: { instalment_no: number; milestone: string }) {
+  return `${s.instalment_no}. ${s.milestone}`;
+}
 
 export type DeleteMilestoneSchedule = {
   id: string;
@@ -69,6 +67,16 @@ export function DeleteMilestoneDialog({
 
   const received = Math.max(0, schedule?.received ?? 0);
   const returnAmount = Math.round(schedule?.amount ?? 0);
+  const mergeTargetLabels = useMemo(
+    () => mergeTargets.map((s) => mergeTargetLabel(s)),
+    [mergeTargets]
+  );
+
+  const selectedMergeTargetLabel = useMemo(() => {
+    const row = mergeTargets.find((s) => s.id === mergeToId);
+    return row ? mergeTargetLabel(row) : '';
+  }, [mergeTargets, mergeToId]);
+
   const canDelete =
     !loading &&
     !deleting &&
@@ -150,27 +158,20 @@ export function DeleteMilestoneDialog({
               </p>
               <div className="space-y-1.5">
                 <FieldLabel required>Return amount to</FieldLabel>
-                <Select
-                  value={mergeToId}
-                  onValueChange={setMergeToId}
+                <SearchableSelect
+                  value={selectedMergeTargetLabel}
+                  onValueChange={(label) => {
+                    const row = mergeTargets.find(
+                      (s) => mergeTargetLabel(s) === label
+                    );
+                    setMergeToId(row?.id ?? '');
+                  }}
+                  options={mergeTargetLabels}
+                  placeholder="Select an instalment"
+                  searchPlaceholder="Search instalment…"
                   disabled={loading || deleting || mergeTargets.length === 0}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    aria-invalid={
-                      submitAttempted && !mergeToId ? true : undefined
-                    }
-                  >
-                    <SelectValue placeholder="Select an instalment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mergeTargets.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.instalment_no}. {s.milestone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="w-full"
+                />
                 <FormFieldError
                   message={
                     submitAttempted && !mergeToId

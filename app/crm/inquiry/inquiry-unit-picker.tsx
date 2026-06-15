@@ -16,13 +16,7 @@ import { Input } from '@/components/ui/input';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Dialog,
   DialogContent,
@@ -1128,24 +1122,33 @@ function FilterSelect({
   options: { value: string; label: string }[];
   hideAll?: boolean;
 }) {
+  const labelForValue = (v: string) => {
+    if (v === UNIT_FILTER_ALL) return allLabel;
+    return options.find((o) => o.value === v)?.label ?? v;
+  };
+
+  const valueForLabel = (selectedLabel: string) => {
+    if (selectedLabel === allLabel) return UNIT_FILTER_ALL;
+    return options.find((o) => o.label === selectedLabel)?.value ?? selectedLabel;
+  };
+
+  const searchableOptions = hideAll
+    ? options.map((o) => o.label)
+    : [allLabel, ...options.map((o) => o.label)];
+
   return (
     <div className="min-w-0">
       <Label className="text-sm text-ds-gray-600">{label}</Label>
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger className={cn(formControlFieldGapClass, 'w-full text-sm')}>
-          <SelectValue placeholder={allLabel || label} />
-        </SelectTrigger>
-        <SelectContent>
-          {!hideAll ? (
-            <SelectItem value={UNIT_FILTER_ALL}>{allLabel}</SelectItem>
-          ) : null}
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <SearchableSelect
+        value={labelForValue(value)}
+        onValueChange={(selectedLabel) =>
+          onValueChange(valueForLabel(selectedLabel))
+        }
+        options={searchableOptions}
+        placeholder={allLabel || label}
+        searchPlaceholder={`Search ${label.toLowerCase()}…`}
+        className={cn(formControlFieldGapClass, 'text-sm')}
+      />
     </div>
   );
 }

@@ -18,14 +18,21 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatInr } from '../inr-format';
+
+function instalmentAdjustLabel(
+  s: { instalment_no: number; milestone: string; balance?: number },
+  includePending: boolean
+) {
+  let label = `${s.instalment_no}. ${s.milestone}`;
+  if (includePending && s.balance != null) {
+    label += ` · ₹ ${formatInr(Math.round(Math.max(0, s.balance)), {
+      maximumFractionDigits: 0
+    })} pending`;
+  }
+  return label;
+}
 
 export type EditMilestoneSchedule = {
   id: string;
@@ -91,6 +98,16 @@ export function EditMilestoneDialog({
   const delta =
     Number.isFinite(amountNum) && schedule ? Math.round(amountNum) - oldAmount : 0;
   const adjustOptions = delta > 0 ? takeFromSchedules : returnToSchedules;
+
+  const adjustScheduleLabels = useMemo(
+    () => adjustOptions.map((s) => instalmentAdjustLabel(s, delta > 0)),
+    [adjustOptions, delta]
+  );
+
+  const selectedAdjustLabel = useMemo(() => {
+    const row = adjustOptions.find((s) => s.id === adjustScheduleId);
+    return row ? instalmentAdjustLabel(row, delta > 0) : '';
+  }, [adjustOptions, adjustScheduleId, delta]);
 
   useEffect(() => {
     if (!open || !schedule) return;
@@ -269,30 +286,20 @@ export function EditMilestoneDialog({
                 <FieldLabel required>
                   {delta > 0 ? 'Take increase from' : 'Return decrease to'}
                 </FieldLabel>
-                <Select
-                  value={adjustScheduleId}
-                  onValueChange={setAdjustScheduleId}
+                <SearchableSelect
+                  value={selectedAdjustLabel}
+                  onValueChange={(label) => {
+                    const row = adjustOptions.find(
+                      (s) => instalmentAdjustLabel(s, delta > 0) === label
+                    );
+                    setAdjustScheduleId(row?.id ?? '');
+                  }}
+                  options={adjustScheduleLabels}
+                  placeholder="Select an instalment"
+                  searchPlaceholder="Search instalment…"
                   disabled={loading || saving}
-                >
-                  <SelectTrigger
-                    className="w-full"
-                    aria-invalid={fieldError('adjustScheduleId') ? true : undefined}
-                  >
-                    <SelectValue placeholder="Select an instalment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {adjustOptions.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.instalment_no}. {s.milestone}
-                        {delta > 0 && s.balance != null
-                          ? ` · ₹ ${formatInr(Math.round(Math.max(0, s.balance)), {
-                            maximumFractionDigits: 0
-                          })} pending`
-                          : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="w-full"
+                />
                 <FormFieldError message={fieldError('adjustScheduleId')} />
                 <p className="text-xs text-ds-gray-500">
                   {delta > 0

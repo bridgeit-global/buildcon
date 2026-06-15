@@ -18,13 +18,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatInr } from '../inr-format';
 
 type Props = {
@@ -78,6 +72,23 @@ export function CreateMilestoneDialog({
   const breakFromBalance = Math.max(0, breakFrom?.balance ?? 0);
   const amountExceedsPending = Number.isFinite(amountNum) && amountNum > pending;
   const amountExceedsBreakFrom = Number.isFinite(amountNum) && amountNum > breakFromBalance;
+
+  const breakableScheduleLabels = useMemo(
+    () =>
+      breakableSchedules.map(
+        (s) =>
+          `${s.instalment_no}. ${s.milestone} · ₹ ${formatInr(Math.round(Math.max(0, s.balance)), {
+            maximumFractionDigits: 0
+          })} pending`
+      ),
+    [breakableSchedules]
+  );
+
+  const selectedBreakFromLabel = breakFrom
+    ? `${breakFrom.instalment_no}. ${breakFrom.milestone} · ₹ ${formatInr(Math.round(Math.max(0, breakFrom.balance)), {
+        maximumFractionDigits: 0
+      })} pending`
+    : '';
 
   function fieldError(field: 'breakFrom' | 'milestone' | 'amount') {
     if (!submitAttempted) return undefined;
@@ -187,29 +198,23 @@ export function CreateMilestoneDialog({
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-1.5">
               <FieldLabel required>Break from</FieldLabel>
-              <Select
-                value={breakFromScheduleId}
-                onValueChange={(v) => setBreakFromScheduleId(v)}
-                disabled={loading || saving || breakableSchedules.length === 0}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  aria-invalid={fieldError('breakFrom') ? true : undefined}
-                >
-                  <SelectValue placeholder="Select an instalment to split" />
-                </SelectTrigger>
-                <SelectContent>
-                  {breakableSchedules.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.instalment_no}. {s.milestone} · ₹{' '}
-                      {formatInr(Math.round(Math.max(0, s.balance)), {
+              <SearchableSelect
+                value={selectedBreakFromLabel}
+                onValueChange={(label) => {
+                  const schedule = breakableSchedules.find(
+                    (s) =>
+                      `${s.instalment_no}. ${s.milestone} · ₹ ${formatInr(Math.round(Math.max(0, s.balance)), {
                         maximumFractionDigits: 0
-                      })}{' '}
-                      pending
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      })} pending` === label
+                  );
+                  setBreakFromScheduleId(schedule?.id ?? '');
+                }}
+                options={breakableScheduleLabels}
+                placeholder="Select an instalment to split"
+                searchPlaceholder="Search instalment…"
+                disabled={loading || saving || breakableSchedules.length === 0}
+                className="w-full"
+              />
               <FormFieldError message={fieldError('breakFrom')} />
               <p className="text-xs text-ds-gray-500">
                 The entered amount will be deducted from the selected instalment’s pending.

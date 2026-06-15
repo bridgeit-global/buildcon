@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDisplayDate } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
@@ -1245,6 +1246,24 @@ function InventoryPageContent() {
     return merged.sort();
   }, [units, unitTypeNames]);
 
+  const availableUnitsForBlock = useMemo(
+    () => units.filter((u) => isUnitAvailableForBooking(u.status)),
+    [units]
+  );
+
+  const blockUnitOptions = useMemo(
+    () =>
+      availableUnitsForBlock.map(
+        (u) => `${u.unit_code} — ${u.unit_type ?? '—'}`
+      ),
+    [availableUnitsForBlock]
+  );
+
+  const selectedBlockUnitLabel = useMemo(() => {
+    const unit = availableUnitsForBlock.find((u) => u.id === blockUnitId);
+    return unit ? `${unit.unit_code} — ${unit.unit_type ?? '—'}` : '';
+  }, [availableUnitsForBlock, blockUnitId]);
+
   const floorValues = useMemo(() => {
     return [
       ...new Set(units.map((u) => Number(u.floor)).filter((f) => Number.isFinite(f)))
@@ -1419,24 +1438,17 @@ function InventoryPageContent() {
           </p>
         </div>
         {projects.length > 0 ? (
-        <Select
-          value={inventoryProjectId}
-          onValueChange={(v) => setInventoryProjectId(v)}
-        >
-          <SelectTrigger
-            size="sm"
-            className="min-w-[200px] max-w-[min(100%,320px)] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
-          >
-            <SelectValue placeholder="Select project" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={projects.find((p) => p.id === inventoryProjectId)?.name ?? ''}
+          onValueChange={(name) => {
+            const project = projects.find((p) => p.name === name);
+            if (project) setInventoryProjectId(project.id);
+          }}
+          options={projects.map((p) => p.name)}
+          placeholder="Select project…"
+          searchPlaceholder="Search project…"
+          className="min-w-[200px] max-w-[min(100%,320px)] h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
+        />
         ) : null}
       </div>
 
@@ -1629,40 +1641,30 @@ function InventoryPageContent() {
               tabCardClass()
             )}
           >
-            <Select
-              value={structFilter}
-              onValueChange={setStructFilter}
-            >
-              <SelectTrigger
-                size="sm"
-                className="max-w-[220px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All structures</SelectItem>
-                {structureOptions.map((w) => (
-                  <SelectItem key={w} value={w}>
-                    {w}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={floorFilter} onValueChange={setFloorFilter}>
-              <SelectTrigger
-                size="sm"
-                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {floorOptions.map((f) => (
-                  <SelectItem key={f.value} value={f.value}>
-                    {f.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={structFilter === 'All' ? 'All structures' : structFilter}
+              onValueChange={(v) =>
+                setStructFilter(v === 'All structures' ? 'All' : v)
+              }
+              options={['All structures', ...structureOptions]}
+              placeholder="All structures"
+              searchPlaceholder="Search wing…"
+              className="max-w-[220px] h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
+            />
+            <SearchableSelect
+              value={
+                floorOptions.find((f) => f.value === floorFilter)?.label ??
+                'All Floors'
+              }
+              onValueChange={(label) => {
+                const opt = floorOptions.find((f) => f.label === label);
+                if (opt) setFloorFilter(opt.value);
+              }}
+              options={floorOptions.map((f) => f.label)}
+              placeholder="All Floors"
+              searchPlaceholder="Search floor…"
+              className="h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 shadow-none"
+            />
             <div className="flex-1" />
             {UNIT_STATUS_CODES.map((k) => {
               const v = STATUS_LABEL[k] ?? k;
@@ -1915,22 +1917,16 @@ function InventoryPageContent() {
               placeholder="Search unit name / wing…"
               className="h-8 max-w-[180px] text-[11px]"
             />
-            <Select value={structListF} onValueChange={setStructListF}>
-              <SelectTrigger
-                size="sm"
-                className="max-w-[200px] rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All structures</SelectItem>
-                {structureOptions.map((w) => (
-                  <SelectItem key={w} value={w}>
-                    {w}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={structListF === 'All' ? 'All structures' : structListF}
+              onValueChange={(v) =>
+                setStructListF(v === 'All structures' ? 'All' : v)
+              }
+              options={['All structures', ...structureOptions]}
+              placeholder="All structures"
+              searchPlaceholder="Search wing…"
+              className="max-w-[200px] h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
+            />
             <Select
               value={statusF}
               onValueChange={setStatusF}
@@ -1950,22 +1946,14 @@ function InventoryPageContent() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={typeF} onValueChange={setTypeF}>
-              <SelectTrigger
-                size="sm"
-                className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Types</SelectItem>
-                {typeOptions.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={typeF === 'All' ? 'All Types' : typeF}
+              onValueChange={(v) => setTypeF(v === 'All Types' ? 'All' : v)}
+              options={['All Types', ...typeOptions]}
+              placeholder="All Types"
+              searchPlaceholder="Search type…"
+              className="h-8 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] shadow-none"
+            />
             <div className="flex-1" />
             <span className="text-[11px] text-slate-400">
               {filteredList.length} units
@@ -2340,31 +2328,21 @@ function InventoryPageContent() {
               <div className="flex flex-wrap items-end gap-2.5">
                 <div className="min-w-[200px] flex-[2]">
                   <Label className="text-[10px] text-orange-900">Unit</Label>
-                  <Select
-                    value={blockUnitId === '' ? undefined : blockUnitId}
-                    onValueChange={(v) => {
-                      setBlockUnitId(v);
+                  <SearchableSelect
+                    value={selectedBlockUnitLabel}
+                    onValueChange={(label) => {
+                      const unit = availableUnitsForBlock.find(
+                        (u) =>
+                          `${u.unit_code} — ${u.unit_type ?? '—'}` === label
+                      );
+                      setBlockUnitId(unit?.id ?? '');
                       blockValidation.touch('blockUnitId');
                     }}
-                  >
-                    <SelectTrigger
-                      className="mt-1 w-full rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none"
-                      aria-invalid={
-                        blockValidation.fieldError('blockUnitId') ? true : undefined
-                      }
-                    >
-                      <SelectValue placeholder="Select available unit…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units
-                        .filter((u) => isUnitAvailableForBooking(u.status))
-                        .map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.unit_code} — {u.unit_type ?? '—'}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                    options={blockUnitOptions}
+                    placeholder="Select available unit…"
+                    searchPlaceholder="Search unit…"
+                    className="mt-1 h-9 rounded-md border border-orange-200 bg-white px-2.5 py-2 text-[11px] shadow-none"
+                  />
                   <FormFieldError message={blockValidation.fieldError('blockUnitId')} />
                 </div>
                 <div className="min-w-[200px] flex-[3]">

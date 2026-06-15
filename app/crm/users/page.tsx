@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type ProfileRow = {
   id: string;
@@ -45,6 +46,10 @@ type MemberRow = {
   status: string;
   created_at: string;
 };
+
+function profileOptionLabel(p: { name: string | null; role: string }) {
+  return `${p.name || 'Unnamed user'} (${p.role})`;
+}
 
 export default function UsersPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -267,6 +272,19 @@ export default function UsersPage() {
 
   const canManageAnyMembers =
     profile?.role === 'Super Admin' || managerProjectIds.size > 0;
+
+  const manageableProjects = useMemo(
+    () => projects.filter((p) => canManageProject(p.id)),
+    [projects, profile?.role, managerProjectIds]
+  );
+
+  const addMemberUserOptions = useMemo(
+    () =>
+      profiles
+        .filter((p) => !members.some((m) => m.user_id === p.id))
+        .map((p) => profileOptionLabel(p)),
+    [profiles, members]
+  );
 
   async function upsertMember(
     projectId: string,
@@ -706,45 +724,40 @@ export default function UsersPage() {
               <div className="mt-2 flex flex-wrap items-end gap-3">
                 <div className="min-w-[200px]">
                   <Label className="text-xs">Project</Label>
-                  <Select
-                    value={addMemberProjectId || undefined}
-                    onValueChange={setAddMemberProjectId}
-                  >
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects
-                        .filter((p) => canManageProject(p.id))
-                        .map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={
+                      manageableProjects.find((p) => p.id === addMemberProjectId)
+                        ?.name ?? ''
+                    }
+                    onValueChange={(name) => {
+                      const project = manageableProjects.find((p) => p.name === name);
+                      setAddMemberProjectId(project?.id ?? '');
+                    }}
+                    options={manageableProjects.map((p) => p.name)}
+                    placeholder="Select project…"
+                    searchPlaceholder="Search project…"
+                    className="mt-1 w-full"
+                  />
                 </div>
-                <Select
+                <SearchableSelect
                   key={addMemberPickerKey}
-                  onValueChange={(uid) => {
+                  value=""
+                  onValueChange={(label) => {
                     if (!addMemberProjectId) return;
-                    void upsertMember(addMemberProjectId, uid, 'Member', 'Active');
+                    const user = profiles.find(
+                      (p) =>
+                        profileOptionLabel(p) === label &&
+                        !members.some((m) => m.user_id === p.id)
+                    );
+                    if (!user) return;
+                    void upsertMember(addMemberProjectId, user.id, 'Member', 'Active');
                     setAddMemberPickerKey((k) => k + 1);
                   }}
-                >
-                  <SelectTrigger className="mt-1 min-w-[320px] w-[min(320px,100%)]">
-                    <SelectValue placeholder="Select user…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {profiles
-                      .filter((p) => !members.some((m) => m.user_id === p.id))
-                      .map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name || 'Unnamed user'} ({p.role})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                  options={addMemberUserOptions}
+                  placeholder="Select user…"
+                  searchPlaceholder="Search user…"
+                  className="mt-1 min-w-[320px] w-[min(320px,100%)]"
+                />
                 <div className="text-xs text-gray-500">
                   Tip: only Super Admin can invite new users.
                 </div>
@@ -767,31 +780,27 @@ export default function UsersPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1">
               <Label className="text-xs">Staff user</Label>
-              <Select
-                value={portalUserId || undefined}
-                onValueChange={(id) => {
-                  setPortalUserId(id);
+              <SearchableSelect
+                value={
+                  (() => {
+                    const row = portalDirectory.find((p) => p.id === portalUserId);
+                    return row ? profileOptionLabel(row) : '';
+                  })()
+                }
+                onValueChange={(label) => {
+                  const row = portalDirectory.find(
+                    (p) => profileOptionLabel(p) === label
+                  );
+                  if (!row) return;
+                  setPortalUserId(row.id);
                   portalValidation.touch('portalUserId');
-                  const row = portalDirectory.find((p) => p.id === id);
-                  setPortalCustomerId(row?.linked_customer_id ?? '');
-                  setPortalBrokerId(row?.linked_broker_id ?? '');
+                  setPortalCustomerId(row.linked_customer_id ?? '');
+                  setPortalBrokerId(row.linked_broker_id ?? '');
                 }}
-              >
-                <SelectTrigger
-                  aria-invalid={
-                    portalValidation.fieldError('portalUserId') ? true : undefined
-                  }
-                >
-                  <SelectValue placeholder="Select user…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {portalDirectory.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name || 'Unnamed user'} ({p.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={portalDirectory.map((p) => profileOptionLabel(p))}
+                placeholder="Select user…"
+                searchPlaceholder="Search user…"
+              />
               <FormFieldError message={portalValidation.fieldError('portalUserId')} />
             </div>
             <TextInputField

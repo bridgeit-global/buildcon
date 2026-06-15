@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
 
 type ProfileRow = { id: string; name: string | null; role: string };
@@ -608,20 +609,25 @@ function MembersPanel({
       {canManageMembers ? (
         <div className="mt-4">
           <div className="text-sm font-semibold text-ds-gray-900">Add member</div>
-          <Select key={addMemberPickerKey} onValueChange={onAdd}>
-            <SelectTrigger className="mt-2 w-full max-w-md">
-              <SelectValue placeholder="Select user…" />
-            </SelectTrigger>
-            <SelectContent>
-              {profiles
+          <SearchableSelect
+            key={addMemberPickerKey}
+            value=""
+            onValueChange={(label) => {
+              const user = profiles
                 .filter((p) => !members.some((m) => m.user_id === p.id))
-                .map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name || 'Unnamed user'} ({p.role})
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+                .find(
+                  (p) =>
+                    `${p.name || 'Unnamed user'} (${p.role})` === label
+                );
+              if (user) onAdd(user.id);
+            }}
+            options={profiles
+              .filter((p) => !members.some((m) => m.user_id === p.id))
+              .map((p) => `${p.name || 'Unnamed user'} (${p.role})`)}
+            placeholder="Select user…"
+            searchPlaceholder="Search user…"
+            className="mt-2 w-full max-w-md"
+          />
           <p className="mt-2 text-xs text-ds-gray-500">
             Invite new users from Users first if needed.
           </p>

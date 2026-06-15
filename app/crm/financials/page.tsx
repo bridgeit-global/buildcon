@@ -7,13 +7,7 @@ import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatInrCompactLacCr } from '../inr-format';
 import {
   FinancialsListTable,
@@ -300,19 +294,25 @@ export default function FinancialsPage() {
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <div className="min-w-[200px]">
             <Label>Export scope</Label>
-            <Select value={exportProjectId} onValueChange={setExportProjectId}>
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={
+                exportProjectId === 'all'
+                  ? 'All projects'
+                  : (projectNameById.get(exportProjectId) ?? '')
+              }
+              onValueChange={(name) => {
+                if (name === 'All projects') {
+                  setExportProjectId('all');
+                  return;
+                }
+                const project = projects.find((p) => p.name === name);
+                if (project) setExportProjectId(project.id);
+              }}
+              options={['All projects', ...projects.map((p) => p.name)]}
+              placeholder="All projects"
+              searchPlaceholder="Search project…"
+              className="mt-1 w-full"
+            />
           </div>
           <Button
             type="button"

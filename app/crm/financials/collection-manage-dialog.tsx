@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   collectionEntrySchema,
   type CollectionEntryValues
@@ -36,7 +37,13 @@ import {
 import { CollectionsListTable, type CollectionsListRow } from './collections-list-table';
 import { formatInr } from '../inr-format';
 
-const FIN_SCHEDULE_UNASSIGNED = '__fin_schedule_unassigned__';
+const FIN_SCHEDULE_UNASSIGNED_LABEL = '(Optional) Unassigned';
+
+function pendingScheduleOptionLabel(s: ManageScheduleRow) {
+  return `${s.instalment_no}. ${s.milestone} · ₹ ${formatInr(Number(s.pending || 0), {
+    maximumFractionDigits: 0
+  })} due`;
+}
 
 export type ManageScheduleRow = {
   id: string;
@@ -108,6 +115,20 @@ export function CollectionManageDialog({
   function touchCollectionField(field: keyof CollectionEntryValues) {
     setCollectionTouched((t) => ({ ...t, [field]: true }));
   }
+
+  const instalmentSelectOptions = useMemo(
+    () => [
+      FIN_SCHEDULE_UNASSIGNED_LABEL,
+      ...pendingSchedules.map((s) => pendingScheduleOptionLabel(s))
+    ],
+    [pendingSchedules]
+  );
+
+  const selectedInstalmentLabel = useMemo(() => {
+    if (!entryScheduleId) return FIN_SCHEDULE_UNASSIGNED_LABEL;
+    const row = pendingSchedules.find((s) => s.id === entryScheduleId);
+    return row ? pendingScheduleOptionLabel(row) : FIN_SCHEDULE_UNASSIGNED_LABEL;
+  }, [entryScheduleId, pendingSchedules]);
 
   function instalmentLabelForSchedule(scheduleId: string | null): string | null {
     if (!scheduleId) return 'Unassigned receipt';
@@ -281,10 +302,10 @@ export function CollectionManageDialog({
             <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
               <div className="space-y-1.5 sm:col-span-2 lg:col-span-12">
                 <Label>Instalment</Label>
-                <Select
-                  value={entryScheduleId === '' ? FIN_SCHEDULE_UNASSIGNED : entryScheduleId}
-                  onValueChange={(v) => {
-                    if (v === FIN_SCHEDULE_UNASSIGNED) {
+                <SearchableSelect
+                  value={selectedInstalmentLabel}
+                  onValueChange={(label) => {
+                    if (label === FIN_SCHEDULE_UNASSIGNED_LABEL) {
                       setEntryScheduleId('');
                       const amountPrefill =
                         defaultAmount != null &&
@@ -297,29 +318,21 @@ export function CollectionManageDialog({
                       );
                       return;
                     }
-                    setEntryScheduleId(v);
-                    const row = pendingSchedules.find((s) => s.id === v);
-                    if (row?.pending) {
+                    const row = pendingSchedules.find(
+                      (s) => pendingScheduleOptionLabel(s) === label
+                    );
+                    if (!row) return;
+                    setEntryScheduleId(row.id);
+                    if (row.pending) {
                       setEntryAmount(String(Math.round(row.pending)));
                     }
                   }}
+                  options={instalmentSelectOptions}
+                  placeholder={FIN_SCHEDULE_UNASSIGNED_LABEL}
+                  searchPlaceholder="Search instalment…"
                   disabled={loading || saving}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={FIN_SCHEDULE_UNASSIGNED}>
-                      (Optional) Unassigned
-                    </SelectItem>
-                    {pendingSchedules.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.instalment_no}. {s.milestone} · ₹{' '}
-                        {formatInr(Number(s.pending || 0), { maximumFractionDigits: 0 })} due
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  className="w-full"
+                />
               </div>
 
               <div className="space-y-1.5 lg:col-span-4">

@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { cn } from '@/lib/utils';
 import {
@@ -472,45 +473,37 @@ export function InquiryListTable({
         <div className="flex flex-wrap gap-3">
           <div className="min-w-[10rem]">
             <Label className="text-xs text-ds-gray-500">Stage</Label>
-            <Select
-              value={stageFilter || '__all__'}
-              onValueChange={(v) =>
-                stageCol?.setFilterValue(v === '__all__' ? undefined : v)
+            <SearchableSelect
+              value={
+                stageFilter && stageFilter !== '__all__'
+                  ? stageFilter
+                  : 'All stages'
               }
-            >
-              <SelectTrigger className="mt-1 w-full min-w-[10rem]">
-                <SelectValue placeholder="All stages" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All stages</SelectItem>
-                {stageOptions.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onValueChange={(v) =>
+                stageCol?.setFilterValue(v === 'All stages' ? undefined : v)
+              }
+              options={['All stages', ...stageOptions]}
+              placeholder="All stages"
+              searchPlaceholder="Search stage…"
+              className="mt-1 w-full min-w-[10rem]"
+            />
           </div>
           <div className="min-w-[10rem]">
             <Label className="text-xs text-ds-gray-500">Lead source</Label>
-            <Select
-              value={sourceFilter || '__all__'}
-              onValueChange={(v) =>
-                sourceCol?.setFilterValue(v === '__all__' ? undefined : v)
+            <SearchableSelect
+              value={
+                sourceFilter && sourceFilter !== '__all__'
+                  ? sourceFilter
+                  : 'All sources'
               }
-            >
-              <SelectTrigger className="mt-1 w-full min-w-[10rem]">
-                <SelectValue placeholder="All sources" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All sources</SelectItem>
-                {leadSourceOptions.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onValueChange={(v) =>
+                sourceCol?.setFilterValue(v === 'All sources' ? undefined : v)
+              }
+              options={['All sources', ...leadSourceOptions]}
+              placeholder="All sources"
+              searchPlaceholder="Search source…"
+              className="mt-1 w-full min-w-[10rem]"
+            />
           </div>
           <div className="min-w-[8rem]">
             <Label className="text-xs text-ds-gray-500">Rows per page</Label>
