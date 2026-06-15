@@ -8,7 +8,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { embedOne, inquiryProjectLabel } from './inquiry-helpers';
+import { embedOne, inquiryProjectLabel, normalizeLeadSource } from './inquiry-helpers';
 import { INQUIRY_CLOSED_FUNNEL_STAGE } from './inquiry-funnel-stages';
 import {
   getInquiryClosedStatus,
@@ -20,8 +20,7 @@ import type { InquiryRowDb } from './inquiry-types';
 const LEAD_SOURCE_COLOR: Record<string, string> = {
   Website: '#99f6e4',
   'Social Media': '#5eead4',
-  'Walk-in': '#2dd4bf',
-  Direct: '#14b8a6  ',
+  Direct: '#14b8a6',
   Broker: '#ccfbf1',
   Referral: '#b2f5ea'
 };
@@ -153,7 +152,7 @@ function InquiryPageContent() {
   const leadSourceSlices = useMemo(() => {
     const counts = new Map<string, number>();
     for (const inq of inquiries) {
-      const src = String(inq.lead_source || 'Unknown').trim() || 'Unknown';
+      const src = normalizeLeadSource(String(inq.lead_source || 'Unknown'));
       counts.set(src, (counts.get(src) ?? 0) + 1);
     }
     const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);

@@ -170,6 +170,21 @@ function normalizeFilterToken(s: string): string {
     .replace(/\s+/g, '');
 }
 
+function mergeProjectFilterOptions(
+  units: UnitRow[],
+  accessibleProjects?: { id: string; name: string }[]
+): [string, string][] {
+  const map = new Map(buildProjectFilterOptions(units));
+  for (const p of accessibleProjects ?? []) {
+    const id = String(p.id || '').trim();
+    if (!id || map.has(id)) continue;
+    map.set(id, String(p.name || '').trim() || 'Untitled project');
+  }
+  return [...map.entries()].sort((a, b) =>
+    a[1].localeCompare(b[1], undefined, { sensitivity: 'base' })
+  );
+}
+
 /** Map step-1 “What are they looking for?” fields onto unit-picker filters. */
 export function unitPickFiltersFromSellerPreferences(
   units: UnitRow[],
@@ -179,7 +194,8 @@ export function unitPickFiltersFromSellerPreferences(
     preferredWing?: string;
     budgetMin?: string;
     budgetMax?: string;
-  }
+  },
+  accessibleProjects?: { id: string; name: string }[]
 ): UnitPickFilters {
   const filters: UnitPickFilters = { ...DEFAULT_UNIT_PICK_FILTERS };
 
@@ -188,7 +204,7 @@ export function unitPickFiltersFromSellerPreferences(
   if (minBudget) filters.minBudget = minBudget;
   if (maxBudget) filters.maxBudget = maxBudget;
 
-  const projectOpts = buildProjectFilterOptions(units);
+  const projectOpts = mergeProjectFilterOptions(units, accessibleProjects);
   const filterOpts = buildUnitPickFilterOptions(units);
 
   const interested = String(prefs.interestedIn || '').trim();
@@ -244,7 +260,32 @@ export function unitPickFiltersFromSellerPreferences(
     }
   }
 
+  if (!filters.projectId && accessibleProjects?.length === 1) {
+    filters.projectId = accessibleProjects[0].id;
+  } else if (!filters.projectId) {
+    const unitProjects = buildProjectFilterOptions(units);
+    if (unitProjects.length === 1) {
+      filters.projectId = unitProjects[0][0];
+    }
+  }
+
   return filters;
+}
+
+/** Best-effort project id from enquiry preferences (location name, single project, etc.). */
+export function resolveMatchedProjectId(
+  units: UnitRow[],
+  accessibleProjects: { id: string; name: string }[],
+  prefs: {
+    interestedIn?: string;
+    preferredLocation?: string;
+    preferredWing?: string;
+    budgetMin?: string;
+    budgetMax?: string;
+  }
+): string {
+  return unitPickFiltersFromSellerPreferences(units, prefs, accessibleProjects)
+    .projectId;
 }
 
 function parseOptionalNumber(raw: string): number | null {

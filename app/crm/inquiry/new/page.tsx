@@ -9,6 +9,7 @@ import { pageError, toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
+import { useInquiryWizardStore } from '../inquiry-wizard-store';
 import {
   InquiryPipelinePanel,
   type InquiryPipelineRow
@@ -80,6 +81,8 @@ function NewInquiryPageInner() {
   const [resumeReady, setResumeReady] = useState(() => !resumeInquiryId);
   const [resumeError, setResumeError] = useState(false);
   const prevResumeInquiryRef = useRef('');
+  const requestNavigation = useInquiryWizardStore((s) => s.requestNavigation);
+  const resetWizardState = useInquiryWizardStore((s) => s.resetWizardState);
 
   const loadInquiry = useCallback(
     async (id: string): Promise<'ok' | 'missing' | 'closed'> => {
@@ -176,6 +179,7 @@ function NewInquiryPageInner() {
         setProjectId('');
         setStagesWithData(new Set());
         setLinkedBookingId(null);
+        resetWizardState();
       }
       prevResumeInquiryRef.current = '';
       return;
@@ -218,7 +222,7 @@ function NewInquiryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [resumeInquiryId, loadInquiry, router]);
+  }, [resumeInquiryId, loadInquiry, router, resetWizardState]);
 
   const handleInquiryCreated = useCallback(
     async (id: string) => {
@@ -250,17 +254,35 @@ function NewInquiryPageInner() {
   );
 
   const handleStageSelect = useCallback(
-    (stage: InquiryPipelineUiStage) => {
+    async (stage: InquiryPipelineUiStage) => {
       if (!inquiryId && stage !== 'Enquiry' && stage !== 'Qualified') return;
       if (inquiryNegotiationStageLocked(stage, Boolean(linkedBookingId))) return;
-      if (stage === 'Negotiation') {
+
+      const wizardActive =
+        viewStage === 'Enquiry' ||
+        viewStage === 'Qualified' ||
+        viewStage === 'Site Visit';
+
+      if (wizardActive) {
+        const proceeded = await requestNavigation({ type: 'pipeline', stage });
+        if (!proceeded) return;
+      } else if (stage === 'Negotiation') {
         void handleSkipToStage('Negotiation');
         return;
       }
+
+      if (stage === 'Negotiation') return;
       setViewStage(stage);
       setWizardStep(inquiryWizardStepForView(stage, funnelStage));
     },
-    [inquiryId, linkedBookingId, funnelStage, handleSkipToStage]
+    [
+      inquiryId,
+      linkedBookingId,
+      funnelStage,
+      viewStage,
+      requestNavigation,
+      handleSkipToStage
+    ]
   );
 
   const handleFunnelStageChange = useCallback((stage: string) => {
@@ -405,6 +427,7 @@ function NewInquiryPageInner() {
                 <NewInquiryWizard
                   hideStepper
                   inquiryId={inquiryId || undefined}
+                  funnelStage={funnelStage}
                   forcedStep={wizardStep as 1 | 2 | 3}
                   stagesReadOnly={inquiryUnitTokenLocked || inquiryClosed}
                   onStepChange={setWizardStep}

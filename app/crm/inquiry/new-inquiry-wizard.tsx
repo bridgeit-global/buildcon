@@ -3,7 +3,14 @@
 import { ArrowRight } from 'lucide-react';
 import { WizardStepper } from '@/components/ui/wizard-stepper';
 import { pageError, toast } from '@/lib/toast';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState
+} from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -69,7 +76,9 @@ import {
 import {
   funnelStageRank,
   INQUIRY_CLOSED_FUNNEL_STAGE,
-  type InquiryFunnelStage
+  inquiryWizardStepForView,
+  type InquiryFunnelStage,
+  type InquiryPipelineUiStage
 } from './inquiry-funnel-stages';
 import type { UnitRow } from './inquiry-types';
 import {
@@ -90,14 +99,25 @@ import { FormFieldError } from '@/components/ui/form-field-error';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { InquiryFollowUpBanner } from './inquiry-follow-up-banner';
 import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
+import { normalizeLeadSource } from '@/lib/inquiry/lead-source';
+import {
+  useInquiryWizardStore,
+  type WizardNavigationRequest
+} from './inquiry-wizard-store';
+import {
+  wizardStepLabel,
+  type WizardStep1Snapshot,
+  type WizardStep2Snapshot,
+  type WizardStep3Snapshot,
+  type WizardStepId
+} from './inquiry-wizard-snapshots';
 
 const LEAD_SOURCES = [
   'Direct',
   'Broker',
   'Referral',
   'Social Media',
-  'Website',
-  'Walk-in'
+  'Website'
 ] as const;
 
 function normalizePhone(p: string) {
@@ -109,7 +129,47 @@ const STEPS = [
   { id: 2, label: 'Qualified' },
   { id: 3, label: 'Visit site' }
 ] as const;
-type StepId = (typeof STEPS)[number]['id'];
+type StepId = WizardStepId;
+
+export type NewInquiryWizardHandle = {
+  tryGoToStep: (target: StepId) => Promise<boolean>;
+  tryGoToPipelineStage: (stage: InquiryPipelineUiStage) => Promise<boolean>;
+  isStepDirty: (step: StepId) => boolean;
+};
+
+function buildStep1SnapshotFromForm(form: {
+  customerName: string;
+  phone: string;
+  email: string;
+  leadSource: string;
+  brokerId: string;
+  interestedIn: string;
+  preferredLocation: string;
+  preferredWing: string;
+  budgetMin: string;
+  budgetMax: string;
+  parkingRequired: string;
+  parkingCount: string;
+  followUpDate: string;
+  notes: string;
+}): WizardStep1Snapshot {
+  return {
+    customerName: form.customerName,
+    phone: form.phone,
+    email: form.email,
+    leadSource: form.leadSource,
+    brokerId: form.brokerId,
+    interestedIn: form.interestedIn,
+    preferredLocation: form.preferredLocation,
+    preferredWing: form.preferredWing,
+    budgetMin: form.budgetMin,
+    budgetMax: form.budgetMax,
+    parkingRequired: form.parkingRequired,
+    parkingCount: form.parkingCount,
+    followUpDate: form.followUpDate,
+    notes: form.notes
+  };
+}
 
 const wizardInputClass = 'text-sm';
 const wizardFieldClass = cn(formControlFieldGapClass, wizardInputClass);
@@ -134,8 +194,12 @@ type NewInquiryWizardProps = {
   onFunnelStageChange?: (stage: string) => void;
   onStageDataSaved?: () => void;
   onSkipToStage?: (stage: InquiryFunnelStage) => void;
+  /** Persisted funnel stage from the parent (for pipeline step mapping). */
+  funnelStage?: string;
   /** When unit inventory is TOKEN — all wizard stages are view-only. */
   stagesReadOnly?: boolean;
+  /** Fired when any wizard step saved/unsaved state changes. */
+  onDirtyChange?: (dirty: Record<StepId, boolean>) => void;
 };
 
 function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
@@ -148,7 +212,10 @@ function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
   return { ...(rest as Omit<UnitRow, 'project_name'>), project_name };
 }
 
-export function NewInquiryWizard(props: NewInquiryWizardProps) {
+export const NewInquiryWizard = forwardRef<
+  NewInquiryWizardHandle,
+  NewInquiryWizardProps
+>(function NewInquiryWizard(props, ref) {
   const {
     onInquirySaved,
     onCreated,
@@ -159,10 +226,28 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     onFunnelStageChange,
     onStageDataSaved,
     onSkipToStage,
-    stagesReadOnly: stagesReadOnlyProp
+    funnelStage: funnelStageProp,
+    stagesReadOnly: stagesReadOnlyProp,
+    onDirtyChange
   } = props;
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const stepDirty = useInquiryWizardStore((s) => s.stepDirty);
+  const navConfirmOpen = useInquiryWizardStore((s) => s.navConfirmOpen);
+  const navConfirmSaving = useInquiryWizardStore((s) => s.navConfirmSaving);
+  const savedSnapshots = useInquiryWizardStore((s) => s.savedSnapshots);
+  const syncDraftStep1 = useInquiryWizardStore((s) => s.syncDraftStep1);
+  const syncDraftStep2 = useInquiryWizardStore((s) => s.syncDraftStep2);
+  const syncDraftStep3 = useInquiryWizardStore((s) => s.syncDraftStep3);
+  const hydrateSnapshots = useInquiryWizardStore((s) => s.hydrateSnapshots);
+  const markStepSaved = useInquiryWizardStore((s) => s.markStepSaved);
+  const resetWizardState = useInquiryWizardStore((s) => s.resetWizardState);
+  const openNavConfirm = useInquiryWizardStore((s) => s.openNavConfirm);
+  const takeNavPending = useInquiryWizardStore((s) => s.takeNavPending);
+  const setNavConfirmOpen = useInquiryWizardStore((s) => s.setNavConfirmOpen);
+  const setNavConfirmSaving = useInquiryWizardStore((s) => s.setNavConfirmSaving);
+  const takeNavigationRequest = useInquiryWizardStore((s) => s.takeNavigationRequest);
+  const navigationRequest = useInquiryWizardStore((s) => s.navigationRequest);
 
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
@@ -236,6 +321,78 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     [forcedStep, onStepChange]
   );
 
+  useEffect(() => {
+    syncDraftStep1(buildStep1SnapshotFromForm(sellerForm));
+  }, [sellerForm, syncDraftStep1]);
+
+  useEffect(() => {
+    syncDraftStep2({
+      selectedUnitId: sellerForm.selectedUnitId,
+      projectId: sellerForm.projectId
+    });
+  }, [sellerForm.selectedUnitId, sellerForm.projectId, syncDraftStep2]);
+
+  useEffect(() => {
+    syncDraftStep3({
+      visitInterest: visitInterest || '',
+      followUpDate: sellerForm.followUpDate,
+      notes: sellerForm.notes
+    });
+  }, [visitInterest, sellerForm.followUpDate, sellerForm.notes, syncDraftStep3]);
+
+  const revertStepToSaved = useCallback(
+    (target: StepId) => {
+      const snap = savedSnapshots[target];
+      if (target === 1) {
+        const s1 = snap as WizardStep1Snapshot;
+        setSellerForm((s) => ({
+          ...s,
+          customerName: s1.customerName,
+          phone: s1.phone,
+          email: s1.email,
+          leadSource: s1.leadSource as SellerForm['leadSource'],
+          brokerId: s1.brokerId,
+          interestedIn: s1.interestedIn,
+          preferredLocation: s1.preferredLocation,
+          preferredWing: s1.preferredWing,
+          budgetMin: s1.budgetMin,
+          budgetMax: s1.budgetMax,
+          parkingRequired: s1.parkingRequired as SellerForm['parkingRequired'],
+          parkingCount: s1.parkingCount,
+          followUpDate: s1.followUpDate,
+          notes: s1.notes
+        }));
+        return;
+      }
+      if (target === 2) {
+        const s2 = snap as WizardStep2Snapshot;
+        setSellerForm((s) => ({
+          ...s,
+          selectedUnitId: s2.selectedUnitId,
+          projectId: s2.projectId
+        }));
+        return;
+      }
+      const s3 = snap as WizardStep3Snapshot;
+      setVisitInterest((s3.visitInterest || '') as SiteVisitInterest);
+      setSellerForm((s) => ({
+        ...s,
+        followUpDate: s3.followUpDate,
+        notes: s3.notes
+      }));
+    },
+    [savedSnapshots]
+  );
+
+  const isStepDirty = useCallback(
+    (target: StepId) => stepDirty[target],
+    [stepDirty]
+  );
+
+  useEffect(() => {
+    onDirtyChange?.(stepDirty);
+  }, [onDirtyChange, stepDirty]);
+
   const [unitPickFilters, setUnitPickFilters] =
     useState<UnitPickFilters>(DEFAULT_UNIT_PICK_FILTERS);
 
@@ -308,6 +465,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       const unitId = String(row.unit_id || '').trim();
       setInquiryAssignedTo(String(row.assigned_to ?? '').trim() || null);
       const cust = row.customers;
+      const normalizedLeadSource = normalizeLeadSource(String(row.lead_source || ''));
       if (unitId) setInquiryHeldUnitId(unitId);
       if (unitId || cust) {
         setSellerForm((s) => ({
@@ -321,10 +479,8 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
               email: String(cust.email ?? '').trim()
             }
             : {}),
-          leadSource: (LEAD_SOURCES as readonly string[]).includes(
-            String(row.lead_source || '')
-          )
-            ? (row.lead_source as (typeof LEAD_SOURCES)[number])
+          leadSource: (LEAD_SOURCES as readonly string[]).includes(normalizedLeadSource)
+            ? (normalizedLeadSource as (typeof LEAD_SOURCES)[number])
             : s.leadSource,
           brokerId: String(row.broker_id ?? '').trim(),
           interestedIn: String(row.interested_in ?? '').trim(),
@@ -416,6 +572,49 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         }
       }
       if (neg?.approval_id) setLatestApprovalId(String(neg.approval_id));
+      const custName = String(cust?.full_name ?? '').trim();
+      const custPhone = String(cust?.phone ?? '').trim();
+      const custEmail = String(cust?.email ?? '').trim();
+      const leadSourceValue = (LEAD_SOURCES as readonly string[]).includes(
+        normalizedLeadSource
+      )
+        ? normalizedLeadSource
+        : 'Direct';
+      const projectIdValue = String(row.project_id ?? '').trim();
+      const notesValue = String(row.notes ?? '').trim();
+      const visitOutcome =
+        siteOutcome === 'Not Interested'
+          ? 'Not Interested'
+          : siteOutcome === 'Interested'
+            ? 'Interested'
+            : '';
+      hydrateSnapshots({
+        1: {
+          customerName: custName,
+          phone: custPhone,
+          email: custEmail,
+          leadSource: leadSourceValue,
+          brokerId: String(row.broker_id ?? '').trim(),
+          interestedIn: String(row.interested_in ?? '').trim(),
+          preferredLocation: '',
+          preferredWing: '',
+          budgetMin: '',
+          budgetMax: '',
+          parkingRequired: 'No',
+          parkingCount: '1',
+          followUpDate: siteFollowUp || datetimeLocalValueNextWeek(),
+          notes: notesValue
+        },
+        2: {
+          selectedUnitId: unitId,
+          projectId: projectIdValue
+        },
+        3: {
+          visitInterest: visitOutcome,
+          followUpDate: siteFollowUp || datetimeLocalValueNextWeek(),
+          notes: notesValue
+        }
+      });
       if (forcedStep == null) changeStep(3);
     })();
     return () => {
@@ -514,23 +713,32 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     );
   }, [sellerForm, userLabel.id]);
 
-  const applySellerPrefsToUnitFilters = useCallback(() => {
-    setUnitPickFilters(() => {
-      const fromPrefs = unitPickFiltersFromSellerPreferences(units, {
+  const applySellerPrefsToUnitFilters = useCallback((): UnitPickFilters => {
+    const fromPrefs = unitPickFiltersFromSellerPreferences(
+      units,
+      {
         interestedIn: sellerForm.interestedIn,
         preferredLocation: sellerForm.preferredLocation,
         preferredWing: sellerForm.preferredWing,
         budgetMin: sellerForm.budgetMin,
         budgetMax: sellerForm.budgetMax
-      });
-      const explicitProject = String(sellerForm.projectId || '').trim();
-      return {
-        ...fromPrefs,
-        projectId: explicitProject || fromPrefs.projectId
-      };
-    });
+      },
+      accessibleProjects
+    );
+    const explicitProject = String(sellerForm.projectId || '').trim();
+    const next: UnitPickFilters = {
+      ...fromPrefs,
+      projectId: explicitProject || fromPrefs.projectId
+    };
+    setUnitPickFilters(next);
+    const pid = String(next.projectId || '').trim();
+    if (pid) {
+      setSellerForm((s) => (s.projectId === pid ? s : { ...s, projectId: pid }));
+    }
+    return next;
   }, [
     units,
+    accessibleProjects,
     sellerForm.projectId,
     sellerForm.interestedIn,
     sellerForm.preferredLocation,
@@ -538,6 +746,12 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     sellerForm.budgetMin,
     sellerForm.budgetMax
   ]);
+
+  useEffect(() => {
+    if (step !== 2) return;
+    if (String(unitPickFilters.projectId || '').trim()) return;
+    applySellerPrefsToUnitFilters();
+  }, [step, unitPickFilters.projectId, applySellerPrefsToUnitFilters]);
 
   const selectedUnit = useMemo(() => {
     const id = String(sellerForm.selectedUnitId || '').trim();
@@ -554,13 +768,17 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     if (fromForm) return fromForm;
     const fromFilters = String(unitPickFilters.projectId || '').trim();
     if (fromFilters) return fromFilters;
-    const prefFilters = unitPickFiltersFromSellerPreferences(units, {
-      interestedIn: sellerForm.interestedIn,
-      preferredLocation: sellerForm.preferredLocation,
-      preferredWing: sellerForm.preferredWing,
-      budgetMin: sellerForm.budgetMin,
-      budgetMax: sellerForm.budgetMax
-    });
+    const prefFilters = unitPickFiltersFromSellerPreferences(
+      units,
+      {
+        interestedIn: sellerForm.interestedIn,
+        preferredLocation: sellerForm.preferredLocation,
+        preferredWing: sellerForm.preferredWing,
+        budgetMin: sellerForm.budgetMin,
+        budgetMax: sellerForm.budgetMax
+      },
+      accessibleProjects
+    );
     const fromPrefs = String(prefFilters.projectId || '').trim();
     if (fromPrefs) return fromPrefs;
     const unitProjects = buildProjectFilterOptions(units);
@@ -756,6 +974,146 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     router
   ]);
 
+  async function saveCurrentStepForNavigation(): Promise<boolean> {
+    if (step === 1) {
+      const parsed = step1Validation.validate();
+      if (!parsed.success) {
+        pageError('Fix the highlighted fields before saving.');
+        return false;
+      }
+      if (!stepValid[1]) return false;
+      setSaving(true);
+      try {
+        const customerId = await persistCustomerToDb();
+        if (!customerId) return false;
+        const filters = applySellerPrefsToUnitFilters();
+        if (filters.projectId) {
+          const saved = await saveEnquiryRecord(filters.projectId);
+          if (!saved) return false;
+        } else {
+          markStepSaved(1);
+        }
+        return true;
+      } finally {
+        setSaving(false);
+      }
+    }
+    if (step === 2) {
+      return saveInquiryStep2({ advance: false });
+    }
+    if (step === 3) {
+      const ok = await persistVisitSiteStage({
+        site_visit: buildSiteVisitStagePayload()
+      });
+      if (ok) markStepSaved(3);
+      return ok;
+    }
+    return true;
+  }
+
+  const tryLeaveCurrentStep = useCallback(
+    (onProceed: () => void | Promise<void>): Promise<boolean> => {
+      if (stagesReadOnly || !stepDirty[step]) {
+        return Promise.resolve(onProceed()).then(() => true);
+      }
+      return new Promise((resolve) => {
+        openNavConfirm({ onProceed, resolve });
+      });
+    },
+    [stagesReadOnly, step, stepDirty, openNavConfirm]
+  );
+
+  function closeNavConfirm(proceeded: boolean) {
+    const pending = takeNavPending();
+    setNavConfirmOpen(false);
+    pending?.resolve(proceeded);
+  }
+
+  async function handleNavSaveAndContinue() {
+    setNavConfirmSaving(true);
+    const saved = await saveCurrentStepForNavigation();
+    if (!saved) {
+      setNavConfirmSaving(false);
+      return;
+    }
+    const pending = takeNavPending();
+    setNavConfirmOpen(false);
+    setNavConfirmSaving(false);
+    if (!pending) return;
+    await pending.onProceed();
+    pending.resolve(true);
+  }
+
+  function handleNavDiscard() {
+    const pending = takeNavPending();
+    if (!pending) return;
+    revertStepToSaved(step);
+    setNavConfirmOpen(false);
+    void Promise.resolve(pending.onProceed()).then(() => pending.resolve(true));
+  }
+
+  function handleNavCancel() {
+    closeNavConfirm(false);
+  }
+
+  const performStepJump = useCallback(
+    async (target: StepId) => {
+      if (target > step) {
+        for (let i = step; i < target; i++) {
+          if (!stepValid[i as StepId]) {
+            changeStep(i as StepId);
+            return;
+          }
+        }
+      }
+      changeStep(target);
+    },
+    [step, stepValid, changeStep]
+  );
+
+  const runNavigationRequest = useCallback(
+    async (request: WizardNavigationRequest) => {
+      if (request.type === 'pipeline') {
+        if (request.stage === 'Negotiation') {
+          return tryLeaveCurrentStep(async () => {
+            await onSkipToStage?.('Negotiation');
+          });
+        }
+        const target = inquiryWizardStepForView(
+          request.stage,
+          funnelStageProp ?? 'Enquiry'
+        );
+        if (target === step) return true;
+        return tryLeaveCurrentStep(() => performStepJump(target));
+      }
+      if (request.step === step) return true;
+      return tryLeaveCurrentStep(() => performStepJump(request.step));
+    },
+    [step, funnelStageProp, onSkipToStage, tryLeaveCurrentStep, performStepJump]
+  );
+
+  useEffect(() => {
+    if (!navigationRequest) return;
+    const pending = takeNavigationRequest();
+    if (!pending) return;
+    void runNavigationRequest(pending.request).then(pending.resolve);
+  }, [navigationRequest, takeNavigationRequest, runNavigationRequest]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      isStepDirty,
+      tryGoToStep: (target: StepId) =>
+        useInquiryWizardStore.getState().requestNavigation({ type: 'step', step: target }),
+      tryGoToPipelineStage: (stage: InquiryPipelineUiStage) =>
+        useInquiryWizardStore.getState().requestNavigation({
+          type: 'pipeline',
+          stage
+        })
+    }),
+    [isStepDirty]
+  );
+
   async function goNext() {
     if (saving) return;
     if (stagesReadOnly) {
@@ -768,10 +1126,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         pageError('Fix the highlighted fields before continuing.');
         return;
       }
-      if (accessibleProjects.length > 1 && !String(sellerForm.projectId || '').trim()) {
-        pageError('Select a project before continuing.');
-        return;
-      }
     }
     if (!stepValid[step]) return;
     if (step === 1) {
@@ -779,9 +1133,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       try {
         const customerId = await persistCustomerToDb();
         if (!customerId) return;
-        applySellerPrefsToUnitFilters();
-        const saved = await saveEnquiryRecord();
-        if (!saved) return;
+        const filters = applySellerPrefsToUnitFilters();
+        if (filters.projectId) {
+          const saved = await saveEnquiryRecord(filters.projectId);
+          if (!saved) return;
+        } else {
+          markStepSaved(1);
+        }
         changeStep(2);
       } finally {
         setSaving(false);
@@ -789,49 +1147,23 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       return;
     }
     if (step === 2) {
-      await saveInquiryStep2();
+      const saved = await saveInquiryStep2();
+      if (!saved) return;
       return;
     }
   }
 
   function goBack() {
-    changeStep(Math.max(1, step - 1) as StepId);
+    const target = Math.max(1, step - 1) as StepId;
+    void tryLeaveCurrentStep(() => {
+      changeStep(target);
+    });
   }
 
   async function gotoStep(target: StepId) {
     if (target === step || saving) return;
     if (stagesReadOnly && target !== step) return;
-    if (target < step) {
-      changeStep(target);
-      return;
-    }
-    if (step === 1 && target > 1) {
-      if (!stepValid[1]) {
-        changeStep(1);
-        return;
-      }
-      if (accessibleProjects.length > 1 && !String(sellerForm.projectId || '').trim()) {
-        pageError('Select a project before continuing.');
-        return;
-      }
-      setSaving(true);
-      try {
-        const customerId = await persistCustomerToDb();
-        if (!customerId) return;
-        applySellerPrefsToUnitFilters();
-        const saved = await saveEnquiryRecord();
-        if (!saved) return;
-      } finally {
-        setSaving(false);
-      }
-    }
-    for (let i = step; i < target; i++) {
-      if (!stepValid[i as StepId]) {
-        changeStep(i as StepId);
-        return;
-      }
-    }
-    changeStep(target);
+    await tryLeaveCurrentStep(() => performStepJump(target));
   }
 
   function resetForm() {
@@ -858,6 +1190,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     setVisitInterest('');
     setNegotiationOffer('');
     setApprovalStatus('none');
+    resetWizardState();
     changeStep(1);
     setUnitPickFilters(DEFAULT_UNIT_PICK_FILTERS);
   }
@@ -884,16 +1217,17 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     };
   }
 
-  async function saveEnquiryRecord(): Promise<boolean> {
+  async function saveEnquiryRecord(projectIdOverride?: string): Promise<boolean> {
     if (!userLabel.id) {
       pageError('Sign in required to save enquiry.');
       return false;
     }
-    const inquiryProjectId = resolveEnquiryProjectId();
+    const inquiryProjectId =
+      String(projectIdOverride || '').trim() || resolveEnquiryProjectId();
     if (!inquiryProjectId) {
       pageError(
         accessibleProjects.length > 1
-          ? 'Select a project before continuing.'
+          ? 'Select a project on the Qualified step before continuing.'
           : 'Could not determine project. Select a project or pick a unit.'
       );
       return false;
@@ -970,6 +1304,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           : 'Enquiry';
       onFunnelStageChange?.(notifyStage);
       toast.success('Enquiry saved.');
+      markStepSaved(1);
       onStageDataSaved?.();
       await onInquirySaved?.();
       return true;
@@ -979,12 +1314,16 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
     }
   }
 
-  async function saveInquiryStep2() {
+  async function saveInquiryStep2(options?: {
+    advance?: boolean;
+  }): Promise<boolean> {
     if (stagesReadOnly) {
       pageError(INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE);
-      return;
+      return false;
     }
-    if (!userLabel.id) return;
+    if (!userLabel.id) return false;
+
+    const advance = options?.advance !== false;
 
     const unitId = String(sellerForm.selectedUnitId || '').trim();
     const inquiryProjectId =
@@ -995,7 +1334,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           ? 'Select a project from the dropdown before continuing.'
           : 'Could not determine project. Select a project or pick a unit.'
       );
-      return;
+      return false;
     }
 
     if (
@@ -1006,13 +1345,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       pageError(
         'Selected unit is not available — it may be held by another enquiry.'
       );
-      return;
+      return false;
     }
 
     setSaving(true);
     try {
       const customerId = await persistCustomerToDb();
-      if (!customerId) return;
+      if (!customerId) return false;
 
       const brokerId =
         sellerForm.leadSource === 'Broker' &&
@@ -1038,10 +1377,10 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           .eq('id', inquiryId);
         if (upErr) throw upErr;
       } else {
-        const saved = await saveEnquiryRecord();
-        if (!saved) return;
+        const saved = await saveEnquiryRecord(inquiryProjectId);
+        if (!saved) return false;
         inquiryId = String(createdInquiryId || activeInquiryId || '').trim();
-        if (!inquiryId) return;
+        if (!inquiryId) return false;
         if (unitId) {
           const { error: linkErr } = await supabase
             .from('sales_inquiries')
@@ -1064,12 +1403,13 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         if (!stageResult.ok) {
           throw new Error(stageResult.error ?? 'Failed to save enquiry');
         }
-        changeStep(3);
+        if (advance) changeStep(3);
+        markStepSaved(2);
         onFunnelStageChange?.('Enquiry');
         toast.success('Enquiry saved — add a unit later to qualify.');
         onStageDataSaved?.();
         await onInquirySaved?.();
-        return;
+        return true;
       }
 
       const qualifiedNotes = [
@@ -1106,14 +1446,17 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           site_visit: buildSiteVisitStagePayload()
         }
       });
-      changeStep(3);
+      if (advance) changeStep(3);
+      markStepSaved(2);
       onFunnelStageChange?.('Qualified');
       toast.success('Unit qualified — record the site visit when ready.');
       onStageDataSaved?.();
       onCreated?.(inquiryId);
       await onInquirySaved?.();
+      return true;
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save inquiry');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -1148,6 +1491,7 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
       return false;
     }
     if (funnelStage) onFunnelStageChange?.(funnelStage);
+    markStepSaved(3);
     onStageDataSaved?.();
     return true;
   }
@@ -1355,7 +1699,6 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
         <StepEnquiry
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
-          projects={accessibleProjects}
           brokers={brokers}
           signedIn={Boolean(userLabel.id)}
           fieldError={step1Validation.fieldError}
@@ -1458,6 +1801,11 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           </Button>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {stepDirty[step] && !stagesReadOnly ? (
+            <span className="text-xs font-medium text-amber-800">
+              Unsaved changes on {wizardStepLabel(step)}
+            </span>
+          ) : null}
           {!userLabel.id ? (
             <span className="text-xs text-amber-700">Sign in required.</span>
           ) : null}
@@ -1481,9 +1829,46 @@ export function NewInquiryWizard(props: NewInquiryWizardProps) {
           ) : null}
         </div>
       </div>
+
+      <Dialog open={navConfirmOpen} onOpenChange={(open) => !open && handleNavCancel()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved changes on {wizardStepLabel(step)}. Save before
+              leaving, or discard your edits.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleNavCancel}
+              disabled={navConfirmSaving}
+            >
+              Stay on step
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleNavDiscard}
+              disabled={navConfirmSaving}
+            >
+              Discard
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleNavSaveAndContinue()}
+              disabled={navConfirmSaving}
+            >
+              {navConfirmSaving ? 'Saving…' : 'Save & continue'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
-}
+});
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1517,7 +1902,6 @@ const WIZARD_STEPS = STEPS.map((s) => ({
 function StepEnquiry({
   sellerForm,
   setSellerForm,
-  projects,
   brokers,
   signedIn,
   fieldError,
@@ -1526,16 +1910,12 @@ function StepEnquiry({
 }: {
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
-  projects: { id: string; name: string }[];
   brokers: { id: string; full_name: string }[];
   signedIn: boolean;
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
   touch: (field: keyof InquiryWizardStep1Values) => void;
   readOnly?: boolean;
 }) {
-  const showProjectPicker = projects.length > 1;
-  const singleProject =
-    projects.length === 1 ? projects[0] : null;
   return (
     <div
       className={cn(
@@ -1672,48 +2052,10 @@ function StepEnquiry({
           What are they looking for?
         </p>
         <p className="mt-0.5 text-[11px] text-ds-gray-500">
-          Project, unit type, budget, location, and parking — before you pick a
-          unit.
+          Unit type, budget, location, and parking — before you pick a unit on
+          the next step.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {showProjectPicker ? (
-            <div className="sm:col-span-2">
-              <FieldLabel className={wizardLabelClass} required>
-                Project
-              </FieldLabel>
-              <Select
-                value={
-                  sellerForm.projectId === '' ? undefined : sellerForm.projectId
-                }
-                onValueChange={(v) =>
-                  setSellerForm((s) => ({ ...s, projectId: v }))
-                }
-              >
-                <SelectTrigger className={wizardSelectTriggerClass}>
-                  <SelectValue placeholder="Select project…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!sellerForm.projectId.trim() ? (
-                <p className="mt-1 text-[10px] text-ds-warning-700">
-                  Required to save the enquiry.
-                </p>
-              ) : null}
-            </div>
-          ) : singleProject ? (
-            <div className="sm:col-span-2">
-              <Label className={wizardLabelClass}>Project</Label>
-              <p className="mt-1 rounded-lg border border-ds-gray-200 bg-ds-gray-50 px-3 py-2 text-sm text-ds-gray-800">
-                {singleProject.name}
-              </p>
-            </div>
-          ) : null}
           <TextInputField
             label="Unit type / layout"
             labelClassName={wizardLabelClass}

@@ -1,4 +1,7 @@
+import { normalizeLeadSource } from '@/lib/inquiry/lead-source';
 import type { InquiryRowDb } from './inquiry-types';
+
+export { normalizeLeadSource };
 
 export function embedOne<T>(x: T | T[] | null | undefined): T | null {
   if (x == null) return null;

@@ -36,6 +36,7 @@ import {
   inquiryReference,
   inquiryProjectLabel,
   inquiryUnitLabelFromRow,
+  normalizeLeadSource,
   unitDisplayName
 } from './inquiry-helpers';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
@@ -53,7 +54,7 @@ const globalInquiryFilter: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const unitId = String(inq?.unit_id || '').toLowerCase();
   const u = embedOne(inq.units);
   const unitCode = String(u?.unit_code || '').toLowerCase();
-  const source = String(inq.lead_source || '').toLowerCase();
+  const source = normalizeLeadSource(String(inq.lead_source || '')).toLowerCase();
   const ref = inquiryReference(inq.id).toLowerCase();
   const stage = String(
     inq.funnel_stage || ''
@@ -202,7 +203,7 @@ export function InquiryListTable({
   const leadSourceOptions = useMemo(() => {
     const set = new Set<string>();
     for (const inq of inquiries) {
-      const src = String(inq.lead_source || '').trim() || 'Unknown';
+      const src = normalizeLeadSource(String(inq.lead_source || ''));
       set.add(src);
     }
     return [...set].sort((a, b) => a.localeCompare(b));
@@ -308,11 +309,10 @@ export function InquiryListTable({
       {
         id: 'leadSource',
         header: 'Source',
-        accessorFn: (row) =>
-          String(row.lead_source || '').trim() || 'Unknown',
+        accessorFn: (row) => normalizeLeadSource(String(row.lead_source || '')),
         filterFn: equalsOrAll,
         cell: ({ row }) => {
-          const src = row.original.lead_source ?? '—';
+          const src = normalizeLeadSource(String(row.original.lead_source || '')) || '—';
           const brokerName =
             String(row.original.lead_source || '').toLowerCase() === 'broker'
               ? embedOne(row.original.brokers)?.full_name
