@@ -81,7 +81,10 @@ import {
   inquiryUnitHiddenFromBookingPicker,
   unitIdsHiddenByNegotiationApproval
 } from '../inquiry/booking-unit-picker-filter';
-import { negotiationApprovalBlockMessage } from '../inquiry/inquiry-stage-transitions';
+import {
+  isInquiryClosed,
+  negotiationApprovalBlockMessage
+} from '../inquiry/inquiry-stage-transitions';
 import { BookingListTable } from './booking-list-table';
 import type { BookingListRow } from './booking-types';
 import {
@@ -414,6 +417,9 @@ export default function BookingsPage() {
   );
 
   const [prefillCustomerMissing, setPrefillCustomerMissing] = useState(false);
+  const [unitInquiryId, setUnitInquiryId] = useState<string | null>(null);
+  const [unitInquiryLoading, setUnitInquiryLoading] = useState(false);
+  const [unitCustomerMissing, setUnitCustomerMissing] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [addCustomerCoSlotKey, setAddCustomerCoSlotKey] = useState<string | null>(
     null
@@ -720,14 +726,95 @@ export default function BookingsPage() {
     setNeftRef('');
   }, [paymentMode]);
 
+  const resolvedInquiryId = prefillMeta?.inquiryId ?? unitInquiryId;
+
   useEffect(() => {
-    const inquiryId = prefillMeta?.inquiryId;
+    if (!unitId) {
+      setUnitInquiryId(null);
+      setUnitCustomerMissing(false);
+      setUnitInquiryLoading(false);
+      setCustomerId('');
+      return;
+    }
+
+    let cancelled = false;
+    setUnitInquiryLoading(true);
+    setUnitCustomerMissing(false);
+
+    void (async () => {
+      const { data: inquiries, error } = await supabase
+        .from('sales_inquiries')
+        .select('id, customer_id, funnel_stage, stage_data')
+        .eq('unit_id', unitId)
+        .order('updated_at', { ascending: false });
+
+      if (cancelled) return;
+      if (error) {
+        pageError(error.message);
+        setUnitInquiryLoading(false);
+        return;
+      }
+
+      const openInquiry = (inquiries ?? []).find(
+        (row) =>
+          !isInquiryClosed(
+            row.stage_data as Record<string, unknown> | null,
+            row.funnel_stage as string | null
+          )
+      );
+
+      if (!openInquiry?.customer_id) {
+        setUnitInquiryId(null);
+        setCustomerId('');
+        setUnitCustomerMissing(true);
+        setUnitInquiryLoading(false);
+        return;
+      }
+
+      setUnitInquiryId(String(openInquiry.id));
+
+      const { data: custRow, error: custErr } = await supabase
+        .from('customers')
+        .select('id,full_name,phone,email')
+        .eq('id', openInquiry.customer_id)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (custErr) {
+        pageError(custErr.message);
+        setUnitInquiryLoading(false);
+        return;
+      }
+
+      if (custRow) {
+        const customer = custRow as CustomerOption;
+        setCustomerId(customer.id);
+        setCustomers((prev) =>
+          prev.some((c) => c.id === customer.id) ? prev : [customer, ...prev]
+        );
+        setUnitCustomerMissing(false);
+        setPrefillCustomerMissing(false);
+      } else {
+        setCustomerId('');
+        setUnitCustomerMissing(true);
+      }
+      setUnitInquiryLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [unitId, supabase]);
+
+  useEffect(() => {
+    const inquiryId = resolvedInquiryId;
     if (!inquiryId) {
       setInquiryNegotiatedPrice(null);
       setInquiryBookingBlockMessage(null);
       return;
     }
     if (
+      prefillMeta?.inquiryId === inquiryId &&
       prefillMeta.negotiatedPriceInr != null &&
       prefillMeta.negotiatedPriceInr > 0
     ) {
@@ -757,6 +844,7 @@ export default function BookingsPage() {
       );
       if (
         !(
+          prefillMeta?.inquiryId === inquiryId &&
           prefillMeta.negotiatedPriceInr != null &&
           prefillMeta.negotiatedPriceInr > 0
         )
@@ -771,7 +859,7 @@ export default function BookingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [prefillMeta, supabase]);
+  }, [prefillMeta, resolvedInquiryId, supabase]);
 
   async function createBooking() {
     if (inquiryBookingBlockMessage) {
@@ -853,7 +941,7 @@ export default function BookingsPage() {
           projectId: selectedUnit.project_id,
           unitId,
           customerId,
-          salesInquiryId: prefillMeta?.inquiryId ?? null,
+          salesInquiryId: resolvedInquiryId ?? null,
           coBuyerCustomerIds: coIdsOrdered,
           paymentMode,
           loanBank: paymentModeNeedsLoanBank(paymentMode) ? loanBank : null,
@@ -885,6 +973,8 @@ export default function BookingsPage() {
       }
       setUnitId('');
       setCustomerId('');
+      setUnitInquiryId(null);
+      setUnitCustomerMissing(false);
       setCoBuyerSlots([]);
       setUpiUtr('');
       setChequeNo('');
@@ -948,6 +1038,8 @@ export default function BookingsPage() {
   }
 
   const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
+
+  const linkedCustomerMissing = prefillCustomerMissing || unitCustomerMissing;
 
   const unitForCostPreview = useMemo((): UnitOption | null => {
     const fromPicker = unitId
@@ -1235,8 +1327,8 @@ export default function BookingsPage() {
                 Create booking
               </div>
               <div className="text-xs text-ds-gray-500">
-                Select a blocked unit (held for a lead), primary customer, and optional
-                co-buyers.
+                Select a blocked unit held for a lead — customer comes from the linked
+                enquiry. Add optional co-buyers below.
               </div>
             </div>
           </button>
@@ -1335,12 +1427,11 @@ export default function BookingsPage() {
                 {inquiryBookingBlockMessage}
               </div>
             ) : null}
-            {prefillCustomerMissing ? (
+            {linkedCustomerMissing ? (
               <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950 sm:flex-row sm:items-center sm:justify-between">
                 <span>
-                  The linked customer record was not found. Search below and use{' '}
-                  <span className="font-semibold">Add new customer</span> when no match
-                  appears, or pick someone else from the list.
+                  The customer linked to this unit was not found. Create the customer
+                  record to continue booking.
                 </span>
                 <Button
                   type="button"
@@ -1414,84 +1505,37 @@ export default function BookingsPage() {
           </div>
 
           <div className="col-span-2">
-            <SearchablePicker<CustomerOption>
-              label="Customer"
-              required
-              itemCount={customers.length}
-              items={customers}
-              selectedId={customerId}
-              onSelect={(id) => {
-                setCustomerId(id);
-                touchCreateField('customerId');
-              }}
-              emptyMessage="No customers match your search."
-              emptyFooter={({ query, closePopover }) => (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="mx-auto"
-                  onClick={() => {
-                    closePopover();
-                    setNewCustomerDraft({
-                      full_name: query.trim(),
-                      phone: '',
-                      email: ''
-                    });
-                    setAddCustomerCoSlotKey(null);
-                    setAddCustomerOpen(true);
-                  }}
-                >
-                  Add new customer…
-                </Button>
-              )}
-              searchTrailing={({ query, closePopover }) => (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-1.5"
-                  title="Add new customer"
-                  onClick={() => {
-                    closePopover();
-                    setNewCustomerDraft({
-                      full_name: query.trim(),
-                      phone: '',
-                      email: ''
-                    });
-                    setAddCustomerCoSlotKey(null);
-                    setAddCustomerOpen(true);
-                  }}
-                >
-                  <UserPlus className="size-3.5" />
-                  <span className="hidden sm:inline">Add</span>
-                </Button>
-              )}
-              searchPlaceholder="Search by name, phone, email…"
-              triggerPlaceholder="Choose a customer…"
-              matchItem={matchCustomer}
-              renderTriggerSummary={(c) => (
-                <span className="block truncate">
-                  <span className="font-medium text-foreground">
-                    {c.full_name}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {' '}
-                    · {c.phone ?? '—'}
-                  </span>
-                </span>
-              )}
-              renderRow={(c) => (
-                <span className="block">
-                  <span className="font-medium text-foreground">
-                    {c.full_name}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {[c.phone, c.email].filter(Boolean).join(' · ') || '—'}
-                  </span>
-                </span>
-              )}
-            />
+            <FieldLabel htmlFor="booking-linked-customer">
+              Customer
+              <RequiredMark />
+            </FieldLabel>
+            {!unitId ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Select a blocked unit to load the linked customer.
+              </p>
+            ) : unitInquiryLoading ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Loading customer from enquiry…
+              </p>
+            ) : linkedCustomerMissing ? (
+              <p className="mt-1 text-xs text-amber-800">
+                No customer linked to this unit. Use Add customer now above.
+              </p>
+            ) : selectedCustomer ? (
+              <div
+                id="booking-linked-customer"
+                className="mt-1 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm"
+              >
+                <div className="font-medium text-foreground">
+                  {selectedCustomer.full_name}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {[selectedCustomer.phone, selectedCustomer.email]
+                    .filter(Boolean)
+                    .join(' · ') || '—'}
+                </div>
+              </div>
+            ) : null}
             <FormFieldError message={createFieldError('customerId')} />
           </div>
 
@@ -1540,9 +1584,13 @@ export default function BookingsPage() {
                           )
                         }
                         emptyMessage={
-                          !customerId
-                            ? 'Choose a primary customer first.'
-                            : 'No customers match your search.'
+                          !unitId
+                            ? 'Select a blocked unit first.'
+                            : unitInquiryLoading
+                              ? 'Loading customer from enquiry…'
+                              : !customerId
+                                ? 'Linked customer not available.'
+                                : 'No customers match your search.'
                         }
                         emptyFooter={
                           customerId
@@ -1874,6 +1922,8 @@ export default function BookingsPage() {
               creating ||
               !unitId ||
               !customerId ||
+              unitInquiryLoading ||
+              linkedCustomerMissing ||
               Boolean(inquiryBookingBlockMessage)
             }
           >
