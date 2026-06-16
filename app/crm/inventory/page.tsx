@@ -11,7 +11,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -59,29 +58,7 @@ import {
   parseCsvRows
 } from '@/lib/inventory/inventory-csv';
 
-type UnitRow = {
-  id: string;
-  project_id: string;
-  unit_code: string;
-  wing_name: string;
-  floor: number;
-  unit_no: number;
-  unit_type: string | null;
-  area: number | null;
-  carpet_area: number | null;
-  bua_area: number | null;
-  rera_area: number | null;
-  terrace_sqft: number | null;
-  deck_sqft: number | null;
-  loading_sqft: number | null;
-  floor_rise_charge: number | null;
-  plc_charge: number | null;
-  parking_slots_included: number | null;
-  rate: number | null;
-  status: string;
-  blocked_reason: string | null;
-  blocked_on: string | null;
-};
+import { InventoryListTable, type UnitRow } from './inventory-list-table';
 
 const UNIT_SELECT =
   'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
@@ -942,11 +919,6 @@ function InventoryPageContent() {
   const [structFilter, setStructFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('all');
 
-  const [search, setSearch] = useState('');
-  const [statusF, setStatusF] = useState<string>('All');
-  const [typeF, setTypeF] = useState('All');
-  const [structListF, setStructListF] = useState('All');
-
   const [selected, setSelected] = useState<UnitRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editUnit, setEditUnit] = useState<UnitRow | null>(null);
@@ -1214,23 +1186,6 @@ function InventoryPageContent() {
       return true;
     });
   }, [units, structFilter, floorFilter]);
-
-  const filteredList = useMemo(() => {
-    const q = search.toLowerCase();
-    return units.filter((u) => {
-      if (statusF !== 'All' && u.status !== statusF) return false;
-      if (typeF !== 'All' && u.unit_type !== typeF) return false;
-      if (structListF !== 'All' && u.wing_name !== structListF)
-        return false;
-      if (
-        q &&
-        !u.unit_code.toLowerCase().includes(q) &&
-        !u.wing_name.toLowerCase().includes(q)
-      )
-        return false;
-      return true;
-    });
-  }, [units, search, statusF, typeF, structListF]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -1832,180 +1787,15 @@ function InventoryPageContent() {
 
       {tab === 'Unit List' && (
         <div className={cn('relative p-4', tabCardClass())}>
-          <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
-            <div className="min-w-[12rem] flex-1">
-              <Label htmlFor="inventory-unit-search" className={filterLabelClass}>
-                Search
-              </Label>
-              <Input
-                id="inventory-unit-search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Unit code or wing…"
-                className="mt-1"
-              />
-            </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-[10rem]">
-                <Label className={filterLabelClass}>Wing</Label>
-                <SearchableSelect
-                  value={structListF === 'All' ? 'All structures' : structListF}
-                  onValueChange={(v) =>
-                    setStructListF(v === 'All structures' ? 'All' : v)
-                  }
-                  options={['All structures', ...structureOptions]}
-                  placeholder="All structures"
-                  searchPlaceholder="Search wing…"
-                  className={filterSelectClass}
-                />
-              </div>
-              <div className="min-w-[10rem]">
-                <Label className={filterLabelClass}>Status</Label>
-                <SearchableSelect
-                  value={
-                    statusF === 'All'
-                      ? 'All Status'
-                      : (STATUS_LABEL[statusF] ?? statusF)
-                  }
-                  onValueChange={(label) => {
-                    if (label === 'All Status') {
-                      setStatusF('All');
-                      return;
-                    }
-                    const code = UNIT_STATUS_CODES.find(
-                      (k) => (STATUS_LABEL[k] ?? k) === label
-                    );
-                    setStatusF(code ?? 'All');
-                  }}
-                  options={[
-                    'All Status',
-                    ...UNIT_STATUS_CODES.map((k) => STATUS_LABEL[k] ?? k)
-                  ]}
-                  placeholder="All Status"
-                  searchPlaceholder="Search status…"
-                  className={filterSelectClass}
-                />
-              </div>
-              <div className="min-w-[10rem]">
-                <Label className={filterLabelClass}>Type</Label>
-                <SearchableSelect
-                  value={typeF === 'All' ? 'All Types' : typeF}
-                  onValueChange={(v) => setTypeF(v === 'All Types' ? 'All' : v)}
-                  options={['All Types', ...typeOptions]}
-                  placeholder="All Types"
-                  searchPlaceholder="Search type…"
-                  className={filterSelectClass}
-                />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-              <span className="text-xs text-ds-gray-500">
-                {filteredList.length} units
-              </span>
-              <Button variant="outline" onClick={() => void load()}>
-                {loading ? 'Loading…' : 'Refresh'}
-              </Button>
-            </div>
-          </div>
-
-          <div className="max-h-[420px] overflow-y-auto rounded-lg border border-ds-gray-200">
-            <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-[1] bg-ds-gray-50/80">
-                <tr className="border-b border-ds-gray-100">
-                  {[
-                    'Unit No.',
-                    'Wing',
-                    'Floor',
-                    'Type',
-                    'Areas',
-                    'Rate',
-                    'List price',
-                    'Pk',
-                    'Status',
-                    'Action'
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-2 text-left text-[10px] font-semibold text-ds-gray-500"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredList.map((u) => (
-                  <tr
-                    key={u.id}
-                    className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
-                    onClick={() => openDetail(u)}
-                  >
-                    <td className="px-3 py-2 text-[11px] font-semibold text-ds-gray-800">
-                      {u.unit_code}
-                    </td>
-                    <td className="max-w-[140px] px-3 py-2 text-[11px] text-ds-gray-500">
-                      {u.wing_name}
-                    </td>
-                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
-                      {formatFloorLabel(u.floor, u.unit_type)}
-                    </td>
-                    <td className="px-3 py-2 text-[11px] text-ds-gray-500">
-                      {u.unit_type ?? '—'}
-                    </td>
-                    <td className="max-w-[120px] px-3 py-2 text-[10px] leading-snug text-ds-gray-700">
-                      {[
-                        u.carpet_area != null && Number(u.carpet_area) > 0
-                          ? `C ${u.carpet_area}`
-                          : null,
-                        u.bua_area != null && Number(u.bua_area) > 0
-                          ? `B ${u.bua_area}`
-                          : null,
-                        u.rera_area != null && Number(u.rera_area) > 0
-                          ? `R ${u.rera_area}`
-                          : null
-                      ]
-                        .filter(Boolean)
-                        .join(' · ') || (u.area ?? '—')}
-                    </td>
-                    <td className="px-3 py-2 text-[11px] text-ds-gray-800">
-                      {(Number(u.rate) || 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="px-3 py-2 text-[11px] font-semibold text-ds-primary-600">
-                      {formatUnitAgreementValueCompact(u)}
-                    </td>
-                    <td className="px-3 py-2 text-[11px] text-ds-gray-600">
-                      {u.parking_slots_included != null &&
-                        Number(u.parking_slots_included) > 0
-                        ? String(u.parking_slots_included)
-                        : '—'}
-                    </td>
-                    <td className="px-3 py-2">
-                      <StatusBadge code={u.status} />
-                    </td>
-                    <td
-                      className="px-3 py-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        className="mr-1.5 rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
-                        onClick={() => setEditUnit(u)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-100"
-                        onClick={() => openDetail(u)}
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <InventoryListTable
+            units={units}
+            structureOptions={structureOptions}
+            typeOptions={typeOptions}
+            loading={loading}
+            onOpenDetail={openDetail}
+            onEdit={setEditUnit}
+            onRefresh={() => void load()}
+          />
         </div>
       )}
 
