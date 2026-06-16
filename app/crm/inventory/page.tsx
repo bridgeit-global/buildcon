@@ -1824,14 +1824,6 @@ function InventoryPageContent() {
                     <span className="font-medium text-slate-800">{v}</span>
                   </div>
                 ))}
-                {isUnitAvailableForBooking(selected.status) ? (
-                  <Button
-                    className="mt-3 w-full text-[11px]"
-                    onClick={() => navigateToBookingForUnit(selected)}
-                  >
-                    + Create Booking
-                  </Button>
-                ) : null}
               </div>
             ) : null}
           </div>
