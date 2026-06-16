@@ -53,6 +53,11 @@ import {
   unitStatusGridAbbrev
 } from './inventory-utils';
 import { writeBookingPrefill } from '../booking-prefill-storage';
+import { resolveInventoryProjectId } from './resolve-inventory-project';
+import {
+  csvRowToUnitUpsert,
+  parseCsvRows
+} from '@/lib/inventory/inventory-csv';
 
 type UnitRow = {
   id: string;
@@ -77,16 +82,6 @@ type UnitRow = {
   blocked_reason: string | null;
   blocked_on: string | null;
 };
-
-function resolveInventoryProjectId(
-  projects: { id: string }[],
-  urlProjectId: string | null
-): string {
-  if (urlProjectId && projects.some((p) => p.id === urlProjectId)) {
-    return urlProjectId;
-  }
-  return projects[0]?.id ?? '';
-}
 
 const UNIT_SELECT =
   'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
@@ -115,84 +110,6 @@ const BLOCK_REASONS = [
   'Bank hold',
   'Other'
 ];
-
-const UNIT_STATUS_SET = new Set<string>(UNIT_STATUS_CODES);
-
-function normalizeCsvHeader(cell: string) {
-  return cell
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-}
-
-function parseCsvRows(text: string): Record<string, string>[] {
-  const lines = text
-    .trim()
-    .split(/\r?\n/)
-    .filter((l) => l.trim().length > 0);
-  if (!lines.length) return [];
-  const headers = lines[0].split(',').map(normalizeCsvHeader);
-  const out: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = lines[i]
-      .split(',')
-      .map((c) => c.trim().replace(/^"|"$/g, ''));
-    const row: Record<string, string> = {};
-    headers.forEach((h, j) => {
-      if (h) row[h] = cells[j] ?? '';
-    });
-    out.push(row);
-  }
-  return out;
-}
-
-function csvNumeric(v: string | undefined): number | null {
-  if (v == null || v === '') return null;
-  const n = Number(String(v).replace(/,/g, ''));
-  return Number.isFinite(n) ? n : null;
-}
-
-function csvRowToUnitUpsert(
-  projectId: string,
-  raw: Record<string, string>
-): Record<string, unknown> | null {
-  const unit_code = (raw.unit_code || raw.code || '').trim();
-  if (!unit_code) return null;
-  const wing_name =
-    (raw.wing_name || raw.wing || raw.structure || '').trim() || 'Default';
-  const n = (k: string, alt?: string) =>
-    csvNumeric(raw[k]) ?? (alt ? csvNumeric(raw[alt]) : null);
-  const floor = n('floor') ?? 1;
-  const unit_no = n('unit_no') ?? n('slot') ?? 1;
-  const payload: Record<string, unknown> = {
-    project_id: projectId,
-    unit_code,
-    wing_name,
-    floor,
-    unit_no,
-    unit_type: (raw.unit_type || raw.type || '').trim() || null,
-    area: n('area') ?? 1,
-    carpet_area: n('carpet_area', 'carpet'),
-    bua_area: n('bua_area', 'bua'),
-    rera_area: n('rera_area', 'rera'),
-    terrace_sqft: n('terrace_sqft', 'terrace'),
-    deck_sqft: n('deck_sqft', 'deck'),
-    loading_sqft: n('loading_sqft', 'loading'),
-    rate: n('rate') ?? 1,
-    floor_rise_charge: n('floor_rise_charge', 'floor_rise') ?? 0,
-    plc_charge: n('plc_charge', 'plc') ?? 0,
-    parking_slots_included: Math.max(
-      0,
-      Math.floor(n('parking_slots_included', 'parking') ?? 0)
-    )
-  };
-  const statusRaw = (raw.status || '').trim().toUpperCase();
-  if (statusRaw && UNIT_STATUS_SET.has(statusRaw)) {
-    payload.status = statusRaw;
-  }
-  return payload;
-}
 
 const TABS = [
   'Grid View',

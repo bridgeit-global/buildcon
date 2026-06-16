@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import {
+  brokerFormPayload,
+  brokerFormSchema,
+  EMPTY_BROKER_FORM
+} from './broker-forms.schema';
+
+describe('brokerFormSchema', () => {
+  const valid = {
+    full_name: 'Prime Brokers',
+    phone: '9876543210',
+    email: 'broker@example.com',
+    license_no: 'BR-001',
+    status: 'Active' as const,
+    notes: 'Preferred partner'
+  };
+
+  it('accepts minimal valid payload', () => {
+    expect(brokerFormSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('accepts empty optional phone and email', () => {
+    expect(
+      brokerFormSchema.safeParse({
+        ...valid,
+        phone: '',
+        email: ''
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects empty broker name', () => {
+    expect(
+      brokerFormSchema.safeParse({ ...valid, full_name: '' }).success
+    ).toBe(false);
+  });
+
+  it('rejects invalid phone when provided', () => {
+    expect(
+      brokerFormSchema.safeParse({ ...valid, phone: '123' }).success
+    ).toBe(false);
+  });
+
+  it('rejects invalid status enum', () => {
+    expect(
+      brokerFormSchema.safeParse({ ...valid, status: 'Pending' }).success
+    ).toBe(false);
+  });
+});
+
+describe('brokerFormPayload', () => {
+  it('normalizes phone digits and trims strings', () => {
+    const payload = brokerFormPayload({
+      ...EMPTY_BROKER_FORM,
+      full_name: '  Broker Co  ',
+      phone: '+91 98765 43210',
+      email: '  a@b.com  ',
+      license_no: ' L-1 ',
+      notes: ' note '
+    });
+    expect(payload.full_name).toBe('Broker Co');
+    expect(payload.phone).toBe('919876543210');
+    expect(payload.email).toBe('a@b.com');
+    expect(payload.license_no).toBe('L-1');
+    expect(payload.notes).toBe('note');
+  });
+
+  it('maps blank optional fields to null', () => {
+    const payload = brokerFormPayload({
+      ...EMPTY_BROKER_FORM,
+      full_name: 'Solo Broker',
+      phone: '',
+      email: '',
+      license_no: '',
+      notes: ''
+    });
+    expect(payload.phone).toBeNull();
+    expect(payload.email).toBeNull();
+    expect(payload.license_no).toBeNull();
+    expect(payload.notes).toBeNull();
+  });
+});

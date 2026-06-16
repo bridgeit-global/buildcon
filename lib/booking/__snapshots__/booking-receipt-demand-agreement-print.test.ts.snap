@@ -1,0 +1,369 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`print HTML snapshots > buildBookingReceiptHtml 1`] = `
+"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt — A-101</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+      line-height: 1.45;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    .doc { max-width: 180mm; margin: 0 auto; }
+    .brand {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin: 0 0 4px;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 13pt;
+      font-weight: 700;
+      text-decoration: underline;
+      margin: 0 0 18px;
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      font-size: 11pt;
+    }
+    .para { margin: 0 0 10px; text-align: justify; }
+    .details {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 18px;
+      font-size: 11pt;
+    }
+    .details th,
+    .details td {
+      border: 1px solid #000;
+      padding: 6px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+    .details th {
+      width: 36%;
+      font-weight: 600;
+      background: #f5f5f5;
+    }
+    .sign-block { margin-top: 28px; }
+    .sign-line {
+      margin-top: 44px;
+      border-top: 1px solid #000;
+      width: 220px;
+      padding-top: 6px;
+      font-size: 11pt;
+    }
+    .muted { font-size: 10pt; color: #333; margin-top: 20px; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc">
+    <p class="brand">BuildCon</p>
+    <p class="doc-title">Payment receipt</p>
+    <div class="meta">
+      <span><strong>Receipt no.:</strong> RC-2026-567890-NEFT-REF-001</span>
+      <span><strong>Date:</strong> 15-06-2026</span>
+    </div>
+    <p class="para">Received with thanks from <strong>Ravi Kumar</strong></p>
+    <p class="para">Co-applicant(s): Priya Kumar</p>
+    <p class="para">
+      the sum of <strong>₹ 5,00,000</strong> towards
+      Booking amount for the unit
+      described below in <strong>Sunrise Heights</strong>, Pune, Maharashtra.
+    </p>
+    <table class="details">
+      <tbody>
+        <tr><th>Project</th><td>Sunrise Heights</td></tr>
+        <tr><th>Unit</th><td>A-101 · Wing Tower A · Floor 12 · 3 BHK</td></tr>
+        <tr><th>Booking reference</th><td>BK-2026-567890</td></tr>
+        <tr><th>Instalment</th><td>Booking amount</td></tr>
+        <tr><th>Payment mode</th><td>NEFT</td></tr>
+        <tr><th>Payment date</th><td>2026-06-01</td></tr>
+        <tr><th>Reference</th><td>NEFT-REF-001</td></tr>
+        <tr><th>Amount received</th><td>₹ 5,00,000</td></tr>
+      </tbody>
+    </table>
+    <p class="para">
+      This receipt is issued subject to realisation of cheque / NEFT and the terms of the booking.
+      Please retain this for your records.
+    </p>
+    <div class="sign-block">
+      <p class="para">For <strong>BuildCon</strong></p>
+      <div class="sign-line">Authorised signatory</div>
+    </div>
+    <p class="muted">Generated: 15-06-2026 · Workflow: Agreement</p>
+  </div>
+</body>
+</html>"
+`;
+
+exports[`print HTML snapshots > buildDemandLetterHtml 1`] = `
+"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Demand letter — A-101</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+      line-height: 1.45;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    .doc { max-width: 180mm; margin: 0 auto; }
+    .brand {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin: 0 0 4px;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 13pt;
+      font-weight: 700;
+      text-decoration: underline;
+      margin: 0 0 18px;
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      font-size: 11pt;
+    }
+    .para { margin: 0 0 10px; text-align: justify; }
+    .details {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 18px;
+      font-size: 11pt;
+    }
+    .details th,
+    .details td {
+      border: 1px solid #000;
+      padding: 6px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+    .details th {
+      width: 36%;
+      font-weight: 600;
+      background: #f5f5f5;
+    }
+    .sign-block { margin-top: 28px; }
+    .sign-line {
+      margin-top: 44px;
+      border-top: 1px solid #000;
+      width: 220px;
+      padding-top: 6px;
+      font-size: 11pt;
+    }
+    .muted { font-size: 10pt; color: #333; margin-top: 20px; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc">
+    <p class="brand">BuildCon</p>
+    <p class="doc-title">Demand letter (dues)</p>
+    <div class="meta">
+      <span><strong>Ref:</strong> DL-2026-567890-Booking amount</span>
+      <span><strong>Date:</strong> 15-06-2026</span>
+    </div>
+    <p class="para">To,</p>
+    <p class="para"><strong>Ravi Kumar</strong></p>
+    <p class="para"><strong>Subject:</strong> Demand for payment — Sunrise Heights — Unit A-101</p>
+    <p class="para">Dear Sir/Madam,</p>
+    <p class="para">
+      With reference to your booking <strong>BK-2026-567890</strong> for unit <strong>A-101 · Wing Tower A · Floor 12 · 3 BHK</strong> in our project <strong>Sunrise Heights</strong> situated at Pune, Maharashtra, you are requested to
+      remit the amount due for <strong>Booking amount</strong> without further delay.
+    </p>
+    <p class="para">
+      Kindly note that continued default may attract interest / penalties and other remedies as per the
+      booking terms and applicable law. If payment has already been made, please ignore this letter and
+      share the transaction reference with our accounts team.
+    </p>
+    <table class="details">
+      <tbody>
+        <tr><th>Booking reference</th><td>BK-2026-567890</td></tr>
+        <tr><th>Unit</th><td>A-101 · Wing Tower A · Floor 12 · 3 BHK</td></tr>
+        <tr><th>Instalment / milestone</th><td>Booking amount</td></tr>
+        <tr><th>Amount demanded</th><td>₹ 10,00,000</td></tr>
+        <tr><th>Due date</th><td>01-07-2026</td></tr>
+        <tr><th>Current workflow stage</th><td>Agreement</td></tr>
+      </tbody>
+    </table>
+    <p class="para">
+      You are requested to clear the dues within <strong>15 (fifteen)</strong> days from the date of this letter.
+    </p>
+    <div class="sign-block">
+      <p class="para">Yours faithfully,</p>
+      <p class="para"><strong>For BuildCon</strong></p>
+      <div class="sign-line">Authorised signatory</div>
+    </div>
+    <p class="muted">Generated: 15-06-2026</p>
+  </div>
+</body>
+</html>"
+`;
+
+exports[`print HTML snapshots > buildSaleAgreementHtml 1`] = `
+"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Agreement — A-101</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+      line-height: 1.45;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    .doc { max-width: 180mm; margin: 0 auto; }
+    .brand {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin: 0 0 4px;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 13pt;
+      font-weight: 700;
+      text-decoration: underline;
+      margin: 0 0 18px;
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      font-size: 11pt;
+    }
+    .para { margin: 0 0 10px; text-align: justify; }
+    .details {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 18px;
+      font-size: 11pt;
+    }
+    .details th,
+    .details td {
+      border: 1px solid #000;
+      padding: 6px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+    .details th {
+      width: 36%;
+      font-weight: 600;
+      background: #f5f5f5;
+    }
+    .sign-block { margin-top: 28px; }
+    .sign-line {
+      margin-top: 44px;
+      border-top: 1px solid #000;
+      width: 220px;
+      padding-top: 6px;
+      font-size: 11pt;
+    }
+    .muted { font-size: 10pt; color: #333; margin-top: 20px; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc">
+    <p class="brand">BuildCon</p>
+    <p class="doc-title">Draft sale agreement (booking)</p>
+    <div class="meta">
+      <span><strong>Agreement ref.:</strong> AGR-2026-567890</span>
+      <span><strong>Date:</strong> 15-06-2026</span>
+    </div>
+    <p class="para">
+      This <strong>draft</strong> agreement is generated from CRM data for review and execution. Final terms,
+      annexures, and stamp duty shall be completed as per legal advice and RERA / local regulations.
+    </p>
+    <p class="para"><strong>Between</strong></p>
+    <p class="para">
+      <strong>BuildCon</strong>, developer of the residential project known as <strong>Sunrise Heights</strong> at Pune, Maharashtra
+      (hereinafter called the &quot;Developer&quot;),
+    </p>
+    <p class="para"><strong>And</strong></p>
+    <p class="para">
+      <strong>Ravi Kumar</strong> (hereinafter called the &quot;Allottee&quot;).
+    </p>
+    <p class="para"><strong>Co-applicant(s):</strong> Priya Kumar</p>
+    <p class="para"><strong>1. Property</strong></p>
+    <p class="para">
+      The Developer agrees to sell and the Allottee agrees to purchase the apartment / unit more particularly
+      described as <strong>A-101 · Wing Tower A · Floor 12 · 3 BHK</strong> in the said project, subject to the final area
+      statement and permissible variations under law.
+    </p>
+    <p class="para"><strong>2. Consideration and payment</strong></p>
+    <p class="para">
+      The total consideration, taxes, and payment schedule shall be as per the booking form, cost sheet, and
+      payment plan accepted by the Allottee. Booking reference: <strong>BK-2026-567890</strong>.
+      Token / booking amount on record: <strong>₹ 75,00,000</strong>.
+      Mode (if recorded): <strong>NEFT</strong>.
+    </p>
+    <p class="para"><strong>3. Possession and defaults</strong></p>
+    <p class="para">
+      Possession shall be offered subject to receipt of all dues, completion of documentation, and compliance
+      with applicable laws. Events of default, interest, and termination shall follow the approved agreement
+      template for this project.
+    </p>
+    <p class="para"><strong>4. General</strong></p>
+    <p class="para">
+      This draft is for office use and customer discussion only. Executed agreements must bear authorised
+      signatures, schedules, and stamps as applicable.
+    </p>
+    <div class="sign-block">
+      <table class="details" style="margin-top: 8px;">
+        <tbody>
+          <tr>
+            <th style="width:50%">For BuildCon (Developer)</th>
+            <th style="width:50%">Allottee</th>
+          </tr>
+          <tr>
+            <td style="height: 72px; vertical-align: bottom;">Signature &amp; seal</td>
+            <td style="height: 72px; vertical-align: bottom;">Signature</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Generated: 15-06-2026 · Workflow: Agreement</p>
+  </div>
+</body>
+</html>"
+`;

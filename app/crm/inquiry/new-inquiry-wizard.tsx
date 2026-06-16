@@ -2186,7 +2186,7 @@ function ExistingCustomerPickerDialog({
             <button
               key={customer.id}
               type="button"
-              className="w-full rounded-lg border border-ds-gray-200 bg-white px-3 py-3 text-left transition-colors hover:border-ds-primary-300 hover:bg-ds-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary-500/40"
+              className="w-full rounded-lg border border-ds-gray-200 bg-white px-3 py-3 text-left transition-colors hover:border-ds-primary-300 hover:bg-ds-primary-50"
               onClick={() => onSelect(customer)}
             >
               <p className="text-sm font-medium text-ds-gray-900">

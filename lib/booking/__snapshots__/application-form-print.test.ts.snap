@@ -1,0 +1,462 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildApplicationFormHtml > matches snapshot for fixed fixture 1`] = `
+"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Application form</title>
+  <style>
+    @page { size: A4; margin: 14mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+    .title-main {
+      text-align: center;
+      font-weight: 700;
+      font-size: 14pt;
+      margin: 0 0 4px;
+      text-transform: uppercase;
+    }
+    .title-sub {
+      text-align: center;
+      font-size: 10pt;
+      margin: 0 0 12px;
+    }
+    .section-header {
+      font-weight: 700;
+      margin: 12px 0 4px;
+    }
+    .annexure-title {
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 20px 0 8px;
+      page-break-before: always;
+    }
+    .para { margin: 0 0 5px; text-align: justify; }
+    .note, .footnote { font-size: 10pt; margin: 6px 0; text-align: justify; }
+    .filled {
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .fill-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 6px;
+      min-height: 20px;
+      align-items: end;
+    }
+    .fill-row.single { grid-template-columns: 1fr; }
+    .fill-cell {
+      display: block;
+      border-bottom: 1px solid #000;
+      min-height: 18px;
+      padding: 0 2px 2px;
+      font-weight: 600;
+      font-size: 11pt;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .applicant-col-headers { margin-bottom: 2px; }
+    .col-header {
+      font-weight: 700;
+      font-size: 10pt;
+      text-align: center;
+      border-bottom: none;
+    }
+    .photo-label { text-align: center; font-size: 9pt; }
+    .photo-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 4px;
+    }
+    .photo-box {
+      border: 1px solid #000;
+      height: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .photo-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    @media print {
+      .annexure-title { page-break-before: always; }
+      .fill-row { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<p class="title-main">APPLICATION FORM</p>
+<p class="title-sub">(Sole/First Applicant ) (Second Applicant) (Third Applicant)</p>
+<p class="para">I/We, the following Applicant(s) request that I/We may be allotted a Unit in “Sunrise Heights” situated in Baner, Pune (“Project”), details whereof are mentioned in Annexure ‘A’.</p>
+<p class="para">Application Form No./ Customer ID: <span class="filled">AF-2026-001</span> Date: <span class="filled">15-06-2026</span></p>
+<div class="photo-row">
+    <div class="photo-label">Photo of Sole/First Applicant</div>
+    <div class="photo-label">Photo of Second Applicant</div>
+    <div class="photo-label">Photo of Third Applicant</div>
+  </div>
+  <div class="photo-row">
+    <div class="photo-box"></div>
+    <div class="photo-box"></div>
+    <div class="photo-box"></div>
+  </div>
+<p class="para">To,<br><span class="filled">Ravi Kumar</span><br><span class="filled">12 MG Road, Pune, Maharashtra 411001</span></p>
+<p class="section-header">A. APPLICANT DETAILS</p>
+<p class="section-header">IN CASE OF INDIVIDUAL</p>
+<p class="fill-row applicant-col-headers"><span class="fill-cell col-header">1st Applicant</span><span class="fill-cell col-header">2nd Applicant</span><span class="fill-cell col-header">3rd Applicant</span></p>
+<p class="para">Full Name (in capital)</p>
+<p class="fill-row"><span class="fill-cell">RAVI KUMAR</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Father’s/Mother’s/Spouse’s name</p>
+<p class="fill-row"><span class="fill-cell">Suresh Kumar</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Date of Birth</p>
+<p class="fill-row"><span class="fill-cell">15-05-1985</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">PAN</p>
+<p class="fill-row"><span class="fill-cell">ABCDE1234F</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Aadhar No.</p>
+<p class="fill-row"><span class="fill-cell">1234 5678 9012</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Nationality</p>
+<p class="fill-row"><span class="fill-cell">Indian</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Residential Status</p>
+<p class="fill-row"><span class="fill-cell">Resident Indian</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Profession</p>
+<p class="fill-row"><span class="fill-cell">Engineer</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Passport No. (In case of *NRI/Foreign Customers)</p>
+<p class="fill-row"><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Permanent Address</p>
+<p class="fill-row"><span class="fill-cell">Village Road, Nashik, Maharashtra</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="fill-row"><span class="fill-cell">Village Road, Nashik, Maharashtra</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Mobile No.</p>
+<p class="fill-row"><span class="fill-cell">9876543210</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Email Id</p>
+<p class="fill-row"><span class="fill-cell">ravi@example.com</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Address for Communication</p>
+<p class="fill-row"><span class="fill-cell">12 MG Road, Pune, Maharashtra 411001</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Office Name &amp; Address</p>
+<p class="fill-row"><span class="fill-cell">Tech Park, Pune</span><span class="fill-cell">&nbsp;</span><span class="fill-cell">&nbsp;</span></p>
+<p class="note">Note: Applicant’s passport size photograph and photocopies of PAN Card/OCI/PIO and Passport/Voter Card/Aadhar Card to be mandatorily submitted along with this Application Form.</p>
+<p class="note">*All compliance in terms of the Foreign Exchange Management Act, 1999 and its amendments shall be the sole responsibility of the Applicant(s). Any implications arising out of any default by the Applicant(s) in this regard, shall be the sole responsibility of the Applicant(s). Developer accepts no responsibility in this regard and the Applicant(s) shall keep Developer fully indemnified and hold harmless at all times in this regard.</p>
+<p class="section-header">IN CASE OF COMPANY/ LLP/ HUF/ PARTNERSHIP FIRM</p>
+<p class="para">Name</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Date of Incorporation/ Formation</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">PAN/CIN</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Registered Office Address</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Name of Authorized Representative/ Partner /Karta</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Note:If Applicant is company, partnership firm, limited liability partnership, the following incorporation documents are required to be submitted along with this Application Form:<br></p>
+<p class="para">(a) Certificate of Incorporation/Registration Certificate for the applicable entity(b) Memorandum of Association<br>(c) Articles of Association<br>(d) Partnership Deed<br>(e) Limited Liability Partnership Agreement<br>(f) Board/Partner’s Resolution authorizing this purchase.<br></p>
+<p class="para">Please affix the official stamp of the respective Company/LLP/Trust/Partnership firm/HUF/Society as may be applicable.</p>
+<p class="section-header">B. MODE OF BOOKING</p>
+<p class="para">Direct or Channel Partner :</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Name and Signature of Developer:</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Name, contact number, stamp and signature of Channel Partner (if applicable):</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">(RERA Registration No.______________, Valid upto ____________)</p>
+<p class="section-header">C. FINANCE FROM BANK / FINANCIAL INSTITUTION</p>
+<p class="para">Yes ☑ / No ☐.</p>
+<p class="para">If yes, Preferred Financial Institution: <span class="filled">HDFC Bank</span></p>
+<p class="fill-row single"><span class="fill-cell">HDFC Bank</span></p>
+<p class="section-header">D. MODE OF PAYMENT</p>
+<p class="para">☐ Cheque __________</p>
+<p class="para">☐ Draft / P.O. __________</p>
+<p class="para">☑ RTGS/NEFT NEFT</p>
+<p class="section-header">E. I HEARD ABOUT YOU FROM? (Please tick the applicable)</p>
+<p class="para">[ ] Newspaper[ ] Hoarding<br>[ ] Television Advertisement<br>[ ] Internet Advertisement<br>[ ] Internet Portals<br>[ ] Corporate offer (please specify)<br>[ ] Emailer<br>[ ] Broker/Channel Partner (please specify)<br>[ ] Referred by Bank / HFI (please specify)<br>[ ] Other : _______________________<br></p>
+<p class="para">Details of Newspaper, Website, Hoarding etc.</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="section-header">F. PURPOSE OF PURCHASE</p>
+<p class="para">[ ] Investment</p>
+<p class="para">[ ] Self-Use</p>
+<p class="section-header">G. DETAILS OF UNIT (“UNIT”)</p>
+<p class="para">I.</p>
+<p class="para">A. Details of Unit</p>
+<p class="para">Unit No. <span class="filled">A-101</span></p>
+<p class="para">Floor <span class="filled">12</span></p>
+<p class="para">Tower <span class="filled">Tower A</span></p>
+<p class="para">B. Rate of the Unit</p>
+<p class="para">___________ per square meter</p>
+<p class="para">C. Area (in square meters only)</p>
+<p class="para">Carpet Area*</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Exclusive Areas**</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Total Area#</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">D. Car Park Space(s):</p>
+<p class="para">(____) Covered</p>
+<p class="para">(____) Open</p>
+<p class="para">E. Specification(s) of Unit</p>
+<p class="para">Annexure C</p>
+<p class="para">F. Common Areas &amp; Facilities And Limited Common Areas &amp; Facilities</p>
+<p class="para">Annexure D</p>
+<p class="para">II. Total Price &amp; Payment Plan</p>
+<p class="para">Annexure E</p>
+<p class="footnote">*“Carpet Area” shall mean net usable floor area of the Unit, excluding the area covered by the external walls, areas under services shafts, exclusive balcony or verandah area appurtenant to the Unit for exclusive use of the Applicant(s) and exclusive open terrace area appurtenant to the Unit for exclusive use of the Applicant(s), but includes the area covered by the internal partition walls of the Unit.</p>
+<p class="footnote">**“Exclusive Areas” shall mean exclusive balcony and/or exclusive open terrace and/or exclusive verandah (as may be applicable) appurtenant to the net usable floor area of the Unit and meant for exclusive use of the Applicant(s) and other areas appurtenant to the Unit for exclusive use of the Applicant.</p>
+<p class="footnote">#“Total Area” shall mean the Carpet Area and Exclusive Areas collectively.</p>
+<p class="para">I/We, the Applicant(s) understand that _________________ (&quot;Developer&quot;) having its registered office at _________________, is developing a group housing complex by the name of “Sunrise Heights” comprising of _________________ residential units, _________________ EWS units and _________________ shops along with amenities, facilities, services etc. and such other developments as may be permitted on licensed land admeasuring _________________ acres (___________________________________________________), which is _________________ square meters (_________________), in Village _________________, situated at Baner, Pune (“Project Land”).</p>
+<p class="para">The Project Land is demarcated/delineated on the plan attached as Annexure B hereto. The said Project is being developed in one single phase. The Project is duly registered with _________________ Real Estate Regulatory Authority vide Registration No. _________________.</p>
+<p class="para">I,/ We, the Applicant(s), are aware that the Developer has entered into a Development Agreement dated _________________ for development and construction of a residential group housing society on the Project Land which is owned by _________________ and Mr. _________________ (“Land Owners”).</p>
+<p class="para">The Development Agreement is duly registered with the jurisdictional sub-registrar as Document No. _________________. Simultaneously with the execution of the Development Agreement, the Land Owners have also executed an irrevocable General Power of Attorney dated _________________ duly registered as Document No. _________________ and other documents in favour of the Developer with respect to the Project Land so as to enable the Developer to perform all its obligations and utilize all its entitlements/benefits/rights under the Development Agreement.</p>
+<p class="para">I/we, agree to pay the cost of property for the Unit which is Rs. <span class="filled">₹75,00,000</span></p>
+<p class="para">(Rupees <span class="filled">₹75,00,000 only</span>)(“Cost of Property”) details whereof and other charges payable by the Applicant(s) for transfer of the Unit in its favour, are mentioned in Annexure E (“Payment Plan”).</p>
+<p class="para">I/we understand that the total price as mentioned in Annexure E (“Total Price”) includes the Goods and Services Tax (GST).</p>
+<p class="para">I/we further understand that, in case there is any change/modification in the Taxes/charges/fees/levies etc., the subsequent amount payable by me/us to the Developer shall be increased/decreased based on such change/modification.</p>
+<p class="para">I/we agree and understand that the Total Price shall be exclusive of recovery or payments towards maintenance and operation of common areas and facilities, stamp duty, registration charges, any future increase thereof and all other costs, charges and expenses incidental thereto in connection with any of the documents to be executed for the sale of the Unit, as per the provisions of the Applicable Laws.</p>
+<p class="section-header">DECLARATION</p>
+<p class="para">I/We, the Applicant(s)(s) do hereby declare that my/our Application is irrevocable and that the above particulars/information provided by me herein are true and correct and nothing has been concealed.</p>
+<p class="para">Yours faithfully,</p>
+<p class="para">Signature of First Applicant(s)</p>
+<p class="fill-row single"><span class="fill-cell">Ravi Kumar</span></p>
+<p class="para">Signature of Second Applicant(s)</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Signature of Third Applicant(s)</p>
+<p class="fill-row single"><span class="fill-cell">&nbsp;</span></p>
+<p class="para">Date <span class="filled">15-06-2026</span></p>
+<p class="para">Place <span class="filled">&nbsp;</span></p>
+<p class="para">For the purpose of this Application Form,</p>
+<p class="para">“Applicable Law” shall mean and include any applicable Central, State or local laws, statutes, ordinances, rules, regulations, codes, bye-laws etc. including amendments/modification thereto, any government notifications, circulars, office orders, directives, guidelines, policies etc. or any government order or direction, judgment, decree or order of a judicial or a quasi-judicial authority whether in effect on the date of this Application Form or thereafter.</p>
+<p class="para">“Taxes” includes Goods and Services Tax (GST), land under construction tax, property tax, or other taxes, duties, Cesses, levies, charge which are leviable or become leviable under the provisions of the Applicable Laws or any amendments thereto pertaining or relating to the sale of Unit.</p>
+<p class="para">“GST” means and includes any tax imposed on the supply of goods or services or both under GST Law.</p>
+<p class="para">“GST Law” shall mean and include the Integrated Goods &amp; Service Tax Act, GST (Compensation to the States for Loss of Revenue) Act, Central Goods &amp; Services Tax Act and State Goods &amp; Services Tax Act / UTGST, and all related ancillary legislations, rules, notifications, circulars, statutory orders etc.</p>
+<p class="para">“Cess” shall mean and include any applicable cess, existing or future on the supply of goods or services or both under GST Law.</p>
+<p class="para">I/We, further confirm that I/we are submitting this Application Form after understanding the entire manner and scope of development to be undertaken in the Project, including the details of the Total Area, common areas and facilities being provided, without relying on any of the publicity materials/ advertisements published in any form or any channel by the Developer or any third party in the past.</p>
+<p class="para">I/we are aware and I/we confirm that the advertisements/publicity material released in the past does not provide any warranty and may not be providing complete details/disclosures as may be required under the Real Estate (Regulation and Development) Act, 2016 (“Act”) read with ______Real Estate (Regulation and Development) Rules, 2017 (“Rules”) and The ______Real Estate Regulatory Authority, ______ (Registration of Projects) Regulations, 2018 and I/we are not relying on the same for our decision to purchase the Unit.</p>
+<p class="para">I/we further confirm and undertake to not make any claim against the Developer or seek cancellation of the Application Form/allotment or refund of the monies paid by me/us by reason of anything contained in the publicity materials/advertisements published in any form or any channel by the Developer or any third party in the past.</p>
+<p class="para">I acknowledge that colour, texture, the fitting(s)/fixture(s) or any installations depicted in advertisements are shown only as a suggested layout without any obligation on the part of the Developer to provide the same.</p>
+<p class="para">I/we acknowledge, agree and undertake that I/we shall neither hold the Developer or any of its affiliates liable/responsible for any representation/commitment/offer made by any third party to me/us nor make any claims/demands on the Developer or any of its affiliates with respect thereto.</p>
+<p class="para">Save and except the information/disclosure contained herein, I confirm and undertake to not make any claim against the Developer or seek cancellation of this Application Form/Allotment Letter/Agreement for Sale or refund of the monies paid by me by reason of anything contained in other information/disclosure not forming part of this Application Form/Allotment Letter/Agreement for Sale.</p>
+<p class="para">I have fully read and understood the Terms and Conditions attached hereto as Annexure A which contains broad terms, conditions, representations, covenants, etc. and do hereby agree, undertake and covenant to abide and be bound by them and also by the area, sale consideration, estimated other charges and payment terms as set out herein.</p>
+<p class="para">The Terms and Conditions as mentioned in Annexure A forms an integral part of this Application Form and shall always be read together with this Application Form and be construed accordingly.</p>
+<p class="para">I have taken the decision to purchase the Unit in the Project out of my own free will after giving careful consideration to the nature and scope of the entire development explained to me in person including the disclosures contained herein and remitted the amounts payable thereof fully conscious of my rights, liabilities and obligations.</p>
+<p class="para">All the above information provided by me is true and nothing has been concealed or suppressed. I further undertake to inform the Developer promptly of any changes to the above information and particulars furnished by me.</p>
+<p class="para">I hereby enclose a:</p>
+<p class="para">(i) Cheque/Demand Draft No. <span class="filled">NEFT-REF-001</span> dated <span class="filled">01-06-2026</span> in favour of“__________________________________________________”<br>
+drawn on __________________ Bank,<br>
+________________ Branch and have paid a sum of<br>
+Rs. <span class="filled">₹75,00,000</span></p>
+<p class="para">OR</p>
+<p class="para">(ii) NEFT/RTGS/Debit Card/Credit Card bearing transaction reference no.<span class="filled">NEFT-REF-001</span> dated <span class="filled">01-06-2026</span> for a sum of<br>
+Rs. <span class="filled">₹75,00,000</span> /-<br>
+(Rupees <span class="filled">₹75,00,000 only</span>)<br>
+(“Application Money”) as part of Booking Amount payable by me as per terms of this Application.</p>
+<p class="section-header">DECLARATION:</p>
+<p class="para">I/We, the Applicant(s)(s) do hereby declare that my/our Application is irrevocable and that the above particulars/information provided by me herein are true and correct and nothing has been concealed.</p>
+<p class="para">Yours faithfully,</p>
+<p class="para">Signature of First Applicant(s) <span class="filled">Ravi Kumar</span></p>
+<p class="para">Signature of Second Applicant(s) <span class="filled">____________________________</span></p>
+<p class="para">Signature of Third Applicant(s) <span class="filled">____________________________</span></p>
+<p class="para">Date <span class="filled">15-06-2026</span></p>
+<p class="para">Place <span class="filled">&nbsp;</span></p>
+<p class="section-header">ANNEXURE ATERMS AND CONDITIONS<br></p>
+<p class="para">The Applicant agrees, acknowledges, confirms and covenants that:</p>
+<p class="para">(i) The present Application has been made after being fully satisfied about the rights, title and interest possessed by Developer over the Project Land.</p>
+<p class="para">(ii) The plans, specifications, images and other details herein may undergo change in accordance with Applicable Laws, directions/orders of the statutory authorities.</p>
+<p class="para">(iii) Post development of the entire Project Land, it is envisaged by the Developer, that the Developer may depending on the nature, scope and use of entire development and as may be required under Applicable Laws, form:(a) separate association/apex body/apex bodies<br>or<br>(b) a single association for the entire Project.<br></p>
+<p class="para">Each association shall adhere to its respective bye laws and guidelines as may be formulated by the Developer in accordance with Applicable Laws.</p>
+<p class="para">The Applicant(s) has fully understood the development scheme as envisaged by the Developer.</p>
+<p class="para">The Applicant(s) hereby agrees and undertakes to pay all the amounts due and payable to the Developer in accordance with the Payment Plan opted by the Applicant(s) in Annexure E on or before the respective due dates.</p>
+<p class="para">It is understood by the Applicant(s) that 10% of the Cost of Property shall be construed, considered and treated as “Booking Amount”.</p>
+<p class="para">Notwithstanding the fact that the Developer may have issued an acknowledgement by way of receipt for the money tendered with this Application Form, the Applicant(s) has clearly understood that this Application Form is only a request for allotment and does not constitute a final/provisional allotment or agreement.</p>
+<p class="para">The Developer, at its absolute discretion, shall be entitled to reject this Application Form without assigning any reason whatsoever.</p>
+<p class="para">The Applicant(s) is not vested with any right, interest or entitlement in or over the Unit until a formal Agreement for Sale is executed and registered.</p>
+<p class="para">All outstanding amounts payable by any party shall carry applicable interest as prescribed.</p>
+<p class="para">In the event the Applicant(s) fails or neglects to make payment of installments, despite notice, the Developer shall be entitled to terminate the Application Form and forfeit the Booking Amount along with applicable Non-Refundable Amounts.</p>
+<p class="para">In the event the Applicant(s) fails or neglects to comply with obligations under the Application Form/Allotment Letter/Agreement for Sale, the Developer shall be entitled to terminate allotment.</p>
+<p class="para">Withdrawal/cancellation by Applicant(s) for reasons not attributable to Developer default shall entitle Developer to forfeit Booking Amount and Non-Refundable Amounts.</p>
+<p class="para">The Applicant(s) is aware that the Total Price does not include any charge towards right to use covered/open car park space.</p>
+<p class="para">The Applicant(s) further agrees and acknowledges that the Developer shall confirm the Total Area after construction completion and occupation certificate.</p>
+<p class="para">The Applicant(s) agrees and undertakes to pay all charges towards electricity, water and sewerage connection, maintenance charges etc.</p>
+<p class="para">The Total Price of Unit is exclusive of statutory deposits towards electricity, water and other facilities.</p>
+<p class="para">All cheques/demand drafts/remittance should be issued/deposited and payable at par drawn in favour of: “_________________”and/or as stipulated by the Developer from time to time.<br></p>
+<p class="para">If any cheque of the Applicant(s) gets dishonoured, Developer shall be entitled to terminate allotment and forfeit Booking Amount and Non-Refundable Amounts.</p>
+<p class="para">The Developer shall offer possession on or before _________________with additional grace period as may be approved by RERA.</p>
+<p class="para">In the event Applicant(s) fails to take possession, holding charges shall be payable.</p>
+<p class="para">Due to operation of law/statutory order, if Project is discontinued/modified, Applicant(s) shall have no right of compensation.</p>
+<p class="para">Developer may appoint a facility management company at its sole discretion.</p>
+<p class="para">Addition/deletion of names in Allotment Letter shall be subject to documentary proof and administrative charges.</p>
+<p class="para">Applicant(s) represent and warrant capability to make all payments from own resources.</p>
+<p class="para">Applicant(s) shall deduct applicable TDS under Section 194IA of Income Tax Act, 1961.</p>
+<p class="para">Developer shall file Declaration under _________________ Apartment Ownership Act, 1983.</p>
+<p class="para">Name of Project/towers/phases may be amended at sole discretion of Developer.</p>
+<p class="para">In case of joint application, refunds/payments shall be made to first named Applicant unless instructed otherwise.</p>
+<p class="para">Applicant(s) shall inform Developer in writing regarding change in communication address.</p>
+<p class="para">Developer shall obtain occupation certificate before handing over possession.</p>
+<p class="para">Disputes shall be settled through arbitration subject to Applicable Laws.</p>
+<p class="para">Singular includes plural and vice versa wherever context requires.</p>
+<p class="para">NRI Applicant(s) shall sign NRI declaration attached as Annexure G.</p>
+<p class="para">Applicant(s) confirms Developer has provided all information, clarifications and documents relating to Project.</p>
+<p class="para">All terms and conditions shall remain subject to RERA Act, Rules and Regulations.</p>
+<p class="para">Detailed terms and conditions shall be specified in Allotment Letter/Agreement for Sale.</p>
+<p class="para">Enhanced EDC and other statutory levies, if applicable, shall be borne by Applicant(s).</p>
+<p class="para">The contents of this Application Form, including the terms and conditions therein and price and payment plan have been explained to me and I hereby solemnly agree to be bound by them.</p>
+<p class="section-header">ANNEXURE B</p>
+<p class="para">PLAN SHOWING PROJECT LAND</p>
+<p class="para">LEGEND</p>
+<p class="para">Entry/ Exit</p>
+<p class="para">Arrival Plaza</p>
+<p class="para">Tower drop–off</p>
+<p class="para">Vehicular Road</p>
+<p class="para">Open Parking</p>
+<p class="para">Club house/ Community center</p>
+<p class="para">Swimming pool</p>
+<p class="para">Kids pool</p>
+<p class="para">Club spill out</p>
+<p class="para">Fountain</p>
+<p class="para">Community Green</p>
+<p class="para">Herbal garden</p>
+<p class="para">Tree of life</p>
+<p class="para">Yoga meditation with water feature</p>
+<p class="para">Outdoor Gym</p>
+<p class="para">Garden of swings</p>
+<p class="para">Jogging track</p>
+<p class="para">Covered walkway</p>
+<p class="para">Floral garden</p>
+<p class="para">Kids play zone</p>
+<p class="para">Half basket ball court</p>
+<p class="para">Tennis court</p>
+<p class="para">Cricket practice nets</p>
+<p class="para">Convenient Shopping</p>
+<p class="para">EWS</p>
+<p class="section-header">ANNEXURE C</p>
+<p class="para">SPECIFICATION OF UNIT</p>
+<p class="para">SPECIFICATION UNIT WISE</p>
+<p class="para">Living &amp; Dining Area</p>
+<p class="para">1.1 FloorVitrified Tile or equivalent.<br></p>
+<p class="para">1.2 WallsAcrylic Emulsion or equivalent.<br></p>
+<p class="para">1.3 CeilingOil Bound Distemper or equivalent.<br></p>
+<p class="para">Master Bedroom/ Dressroom</p>
+<p class="para">2.1 FloorLaminated Wooden Flooring or equivalent.<br></p>
+<p class="para">2.2 WallsAcrylic Emulsion or equivalent.<br></p>
+<p class="para">2.3 CeilingOil Bound Distemper or equivalent.<br></p>
+<p class="para">Master Toilet</p>
+<p class="para">3.1 FloorAnti Skid Ceramic Tile or equivalent.<br></p>
+<p class="para">3.2 WallsCeramic tiles and Acrylic Emulsion or equivalent.<br></p>
+<p class="para">3.3 CeilingGrid tiles or equivalent.<br></p>
+<p class="para">3.4 CountersGranite or equivalent.<br></p>
+<p class="para">3.5 Sanitary ware/ CP FittingsWashbasin, WC and CP fittings.<br></p>
+<p class="para">3.6 Fitting/ FixturesNone.<br></p>
+<p class="para">Bedrooms</p>
+<p class="para">4.1 FloorLaminated Wooden Flooring or equivalent.<br></p>
+<p class="para">4.2 WallsAcrylic Emulsion or equivalent.<br></p>
+<p class="para">4.3 CeilingOil Bound Distemper or equivalent.<br></p>
+<p class="para">4.4 WardrobesNo.<br></p>
+<p class="para">Toilet</p>
+<p class="para">5.1 FloorAnti Skid Ceramic Tile or equivalent.<br></p>
+<p class="para">5.2 WallsCeramic Tiles and Acrylic Emulsion or equivalent.<br></p>
+<p class="para">5.3 CeilingGrid Ceiling or equivalent.<br></p>
+<p class="para">5.4 CountersGranite or equivalent.<br></p>
+<p class="para">5.5 Sanitary Ware/ CP FittingsWashbasin, WC and CP fittings.<br></p>
+<p class="para">Kitchen</p>
+<p class="para">6.1 FloorAnti Skid Ceramic Tile or equivalent.<br></p>
+<p class="para">6.2 WallsCeramic tile Dado and Acrylic Emulsion or equivalent.<br></p>
+<p class="para">6.3 CeilingOil Bound Distemper or equivalent.<br></p>
+<p class="para">6.4 CountersGranite or equivalent.<br></p>
+<p class="para">6.5 FixturesSink.<br></p>
+<p class="para">6.6 Kitchen appliancesNo.<br></p>
+<p class="para">Balcony/Utility Balcony</p>
+<p class="para">7.1 FloorAnti-Skid Ceramic Tile or equivalent.<br></p>
+<p class="para">7.2 Walls &amp; ceilingAcrylic Emulsion or equivalent in internal walls and Oil Bound Distemper or equivalent in ceiling.<br></p>
+<p class="para">7.3 RailingsEnamel paint.<br></p>
+<p class="para">7.4 Fixtures</p>
+<p class="section-header">ANNEXURE D</p>
+<p class="para">COMMON AREAS &amp; FACILITIES</p>
+<p class="para">Sr. No. / Particulars</p>
+<p class="para">Reception/Entrance lobby at Ground Floor</p>
+<p class="para">Underground water tank and pump room</p>
+<p class="para">Water Supply from Overhead water tanks</p>
+<p class="para">Water supply connection provision from main line</p>
+<p class="para">Rain water harvesting pits</p>
+<p class="para">Approach road to buildings situated within the Project</p>
+<p class="para">Firefighting &amp; Domestic water supply equipment</p>
+<p class="para">Electric sub-station/ transformers/ electrical panels</p>
+<p class="para">Lawns &amp; play areas, including lighting and services</p>
+<p class="para">Guard room</p>
+<p class="para">Garbage room</p>
+<p class="para">Green landscape areas, water bodies, fountain and lighting/service thereof</p>
+<p class="para">Driveways/roads/walkways/lighting and services</p>
+<p class="para">Boom barrier at entry and exit</p>
+<p class="para">Storm water drainage line</p>
+<p class="para">Sewerage drainage line</p>
+<p class="para">Sewerage treatment plant</p>
+<p class="para">Staircases, lobbies, mumties, passages and landings of individual buildings</p>
+<p class="para">Lifts/Lift’s shaft and lift machine room with the equipment</p>
+<p class="para">Lightening protection/arrestor and aviation caution lights</p>
+<p class="para">Common passages/corridors including lighting and firefighting equipment thereof</p>
+<p class="para">Power Distribution System, Sub-Station including DG sets</p>
+<p class="para">Security and Fire control room with Fire detection system/PA system</p>
+<p class="para">Ramp driveways/staircases/passage/shafts/ducting (basement ventilation), lighting and services thereof in basement</p>
+<p class="para">Sump pumps</p>
+<p class="para">Sprinkler system and ventilation system in basement</p>
+<p class="para">Common passages/road/corridors including lighting</p>
+<p class="para">Multipurpose hall – part of the Club</p>
+<p class="para">Swimming Pool – part of the Club</p>
+<p class="para">Kids Pool – part of the Club</p>
+<p class="para">Gym – part of the Club</p>
+<p class="para">Indoor Games – part of the Club</p>
+<p class="section-header">ANNEXURE F</p>
+<p class="para">TDS DECLARATION</p>
+<p class="para">Date: <span class="filled">01-06-2026</span></p>
+<p class="para">To,________________________<br>________________________<br></p>
+<p class="para">Subject: Declaration about TDS awareness</p>
+<p class="para">I/We have submitted my/our application form with Application Money for booking the Unit No. <span class="filled">A-101</span> in the project <span class="filled">Sunrise Heights</span> being developed by ______.</p>
+<p class="para">I/We understand and acknowledge that since my/our Unit’s sale consideration is more than 50 lakhs, I/we are required to deduct 1% TDS on every payment that I/we make to you and make this 1% payment to the income tax department.</p>
+<p class="para">I/we have been familiarized with the Sec 194 IA of the Income Tax Act, 1961 under which with effect from June 1, 2013 every property buyer need to deduct 1% TDS while making instalment payment for the property.</p>
+<p class="para">This 1% TDS needs to be credited with the central government by filling form 26QB either using online payment option or over the counter payment option.</p>
+<p class="para">I/we am/are fully aware that timely deduction of TDS and payment of the same to the authorities is my/our responsibility and any delay in the same will lead to my/our incurring penalty and interest to the authorities.</p>
+<p class="para">You have familiarized me/us with the process steps for the same and have also provided the necessary details to enable me/us to make these payments in future.</p>
+<p class="para">I/we hereby agree and undertake to deposit the TDS with the government authorities and further to submit the signed TDS certificate in prescribed Form 16B within 15 days from the date of TDS payment to you.</p>
+<p class="para">Thanking you,</p>
+<p class="para">Name: ___________________________________</p>
+<p class="para">Unit No. Applied: <span class="filled">A-101</span></p>
+<p class="para">Project Name: <span class="filled">Sunrise Heights</span></p>
+<p class="para">Signature: ________________________________</p>
+<p class="section-header">ANNEXURE G</p>
+<p class="para">NRI DECLARATION</p>
+<p class="para">Date: <span class="filled">01-06-2026</span></p>
+<p class="para">To,________________________<br></p>
+<p class="para">________________________</p>
+<p class="para">Dear Sir,</p>
+<p class="para">Sub: Purchase of Unit No <span class="filled">A-101</span> in the project <span class="filled">Sunrise Heights</span> being developed by ____________.</p>
+<p class="para">I/We confirm that I/We am/are NRI and not a citizen of Macau or Hong Kong, Pakistan, Bangladesh, Sri Lanka, Afghanistan, China, Iran, Nepal, Bhutan and Democratic People’s Republic of Korea.</p>
+<p class="para">I/We am/are eligible to purchase immovable property in India as per applicable provisions of Foreign Exchange Management Act, 1999 (FEMA Act).</p>
+<p class="para">I/We have purchased the Residential/Commercial (Delete whichever is not applicable) for my/our personal use and not for trading purpose.</p>
+<p class="para">I/We confirm &amp; undertake that the remittances made/to be made by us is towards above mentioned property and NOT for Real estate business, or construction of farm houses i.e. trading in land and immovable property with view to earning profit or earning income there from as per applicable provisions of Foreign Exchange Management Act,1999 (FEMA Act).</p>
+<p class="para">I/We confirm and understand that it is my/our responsibility of complying with the extant FEMA provisions and I undertake to fully indemnify against all losses and damages that may be caused to you on account of the funds remitted under this transaction.</p>
+<p class="para">I/We, at all times undertake to comply with all applicable anti-money laundering, anti-bribery, anti-corruption, counter-terrorism financing, and economic or trade sanctions laws and regulations (including any sanctions administered by the United States Department of the Treasury’s Office of Foreign Assets Control, the United Nations, the European Union, the Monetary Authority of Singapore and the Reserve Bank of India).</p>
+<p class="para">I/We further undertake that the details stated as on the date of this declaration are true and correct and I shall solely be responsible for the consequences and not hold you responsible and also undertake to intimate and provide details of any change immediately, in relation to the above declaration.</p>
+<p class="para">Yours truly,</p>
+<p class="section-header">LIST OF DOCUMENTS TO BE SUBMITTED WITH APPLICATION FORM</p>
+<p class="para">For Individual (resident Of India):</p>
+<p class="para">• Copy of PAN card• Passport Size photographs<br>• Photo ID, Signature &amp; Address Proof<br></p>
+<p class="para">For Partnership Firm:</p>
+<p class="para">• Copy of PAN card of the firm• Copy of partnership deed/Agreement<br>• In case where one partner has been authorized for execution of all documents, copy of the authority letter from other partners<br>• Copy of Address Proof of the Firm<br>• Photo ID and Signature Proof of the Signing Partner<br>• Passport Size photograph of Signing Partner<br></p>
+<p class="para">For Company:</p>
+<p class="para">• Copy of PAN card of the Company• Copy of Memorandum &amp; Articles of Association of the Company duly signed by the Company Secretary<br>• Board Resolution in favor of the Authorized Signatory prior to the Application Date<br>• Passport Size photograph of the Authorized Signatory<br>• Photo ID &amp; Signature proof of the Authorized Signatory<br></p>
+<p class="para">For Hindu Undivided Family (HUF):</p>
+<p class="para">• Copy of PAN card of HUF• Authority letter from all coparcener of HUF authorizing Karta to act on their behalf<br>• Passport Size photograph of the Karta<br>• Photo ID &amp; Signature proof of the Karta<br></p>
+<p class="para">For NRI/Foreign Nationals of Indian Origin:</p>
+<p class="para">• Copy of passport• Copy of PAN card<br>• Passport Size photograph, Photo ID, Signature Proof, Address Proof<br>• In case of Demand Draft (DD), the confirmation from the banker that the DD has been prepared from the proceeds of NRI/NRO account of the Applicant(s)<br>• In case of payment through cheque:<br>All payments shall be received from the NRE/NRO/FCNR account of the customer only or foreign exchange remittance from abroad and not from the account of third party.<br></p>
+<p class="para">Non-Individual Applicants are required to ensure that the object clause of the constitution document (viz. MOA/AOA/Trust Deed etc.)</p>
+</body>
+</html>"
+`;
