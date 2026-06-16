@@ -288,9 +288,6 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         {lockedBookingId ? (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" asChild>
-              <Link href="/crm/documents">All confirmed bookings</Link>
-            </Button>
-            <Button type="button" variant="outline" size="sm" asChild>
               <Link href={`/crm/financials/${encodeURIComponent(lockedBookingId)}`}>
                 Ledger &amp; collections
               </Link>
