@@ -217,17 +217,8 @@ export default function PossessionHandoverPage() {
     void load();
   }, [load]);
 
-  const readyCount = rows.filter(
-    (r) => normalizeUnitStatusCode(r.unitStatus) === 'PRE_POSSESSION'
-  ).length;
-  const givenCount = rows.filter(
-    (r) => normalizeUnitStatusCode(r.unitStatus) === 'POSSESSED'
-  ).length;
-
   return (
-    <div className="space-y-4 p-2">
-
-
+    <div className="space-y-4">
       <Card className="border-ds-gray-200 p-4 sm:p-5">
         <div>
           <h2 className="text-sm font-semibold text-ds-gray-900">
