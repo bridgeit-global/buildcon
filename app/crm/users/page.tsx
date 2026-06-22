@@ -343,20 +343,6 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="p-4 flex items-center justify-between">
-        <div>
-          <div className="text-sm font-semibold text-gray-900">
-            Users & Access (MVP)
-          </div>
-          <div className="text-xs text-gray-500">
-            View your role and project membership across all accessible projects.
-          </div>
-        </div>
-        <Button variant="outline" onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
-        </Button>
-      </Card>
-
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
           <div className="text-sm font-semibold text-gray-900">My profile</div>
@@ -766,84 +752,6 @@ export default function UsersPage() {
           ) : null}
         </Card>
       </div>
-
-      {profile?.role === 'Super Admin' ? (
-        <Card className="p-4">
-          <div className="text-sm font-semibold text-gray-900">
-            Buyer / channel partner portal
-          </div>
-          <p className="mt-1 text-xs text-gray-500">
-            Link an auth user to a <span className="font-mono">customers</span>{' '}
-            row for the buyer portal, or to a <span className="font-mono">brokers</span>{' '}
-            row for broker-scoped inquiry reads.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1">
-              <Label className="text-xs">Staff user</Label>
-              <SearchableSelect
-                value={
-                  (() => {
-                    const row = portalDirectory.find((p) => p.id === portalUserId);
-                    return row ? profileOptionLabel(row) : '';
-                  })()
-                }
-                onValueChange={(label) => {
-                  const row = portalDirectory.find(
-                    (p) => profileOptionLabel(p) === label
-                  );
-                  if (!row) return;
-                  setPortalUserId(row.id);
-                  portalValidation.touch('portalUserId');
-                  setPortalCustomerId(row.linked_customer_id ?? '');
-                  setPortalBrokerId(row.linked_broker_id ?? '');
-                }}
-                options={portalDirectory.map((p) => profileOptionLabel(p))}
-                placeholder="Select user…"
-                searchPlaceholder="Search user…"
-              />
-              <FormFieldError message={portalValidation.fieldError('portalUserId')} />
-            </div>
-            <TextInputField
-              label="Linked customer id (UUID)"
-              labelClassName="text-xs"
-              value={portalCustomerId}
-              onChange={(e) => {
-                setPortalCustomerId(e.target.value);
-                portalValidation.touch('portalCustomerId');
-              }}
-              onBlur={() => portalValidation.touch('portalCustomerId')}
-              error={portalValidation.fieldError('portalCustomerId')}
-              placeholder="00000000-0000-0000-0000-000000000000"
-              inputClassName="font-mono text-xs"
-            />
-            <TextInputField
-              className="sm:col-span-2"
-              label="Linked broker id (UUID, optional)"
-              labelClassName="text-xs"
-              value={portalBrokerId}
-              onChange={(e) => {
-                setPortalBrokerId(e.target.value);
-                portalValidation.touch('portalBrokerId');
-              }}
-              onBlur={() => portalValidation.touch('portalBrokerId')}
-              error={portalValidation.fieldError('portalBrokerId')}
-              placeholder="Optional"
-              inputClassName="font-mono text-xs"
-            />
-          </div>
-          <Button
-            className="mt-3"
-            type="button"
-            disabled={savingPortal}
-            onClick={() => void savePortalLinks()}
-          >
-            {savingPortal ? 'Saving…' : 'Save portal links'}
-          </Button>
-          <p className="mt-2 text-xs text-gray-500">
-            Buyer portal: <span className="font-mono">/portal</span> after login.
-          </p>
-        </Card>
-      ) : null}
     </div>
   );
 }

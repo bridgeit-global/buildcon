@@ -291,7 +291,7 @@ export default function FinancialsPage() {
       </Card>
 
       <Card className="p-4">
-        <div className="flex flex-wrap items-end gap-3">
+        {/* <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[200px]">
             <Label>Export scope</Label>
             <SearchableSelect
@@ -330,7 +330,7 @@ export default function FinancialsPage() {
           >
             {exporting === 'receipts' ? 'Exporting…' : 'Export receipts CSV'}
           </Button>
-        </div>
+        </div> */}
         <div className="text-sm font-semibold text-ds-gray-900">Bookings</div>
         <p className="text-xs text-ds-gray-500">
           Select Manage to open payment schedule and collection entry for a booking.
