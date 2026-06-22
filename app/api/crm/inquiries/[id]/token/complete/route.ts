@@ -13,6 +13,9 @@ import { isInquiryTokenComplete } from '@/app/crm/inquiry/inquiry-token-stage';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type Body = { saleTotalInr?: number | null };

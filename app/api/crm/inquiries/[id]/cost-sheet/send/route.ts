@@ -4,6 +4,9 @@ import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { toNotifyBookingDocumentResponse } from '@/lib/booking/notify-generated-booking-document-server';
 import { sendInquiryCostSheetServer } from '@/lib/inquiry/send-inquiry-cost-sheet-server';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 type Body = {
   unitId?: string;
   parkingRequired?: 'Yes' | 'No';

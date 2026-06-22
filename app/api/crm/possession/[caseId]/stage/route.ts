@@ -8,6 +8,9 @@ import {
   unitStatusFromBookingUnitsJoin
 } from '@/app/crm/inventory/unit-status';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 type Body = {
   stage?: 'OC' | 'FinalDemand' | 'PossessionLetter' | 'Handover' | 'Closed';
 };
