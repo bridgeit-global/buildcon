@@ -122,12 +122,14 @@ export function createMockSupabaseClient(config: MockSupabaseConfig = {}) {
         }
         return result as QueryResult<unknown>;
       },
-      then: (resolve) => {
+      then: (resolve): Promise<QueryResult<unknown[]>> => {
         const result = resolveForTable(table, currentOp, builder);
         const rows = Array.isArray(result.data)
           ? result
           : { data: result.data != null ? [result.data] : [], error: result.error };
-        return Promise.resolve(resolve(rows as QueryResult<unknown[]>));
+        const value = rows as QueryResult<unknown[]>;
+        resolve(value);
+        return Promise.resolve(value);
       }
     };
     return builder;
