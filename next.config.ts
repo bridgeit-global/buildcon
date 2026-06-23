@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["playwright-core", "@sparticuz/chromium-min"],
+  outputFileTracingIncludes: {
+    "/api/crm/": ["./node_modules/playwright-core/browsers.json"],
+  },
   turbopack: {
     root: import.meta.dirname,
   },
