@@ -56,7 +56,7 @@ export function LoginClient() {
         });
         if (error) throw error;
         toast.info(
-          'After sign-up, your admin should grant you access to projects via project_members.'
+          'After sign-up, your admin should grant you access to projects via Project Members.'
         );
       }
       router.replace(redirectTo);
