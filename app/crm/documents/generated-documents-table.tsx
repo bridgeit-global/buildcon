@@ -7,8 +7,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -148,7 +148,7 @@ const globalGeneratedFilter: FilterFn<GeneratedDocRow> = (row, _columnId, raw) =
   return hay.includes(q);
 };
 
-type GeneratedDocumentsTableProps = {
+type GeneratedDocumentsTableProps = ServerSortedTableProps & {
   rows: GeneratedDocRow[];
   loading: boolean;
   /** Fewer columns when viewing a single booking. */
@@ -168,7 +168,9 @@ export function GeneratedDocumentsTable({
   showDownload = false,
   onNotify,
   onRefresh,
-  scheduleLabelById
+  scheduleLabelById,
+  sorting,
+  onSortingChange
 }: GeneratedDocumentsTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -417,8 +419,9 @@ export function GeneratedDocumentsTable({
     ];
   }, [variant, showDownload, viewBusyId, viewRow, downloadBusyId, downloadRow, notifyBusyId, onNotify, scheduleLabelById]);
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -432,7 +435,7 @@ export function GeneratedDocumentsTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

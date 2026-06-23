@@ -2,18 +2,20 @@
 
 import { Suspense } from 'react';
 import { Card } from '@/components/ui/card';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { InquiryListTable } from '../inquiry-list-table';
 import { useInquiryListResources } from '../use-inquiry-list-resources';
 import BackButton from '@/components/buttons/back-button';
 
 export default function InquiryListPage() {
+  const { sorting, onSortingChange } = useServerListSorting();
   const {
     inquiries,
     loadingInquiries,
     loadInquiries,
     units,
     navigateToBookingFromInquiry
-  } = useInquiryListResources();
+  } = useInquiryListResources(sorting);
 
   return (
     <div className="flex flex-col gap-4">
@@ -33,6 +35,8 @@ export default function InquiryListPage() {
           loadInquiries={loadInquiries}
           units={units}
           navigateToBookingFromInquiry={navigateToBookingFromInquiry}
+          sorting={sorting}
+          onSortingChange={onSortingChange}
         />
       </Suspense>
     </div>

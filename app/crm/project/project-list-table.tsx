@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -50,7 +50,7 @@ function statusBadgeClass(status: string) {
   return 'bg-ds-gray-100 text-ds-gray-600';
 }
 
-type ProjectListTableProps = {
+type ProjectListTableProps = ServerSortedTableProps & {
   projects: CrmProjectListItem[];
   loading: boolean;
   canCreateProject: boolean;
@@ -61,7 +61,9 @@ export function ProjectListTable({
   projects,
   loading,
   canCreateProject,
-  onManage
+  onManage,
+  sorting,
+  onSortingChange
 }: ProjectListTableProps) {
   const router = useRouter();
   const [globalFilter, setGlobalFilter] = useState('');
@@ -195,8 +197,9 @@ export function ProjectListTable({
     [onManage, router]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: projects,
@@ -212,7 +215,7 @@ export function ProjectListTable({
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
     },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;

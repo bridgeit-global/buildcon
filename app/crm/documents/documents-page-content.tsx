@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { useCrmProjectsContext } from '../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,6 +71,12 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     () => new Map()
   );
   const [outstandingTotal, setOutstandingTotal] = useState<number | null>(null);
+  const { sorting: bookingsSorting, onSortingChange: onBookingsSortingChange } =
+    useServerListSorting();
+  const { sorting: generatedSorting, onSortingChange: onGeneratedSortingChange } =
+    useServerListSorting([{ id: 'generated_at', desc: true }]);
+  const { sorting: matrixSorting, onSortingChange: onMatrixSortingChange } =
+    useServerListSorting();
 
   useEffect(() => {
     if (lockedBookingId) {
@@ -84,18 +92,46 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       return;
     }
     setLoadingBookings(true);
-    const { data, error: bErr } = await supabase
+    const CLIENT_SORT = new Set(['project', 'unit', 'customer']);
+    const first = bookingsSorting[0];
+    const { column, ascending } = resolveSortFromState(
+      bookingsSorting,
+      {},
+      'updated_at',
+      false
+    );
+
+    let query = supabase
       .from('bookings')
       .select('id,workflow_stage,customers(full_name),units(unit_code),projects(name)')
       .in('project_id', projectIds)
       .eq('workflow_stage', 'confirmation')
       .neq('status', 'cancelled')
-      .order('updated_at', { ascending: false })
       .limit(300);
+
+    if (first && CLIENT_SORT.has(first.id)) {
+      query = query.order('updated_at', { ascending: false });
+    } else {
+      query = query.order(column, { ascending });
+    }
+
+    const { data, error: bErr } = await query;
     if (bErr) pageError(bErr.message);
-    setBookingRows((data ?? []) as BookingPickRow[]);
+    let rows = (data ?? []) as BookingPickRow[];
+    if (first && CLIENT_SORT.has(first.id)) {
+      rows = sortRowsByState(rows, bookingsSorting, (row, colId) => {
+        const proj = unwrapJoin(row.projects);
+        const unit = unwrapJoin(row.units);
+        const cust = unwrapJoin(row.customers);
+        if (colId === 'project') return proj?.name ?? '';
+        if (colId === 'unit') return unit?.unit_code ?? '';
+        if (colId === 'customer') return cust?.full_name ?? '';
+        return null;
+      });
+    }
+    setBookingRows(rows);
     setLoadingBookings(false);
-  }, [projectIds, supabase]);
+  }, [bookingsSorting, projectIds, supabase]);
 
   useEffect(() => {
     if (lockedBookingId) return;
@@ -109,17 +145,27 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
         return;
       }
       setLoadingGenerated(true);
+      const GENERATED_SORT: Record<string, string> = {
+        generated_at: 'generated_at',
+        storage_path: 'storage_path'
+      };
+      const { column, ascending } = resolveSortFromState(
+        generatedSorting,
+        GENERATED_SORT,
+        'generated_at',
+        false
+      );
       const { data, error: gErr } = await supabase
         .from('generated_documents')
         .select(GENERATED_DOCUMENTS_LIST_SELECT)
         .eq('booking_id', bookingId)
-        .order('generated_at', { ascending: false })
+        .order(column, { ascending })
         .limit(200);
       if (gErr) pageError(gErr.message);
       setGenerated((data ?? []) as GeneratedDocRow[]);
       setLoadingGenerated(false);
     },
-    [supabase]
+    [generatedSorting, supabase]
   );
 
   useEffect(() => {
@@ -234,7 +280,14 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     [lockedBookingId, selectedBookingId]
   );
 
-  const matrixRows = useMemo(() => buildMatrixRows(generated), [generated]);
+  const matrixRows = useMemo(() => {
+    const built = buildMatrixRows(generated);
+    return sortRowsByState(built, matrixSorting, (row, colId) => {
+      if (colId === 'document') return row.label;
+      if (colId === 'status') return row.latest?.generated_at ?? '';
+      return null;
+    });
+  }, [generated, matrixSorting]);
 
   const unit = printPack ? unwrapJoin(printPack.booking.units) : null;
   const unitPossessed = isUnitPossessedStatus(unit?.status);
@@ -309,6 +362,8 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
             rows={bookingRows}
             loading={loadingBookings}
             selectedBookingId={selectedBookingId}
+            sorting={bookingsSorting}
+            onSortingChange={onBookingsSortingChange}
           />
         ) : null}
 
@@ -396,6 +451,8 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                     scheduleLabelById={docScheduleLabels}
                     outstandingTotal={outstandingTotal}
                     unitPossessed={unitPossessed}
+                    sorting={matrixSorting}
+                    onSortingChange={onMatrixSortingChange}
                   />
                 </div>
               </>
@@ -420,6 +477,8 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
                 onNotify={(_bId, docId) => handleMatrixNotify(docId)}
                 scheduleLabelById={docScheduleLabels}
                 onRefresh={() => void loadGeneratedForBooking(lockedBookingId)}
+                sorting={generatedSorting}
+                onSortingChange={onGeneratedSortingChange}
               />
             </div>
           </>

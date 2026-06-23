@@ -5,8 +5,8 @@ import { pageError } from '@/lib/toast';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  useServerListSorting
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatInrCompactLacCr } from '../inr-format';
 import {
@@ -163,6 +164,9 @@ export default function ApprovalsPage() {
   const [activeRow, setActiveRow] = useState<ApprovalRow | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [deciding, setDeciding] = useState(false);
+  const { sorting, onSortingChange } = useServerListSorting([
+    { id: 'requested_at', desc: true }
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,7 +196,21 @@ export default function ApprovalsPage() {
 
   const loadRows = useCallback(async () => {
     setLoading(true);
-    const { data, error: readErr } = await supabase
+    const APPROVAL_DB_SORT: Record<string, string> = {
+      status: 'status',
+      pricing: 'offered_price',
+      requested_at: 'requested_at'
+    };
+    const CLIENT_SORT = new Set(['customer', 'unitProject', 'reference', 'requester']);
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      APPROVAL_DB_SORT,
+      'requested_at',
+      false
+    );
+
+    let query = supabase
       .from('negotiation_approvals')
       .select(
         `
@@ -216,8 +234,15 @@ export default function ApprovalsPage() {
         projects ( name )
       `
       )
-      .order('requested_at', { ascending: false })
       .limit(500);
+
+    if (first && CLIENT_SORT.has(first.id)) {
+      query = query.order('requested_at', { ascending: false });
+    } else {
+      query = query.order(column, { ascending });
+    }
+
+    const { data, error: readErr } = await query;
     if (readErr) {
       pageError(readErr.message);
       setRows([]);
@@ -251,7 +276,7 @@ export default function ApprovalsPage() {
         requesterNameById.set(id, name || id);
       }
     }
-    const mapped: ApprovalRow[] = records.map((r) => {
+    let mapped: ApprovalRow[] = records.map((r) => {
       const customer = embedOne<EmbedCustomer>(r.customers);
       const unit = embedOne<EmbedUnit>(r.units);
       const project = embedOne<EmbedProject>(r.projects);
@@ -280,9 +305,20 @@ export default function ApprovalsPage() {
           : null
       };
     });
+    if (first && CLIENT_SORT.has(first.id)) {
+      mapped = sortRowsByState(mapped, sorting, (row, colId) => {
+        if (colId === 'customer') return row.customer_name ?? '';
+        if (colId === 'unitProject') {
+          return [row.unit_code, row.project_name].filter(Boolean).join(' · ');
+        }
+        if (colId === 'reference') return row.requested_at;
+        if (colId === 'requester') return row.requester_name ?? '';
+        return null;
+      });
+    }
     setRows(mapped);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, sorting]);
 
   useEffect(() => {
     void loadRows();
@@ -467,8 +503,9 @@ export default function ApprovalsPage() {
     [isSuperAdmin]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -485,7 +522,7 @@ export default function ApprovalsPage() {
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
     },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   const statusCol = table.getColumn('status');

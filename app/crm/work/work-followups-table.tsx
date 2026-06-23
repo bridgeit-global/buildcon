@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -64,12 +64,17 @@ const globalFollowFilter: FilterFn<WorkFollowRow> = (row, _columnId, raw) => {
   return hay.includes(q);
 };
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: WorkFollowRow[];
   loading?: boolean;
 };
 
-export function WorkFollowupsTable({ rows, loading }: Props) {
+export function WorkFollowupsTable({
+  rows,
+  loading,
+  sorting,
+  onSortingChange
+}: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
 
   const columns = useMemo<ColumnDef<WorkFollowRow, unknown>[]>(
@@ -181,8 +186,9 @@ export function WorkFollowupsTable({ rows, loading }: Props) {
     []
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -196,7 +202,7 @@ export function WorkFollowupsTable({ rows, loading }: Props) {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

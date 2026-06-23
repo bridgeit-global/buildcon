@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -51,12 +51,17 @@ const globalVisitFilter: FilterFn<WorkVisitRow> = (row, _columnId, raw) => {
   return hay.includes(q);
 };
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: WorkVisitRow[];
   loading?: boolean;
 };
 
-export function WorkVisitsTable({ rows, loading }: Props) {
+export function WorkVisitsTable({
+  rows,
+  loading,
+  sorting,
+  onSortingChange
+}: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
 
   const columns = useMemo<ColumnDef<WorkVisitRow, unknown>[]>(
@@ -117,8 +122,9 @@ export function WorkVisitsTable({ rows, loading }: Props) {
     []
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -132,7 +138,7 @@ export function WorkVisitsTable({ rows, loading }: Props) {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

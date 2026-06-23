@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -70,7 +70,7 @@ const globalPossessionFilter: FilterFn<PossessionListRow> = (row, _columnId, raw
   return hay.includes(q);
 };
 
-type PossessionListTableProps = {
+type PossessionListTableProps = ServerSortedTableProps & {
   rows: PossessionListRow[];
   loading: boolean;
   onManage: (row: PossessionListRow) => void;
@@ -79,7 +79,9 @@ type PossessionListTableProps = {
 export function PossessionListTable({
   rows,
   loading,
-  onManage
+  onManage,
+  sorting,
+  onSortingChange
 }: PossessionListTableProps) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'given'>('all');
@@ -185,8 +187,9 @@ export function PossessionListTable({
     [onManage]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: filteredRows,
@@ -200,7 +203,7 @@ export function PossessionListTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

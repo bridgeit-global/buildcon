@@ -26,8 +26,13 @@ vi.mock('@/lib/authz', async (importOriginal) => {
 });
 
 import { GET, POST } from './route';
+import { NextRequest } from 'next/server';
 import { createMockSupabaseClient } from '@/test/mocks/supabase';
 import { postJson, readJson } from '@/test/mocks/route-helpers';
+
+function projectsGetRequest() {
+  return new NextRequest('http://localhost/api/crm/projects');
+}
 
 describe('GET /api/crm/projects', () => {
   beforeEach(() => {
@@ -43,7 +48,7 @@ describe('GET /api/crm/projects', () => {
       })
     );
 
-    const res = await GET();
+    const res = await GET(projectsGetRequest());
     expect(res.status).toBe(401);
     expect(await readJson(res)).toEqual({ error: 'Unauthorized' });
   });
@@ -86,7 +91,7 @@ describe('GET /api/crm/projects', () => {
       })
     );
 
-    const res = await GET();
+    const res = await GET(projectsGetRequest());
     expect(res.status).toBe(200);
     const json = await readJson<{ projects: unknown[]; canCreateProject: boolean }>(res);
     expect(json.projects).toHaveLength(1);

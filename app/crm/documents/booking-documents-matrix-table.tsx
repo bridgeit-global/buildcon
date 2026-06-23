@@ -5,8 +5,8 @@ import { pageError } from '@/lib/toast';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -71,7 +71,7 @@ function buildMatrixRows(generated: GeneratedDocRow[]): BookingDocMatrixRow[] {
   });
 }
 
-type BookingDocumentsMatrixTableProps = {
+type BookingDocumentsMatrixTableProps = ServerSortedTableProps & {
   rows: BookingDocMatrixRow[];
   kycComplete: boolean;
   generatingKind: BookingDocumentPrintKind | null;
@@ -146,7 +146,9 @@ export function BookingDocumentsMatrixTable({
   onNotify,
   scheduleLabelById,
   outstandingTotal,
-  unitPossessed = false
+  unitPossessed = false,
+  sorting,
+  onSortingChange
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [viewBusyId, setViewBusyId] = useState<string | null>(null);
@@ -326,8 +328,9 @@ export function BookingDocumentsMatrixTable({
     ]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -336,7 +339,7 @@ export function BookingDocumentsMatrixTable({
     onSortingChange,
     onColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

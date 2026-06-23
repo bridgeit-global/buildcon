@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import type { SortingState } from '@tanstack/react-table';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { sortingStateToQuery } from '@/lib/crm/list-sort';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +27,8 @@ const CUSTOMER_SELECT =
 
 const LIST_PAGE_SIZE = 40;
 
+const DEFAULT_SORTING: SortingState = [{ id: 'created_at', desc: true }];
+
 type CustomerRow = {
   id: string;
   full_name: string;
@@ -34,13 +38,13 @@ type CustomerRow = {
 };
 
 export default function CustomersPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [listTotal, setListTotal] = useState<number | null>(null);
   const [listHasMore, setListHasMore] = useState(false);
   const [listNextOffset, setListNextOffset] = useState(0);
@@ -74,6 +78,9 @@ export default function CustomersPage() {
           offset: String(offset)
         });
         if (searchQuery) params.set('q', searchQuery);
+        const sortQuery = sortingStateToQuery(sorting);
+        if (sortQuery.sort) params.set('sort', sortQuery.sort);
+        if (sortQuery.sortDir) params.set('sortDir', sortQuery.sortDir);
         const res = await fetch(`/api/crm/customers?${params.toString()}`);
         const body = (await res.json()) as {
           error?: string;
@@ -99,7 +106,7 @@ export default function CustomersPage() {
         else setLoadingMore(false);
       }
     },
-    [listHasMore, listNextOffset, loadingMore, searchQuery]
+    [listHasMore, listNextOffset, loadingMore, searchQuery, sorting]
   );
 
   useEffect(() => {
@@ -109,7 +116,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     void fetchCustomerList({ reset: true });
-  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchQuery, sorting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const target = loadMoreSentinelRef.current;
@@ -246,6 +253,8 @@ export default function CustomersPage() {
         <CustomerListTable
           rows={customers}
           loading={loading}
+          sorting={sorting}
+          onSortingChange={setSorting}
         />
 
         <div ref={loadMoreSentinelRef} className="h-1" aria-hidden />

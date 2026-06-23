@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -72,7 +72,7 @@ const globalDocumentsBookingFilter: FilterFn<DocumentsBookingListRow> = (
   return hay.includes(q);
 };
 
-type DocumentsBookingListTableProps = {
+type DocumentsBookingListTableProps = ServerSortedTableProps & {
   rows: DocumentsBookingListRow[];
   loading: boolean;
   selectedBookingId: string;
@@ -81,7 +81,9 @@ type DocumentsBookingListTableProps = {
 export function DocumentsBookingListTable({
   rows,
   loading,
-  selectedBookingId
+  selectedBookingId,
+  sorting,
+  onSortingChange
 }: DocumentsBookingListTableProps) {
   const [globalFilter, setGlobalFilter] = useState('');
 
@@ -133,8 +135,9 @@ export function DocumentsBookingListTable({
     []
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -148,7 +151,7 @@ export function DocumentsBookingListTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

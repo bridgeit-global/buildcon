@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { sortingStateToQuery } from '@/lib/crm/list-sort';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import type { CrmProjectListItem } from '../_components/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -23,13 +25,19 @@ export default function ProjectPage() {
 
   const [manageOpen, setManageOpen] = useState(false);
   const [manageProject, setManageProject] = useState<CrmProjectListItem | null>(null);
+  const { sorting, onSortingChange } = useServerListSorting();
 
   const canCreateProject = myProfile?.role === 'Super Admin';
 
   const loadProjectsList = useCallback(async () => {
     setListLoading(true);
     try {
-      const res = await fetch('/api/crm/projects', { method: 'GET' });
+      const params = new URLSearchParams();
+      const sortQuery = sortingStateToQuery(sorting);
+      if (sortQuery.sort) params.set('sort', sortQuery.sort);
+      if (sortQuery.sortDir) params.set('sortDir', sortQuery.sortDir);
+      const qs = params.toString();
+      const res = await fetch(`/api/crm/projects${qs ? `?${qs}` : ''}`, { method: 'GET' });
       const json = (await res.json()) as {
         projects?: CrmProjectListItem[];
         error?: string;
@@ -45,7 +53,7 @@ export default function ProjectPage() {
     } finally {
       setListLoading(false);
     }
-  }, []);
+  }, [sorting]);
 
   const loadProfile = useCallback(async () => {
     const {
@@ -65,8 +73,11 @@ export default function ProjectPage() {
 
   useEffect(() => {
     void loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
     void loadProjectsList();
-  }, [loadProfile, loadProjectsList]);
+  }, [loadProjectsList]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -100,6 +111,8 @@ export default function ProjectPage() {
         loading={listLoading}
         canCreateProject={canCreateProject}
         onManage={openManage}
+        sorting={sorting}
+        onSortingChange={onSortingChange}
       />
 
       <ProjectManageDialog

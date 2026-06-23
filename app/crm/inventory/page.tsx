@@ -59,6 +59,8 @@ import {
 } from '@/lib/inventory/inventory-csv';
 
 import { InventoryListTable, type UnitRow } from './inventory-list-table';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState } from '@/lib/crm/list-sort';
 
 const UNIT_SELECT =
   'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
@@ -911,6 +913,7 @@ function InventoryPageContent() {
 
   const [tab, setTab] = useState<InventoryTab>('Grid View');
   const [units, setUnits] = useState<UnitRow[]>([]);
+  const { sorting, onSortingChange } = useServerListSorting();
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [wingNames, setWingNames] = useState<string[]>([]);
   const [unitTypeNames, setUnitTypeNames] = useState<string[]>([]);
@@ -965,13 +968,28 @@ function InventoryPageContent() {
 
     setLoading(true);
 
+    const UNIT_DB_SORT: Record<string, string> = {
+      unit_code: 'unit_code',
+      wing_name: 'wing_name',
+      floor: 'floor',
+      unit_type: 'unit_type',
+      rate: 'rate',
+      status: 'status',
+      parking: 'parking_slots_included'
+    };
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      UNIT_DB_SORT,
+      'unit_code',
+      true
+    );
+
     const [unitsRes, projRes, wingsRes, typesRes] = await Promise.all([
       supabase
         .from('units')
         .select(UNIT_SELECT)
         .eq('project_id', inventoryProjectId)
-        .order('wing_name', { ascending: true })
-        .order('floor', { ascending: false })
+        .order(column, { ascending })
         .order('unit_no', { ascending: true }),
       supabase
         .from('projects')
@@ -1007,7 +1025,7 @@ function InventoryPageContent() {
     setUnitTypeNames(typeList);
 
     setLoading(false);
-  }, [inventoryProjectId, supabase]);
+  }, [inventoryProjectId, sorting, supabase]);
 
   const runBulkImport = useCallback(async () => {
     if (!inventoryProjectId || !bulkCsv.trim()) return;
@@ -1795,6 +1813,8 @@ function InventoryPageContent() {
             onOpenDetail={openDetail}
             onEdit={setEditUnit}
             onRefresh={() => void load()}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
           />
         </div>
       )}

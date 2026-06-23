@@ -4,14 +4,13 @@ import { useMemo } from 'react';
 import { TableViewButton } from '@/components/buttons/table-view-button';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
-import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
-} from '@/components/data-table/crm-table-features';
+import { useCrmTableFeatures } from '@/components/data-table/crm-table-features';
 import {
   useReactTable,
   getCoreRowModel,
-  type ColumnDef
+  type ColumnDef,
+  type OnChangeFn,
+  type SortingState
 } from '@tanstack/react-table';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
@@ -26,9 +25,13 @@ export type CustomerTableRow = {
 export function CustomerListTable({
   rows,
   loading,
+  sorting,
+  onSortingChange
 }: {
   rows: CustomerTableRow[];
   loading: boolean;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
 }) {
   const columns = useMemo<ColumnDef<CustomerTableRow, unknown>[]>(
     () => [
@@ -82,8 +85,9 @@ export function CustomerListTable({
     []
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -92,7 +96,7 @@ export function CustomerListTable({
     onSortingChange,
     onColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

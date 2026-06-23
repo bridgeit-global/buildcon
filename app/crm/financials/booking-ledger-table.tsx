@@ -4,8 +4,8 @@ import { useMemo } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -97,12 +97,17 @@ export function buildBookingLedgerRows(
   });
 }
 
-type BookingLedgerTableProps = {
+type BookingLedgerTableProps = ServerSortedTableProps & {
   rows: BookingLedgerRow[];
   loading?: boolean;
 };
 
-export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
+export function BookingLedgerTable({
+  rows,
+  loading,
+  sorting,
+  onSortingChange
+}: BookingLedgerTableProps) {
   const columns = useMemo<ColumnDef<BookingLedgerRow, unknown>[]>(
     () => [
       {
@@ -187,8 +192,9 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
     []
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -197,7 +203,7 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
     onSortingChange,
     onColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

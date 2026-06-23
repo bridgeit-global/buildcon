@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -48,7 +48,7 @@ const globalCollectionsFilter: FilterFn<CollectionsListRow> = (row, _columnId, r
   );
 };
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: CollectionsListRow[];
   scheduleLabelById: Map<string, string>;
   loading?: boolean;
@@ -63,7 +63,9 @@ export function CollectionsListTable({
   loading,
   busy,
   onDelete,
-  onGenerateReceipt
+  onGenerateReceipt,
+  sorting,
+  onSortingChange
 }: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
 
@@ -155,8 +157,9 @@ export function CollectionsListTable({
     [busy, loading, onDelete, onGenerateReceipt, scheduleLabelById]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data,
@@ -172,7 +175,7 @@ export function CollectionsListTable({
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
     },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

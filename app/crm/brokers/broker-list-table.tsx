@@ -4,16 +4,13 @@ import { useMemo } from 'react';
 import { TableViewButton } from '@/components/buttons/table-view-button';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
-import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
-} from '@/components/data-table/crm-table-features';
+import { useCrmTableFeatures } from '@/components/data-table/crm-table-features';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
   type ColumnDef,
-  type FilterFn
+  type OnChangeFn,
+  type SortingState
 } from '@tanstack/react-table';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
@@ -27,23 +24,16 @@ export type BrokerTableRow = {
   created_at: string;
 };
 
-const globalBrokerFilter: FilterFn<BrokerTableRow> = (row, _colId, value) => {
-  const q = String(value).toLowerCase().trim();
-  if (!q) return true;
-  const { full_name, phone, email, license_no } = row.original;
-  return [full_name, phone, email, license_no].some((v) =>
-    v?.toLowerCase().includes(q)
-  );
-};
-
 export function BrokerListTable({
   rows,
   loading,
-  globalFilter,
+  sorting,
+  onSortingChange
 }: {
   rows: BrokerTableRow[];
   loading: boolean;
-  globalFilter?: string;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
 }) {
   const columns = useMemo<ColumnDef<BrokerTableRow, unknown>[]>(
     () => [
@@ -87,7 +77,6 @@ export function BrokerListTable({
         id: 'status',
         header: 'Status',
         accessorKey: 'status',
-        enableGlobalFilter: false,
         cell: ({ row }) => (
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -104,7 +93,6 @@ export function BrokerListTable({
         id: 'created_at',
         header: 'Added',
         accessorKey: 'created_at',
-        enableGlobalFilter: false,
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-ds-gray-500">
             {formatDisplayDate(row.original.created_at)}
@@ -114,7 +102,6 @@ export function BrokerListTable({
       {
         id: 'actions',
         header: '',
-        enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,
         size: 96,
@@ -126,20 +113,18 @@ export function BrokerListTable({
     []
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    globalFilterFn: globalBrokerFilter,
-    state: { globalFilter: globalFilter ?? '', sorting, columnSizing },
-    onGlobalFilterChange: () => {},
+    state: { sorting, columnSizing },
     onSortingChange,
     onColumnSizingChange,
-    ...CRM_TABLE_FEATURES
+    getCoreRowModel: getCoreRowModel(),
+    ...tableFeatures
   });
 
   return (

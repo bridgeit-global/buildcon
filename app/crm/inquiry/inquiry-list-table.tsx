@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -142,7 +142,7 @@ function parseListUrlColumnFilters(sp: {
   return filters;
 }
 
-type InquiryListTableProps = {
+type InquiryListTableProps = ServerSortedTableProps & {
   inquiries: InquiryRowDb[];
   loadingInquiries: boolean;
   loadInquiries: () => void | Promise<void>;
@@ -155,7 +155,9 @@ export function InquiryListTable({
   loadingInquiries,
   loadInquiries,
   units,
-  navigateToBookingFromInquiry
+  navigateToBookingFromInquiry,
+  sorting,
+  onSortingChange
 }: InquiryListTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -412,8 +414,9 @@ export function InquiryListTable({
     [navigateToBookingFromInquiry, router, unitNameById]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: inquiries,
@@ -430,7 +433,7 @@ export function InquiryListTable({
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
     },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   const stageCol = table.getColumn('funnelStage');

@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { Card } from '@/components/ui/card';
@@ -84,6 +86,10 @@ export default function UnitDetailPage() {
   const [collections, setCollections] = useState<BookingLedgerCollectionInput[]>([]);
   const [notifications, setNotifications] = useState<OutboundNotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { sorting: ledgerSorting, onSortingChange: onLedgerSortingChange } =
+    useServerListSorting([{ id: 'date', desc: false }]);
+  const { sorting: generatedSorting, onSortingChange: onGeneratedSortingChange } =
+    useServerListSorting([{ id: 'generated_at', desc: true }]);
 
   const load = useCallback(async () => {
     if (!unitId) return;
@@ -123,12 +129,22 @@ export default function UnitDetailPage() {
     setActiveBookingId(primaryBookingId);
 
     if (primaryBookingId) {
+      const GENERATED_SORT: Record<string, string> = {
+        generated_at: 'generated_at',
+        storage_path: 'storage_path'
+      };
+      const { column: genCol, ascending: genAsc } = resolveSortFromState(
+        generatedSorting,
+        GENERATED_SORT,
+        'generated_at',
+        false
+      );
       const [docsRes, schRes, colRes, notifyRes] = await Promise.all([
         supabase
           .from('generated_documents')
           .select(GENERATED_DOCUMENTS_LIST_SELECT)
           .eq('booking_id', primaryBookingId)
-          .order('generated_at', { ascending: false })
+          .order(genCol, { ascending: genAsc })
           .limit(500),
         supabase
           .from('payment_schedules')
@@ -176,7 +192,7 @@ export default function UnitDetailPage() {
       setNotifications((nRows ?? []) as OutboundNotificationRow[]);
     }
     setLoading(false);
-  }, [supabase, unitId]);
+  }, [generatedSorting, supabase, unitId]);
 
   useEffect(() => {
     void load();
@@ -202,6 +218,18 @@ export default function UnitDetailPage() {
   const ledgerRows = useMemo(
     () => buildBookingLedgerRows(schedules, collections, scheduleLabelById),
     [schedules, collections, scheduleLabelById]
+  );
+  const sortedLedgerRows = useMemo(
+    () =>
+      sortRowsByState(ledgerRows, ledgerSorting, (row, colId) => {
+        if (colId === 'date') return row.sortDate;
+        if (colId === 'type') return row.type;
+        if (colId === 'label') return row.label;
+        if (colId === 'amount') return row.amount;
+        if (colId === 'balance') return row.runningBalance;
+        return null;
+      }),
+    [ledgerRows, ledgerSorting]
   );
 
   const totalDemand = schedules.reduce((sum, s) => sum + Math.round(Number(s.amount || 0)), 0);
@@ -387,6 +415,8 @@ export default function UnitDetailPage() {
               showDownload
               scheduleLabelById={scheduleLabelById}
               onRefresh={() => void load()}
+              sorting={generatedSorting}
+              onSortingChange={onGeneratedSortingChange}
             />
           ) : (
             <p className="text-sm text-ds-gray-500">No booking on this unit yet.</p>
@@ -398,7 +428,12 @@ export default function UnitDetailPage() {
         <Card className="space-y-3 p-4">
           <h2 className="text-base font-semibold text-ds-gray-800">Unit ledger</h2>
           {activeBookingId ? (
-            <BookingLedgerTable rows={ledgerRows} loading={loading} />
+            <BookingLedgerTable
+              rows={sortedLedgerRows}
+              loading={loading}
+              sorting={ledgerSorting}
+              onSortingChange={onLedgerSortingChange}
+            />
           ) : (
             <p className="text-sm text-ds-gray-500">No ledger yet — book the unit to create one.</p>
           )}

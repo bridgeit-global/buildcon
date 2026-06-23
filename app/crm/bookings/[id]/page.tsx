@@ -94,6 +94,8 @@ import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { isUnitPossessedStatus } from '@/app/crm/inventory/unit-status';
 import BackButton from '@/components/buttons/back-button';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -204,6 +206,14 @@ export default function BookingDetailPage() {
   );
   const [confirmationDocsLoading, setConfirmationDocsLoading] = useState(false);
   const [confirmationGenerated, setConfirmationGenerated] = useState<GeneratedDocRow[]>([]);
+  const {
+    sorting: confirmationGeneratedSorting,
+    onSortingChange: onConfirmationGeneratedSortingChange
+  } = useServerListSorting([{ id: 'generated_at', desc: true }]);
+  const {
+    sorting: confirmationMatrixSorting,
+    onSortingChange: onConfirmationMatrixSortingChange
+  } = useServerListSorting();
   const [generatingDocKind, setGeneratingDocKind] = useState<BookingDocumentPrintKind | null>(null);
   const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
     useState(false);
@@ -469,11 +479,21 @@ export default function BookingDetailPage() {
   const refreshConfirmationGenerated = useCallback(async () => {
     if (!bookingId) return;
     setConfirmationDocsLoadingGenerated(true);
+    const GENERATED_SORT: Record<string, string> = {
+      generated_at: 'generated_at',
+      storage_path: 'storage_path'
+    };
+    const { column, ascending } = resolveSortFromState(
+      confirmationGeneratedSorting,
+      GENERATED_SORT,
+      'generated_at',
+      false
+    );
     const { data, error: gErr } = await supabase
       .from('generated_documents')
       .select(GENERATED_DOCUMENTS_LIST_SELECT)
       .eq('booking_id', bookingId)
-      .order('generated_at', { ascending: false })
+      .order(column, { ascending })
       .limit(200);
     if (gErr) {
       pageError(gErr.message);
@@ -481,7 +501,7 @@ export default function BookingDetailPage() {
       setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
     }
     setConfirmationDocsLoadingGenerated(false);
-  }, [bookingId, supabase]);
+  }, [bookingId, confirmationGeneratedSorting, supabase]);
 
   useEffect(() => {
     if (!bookingId || workflowStage !== 'confirmation' || cancelled) {
@@ -493,13 +513,19 @@ export default function BookingDetailPage() {
     let ignore = false;
     (async () => {
       setConfirmationDocsLoading(true);
+      const { column, ascending } = resolveSortFromState(
+        confirmationGeneratedSorting,
+        { generated_at: 'generated_at', storage_path: 'storage_path' },
+        'generated_at',
+        false
+      );
       const [packRes, genRes] = await Promise.all([
         loadBookingPrintPack(supabase, bookingId),
         supabase
           .from('generated_documents')
           .select(GENERATED_DOCUMENTS_LIST_SELECT)
           .eq('booking_id', bookingId)
-          .order('generated_at', { ascending: false })
+          .order(column, { ascending })
           .limit(200)
       ]);
       if (ignore) return;
@@ -512,7 +538,7 @@ export default function BookingDetailPage() {
     return () => {
       ignore = true;
     };
-  }, [bookingId, workflowStage, cancelled, supabase]);
+  }, [bookingId, workflowStage, cancelled, confirmationGeneratedSorting, supabase]);
 
   useEffect(() => {
     if (!bookingId || workflowStage !== 'application' || cancelled) {
@@ -563,10 +589,14 @@ export default function BookingDetailPage() {
     return m;
   }, [paymentSchedules, bookingCollections]);
 
-  const confirmationMatrixRows = useMemo(
-    () => buildMatrixRows(confirmationGenerated),
-    [confirmationGenerated]
-  );
+  const confirmationMatrixRows = useMemo(() => {
+    const built = buildMatrixRows(confirmationGenerated);
+    return sortRowsByState(built, confirmationMatrixSorting, (row, colId) => {
+      if (colId === 'document') return row.label;
+      if (colId === 'status') return row.latest?.generated_at ?? '';
+      return null;
+    });
+  }, [confirmationGenerated, confirmationMatrixSorting]);
 
   const outstandingTotal = useMemo(() => {
     if (paymentSchedules.length === 0) return null;
@@ -2153,6 +2183,8 @@ export default function BookingDetailPage() {
                         scheduleLabelById={scheduleLabelById}
                         outstandingTotal={outstandingTotal}
                         unitPossessed={unitPossessed}
+                        sorting={confirmationMatrixSorting}
+                        onSortingChange={onConfirmationMatrixSortingChange}
                       />
                     ) : (
                       <p className="text-sm text-ds-warning-800">
@@ -2182,6 +2214,8 @@ export default function BookingDetailPage() {
                         onNotify={(_bId, docId) => handleConfirmationDocNotify(docId)}
                         scheduleLabelById={scheduleLabelById}
                         onRefresh={() => void refreshConfirmationGenerated()}
+                        sorting={confirmationGeneratedSorting}
+                        onSortingChange={onConfirmationGeneratedSortingChange}
                       />
                     </div>
                   </div>

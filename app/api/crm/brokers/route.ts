@@ -3,18 +3,19 @@ import { resolveDbSort } from '@/lib/crm/list-sort';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz';
 
-const CUSTOMER_SELECT =
-  'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
+const BROKER_SELECT = 'id,full_name,phone,email,license_no,status,created_at';
 
 const SORTABLE_COLUMNS: Record<string, string> = {
   full_name: 'full_name',
   phone: 'phone',
   email: 'email',
+  license_no: 'license_no',
+  status: 'status',
   created_at: 'created_at'
 };
 
 const DEFAULT_LIMIT = 40;
-const MAX_LIMIT = 50;
+const MAX_LIMIT = 300;
 
 function parseLimit(raw: string | null): number {
   const n = parseInt(raw ?? '', 10);
@@ -52,8 +53,8 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createSupabaseServerClient();
   let query = supabase
-    .from('customers')
-    .select(CUSTOMER_SELECT, { count: offset === 0 ? 'exact' : 'estimated' })
+    .from('brokers')
+    .select(BROKER_SELECT, { count: offset === 0 ? 'exact' : 'estimated' })
     .order(column, { ascending })
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
   if (q) {
     const like = `%${escapeIlike(q)}%`;
     query = query.or(
-      `full_name.ilike.${like},phone.ilike.${like},email.ilike.${like},id.ilike.${like}`
+      `full_name.ilike.${like},phone.ilike.${like},email.ilike.${like},license_no.ilike.${like}`
     );
   }
 

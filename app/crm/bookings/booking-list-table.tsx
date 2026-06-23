@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -63,7 +63,7 @@ function unwrapJoin<T>(x: T | T[] | null): T | null {
   return Array.isArray(x) ? x[0] ?? null : x;
 }
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: BookingListRow[];
   projectNameById: Map<string, string>;
   loading?: boolean;
@@ -81,7 +81,13 @@ const STAGE_TABS: Array<{
     }))
   ];
 
-export function BookingListTable({ rows, projectNameById, loading }: Props) {
+export function BookingListTable({
+  rows,
+  projectNameById,
+  loading,
+  sorting,
+  onSortingChange
+}: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [stageTab, setStageTab] = useState<(typeof STAGE_TABS)[number]['id']>('token');
 
@@ -215,8 +221,9 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
     [projectNameById]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: filteredRows,
@@ -230,7 +237,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: globalBookingFilter,
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

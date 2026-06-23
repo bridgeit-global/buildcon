@@ -87,6 +87,8 @@ import {
 } from '../inquiry/inquiry-stage-transitions';
 import { BookingListTable } from './booking-list-table';
 import type { BookingListRow } from './booking-types';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import {
   BOOKING_PAYMENT_MODE_OPTIONS,
   paymentModeNeedsLoanBank
@@ -385,6 +387,7 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [bookings, setBookings] = useState<BookingListRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const { sorting, onSortingChange } = useServerListSorting();
 
   const [unitId, setUnitId] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -495,34 +498,25 @@ export default function BookingsPage() {
     );
   }
 
-  async function load() {
-    setLoading(true);
-        setPrefillCustomerMissing(false);
+  async function loadBookingsList() {
+    const BOOKING_DB_SORT: Record<string, string> = {
+      workflow: 'workflow_stage',
+      amount: 'booking_amount',
+      project: 'project_id'
+    };
+    const CLIENT_SORT = new Set(['unit', 'buyer']);
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      BOOKING_DB_SORT,
+      'created_at',
+      false
+    );
 
-    const [
-      { data: uData, error: uErr },
-      { data: cData, error: cErr },
-      { data: bkData, error: bkErr }
-    ] = await Promise.all([
-      supabase
-        .from('units')
-        .select(
-          'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
-        )
-        .in('status', [...BOOKING_CREATE_UNIT_STATUS_FILTER])
-        .order('wing_name', { ascending: true })
-        .order('floor', { ascending: false })
-        .order('unit_no', { ascending: true })
-        .limit(2000),
-      supabase
-        .from('customers')
-        .select('id,full_name,phone,email')
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('bookings')
-        .select(
-          `
+    let query = supabase
+      .from('bookings')
+      .select(
+        `
           id,
           project_id,
           unit_id,
@@ -540,14 +534,75 @@ export default function BookingsPage() {
           units ( unit_code, wing_name, floor, unit_type, status ),
           customers ( full_name, phone )
         `
+      )
+      .limit(200);
+
+    if (first && CLIENT_SORT.has(first.id)) {
+      query = query.order('created_at', { ascending: false });
+    } else {
+      query = query.order(column, { ascending });
+    }
+
+    const { data: bkData, error: bkErr } = await query;
+    if (bkErr) pageError(bkErr.message);
+
+    let mapped = (bkData ?? []).map((row) => {
+      const r = row as BookingListRow & { payment_detail?: unknown };
+      const raw = r.co_buyers;
+      const coParsed = Array.isArray(raw)
+        ? (raw as unknown[]).filter(
+            (x): x is CoBuyerStored =>
+              !!x &&
+              typeof x === 'object' &&
+              typeof (x as CoBuyerStored).customer_id === 'string' &&
+              typeof (x as CoBuyerStored).full_name === 'string'
+          )
+        : [];
+      const payment_detail = parsePaymentDetailStored(r.payment_detail);
+      return {
+        ...r,
+        co_buyers: coParsed.length ? coParsed : null,
+        payment_detail
+      };
+    });
+
+    if (first && CLIENT_SORT.has(first.id)) {
+      mapped = sortRowsByState(mapped, sorting, (row, colId) => {
+        const u = Array.isArray(row.units) ? row.units[0] : row.units;
+        const c = Array.isArray(row.customers) ? row.customers[0] : row.customers;
+        if (colId === 'unit') return u?.unit_code ?? '';
+        if (colId === 'buyer') return c?.full_name ?? '';
+        return null;
+      });
+    }
+
+    setBookings(mapped);
+  }
+
+  async function load() {
+    setLoading(true);
+        setPrefillCustomerMissing(false);
+
+    const [{ data: uData, error: uErr }, { data: cData, error: cErr }] = await Promise.all([
+      supabase
+        .from('units')
+        .select(
+          'id,unit_code,wing_name,floor,unit_type,area,carpet_area,bua_area,rate,floor_rise_charge,plc_charge,parking_slots_included,status,project_id'
         )
+        .in('status', [...BOOKING_CREATE_UNIT_STATUS_FILTER])
+        .order('wing_name', { ascending: true })
+        .order('floor', { ascending: false })
+        .order('unit_no', { ascending: true })
+        .limit(2000),
+      supabase
+        .from('customers')
+        .select('id,full_name,phone,email')
         .order('created_at', { ascending: false })
         .limit(200)
     ]);
 
     if (uErr) pageError(uErr.message);
     if (cErr) pageError(cErr.message);
-    if (bkErr) pageError(bkErr.message);
 
     let unitsList = ((uData ?? []) as UnitOption[]).filter((u) =>
       isUnitSelectableForBookingCreate(u.status)
@@ -660,27 +715,7 @@ export default function BookingsPage() {
 
     setUnits(unitsList);
     setCustomers(customerList);
-    setBookings(
-      (bkData ?? []).map((row) => {
-        const r = row as BookingListRow & { payment_detail?: unknown };
-        const raw = r.co_buyers;
-        const coParsed = Array.isArray(raw)
-          ? (raw as unknown[]).filter(
-            (x): x is CoBuyerStored =>
-              !!x &&
-              typeof x === 'object' &&
-              typeof (x as CoBuyerStored).customer_id === 'string' &&
-              typeof (x as CoBuyerStored).full_name === 'string'
-          )
-          : [];
-        const payment_detail = parsePaymentDetailStored(r.payment_detail);
-        return {
-          ...r,
-          co_buyers: coParsed.length ? coParsed : null,
-          payment_detail
-        };
-      })
-    );
+    await loadBookingsList();
 
     setLoading(false);
   }
@@ -700,6 +735,11 @@ export default function BookingsPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void loadBookingsList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorting]);
 
   useEffect(() => {
     const u = units.find((x) => x.id === unitId);
@@ -1950,6 +1990,8 @@ export default function BookingsPage() {
           rows={bookings as BookingListRow[]}
           projectNameById={projectNameById}
           loading={loading}
+          sorting={sorting}
+          onSortingChange={onSortingChange}
         />
       </Card>
 

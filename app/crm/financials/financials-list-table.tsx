@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  CRM_TABLE_FEATURES,
-  useCrmTableFeatures
+  useCrmTableFeatures,
+  type ServerSortedTableProps
 } from '@/components/data-table/crm-table-features';
 import {
   getCoreRowModel,
@@ -68,7 +68,7 @@ const globalFinancialFilter: FilterFn<FinancialBookingRow> = (
   return hay.includes(q);
 };
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: FinancialBookingRow[];
   projectNameById: Map<string, string>;
   loading?: boolean;
@@ -77,7 +77,9 @@ type Props = {
 export function FinancialsListTable({
   rows,
   projectNameById,
-  loading
+  loading,
+  sorting,
+  onSortingChange
 }: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
 
@@ -198,8 +200,9 @@ export function FinancialsListTable({
     [projectNameById]
   );
 
-  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
-    useCrmTableFeatures();
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
 
   const table = useReactTable({
     data: rows,
@@ -213,7 +216,7 @@ export function FinancialsListTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } },
-    ...CRM_TABLE_FEATURES
+    ...tableFeatures
   });
 
   return (

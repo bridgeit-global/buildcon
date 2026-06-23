@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getProfileRole, isSuperAdmin, requireSuperAdmin } from '@/lib/authz';
+import { resolveDbSort, sortRowsByState } from '@/lib/crm/list-sort';
 import type { CrmProjectListItem } from '@/app/crm/_components/types';
 
 type FloorProvisionInput = {
@@ -96,7 +97,17 @@ function initialsFromName(name: string | null | undefined) {
   return n.slice(0, 2).toUpperCase();
 }
 
-export async function GET() {
+const PROJECT_SORTABLE_COLUMNS: Record<string, string> = {
+  project: 'name',
+  type: 'type',
+  status: 'status',
+  fy: 'fy',
+  baseRate: 'base_rate'
+};
+
+const PROJECT_CLIENT_SORT = new Set(['wings', 'units', 'members']);
+
+export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user }
@@ -106,15 +117,32 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { searchParams } = request.nextUrl;
+  const sortId = searchParams.get('sort');
+  const { column, ascending } = resolveDbSort(
+    sortId,
+    searchParams.get('sortDir'),
+    PROJECT_SORTABLE_COLUMNS,
+    'created_at',
+    false
+  );
+
   const roleRes = await getProfileRole(user.id);
   const canCreateProject = roleRes.ok && isSuperAdmin(roleRes.role);
 
-  const { data, error } = await supabase
+  let projectsQuery = supabase
     .from('projects')
     .select(
       'id,name,location,type,status,fy,rera_no,floors_per_wing,units_per_floor,base_rate,min_rate,max_rate,parking_slots,parking_rate'
-    )
-    .order('created_at', { ascending: false });
+    );
+
+  if (sortId && PROJECT_CLIENT_SORT.has(sortId)) {
+    projectsQuery = projectsQuery.order('created_at', { ascending: false });
+  } else {
+    projectsQuery = projectsQuery.order(column, { ascending });
+  }
+
+  const { data, error } = await projectsQuery;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -193,7 +221,7 @@ export async function GET() {
     }
   }
 
-  const enriched: CrmProjectListItem[] = projects.map((p) => {
+  let enriched: CrmProjectListItem[] = projects.map((p) => {
     const wing_count = wingCountMap.get(p.id) ?? 0;
     const unit_count = unitCountMap.get(p.id) ?? 0;
     const member_count = memberCountMap.get(p.id) ?? 0;
@@ -206,6 +234,19 @@ export async function GET() {
       member_preview
     };
   });
+
+  if (sortId && PROJECT_CLIENT_SORT.has(sortId)) {
+    enriched = sortRowsByState(
+      enriched,
+      [{ id: sortId, desc: searchParams.get('sortDir') === 'desc' }],
+      (row, colId) => {
+        if (colId === 'wings') return row.wing_count;
+        if (colId === 'units') return row.unit_count;
+        if (colId === 'members') return row.member_count;
+        return null;
+      }
+    );
+  }
 
   return NextResponse.json({ projects: enriched, canCreateProject });
 }
