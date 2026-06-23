@@ -4,7 +4,6 @@ import { pageError } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Card } from '@/components/ui/card';
 import { ProjectCldManage } from '../../project-cld-manage';
 import BackButton from '@/components/buttons/back-button';
 
@@ -14,11 +13,9 @@ export default function ProjectCldPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [projectName, setProjectName] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
-    setLoading(true);
     const { data, error: qErr } = await supabase
       .from('projects')
       .select('id,name')
@@ -33,7 +30,6 @@ export default function ProjectCldPage() {
     } else {
       setProjectName(data.name as string);
     }
-    setLoading(false);
   }, [projectId, supabase]);
 
   useEffect(() => {

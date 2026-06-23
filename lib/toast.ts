@@ -1,3 +1,5 @@
+import { userFacingError } from '@/lib/utils';
+
 export type ToastSeverity = 'default' | 'success' | 'error' | 'warning' | 'info';
 
 export type ToastInput = {
@@ -16,6 +18,8 @@ export type ToastRecord = ToastInput & {
 };
 
 const DEFAULT_DURATION_MS = 5000;
+
+const DEFAULT_ERROR_FALLBACK = 'Something went wrong. Please try again.';
 
 const DEFAULT_TOAST_TITLES: Record<ToastSeverity, string> = {
   default: 'Notice',
@@ -38,6 +42,12 @@ function genId() {
   return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function sanitizeErrorDescription(description: string, title: string, defaultTitle: string) {
+  const fallback =
+    title && title !== defaultTitle ? title : DEFAULT_ERROR_FALLBACK;
+  return userFacingError(description, fallback);
+}
+
 /** Ensures every toast has a title and description for consistent UI. */
 function normalizeInput(
   input: ToastInput | string,
@@ -46,21 +56,35 @@ function normalizeInput(
   const defaultTitle = DEFAULT_TOAST_TITLES[severity];
 
   if (typeof input === 'string') {
-    const description = input.trim() || defaultTitle;
-    return { title: defaultTitle, description };
+    const raw = input.trim() || defaultTitle;
+    if (severity === 'error') {
+      return {
+        title: defaultTitle,
+        description: sanitizeErrorDescription(raw, defaultTitle, defaultTitle)
+      };
+    }
+    return { title: defaultTitle, description: raw };
   }
 
   const title = input.title?.trim() ?? '';
   const description = input.description?.trim() ?? '';
 
+  const maybeSanitize = (desc: string, tit: string) =>
+    severity === 'error'
+      ? sanitizeErrorDescription(desc, tit, defaultTitle)
+      : desc;
+
   if (title && description) {
-    return { title, description };
+    return { title, description: maybeSanitize(description, title) };
   }
   if (title) {
-    return { title, description: title };
+    return { title, description: maybeSanitize(title, title) };
   }
   if (description) {
-    return { title: defaultTitle, description };
+    return {
+      title: defaultTitle,
+      description: maybeSanitize(description, defaultTitle)
+    };
   }
   return { title: defaultTitle, description: defaultTitle };
 }
@@ -112,10 +136,15 @@ type ToastCallable = {
 
 /** Replaces legacy page-level `setError` banners. */
 export function pageError(message: string, title?: string) {
-  const description = String(message ?? '').trim();
-  if (!description) return;
+  const resolvedTitle = title?.trim() || DEFAULT_TOAST_TITLES.error;
+  const description = userFacingError(
+    String(message ?? ''),
+    resolvedTitle === DEFAULT_TOAST_TITLES.error
+      ? DEFAULT_ERROR_FALLBACK
+      : resolvedTitle
+  );
   toast.error({
-    title: title?.trim() || DEFAULT_TOAST_TITLES.error,
+    title: resolvedTitle,
     description
   });
 }
