@@ -12,6 +12,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -193,9 +194,10 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
         header: '',
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <Button variant="outline" size="sm" className="h-8" asChild>
-            <Link href={`/crm/bookings/${row.original.id}`}>Open</Link>
-          </Button>
+          <TableViewButton
+            href={`/crm/bookings/${row.original.id}`}
+            label="Open"
+          />
         )
       }
     ],

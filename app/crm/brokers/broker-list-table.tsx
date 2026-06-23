@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import {
   useReactTable,
   getCoreRowModel,
@@ -40,8 +40,6 @@ export function BrokerListTable({
   loading: boolean;
   globalFilter?: string;
 }) {
-  const router = useRouter();
-
   const columns = useMemo<ColumnDef<BrokerTableRow, unknown>[]>(
     () => [
       {
@@ -107,6 +105,15 @@ export function BrokerListTable({
             {formatDisplayDate(row.original.created_at)}
           </span>
         )
+      },
+      {
+        id: 'actions',
+        header: '',
+        enableGlobalFilter: false,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <TableViewButton href={`/crm/brokers/${row.original.id}`} />
+        )
       }
     ],
     []
@@ -165,8 +172,7 @@ export function BrokerListTable({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                onClick={() => router.push(`/crm/brokers/${row.original.id}`)}
-                className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-4 py-3">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import {
   useReactTable,
   getCoreRowModel,
@@ -25,7 +25,6 @@ export function CustomerListTable({
   rows: CustomerTableRow[];
   loading: boolean;
 }) {
-  const router = useRouter();
   const columns = useMemo<ColumnDef<CustomerTableRow, unknown>[]>(
     () => [
       {
@@ -62,6 +61,14 @@ export function CustomerListTable({
           <span className="whitespace-nowrap text-ds-gray-500">
             {formatDisplayDate(row.original.created_at)}
           </span>
+        )
+      },
+      {
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <TableViewButton href={`/crm/customers/${row.original.id}`} />
         )
       }
     ],
@@ -117,8 +124,7 @@ export function CustomerListTable({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                onClick={() => router.push(`/crm/customers/${row.original.id}`)}
-                className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-4 py-3">

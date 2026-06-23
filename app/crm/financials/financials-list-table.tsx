@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
   flexRender,
@@ -12,6 +11,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -180,9 +180,10 @@ export function FinancialsListTable({
         enableGlobalFilter: false,
         enableSorting: false,
         cell: ({ row }) => (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/crm/financials/${row.original.id}`}>Manage</Link>
-          </Button>
+          <TableViewButton
+            href={`/crm/financials/${row.original.id}`}
+            label="Manage"
+          />
         )
       }
     ],

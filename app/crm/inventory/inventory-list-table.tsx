@@ -12,6 +12,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -267,13 +268,7 @@ export function InventoryListTable({
             >
               Edit
             </button>
-            <button
-              type="button"
-              className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-100"
-              onClick={() => onOpenDetail(row.original)}
-            >
-              View
-            </button>
+            <TableViewButton onClick={() => onOpenDetail(row.original)} />
           </div>
         )
       }

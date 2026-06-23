@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
   flexRender,
@@ -12,6 +11,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -78,7 +78,6 @@ export function DocumentsBookingListTable({
   loading,
   selectedBookingId
 }: DocumentsBookingListTableProps) {
-  const router = useRouter();
   const [globalFilter, setGlobalFilter] = useState('');
 
   const columns = useMemo<ColumnDef<DocumentsBookingListRow, unknown>[]>(
@@ -116,9 +115,10 @@ export function DocumentsBookingListTable({
         id: 'action',
         header: 'Action',
         cell: ({ row }) => (
-          <Button variant="outline" size="sm" onClick={() => goToBookingDocuments(row.original.id)}>
-            Open
-          </Button>
+          <TableViewButton
+            href={`/crm/documents/${encodeURIComponent(row.original.id)}`}
+            label="Open"
+          />
         )
       }
     ],
@@ -136,10 +136,6 @@ export function DocumentsBookingListTable({
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 10 } }
   });
-
-  function goToBookingDocuments(bookingId: string) {
-    router.push(`/crm/documents/${encodeURIComponent(bookingId)}`);
-  }
 
   return (
     <div className="space-y-3">
