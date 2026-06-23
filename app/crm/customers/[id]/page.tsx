@@ -46,6 +46,7 @@ import {
 } from '@/lib/customer/kyc-file';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
+import BackButton from '@/components/buttons/back-button';
 
 const CUSTOMER_SELECT =
   'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
@@ -612,10 +613,7 @@ export default function CustomerDetailPage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/crm/customers')} className="gap-1.5 text-ds-gray-600">
-            <ArrowLeft className="size-4" />
-            Customers
-          </Button>
+          <BackButton href="/crm/customers" label="Customers" />
         </div>
         <Card className="p-6 text-center text-sm text-ds-gray-500">Loading customer…</Card>
       </div>
@@ -626,10 +624,7 @@ export default function CustomerDetailPage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/crm/customers')} className="gap-1.5 text-ds-gray-600">
-            <ArrowLeft className="size-4" />
-            Customers
-          </Button>
+          <BackButton href="/crm/customers" label="Customers" />
         </div>
         <Card className="p-6 text-center text-sm text-ds-gray-500">Customer not found.</Card>
       </div>
@@ -640,21 +635,8 @@ export default function CustomerDetailPage() {
     <div className="flex flex-col gap-4">
       {/* Breadcrumb / back nav */}
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/crm/customers')}
-          className="gap-1.5 text-ds-gray-600 hover:text-ds-gray-900"
-        >
-          <ArrowLeft className="size-4" />
-          Customers
-        </Button>
-        <span className="text-ds-gray-300">/</span>
-        <span className="text-sm font-semibold text-ds-gray-800 truncate max-w-[220px]">
-          {customer.full_name}
-        </span>
+        <BackButton href="/crm/customers" label="Customers" />
       </div>
-
       {/* Detail Card */}
       <Card className="p-5">
         {/* Header */}

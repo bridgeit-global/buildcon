@@ -1,14 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { pageError } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ProjectCldManage } from '../../project-cld-manage';
+import BackButton from '@/components/buttons/back-button';
 
 export default function ProjectCldPage() {
   const params = useParams();
@@ -44,29 +42,9 @@ export default function ProjectCldPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="rounded-xl border-ds-gray-200 p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <Button variant="ghost" size="sm" className="-ml-2 mb-1 gap-1" asChild>
-              <Link href="/crm/project">
-                <ArrowLeft className="size-4" />
-                Projects
-              </Link>
-            </Button>
-            <h1 className="text-xl font-bold text-ds-gray-900 sm:text-[22px]">
-              Construction-linked demand
-            </h1>
-            <p className="mt-0.5 text-xs text-ds-gray-500">
-              {loading
-                ? 'Loading project…'
-                : projectName
-                  ? projectName
-                  : 'Configure payment milestones for this project.'}
-            </p>
-          </div>
-        </div>
-      </Card>
-
+      <div className="flex items-center gap-2">
+      <BackButton href="/crm/project" label="Projects" />
+      </div>
       {projectId && projectName ? (
         <ProjectCldManage projectId={projectId} projectName={projectName} />
       ) : null}

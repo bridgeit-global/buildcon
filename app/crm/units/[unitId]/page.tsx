@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { pageError } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
@@ -27,6 +27,7 @@ import {
   statusLabelForUnit
 } from '@/app/crm/inventory/unit-status';
 import { formatInr } from '@/app/crm/inr-format';
+import BackButton from '@/components/buttons/back-button';
 
 type UnitDetail = {
   id: string;
@@ -218,13 +219,7 @@ export default function UnitDetailPage() {
     <div className="space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <Link
-            className="inline-flex items-center gap-1 text-sm text-ds-gray-600 hover:text-ds-gray-800"
-            href="/crm/inventory"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Inventory
-          </Link>
+          <BackButton href="/crm/inventory" label="Inventory" />
           <h1 className="text-xl font-semibold text-ds-gray-900">
             {unit?.unit_code ?? 'Unit'}
           </h1>

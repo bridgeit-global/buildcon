@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -52,6 +50,7 @@ import {
   createInitialDraft,
   resetDraft
 } from '../project-create-shared';
+import BackButton from '@/components/buttons/back-button';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 
@@ -352,11 +351,7 @@ export default function CreateProjectPage() {
 
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/crm/project" className="gap-2">
-                  <ArrowLeft className="size-4" />
-                </Link>
-              </Button>
+              <BackButton href="/crm/project" label="Projects" />
               <h1 className="text-lg font-semibold tracking-tight">
                 Create project
               </h1>

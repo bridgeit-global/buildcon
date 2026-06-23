@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Briefcase } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { Briefcase } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { pageError } from '@/lib/toast';
 import { Card } from '@/components/ui/card';
@@ -28,6 +28,7 @@ import {
   type BrokerFormValues
 } from '@/lib/broker/broker-forms.schema';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
+import BackButton from '@/components/buttons/back-button';
 
 const BROKER_SELECT =
   'id,full_name,phone,email,license_no,status,notes,created_at';
@@ -56,7 +57,6 @@ function rowToFormValues(b: BrokerRow): BrokerFormValues {
 
 export default function BrokerDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [broker, setBroker] = useState<BrokerRow | null>(null);
@@ -127,14 +127,7 @@ export default function BrokerDetailPage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push('/crm/brokers')}
-          >
-            <ArrowLeft className="mr-1 size-4" />
-            Brokers
-          </Button>
+          <BackButton href="/crm/brokers" label="Brokers" />
         </div>
         <Card className="p-6">
           <div className="py-12 text-center text-sm text-ds-gray-500">
@@ -149,26 +142,13 @@ export default function BrokerDetailPage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push('/crm/brokers')}
-          >
-            <ArrowLeft className="mr-1 size-4" />
-            Brokers
-          </Button>
+          <BackButton href="/crm/brokers" label="Brokers" />
         </div>
         <Card className="p-6">
           <div className="flex flex-col items-center justify-center gap-3 py-12">
             <Briefcase className="size-10 text-ds-gray-300" />
             <div className="text-sm text-ds-gray-500">Broker not found.</div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push('/crm/brokers')}
-            >
-              Back to brokers
-            </Button>
+            <BackButton href="/crm/brokers" label="Back to brokers" />
           </div>
         </Card>
       </div>
@@ -179,14 +159,7 @@ export default function BrokerDetailPage() {
     <div className="flex flex-col gap-4">
       {/* Back navigation */}
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/crm/brokers')}
-        >
-          <ArrowLeft className="mr-1 size-4" />
-          Brokers
-        </Button>
+        <BackButton href="/crm/brokers" label="Brokers" />
       </div>
 
       {/* Details card */}

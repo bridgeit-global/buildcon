@@ -44,6 +44,7 @@ import {
   pipelineStagesWithUnsavedChanges,
   saveInquiryWizardUi
 } from '../inquiry-wizard-ui';
+import BackButton from '@/components/buttons/back-button';
 type InquiryFetchRow = {
   id: string;
   project_id: string;
@@ -414,12 +415,7 @@ function NewInquiryPageInner() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" className="gap-1 px-2" asChild>
-          <Link href="/crm/inquiry">
-            <ArrowLeft className="size-4" />
-            Leads overview
-          </Link>
-        </Button>
+        <BackButton href="/crm/inquiry" label="Leads overview" />
       </div>
 
       <Card className="overflow-hidden border-slate-200/90 p-0 shadow-sm">
@@ -462,9 +458,7 @@ function NewInquiryPageInner() {
                 This enquiry was not found, or you no longer have access.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                <Button variant="outline" asChild>
-                  <Link href="/crm/inquiry">Leads overview</Link>
-                </Button>
+                <BackButton href="/crm/inquiry" label="Leads overview" />
                 <Button
                   variant="default"
                   onClick={() => router.replace('/crm/inquiry/new')}

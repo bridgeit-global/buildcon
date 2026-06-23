@@ -93,6 +93,7 @@ import { BookingAddressFields } from '../booking-address-fields';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { isUnitPossessedStatus } from '@/app/crm/inventory/unit-status';
+import BackButton from '@/components/buttons/back-button';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -1285,21 +1286,9 @@ export default function BookingDetailPage() {
 
   return (
     <div className="mx-auto  space-y-6">
+      
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="sm" className="h-9 gap-1" asChild>
-          <Link href="/crm/bookings">
-            <ArrowLeft className="h-4 w-4" />
-            Bookings
-          </Link>
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold text-ds-gray-900">
-            {unit?.unit_code ?? 'Booking'} · {customer?.full_name ?? '—'}
-          </h1>
-          <p className="text-sm text-ds-gray-500">
-            Unit locked while workflow is active. Complete each step to confirm the booking.
-          </p>
-        </div>
+        <BackButton href="/crm/bookings" label="Bookings" />
         {!loading && booking ? (
           <Button variant="outline" size="sm" className="h-9 shrink-0" asChild>
             <Link href={`/crm/units/${encodeURIComponent(booking.unit_id)}`}>
@@ -1330,6 +1319,14 @@ export default function BookingDetailPage() {
       ) : null}
 
       <Card className="p-4">
+      <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-semibold text-ds-gray-900">
+            {unit?.unit_code ?? 'Booking'} · {customer?.full_name ?? '—'}
+          </h1>
+          <p className="text-sm text-ds-gray-500">
+            Unit locked while workflow is active. Complete each step to confirm the booking.
+          </p>
+        </div>
         <ol className="flex flex-wrap gap-2">
           {BOOKING_WORKFLOW_STAGES.map((stage, i) => {
             const done = i < stepIndex || workflowStage === 'confirmation';

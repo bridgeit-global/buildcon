@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../../_components/active-project-context';
 import { Card } from '@/components/ui/card';
@@ -34,6 +34,7 @@ import {
   type DeleteMilestoneSchedule
 } from '../delete-milestone-dialog';
 import { persistCollectionReceipt } from '@/lib/booking/persist-collection-receipt';
+import BackButton from '@/components/buttons/back-button';
 
 type ScheduleRow = {
   id: string;
@@ -442,12 +443,7 @@ export default function FinancialsBookingPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="sm" className="gap-1" asChild>
-          <Link href="/crm/financials">
-            <ArrowLeft className="h-4 w-4" />
-            All financials
-          </Link>
-        </Button>
+        <BackButton href="/crm/financials" label="All financials" />
         <Button variant="outline" size="sm" asChild>
           <Link href={`/crm/bookings/${bookingId}`}>Open booking</Link>
         </Button>

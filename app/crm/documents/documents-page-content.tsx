@@ -23,7 +23,7 @@ import {
 import { DocumentsBookingListTable } from './documents-booking-list-table';
 import { BookingDocumentsMatrixTable, buildMatrixRows } from './booking-documents-matrix-table';
 import { isUnitPossessedStatus, statusLabelForUnit } from '../inventory/unit-status';
-import { ArrowLeft } from 'lucide-react';
+import BackButton from '@/components/buttons/back-button';
 
 type BookingPickRow = {
   id: string;
@@ -252,18 +252,15 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
 
   return (
     <div className="flex flex-col gap-4">
-
+ <div className="flex items-center gap-2">
+ {lockedBookingId ?
+              <BackButton href="/crm/documents" label="Back to list" /> : null
+            }
+ </div>
       <Card className="space-y-4 p-4">
         <div>
           <div className="flex items-center gap-2">
-            {lockedBookingId ?
-              <Button variant="ghost" size="sm" className="h-9 gap-1" asChild>
-                <Link href="/crm/documents">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to list
-                </Link>
-              </Button> : null
-            }
+           
             <h2 className="text-sm font-semibold text-ds-gray-900">
               {lockedBookingId ? 'Booking documents' : 'Confirmed bookings'}
             </h2>

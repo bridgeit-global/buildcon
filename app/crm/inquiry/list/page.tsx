@@ -1,12 +1,10 @@
 'use client';
 
 import { Suspense } from 'react';
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InquiryListTable } from '../inquiry-list-table';
 import { useInquiryListResources } from '../use-inquiry-list-resources';
+import BackButton from '@/components/buttons/back-button';
 
 export default function InquiryListPage() {
   const {
@@ -20,12 +18,7 @@ export default function InquiryListPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" className="gap-1 px-2" asChild>
-          <Link href="/crm/inquiry">
-            <ArrowLeft className="size-4" />
-            Leads overview
-          </Link>
-        </Button>
+        <BackButton href="/crm/inquiry" label="Leads overview" />
       </div>
       <Suspense
         fallback={
