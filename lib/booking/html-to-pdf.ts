@@ -1,7 +1,7 @@
 import 'server-only';
 import type { Browser } from 'playwright-core';
 
-/** Matches @sparticuz/chromium-min@149.0.0 — override with CHROMIUM_REMOTE_EXEC_PATH. */
+/** Matches @sparticuz/chromium-min@149.0.0. Prefer setting CHROMIUM_PACK_PATH in Vercel. */
 const DEFAULT_CHROMIUM_PACK_URL =
   'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.x64.tar';
 
@@ -15,18 +15,33 @@ function isServerlessRuntime(): boolean {
   );
 }
 
+function serverlessChromiumPackPath(): string {
+  return (
+    process.env.CHROMIUM_PACK_PATH?.trim() ||
+    process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim() ||
+    DEFAULT_CHROMIUM_PACK_URL
+  );
+}
+
 async function resolveExecutablePath(): Promise<string> {
+  const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim();
+  if (executablePath) {
+    return executablePath;
+  }
+
   const localPath = process.env.CHROMIUM_LOCAL_EXEC_PATH?.trim();
   if (localPath && !isServerlessRuntime()) {
     return localPath;
   }
 
-  if (isServerlessRuntime() || process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim()) {
+  if (
+    isServerlessRuntime() ||
+    process.env.CHROMIUM_PACK_PATH?.trim() ||
+    process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim()
+  ) {
     const chromium = (await import('@sparticuz/chromium-min')).default;
     chromium.setGraphicsMode = false;
-    const packUrl =
-      process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim() || DEFAULT_CHROMIUM_PACK_URL;
-    return chromium.executablePath(packUrl);
+    return chromium.executablePath(serverlessChromiumPackPath());
   }
 
   // Local dev: Playwright's downloaded Chromium (devDependency via e2e).
@@ -38,7 +53,11 @@ async function launchBrowser(): Promise<Browser> {
   const { chromium } = await import('playwright-core');
   const executablePath = await resolveExecutablePath();
 
-  if (isServerlessRuntime() || process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim()) {
+  if (
+    isServerlessRuntime() ||
+    process.env.CHROMIUM_PACK_PATH?.trim() ||
+    process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim()
+  ) {
     const chromiumPkg = (await import('@sparticuz/chromium-min')).default;
     return chromium.launch({
       args: chromiumPkg.args,
@@ -52,7 +71,10 @@ async function launchBrowser(): Promise<Browser> {
 
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    browserPromise = launchBrowser();
+    browserPromise = launchBrowser().catch((error: unknown) => {
+      browserPromise = null;
+      throw error;
+    });
   }
   return browserPromise;
 }
@@ -62,7 +84,7 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: 'networkidle' });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15_000 });
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
