@@ -7,6 +7,18 @@ const DEFAULT_CHROMIUM_PACK_URL =
 
 let browserPromise: Promise<Browser> | null = null;
 
+function resetBrowserCache(): void {
+  browserPromise = null;
+}
+
+function isStaleBrowserError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Target page, context or browser has been closed') ||
+    message.includes('Browser has been closed')
+  );
+}
+
 function isServerlessRuntime(): boolean {
   return Boolean(
     process.env.VERCEL ||
@@ -52,6 +64,7 @@ async function resolveExecutablePath(): Promise<string> {
 async function launchBrowser(): Promise<Browser> {
   const { chromium } = await import('playwright-core');
   const executablePath = await resolveExecutablePath();
+  let browser: Browser;
 
   if (
     isServerlessRuntime() ||
@@ -59,39 +72,63 @@ async function launchBrowser(): Promise<Browser> {
     process.env.CHROMIUM_REMOTE_EXEC_PATH?.trim()
   ) {
     const chromiumPkg = (await import('@sparticuz/chromium-min')).default;
-    return chromium.launch({
+    browser = await chromium.launch({
       args: chromiumPkg.args,
       executablePath,
       headless: true
     });
+  } else {
+    browser = await chromium.launch({ executablePath, headless: true });
   }
 
-  return chromium.launch({ executablePath, headless: true });
+  browser.on('disconnected', resetBrowserCache);
+  return browser;
 }
 
 async function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = launchBrowser().catch((error: unknown) => {
-      browserPromise = null;
-      throw error;
-    });
+  if (browserPromise) {
+    const existing = await browserPromise.catch(() => null);
+    if (existing?.isConnected()) {
+      return existing;
+    }
+    resetBrowserCache();
   }
+
+  browserPromise = launchBrowser().catch((error: unknown) => {
+    resetBrowserCache();
+    throw error;
+  });
   return browserPromise;
 }
 
 /** Renders printable booking HTML to a PDF buffer (A4, print backgrounds). */
 export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15_000 });
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' }
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const browser = await getBrowser();
+      const page = await browser.newPage();
+      try {
+        await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+        const pdf = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' }
+        });
+        return Buffer.from(pdf);
+      } finally {
+        await page.close().catch(() => undefined);
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0 && isStaleBrowserError(error)) {
+        resetBrowserCache();
+        continue;
+      }
+      throw error;
+    }
   }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
