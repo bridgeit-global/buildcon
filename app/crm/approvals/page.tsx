@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  CRM_TABLE_FEATURES,
+  useCrmTableFeatures
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -429,6 +434,8 @@ export default function ApprovalsPage() {
         header: '',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => {
           const r = row.original;
           if (r.status !== 'Pending') {
@@ -460,19 +467,25 @@ export default function ApprovalsPage() {
     [isSuperAdmin]
   );
 
+  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
+    useCrmTableFeatures();
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { globalFilter: globalFilterValue, columnFilters },
+    state: { globalFilter: globalFilterValue, columnFilters, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilterValue,
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalApprovalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
-    }
+    },
+    ...CRM_TABLE_FEATURES
   });
 
   const statusCol = table.getColumn('status');
@@ -594,19 +607,19 @@ export default function ApprovalsPage() {
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[56rem] caption-bottom text-sm">
+          <table
+            className="w-full min-w-[56rem] caption-bottom text-sm"
+            style={{ width: table.getCenterTotalSize() }}
+          >
             <thead className="border-b border-border bg-muted/40 [&_tr]:border-border">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
                   {hg.headers.map((h) => (
-                    <th
+                    <CrmDataTableHead
                       key={h.id}
-                      className="h-10 px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {h.isPlaceholder
-                        ? null
-                        : flexRender(h.column.columnDef.header, h.getContext())}
-                    </th>
+                      header={h}
+                      className="px-3 uppercase tracking-wide text-muted-foreground"
+                    />
                   ))}
                 </tr>
               ))}
@@ -637,12 +650,11 @@ export default function ApprovalsPage() {
                     className="border-b border-border/80 transition-colors hover:bg-muted/25"
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-2.5 align-top">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
+                      <CrmDataTableCell
+                        key={cell.id}
+                        cell={cell}
+                        className="px-3 py-2.5 align-top"
+                      />
                     ))}
                   </tr>
                 ))

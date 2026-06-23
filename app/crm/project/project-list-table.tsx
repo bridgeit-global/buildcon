@@ -3,8 +3,13 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  CRM_TABLE_FEATURES,
+  useCrmTableFeatures
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -157,6 +162,8 @@ export function ProjectListTable({
         header: 'Actions',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => {
           const p = row.original;
           return (
@@ -188,18 +195,24 @@ export function ProjectListTable({
     [onManage, router]
   );
 
+  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
+    useCrmTableFeatures();
+
   const table = useReactTable({
     data: projects,
     columns,
-    state: { globalFilter },
+    state: { globalFilter, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalProjectFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
-    }
+    },
+    ...CRM_TABLE_FEATURES
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;
@@ -247,19 +260,15 @@ export function ProjectListTable({
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th
-                    key={h.id}
-                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                  >
-                    {h.isPlaceholder
-                      ? null
-                      : flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                  <CrmDataTableHead key={h.id} header={h} />
                 ))}
               </tr>
             ))}
@@ -297,9 +306,7 @@ export function ProjectListTable({
                   className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-top">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                   ))}
                 </tr>
               ))

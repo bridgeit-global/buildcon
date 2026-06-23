@@ -1,8 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  CRM_TABLE_FEATURES,
+  useCrmTableFeatures
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -256,6 +261,8 @@ export function InventoryListTable({
         header: 'Action',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => (
           <div
             className="flex items-center gap-1"
@@ -276,16 +283,22 @@ export function InventoryListTable({
     [onEdit, onOpenDetail]
   );
 
+  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
+    useCrmTableFeatures();
+
   const table = useReactTable({
     data: units,
     columns,
-    state: { globalFilter, columnFilters },
+    state: { globalFilter, columnFilters, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalUnitFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } }
+    initialState: { pagination: { pageSize: 10 } },
+    ...CRM_TABLE_FEATURES
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;
@@ -377,17 +390,19 @@ export function InventoryListTable({
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom border-collapse text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom border-collapse text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead className="sticky top-0 z-[1] bg-ds-gray-50/90">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100">
                 {hg.headers.map((h) => (
-                  <th
+                  <CrmDataTableHead
                     key={h.id}
-                    className="px-3 py-2 text-left text-[10px] font-semibold text-ds-gray-500"
-                  >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                    header={h}
+                    className="px-3 py-2 text-[10px]"
+                  />
                 ))}
               </tr>
             ))}
@@ -401,9 +416,7 @@ export function InventoryListTable({
                   onClick={() => onOpenDetail(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-2">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="px-3 py-2" />
                   ))}
                 </tr>
               ))

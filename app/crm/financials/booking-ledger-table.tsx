@@ -1,8 +1,13 @@
 'use client';
 
 import { useMemo } from 'react';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  CRM_TABLE_FEATURES,
+  useCrmTableFeatures
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   useReactTable,
   type ColumnDef
@@ -182,25 +187,30 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
     []
   );
 
+  const { sorting, onSortingChange, columnSizing, onColumnSizingChange } =
+    useCrmTableFeatures();
+
   const table = useReactTable({
     data: rows,
     columns,
-    getCoreRowModel: getCoreRowModel()
+    state: { sorting, columnSizing },
+    onSortingChange,
+    onColumnSizingChange,
+    getCoreRowModel: getCoreRowModel(),
+    ...CRM_TABLE_FEATURES
   });
 
   return (
     <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-      <table className="w-full min-w-[40rem] caption-bottom text-sm">
+      <table
+        className="w-full min-w-[40rem] caption-bottom text-sm"
+        style={{ width: table.getCenterTotalSize() }}
+      >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
               {hg.headers.map((h) => (
-                <th
-                  key={h.id}
-                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                >
-                  {flexRender(h.column.columnDef.header, h.getContext())}
-                </th>
+                <CrmDataTableHead key={h.id} header={h} />
               ))}
             </tr>
           ))}
@@ -223,9 +233,7 @@ export function BookingLedgerTable({ rows, loading }: BookingLedgerTableProps) {
             table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3 align-top">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                 ))}
               </tr>
             ))
