@@ -3,12 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ["playwright-core", "@sparticuz/chromium-min"],
   // playwright-core@1.60+ loads browsers.json via dynamic require; @vercel/nft won't
-  // trace it unless we include it explicitly (pnpm layout needs the .pnpm glob).
+  // trace it unless we include it explicitly. Use hoisted node_modules (.npmrc) so
+  // this path is a real file, not a pnpm symlink (symlinks break Vercel deploy).
   outputFileTracingIncludes: {
-    "/api/crm/**": [
-      "./node_modules/playwright-core/browsers.json",
-      "./node_modules/.pnpm/playwright-core@*/node_modules/playwright-core/browsers.json",
-    ],
+    "/api/crm/**": ["./node_modules/playwright-core/browsers.json"],
   },
   turbopack: {
     root: import.meta.dirname,
