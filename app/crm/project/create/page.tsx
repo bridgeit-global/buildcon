@@ -51,6 +51,8 @@ import {
   resetDraft
 } from '../project-create-shared';
 import BackButton from '@/components/buttons/back-button';
+import { coerceProjectFy } from '@/lib/project/project-fy';
+import { ProjectFySelect } from '../project-fy-select';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectNameRow = { id: string; name: string };
@@ -426,7 +428,8 @@ export default function CreateProjectPage() {
                   onValueChange={(v) =>
                     setDraft((d) => ({
                       ...d,
-                      type: v as CreateProjectDraft['type']
+                      type: v as CreateProjectDraft['type'],
+                      fy: coerceProjectFy(v, d.fy)
                     }))
                   }
                 >
@@ -463,13 +466,11 @@ export default function CreateProjectPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <TextInputField
+              <ProjectFySelect
                 label="FY"
+                projectType={draft.type}
                 value={draft.fy}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, fy: e.target.value }))
-                }
-                placeholder="2026-27"
+                onValueChange={(fy) => setDraft((d) => ({ ...d, fy }))}
               />
               <TextInputField
                 label="RERA No."

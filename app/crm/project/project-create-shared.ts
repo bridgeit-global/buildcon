@@ -1,3 +1,4 @@
+import { defaultProjectFy } from '@/lib/project/project-fy';
 import type { FloorProvisionDraft, StructureNode } from './project-structure-utils';
 import {
   isProjectNameTaken,
@@ -229,7 +230,7 @@ export function createInitialDraft(): CreateProjectDraft {
     location: '',
     type: 'Redevelopment',
     status: 'Active',
-    fy: '2026-27',
+    fy: defaultProjectFy('Redevelopment'),
     rera_no: '',
     floors_per_wing: 7,
     units_per_floor: 4,

@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
+import { coerceProjectFy } from '@/lib/project/project-fy';
+import { ProjectFySelect } from './project-fy-select';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -371,7 +373,14 @@ export function ProjectManageDialog({
                 />
               </div>
               <Field label="Type">
-                <Select value={type} onValueChange={setType} disabled={!canEditDetails}>
+                <Select
+                  value={type}
+                  onValueChange={(v) => {
+                    setType(v);
+                    setFy((prev) => coerceProjectFy(v, prev));
+                  }}
+                  disabled={!canEditDetails}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -399,7 +408,12 @@ export function ProjectManageDialog({
                 </Select>
               </Field>
               <Field label="Financial year">
-                <Input value={fy} onChange={(e) => setFy(e.target.value)} disabled={!canEditDetails} />
+                <ProjectFySelect
+                  projectType={type}
+                  value={fy}
+                  onValueChange={setFy}
+                  disabled={!canEditDetails}
+                />
               </Field>
               <Field label="RERA number">
                 <Input
