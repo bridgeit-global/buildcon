@@ -113,6 +113,7 @@ import {
   type WizardNavigationRequest
 } from './inquiry-wizard-store';
 import {
+  wizardSnapshotsEqual,
   wizardStepLabel,
   type WizardStep1Snapshot,
   type WizardStep2Snapshot,
@@ -149,7 +150,7 @@ type StepId = WizardStepId;
 export type NewInquiryWizardHandle = {
   tryGoToStep: (target: StepId) => Promise<boolean>;
   tryGoToPipelineStage: (stage: InquiryPipelineUiStage) => Promise<boolean>;
-  isStepDirty: (step: StepId) => boolean;
+  hasUnsavedChanges: () => boolean;
 };
 
 function buildStep1SnapshotFromForm(form: {
@@ -213,8 +214,8 @@ type NewInquiryWizardProps = {
   funnelStage?: string;
   /** When unit inventory is TOKEN — all wizard stages are view-only. */
   stagesReadOnly?: boolean;
-  /** Fired when any wizard step saved/unsaved state changes. */
-  onDirtyChange?: (dirty: Record<StepId, boolean>) => void;
+  /** Fired when the wizard has unsaved changes. */
+  onUnsavedChange?: (unsaved: boolean) => void;
 };
 
 function mapUnitRowFromDb(row: Record<string, unknown>): UnitRow {
@@ -243,15 +244,15 @@ export const NewInquiryWizard = forwardRef<
     onSkipToStage,
     funnelStage: funnelStageProp,
     stagesReadOnly: stagesReadOnlyProp,
-    onDirtyChange
+    onUnsavedChange
   } = props;
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const stepDirty = useInquiryWizardStore((s) => s.stepDirty);
-  const navConfirmOpen = useInquiryWizardStore((s) => s.navConfirmOpen);
-  const navConfirmSaving = useInquiryWizardStore((s) => s.navConfirmSaving);
+  const hasUnsavedChanges = useInquiryWizardStore((s) => s.hasUnsavedChanges);
   const savedSnapshots = useInquiryWizardStore((s) => s.savedSnapshots);
   const draftSnapshots = useInquiryWizardStore((s) => s.draftSnapshots);
+  const navConfirmOpen = useInquiryWizardStore((s) => s.navConfirmOpen);
+  const navConfirmSaving = useInquiryWizardStore((s) => s.navConfirmSaving);
   const syncDraftStep1 = useInquiryWizardStore((s) => s.syncDraftStep1);
   const syncDraftStep2 = useInquiryWizardStore((s) => s.syncDraftStep2);
   const syncDraftStep3 = useInquiryWizardStore((s) => s.syncDraftStep3);
@@ -424,14 +425,15 @@ export const NewInquiryWizard = forwardRef<
     [savedSnapshots, applySnapshotToForm]
   );
 
-  const isStepDirty = useCallback(
-    (target: StepId) => stepDirty[target],
-    [stepDirty]
+  const isCurrentStepUnsaved = useCallback(
+    () =>
+      !wizardSnapshotsEqual(draftSnapshots[step], savedSnapshots[step]),
+    [draftSnapshots, savedSnapshots, step]
   );
 
   useEffect(() => {
-    onDirtyChange?.(stepDirty);
-  }, [onDirtyChange, stepDirty]);
+    onUnsavedChange?.(hasUnsavedChanges);
+  }, [onUnsavedChange, hasUnsavedChanges]);
 
   useEffect(() => {
     if (!activeInquiryId) return;
@@ -440,13 +442,12 @@ export const NewInquiryWizard = forwardRef<
       const state = useInquiryWizardStore.getState();
       const payload = buildWizardUiDraftPayload(
         state.savedSnapshots,
-        state.draftSnapshots,
-        state.stepDirty
+        state.draftSnapshots
       );
       void saveInquiryWizardUi(supabase, activeInquiryId, payload);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [activeInquiryId, supabase, draftSnapshots, stepDirty]);
+  }, [activeInquiryId, supabase, draftSnapshots, hasUnsavedChanges]);
 
   const [unitPickFilters, setUnitPickFilters] =
     useState<UnitPickFilters>(DEFAULT_UNIT_PICK_FILTERS);
@@ -680,13 +681,14 @@ export const NewInquiryWizard = forwardRef<
       );
       hydrateWithPersistedDrafts({
         saved: savedSnapshotsPayload,
-        drafts: wizardUi.drafts,
-        dirty: wizardUi.dirty
+        drafts: wizardUi.drafts
       });
-      const { draftSnapshots: restoredDrafts, stepDirty: restoredDirty } =
+      const { savedSnapshots: restoredSaved, draftSnapshots: restoredDrafts } =
         useInquiryWizardStore.getState();
       for (const step of [1, 2, 3] as const) {
-        if (restoredDirty[step]) {
+        if (
+          !wizardSnapshotsEqual(restoredDrafts[step], restoredSaved[step])
+        ) {
           applySnapshotToForm(step, restoredDrafts[step]);
         }
       }
@@ -1225,14 +1227,14 @@ export const NewInquiryWizard = forwardRef<
 
   const tryLeaveCurrentStep = useCallback(
     (onProceed: () => void | Promise<void>): Promise<boolean> => {
-      if (stagesReadOnly || !stepDirty[step]) {
+      if (stagesReadOnly || !isCurrentStepUnsaved()) {
         return Promise.resolve(onProceed()).then(() => true);
       }
       return new Promise((resolve) => {
         openNavConfirm({ onProceed, resolve });
       });
     },
-    [stagesReadOnly, step, stepDirty, openNavConfirm]
+    [stagesReadOnly, isCurrentStepUnsaved, openNavConfirm]
   );
 
   function closeNavConfirm(proceeded: boolean) {
@@ -1314,7 +1316,7 @@ export const NewInquiryWizard = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      isStepDirty,
+      hasUnsavedChanges: () => useInquiryWizardStore.getState().hasUnsavedChanges,
       tryGoToStep: (target: StepId) =>
         useInquiryWizardStore.getState().requestNavigation({ type: 'step', step: target }),
       tryGoToPipelineStage: (stage: InquiryPipelineUiStage) =>
@@ -1323,7 +1325,7 @@ export const NewInquiryWizard = forwardRef<
           stage
         })
     }),
-    [isStepDirty]
+    []
   );
 
   async function goNext() {
@@ -2048,9 +2050,9 @@ export const NewInquiryWizard = forwardRef<
           </Button>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {stepDirty[step] && !stagesReadOnly ? (
+          {isCurrentStepUnsaved() && !stagesReadOnly ? (
             <span className="text-xs font-medium text-amber-800">
-              Unsaved changes on {wizardStepLabel(step)}
+              Unsaved changes
             </span>
           ) : null}
           {!userLabel.id ? (
@@ -2090,8 +2092,8 @@ export const NewInquiryWizard = forwardRef<
           <DialogHeader>
             <DialogTitle>Unsaved changes</DialogTitle>
             <DialogDescription>
-              You have unsaved changes on {wizardStepLabel(step)}. Save before
-              leaving, or discard your edits.
+              You have unsaved changes. Save before leaving, or discard your
+              edits.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 sm:flex-row">

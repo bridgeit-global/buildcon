@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
@@ -36,6 +36,12 @@ import {
   INQUIRY_CLOSED_FUNNEL_STAGE,
   INQUIRY_LIST_FUNNEL_STAGES
 } from './inquiry-funnel-stages';
+import {
+  selectValueToStageFilter,
+  STAGE_FILTER_NEW_LEADS,
+  STAGE_FILTER_TOKEN,
+  stageFilterToSelectValue
+} from './inquiry-list-filters';
 import { getInquiryClosedStatus, isInquiryClosed } from './inquiry-stage-transitions';
 import {
   embedOne,
@@ -87,11 +93,6 @@ const equalsOrAll: FilterFn<InquiryRowDb> = (row, columnId, raw) => {
   return String(row.getValue(columnId) ?? '').trim() === v;
 };
 
-/** Matches dashboard KPI tiles: Enquiry stage. */
-const STAGE_FILTER_NEW_LEADS = '__new_leads__';
-/** Matches dashboard Token KPI. */
-const STAGE_FILTER_TOKEN = '__token__';
-
 const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const v = String(raw ?? '').trim();
   if (!v || v === '__all__') return true;
@@ -113,41 +114,13 @@ const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   return display === v;
 };
 
-function parseListUrlColumnFilters(sp: {
-  get: (name: string) => string | null;
-}): ColumnFiltersState {
-  const filters: ColumnFiltersState = [];
-  const stageRaw = sp.get('stage')?.trim();
-  if (stageRaw) {
-    const lower = stageRaw.toLowerCase();
-    if (lower === 'token' || lower === 'converted') {
-      filters.push({ id: 'funnelStage', value: STAGE_FILTER_TOKEN });
-    } else if (lower === 'new') {
-      filters.push({ id: 'funnelStage', value: STAGE_FILTER_NEW_LEADS });
-    } else {
-      if (lower === 'closed') {
-        filters.push({ id: 'funnelStage', value: INQUIRY_CLOSED_FUNNEL_STAGE });
-      } else {
-        const match = [...INQUIRY_LIST_FUNNEL_STAGES].find(
-          (s) => s.toLowerCase() === lower
-        );
-        if (match) filters.push({ id: 'funnelStage', value: match });
-      }
-    }
-  }
-  const sourceRaw = sp.get('source')?.trim();
-  if (sourceRaw) {
-    filters.push({ id: 'leadSource', value: sourceRaw });
-  }
-  return filters;
-}
-
 type InquiryListTableProps = ServerSortedTableProps & {
   inquiries: InquiryRowDb[];
   loadingInquiries: boolean;
   loadInquiries: () => void | Promise<void>;
   units: UnitLabelRow[];
   navigateToBookingFromInquiry: (inq: InquiryRowDb) => void;
+  urlColumnFilters?: ColumnFiltersState;
 };
 
 export function InquiryListTable({
@@ -157,23 +130,18 @@ export function InquiryListTable({
   units,
   navigateToBookingFromInquiry,
   sorting,
-  onSortingChange
+  onSortingChange,
+  urlColumnFilters = []
 }: InquiryListTableProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [globalFilter, setGlobalFilter] = useState('');
 
-  const filtersFromUrl = useMemo(
-    () => parseListUrlColumnFilters(searchParams),
-    [searchParams]
-  );
-
   const [columnFilters, setColumnFilters] =
-    useState<ColumnFiltersState>(filtersFromUrl);
+    useState<ColumnFiltersState>(urlColumnFilters);
 
   useEffect(() => {
-    setColumnFilters(filtersFromUrl);
-  }, [filtersFromUrl]);
+    setColumnFilters(urlColumnFilters);
+  }, [urlColumnFilters]);
 
   const unitNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -207,6 +175,11 @@ export function InquiryListTable({
     }
     return ordered;
   }, [inquiries]);
+
+  const stageSelectOptions = useMemo(
+    () => ['All stages', 'New', ...stageOptions],
+    [stageOptions]
+  );
 
   const leadSourceOptions = useMemo(() => {
     const set = new Set<string>();
@@ -475,15 +448,11 @@ export function InquiryListTable({
           <div className="min-w-[10rem]">
             <Label className="text-xs text-ds-gray-500">Stage</Label>
             <SearchableSelect
-              value={
-                stageFilter && stageFilter !== '__all__'
-                  ? stageFilter
-                  : 'All stages'
-              }
+              value={stageFilterToSelectValue(stageFilter)}
               onValueChange={(v) =>
-                stageCol?.setFilterValue(v === 'All stages' ? undefined : v)
+                stageCol?.setFilterValue(selectValueToStageFilter(v))
               }
-              options={['All stages', ...stageOptions]}
+              options={stageSelectOptions}
               placeholder="All stages"
               searchPlaceholder="Search stage…"
               className="mt-1 w-full min-w-[10rem]"

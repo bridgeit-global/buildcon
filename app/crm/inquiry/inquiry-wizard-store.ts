@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import type { InquiryPipelineUiStage } from './inquiry-funnel-stages';
-import type { InquiryWizardUiDrafts, InquiryWizardUiDirty } from './inquiry-wizard-ui';
+import type { InquiryWizardUiDrafts } from './inquiry-wizard-ui';
 import {
   emptyWizardSavedSnapshots,
   wizardSnapshotsEqual,
@@ -25,7 +25,7 @@ export type WizardNavigationRequest =
 type InquiryWizardStore = {
   savedSnapshots: WizardSavedSnapshots;
   draftSnapshots: WizardSavedSnapshots;
-  stepDirty: Record<WizardStepId, boolean>;
+  hasUnsavedChanges: boolean;
   navConfirmOpen: boolean;
   navConfirmSaving: boolean;
   navPending: WizardNavPending | null;
@@ -36,11 +36,10 @@ type InquiryWizardStore = {
   syncDraftStep2: (snapshot: WizardStep2Snapshot) => void;
   syncDraftStep3: (snapshot: WizardStep3Snapshot) => void;
   hydrateSnapshots: (snapshots: WizardSavedSnapshots) => void;
-  /** Restore saved baseline plus optional persisted drafts/dirty flags from DB. */
+  /** Restore saved baseline plus optional persisted drafts from DB. */
   hydrateWithPersistedDrafts: (params: {
     saved: WizardSavedSnapshots;
     drafts?: InquiryWizardUiDrafts;
-    dirty?: InquiryWizardUiDirty;
   }) => void;
   markStepSaved: (step: WizardStepId) => void;
   resetWizardState: () => void;
@@ -57,15 +56,23 @@ type InquiryWizardStore = {
   } | null;
 };
 
-function computeStepDirty(
+export function isWizardStepUnsaved(
+  step: WizardStepId,
   savedSnapshots: WizardSavedSnapshots,
   draftSnapshots: WizardSavedSnapshots
-): Record<WizardStepId, boolean> {
-  return {
-    1: !wizardSnapshotsEqual(draftSnapshots[1], savedSnapshots[1]),
-    2: !wizardSnapshotsEqual(draftSnapshots[2], savedSnapshots[2]),
-    3: !wizardSnapshotsEqual(draftSnapshots[3], savedSnapshots[3])
-  };
+): boolean {
+  return !wizardSnapshotsEqual(draftSnapshots[step], savedSnapshots[step]);
+}
+
+function computeHasUnsavedChanges(
+  savedSnapshots: WizardSavedSnapshots,
+  draftSnapshots: WizardSavedSnapshots
+): boolean {
+  return (
+    isWizardStepUnsaved(1, savedSnapshots, draftSnapshots) ||
+    isWizardStepUnsaved(2, savedSnapshots, draftSnapshots) ||
+    isWizardStepUnsaved(3, savedSnapshots, draftSnapshots)
+  );
 }
 
 const emptySnapshots = emptyWizardSavedSnapshots();
@@ -73,7 +80,7 @@ const emptySnapshots = emptyWizardSavedSnapshots();
 export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
   savedSnapshots: emptySnapshots,
   draftSnapshots: emptySnapshots,
-  stepDirty: { 1: false, 2: false, 3: false },
+  hasUnsavedChanges: false,
   navConfirmOpen: false,
   navConfirmSaving: false,
   navPending: null,
@@ -85,7 +92,10 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
       const draftSnapshots = { ...state.draftSnapshots, 1: snapshot };
       return {
         draftSnapshots,
-        stepDirty: computeStepDirty(state.savedSnapshots, draftSnapshots)
+        hasUnsavedChanges: computeHasUnsavedChanges(
+          state.savedSnapshots,
+          draftSnapshots
+        )
       };
     }),
 
@@ -94,7 +104,10 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
       const draftSnapshots = { ...state.draftSnapshots, 2: snapshot };
       return {
         draftSnapshots,
-        stepDirty: computeStepDirty(state.savedSnapshots, draftSnapshots)
+        hasUnsavedChanges: computeHasUnsavedChanges(
+          state.savedSnapshots,
+          draftSnapshots
+        )
       };
     }),
 
@@ -103,7 +116,10 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
       const draftSnapshots = { ...state.draftSnapshots, 3: snapshot };
       return {
         draftSnapshots,
-        stepDirty: computeStepDirty(state.savedSnapshots, draftSnapshots)
+        hasUnsavedChanges: computeHasUnsavedChanges(
+          state.savedSnapshots,
+          draftSnapshots
+        )
       };
     }),
 
@@ -111,22 +127,21 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
     set({
       savedSnapshots: snapshots,
       draftSnapshots: snapshots,
-      stepDirty: { 1: false, 2: false, 3: false }
+      hasUnsavedChanges: false
     }),
 
-  hydrateWithPersistedDrafts: ({ saved, drafts, dirty }) =>
+  hydrateWithPersistedDrafts: ({ saved, drafts }) =>
     set(() => {
       const draftSnapshots: WizardSavedSnapshots = {
         1: drafts?.['1'] ?? saved[1],
         2: drafts?.['2'] ?? saved[2],
         3: drafts?.['3'] ?? saved[3]
       };
-      const stepDirty: Record<WizardStepId, boolean> = {
-        1: dirty?.['1'] ?? !wizardSnapshotsEqual(draftSnapshots[1], saved[1]),
-        2: dirty?.['2'] ?? !wizardSnapshotsEqual(draftSnapshots[2], saved[2]),
-        3: dirty?.['3'] ?? !wizardSnapshotsEqual(draftSnapshots[3], saved[3])
+      return {
+        savedSnapshots: saved,
+        draftSnapshots,
+        hasUnsavedChanges: computeHasUnsavedChanges(saved, draftSnapshots)
       };
-      return { savedSnapshots: saved, draftSnapshots, stepDirty };
     }),
 
   markStepSaved: (step) =>
@@ -142,7 +157,10 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
       }
       return {
         savedSnapshots,
-        stepDirty: computeStepDirty(savedSnapshots, state.draftSnapshots)
+        hasUnsavedChanges: computeHasUnsavedChanges(
+          savedSnapshots,
+          state.draftSnapshots
+        )
       };
     }),
 
@@ -150,7 +168,7 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
     set({
       savedSnapshots: emptySnapshots,
       draftSnapshots: emptySnapshots,
-      stepDirty: { 1: false, 2: false, 3: false },
+      hasUnsavedChanges: false,
       navConfirmOpen: false,
       navConfirmSaving: false,
       navPending: null,
@@ -188,11 +206,3 @@ export const useInquiryWizardStore = create<InquiryWizardStore>((set, get) => ({
     return { request, resolve };
   }
 }));
-
-export function selectWizardStepDirty(state: InquiryWizardStore): Record<WizardStepId, boolean> {
-  return state.stepDirty;
-}
-
-export function selectWizardSavedSnapshots(state: InquiryWizardStore): WizardSavedSnapshots {
-  return state.savedSnapshots;
-}

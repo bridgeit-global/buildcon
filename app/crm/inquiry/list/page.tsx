@@ -1,11 +1,25 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useMemo, type ComponentProps } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { InquiryListTable } from '../inquiry-list-table';
+import { parseInquiryListUrlColumnFilters } from '../inquiry-list-filters';
 import { useInquiryListResources } from '../use-inquiry-list-resources';
 import BackButton from '@/components/buttons/back-button';
+
+function InquiryListTableWithUrlFilters(
+  props: Omit<ComponentProps<typeof InquiryListTable>, 'urlColumnFilters'>
+) {
+  const searchParams = useSearchParams();
+  const urlColumnFilters = useMemo(
+    () => parseInquiryListUrlColumnFilters(searchParams),
+    [searchParams, searchParams.toString()]
+  );
+
+  return <InquiryListTable {...props} urlColumnFilters={urlColumnFilters} />;
+}
 
 export default function InquiryListPage() {
   const { sorting, onSortingChange } = useServerListSorting();
@@ -29,7 +43,7 @@ export default function InquiryListPage() {
           </Card>
         }
       >
-        <InquiryListTable
+        <InquiryListTableWithUrlFilters
           inquiries={inquiries}
           loadingInquiries={loadingInquiries}
           loadInquiries={loadInquiries}

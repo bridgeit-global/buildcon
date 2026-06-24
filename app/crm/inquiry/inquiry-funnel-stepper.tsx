@@ -26,7 +26,7 @@ type InquiryFunnelStepperProps = {
   currentStage: string;
   maxReachableIndex?: number;
   stagesWithData?: Set<InquiryFunnelStage | InquiryPipelineUiStage>;
-  stagesWithUnsaved?: Set<InquiryFunnelStage | InquiryPipelineUiStage>;
+  hasUnsavedChanges?: boolean;
   onSelect?: (stage: InquiryPipelineUiStage) => void;
   disabled?: boolean;
   className?: string;
@@ -36,12 +36,16 @@ export function InquiryFunnelStepper({
   currentStage,
   maxReachableIndex,
   stagesWithData,
-  stagesWithUnsaved,
+  hasUnsavedChanges,
   onSelect,
   disabled,
   className
 }: InquiryFunnelStepperProps) {
   const currentIdx = funnelStageIndex(currentStage);
+  const stepsWithUnsaved =
+    hasUnsavedChanges && currentStage
+      ? new Set<string>([currentStage])
+      : undefined;
 
   return (
     <WizardStepper
@@ -50,7 +54,7 @@ export function InquiryFunnelStepper({
       currentIndex={currentIdx}
       maxReachableIndex={maxReachableIndex}
       stepsWithData={stagesWithData}
-      stepsWithUnsaved={stagesWithUnsaved}
+      stepsWithUnsaved={stepsWithUnsaved}
       disabled={disabled}
       ariaLabel="Enquiry pipeline progress"
       onSelectStep={
