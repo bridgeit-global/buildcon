@@ -226,11 +226,11 @@ export default function UsersPage() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: invite.email,
-          name: invite.name || null,
-          profileRole: invite.profileRole,
-          projectIds: invite.projectIds,
-          projectMemberRole: invite.projectMemberRole
+          email: parsed.data.email,
+          name: parsed.data.name,
+          profileRole: parsed.data.profileRole,
+          projectIds: parsed.data.projectIds,
+          projectMemberRole: parsed.data.projectMemberRole
         })
       });
       const json = (await res.json()) as { userId?: string; error?: string };
@@ -388,11 +388,14 @@ export default function UsersPage() {
                     </div>
                     <TextInputField
                       className="col-span-2"
-                      label="Name (optional)"
+                      label="Name"
+                      required
                       value={invite.name}
-                      onChange={(e) =>
-                        setInvite((s) => ({ ...s, name: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        setInvite((s) => ({ ...s, name: e.target.value }));
+                        inviteValidation.touch('name');
+                      }}
+                      error={inviteValidation.fieldError('name')}
                       placeholder="Full name"
                     />
                     <div>

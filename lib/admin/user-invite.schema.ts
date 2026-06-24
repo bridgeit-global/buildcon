@@ -3,7 +3,7 @@ import { optionalUuid, requiredEmail } from '@/lib/form/common-fields';
 
 export const userInviteSchema = z.object({
   email: requiredEmail,
-  name: z.string(),
+  name: z.string().trim().min(1, 'Name is required.'),
   profileRole: z.string().trim().min(1, 'Select a profile role.'),
   projectMemberRole: z.string().trim().min(1, 'Select a project member role.'),
   projectIds: z
