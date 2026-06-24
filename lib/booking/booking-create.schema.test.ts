@@ -64,6 +64,14 @@ describe('bookingCreateSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects invalid payment mode', () => {
+    const result = bookingCreateSchema.safeParse({
+      ...valid,
+      paymentMode: 'InvalidMode'
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('accepts UPI with UTR', () => {
     const result = bookingCreateSchema.safeParse({
       ...valid,

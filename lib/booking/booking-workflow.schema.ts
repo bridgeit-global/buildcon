@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { paymentModeNeedsLoanBank } from '@/lib/booking/booking-payment';
+import {
+  bookingPaymentModeField,
+  paymentModeNeedsLoanBank
+} from '@/lib/booking/booking-payment';
 import { positiveNumberString } from '@/lib/form/common-fields';
 import {
   isAadhaarValid,
@@ -8,21 +11,28 @@ import {
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
 
-export const bookingTokenStageSchema = z
-  .object({
-    amount: positiveNumberString('token amount'),
-    date: z.string().trim().min(1, 'Enter token date.'),
-    mode: z.string().trim().min(1, 'Select payment mode.')
-  })
-  .superRefine((data, ctx) => {
-    if (paymentModeNeedsLoanBank(data.mode)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['mode'],
-        message: 'Loan bank must be set on the booking for this payment mode.'
-      });
-    }
-  });
+export function createBookingTokenStageSchema(options?: { loanBank?: string | null }) {
+  return z
+    .object({
+      amount: positiveNumberString('token amount'),
+      date: z.string().trim().min(1, 'Enter token date.'),
+      mode: bookingPaymentModeField
+    })
+    .superRefine((data, ctx) => {
+      if (
+        paymentModeNeedsLoanBank(data.mode) &&
+        !String(options?.loanBank ?? '').trim()
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['mode'],
+          message: 'Loan bank must be set on the booking for this payment mode.'
+        });
+      }
+    });
+}
+
+export const bookingTokenStageSchema = createBookingTokenStageSchema();
 
 export const bookingApplicationSchema = z.object({
   occupation: z.string(),

@@ -75,7 +75,7 @@ import { EmailInputField } from '@/components/ui/email-input-field';
 import {
   bookingAllotmentSchema,
   bookingCancelSchema,
-  bookingTokenStageSchema,
+  createBookingTokenStageSchema,
   parseBookingBuyerAadhaarInlineError,
   parseBookingBuyerKycFieldErrors,
   parseBookingBuyerPanInlineError
@@ -97,6 +97,7 @@ import { isUnitPossessedStatus } from '@/app/crm/inventory/unit-status';
 import BackButton from '@/components/buttons/back-button';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
+import { BOOKING_PAYMENT_MODE_OPTIONS } from '@/lib/booking/booking-payment';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -843,6 +844,19 @@ export default function BookingDetailPage() {
 
   async function saveStagePatch(patch: Record<string, unknown>) {
     if (!booking || cancelled) return;
+    if (workflowStage === 'token') {
+      const tokenParsed = createBookingTokenStageSchema({
+        loanBank: booking.loan_bank
+      }).safeParse({
+        amount: String(patch.amount ?? ''),
+        date: String(patch.date ?? ''),
+        mode: String(patch.mode ?? '')
+      });
+      if (!tokenParsed.success) {
+        pageError(tokenParsed.error.issues[0]?.message ?? 'Complete token details.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
@@ -888,7 +902,9 @@ export default function BookingDetailPage() {
     if (!booking || cancelled) return;
     const patch = stagePatchForAdvance();
     if (workflowStage === 'token') {
-      const tokenParsed = bookingTokenStageSchema.safeParse({
+      const tokenParsed = createBookingTokenStageSchema({
+        loanBank: booking.loan_bank
+      }).safeParse({
         amount: String(patch.amount ?? ''),
         date: String(patch.date ?? ''),
         mode: String(patch.mode ?? '')
@@ -1452,15 +1468,26 @@ export default function BookingDetailPage() {
                     />
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Payment mode</Label>
-                      <Input
+                      <Select
                         value={stageData.token?.mode ?? booking.payment_mode ?? ''}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setStageData((d) => ({
                             ...d,
-                            token: { ...d.token, mode: e.target.value }
+                            token: { ...d.token, mode: v }
                           }))
                         }
-                      />
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select payment mode…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BOOKING_PAYMENT_MODE_OPTIONS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <Button

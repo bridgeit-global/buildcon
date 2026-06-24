@@ -5,6 +5,7 @@ import {
   bookingBuyerKycSchema,
   bookingCancelSchema,
   bookingTokenStageSchema,
+  createBookingTokenStageSchema,
   parseBookingBuyerAadhaarInlineError,
   parseBookingBuyerKycFieldErrors,
   parseBookingBuyerPanInlineError
@@ -27,6 +28,22 @@ describe('bookingTokenStageSchema', () => {
     const result = bookingTokenStageSchema.safeParse({
       ...valid,
       mode: 'Home Loan'
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts loan payment mode when loan bank is set on booking', () => {
+    const result = createBookingTokenStageSchema({ loanBank: 'HDFC Bank' }).safeParse({
+      ...valid,
+      mode: 'Home Loan'
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid payment mode', () => {
+    const result = bookingTokenStageSchema.safeParse({
+      ...valid,
+      mode: 'Wire Transfer'
     });
     expect(result.success).toBe(false);
   });

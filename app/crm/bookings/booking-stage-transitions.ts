@@ -3,6 +3,7 @@ import {
   type BookingStageData,
   type BookingWorkflowStage
 } from './booking-types';
+import { isBookingPaymentMode } from '@/lib/booking/booking-payment';
 
 export function nextWorkflowStage(
   current: BookingWorkflowStage
@@ -37,6 +38,9 @@ export function canAdvanceWorkflowStage(
       }
       if (!String(t?.mode ?? '').trim()) {
         return { ok: false, reason: 'Select token payment mode before continuing.' };
+      }
+      if (!isBookingPaymentMode(t?.mode)) {
+        return { ok: false, reason: 'Select a valid token payment mode before continuing.' };
       }
       return { ok: true };
     }

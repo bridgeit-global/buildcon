@@ -1,16 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOOKING_PAYMENT_MODE_OPTIONS,
+  isBookingPaymentMode,
+  normalizeBookingPaymentMode,
   paymentModeNeedsLoanBank
 } from '@/lib/booking/booking-payment';
-
-describe('BOOKING_PAYMENT_MODE_OPTIONS', () => {
-  it('includes expected payment modes', () => {
-    expect(BOOKING_PAYMENT_MODE_OPTIONS).toContain('UPI');
-    expect(BOOKING_PAYMENT_MODE_OPTIONS).toContain('Home Loan');
-    expect(BOOKING_PAYMENT_MODE_OPTIONS).toContain('Construction Linked');
-  });
-});
 
 describe('paymentModeNeedsLoanBank', () => {
   it('returns true for loan-linked modes', () => {
@@ -27,5 +20,28 @@ describe('paymentModeNeedsLoanBank', () => {
     expect(paymentModeNeedsLoanBank('  Home Loan  ')).toBe(true);
     expect(paymentModeNeedsLoanBank(null)).toBe(false);
     expect(paymentModeNeedsLoanBank('')).toBe(false);
+  });
+});
+
+describe('isBookingPaymentMode', () => {
+  it('accepts known payment modes', () => {
+    expect(isBookingPaymentMode('UPI')).toBe(true);
+    expect(isBookingPaymentMode('Construction Linked')).toBe(true);
+  });
+
+  it('rejects unknown or blank values', () => {
+    expect(isBookingPaymentMode('InvalidMode')).toBe(false);
+    expect(isBookingPaymentMode('')).toBe(false);
+    expect(isBookingPaymentMode(null)).toBe(false);
+  });
+});
+
+describe('normalizeBookingPaymentMode', () => {
+  it('returns trimmed valid mode', () => {
+    expect(normalizeBookingPaymentMode('  Cash  ')).toBe('Cash');
+  });
+
+  it('returns null for invalid mode', () => {
+    expect(normalizeBookingPaymentMode('Wire Transfer')).toBeNull();
   });
 });
