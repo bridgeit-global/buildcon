@@ -35,6 +35,10 @@ import { cn } from '@/lib/utils';
 import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import { ProjectFySelect } from './project-fy-select';
 import { ProjectLocationField } from './project-location-field';
+import {
+  buildPipelineBlockedUserIdsForProject,
+  PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
+} from '@/lib/admin/project-member-pipeline-guard';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -78,6 +82,9 @@ export function ProjectManageDialog({
   const [myProjectRole, setMyProjectRole] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [members, setMembers] = useState<ProjectMemberRow[]>([]);
+  const [pipelineBlockedUserIds, setPipelineBlockedUserIds] = useState(
+    () => new Set<string>()
+  );
   const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
 
   const [name, setName] = useState('');
@@ -159,6 +166,28 @@ export function ProjectManageDialog({
       return;
     }
     setMembers((data ?? []) as ProjectMemberRow[]);
+
+    const { data: pipelineRows, error: pipelineErr } = await supabase
+      .from('sales_inquiries')
+      .select('assigned_to, funnel_stage, stage_data, unit_id')
+      .eq('project_id', project.id)
+      .not('unit_id', 'is', null)
+      .not('assigned_to', 'is', null);
+    if (pipelineErr) {
+      pageError(pipelineErr.message);
+      setPipelineBlockedUserIds(new Set());
+    } else {
+      setPipelineBlockedUserIds(
+        buildPipelineBlockedUserIdsForProject(
+          (pipelineRows ?? []) as Array<{
+            assigned_to: string | null;
+            funnel_stage: string | null;
+            stage_data: unknown;
+            unit_id: string | null;
+          }>
+        )
+      );
+    }
 
     const {
       data: { user }
@@ -459,6 +488,7 @@ export function ProjectManageDialog({
               addMemberPickerKey={addMemberPickerKey}
               onUpsert={upsertMember}
               onRemove={removeMember}
+              pipelineBlockedUserIds={pipelineBlockedUserIds}
               onAdd={(uid) => {
                 void upsertMember(uid, 'Member', 'Active');
                 setAddMemberPickerKey((k) => k + 1);
@@ -549,6 +579,7 @@ function MembersPanel({
   members,
   profiles,
   addMemberPickerKey,
+  pipelineBlockedUserIds,
   onUpsert,
   onRemove,
   onAdd
@@ -557,6 +588,7 @@ function MembersPanel({
   members: ProjectMemberRow[];
   profiles: ProfileRow[];
   addMemberPickerKey: number;
+  pipelineBlockedUserIds: Set<string>;
   onUpsert: (userId: string, role: string, status: string) => void;
   onRemove: (userId: string) => void;
   onAdd: (userId: string) => void;
@@ -583,6 +615,7 @@ function MembersPanel({
           <tbody>
             {members.map((m) => {
               const prof = profiles.find((p) => p.id === m.user_id);
+              const removalBlocked = pipelineBlockedUserIds.has(m.user_id);
               return (
                 <tr key={m.user_id} className="border-t border-ds-gray-100">
                   <td className="px-3 py-2">
@@ -637,7 +670,17 @@ function MembersPanel({
                   </td>
                   <td className="px-3 py-2">
                     {canManageMembers ? (
-                      <Button size="sm" variant="outline" onClick={() => onRemove(m.user_id)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={removalBlocked}
+                        title={
+                          removalBlocked
+                            ? PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
+                            : undefined
+                        }
+                        onClick={() => onRemove(m.user_id)}
+                      >
                         Remove
                       </Button>
                     ) : (

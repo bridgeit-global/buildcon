@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { requireProjectManagerOrSuperAdmin } from '@/lib/authz';
+import { assertProjectMemberCanBeRemoved } from '@/lib/admin/project-member-pipeline-guard';
 
 type UpsertBody = {
   projectId: string;
@@ -46,6 +47,15 @@ export async function DELETE(request: Request) {
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const admin = createSupabaseAdminClient();
+  const pipelineGate = await assertProjectMemberCanBeRemoved(
+    admin,
+    body.projectId,
+    body.userId
+  );
+  if (!pipelineGate.ok) {
+    return NextResponse.json({ error: pipelineGate.error }, { status: 409 });
+  }
+
   const { error } = await admin
     .from('project_members')
     .delete()

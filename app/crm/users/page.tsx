@@ -31,6 +31,11 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import {
+  buildProjectMemberRemovalBlockSet,
+  PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE,
+  projectMemberRemovalKey
+} from '@/lib/admin/project-member-pipeline-guard';
 
 type ProfileRow = {
   id: string;
@@ -81,6 +86,9 @@ export default function UsersPage() {
   const [portalCustomerId, setPortalCustomerId] = useState('');
   const [portalBrokerId, setPortalBrokerId] = useState('');
   const [savingPortal, setSavingPortal] = useState(false);
+  const [pipelineBlockedMembers, setPipelineBlockedMembers] = useState(
+    () => new Set<string>()
+  );
 
   const inviteValidation = useFieldValidation(
     userInviteSchema,
@@ -177,6 +185,36 @@ export default function UsersPage() {
       setProfiles((staffData ?? []) as ProfileRow[]);
     } else {
       setProfiles([]);
+    }
+
+    const memberProjectIds = [
+      ...new Set((memberData ?? []).map((m) => m.project_id).filter(Boolean))
+    ];
+    if (memberProjectIds.length > 0) {
+      const { data: pipelineRows, error: pipelineErr } = await supabase
+        .from('sales_inquiries')
+        .select('project_id, assigned_to, funnel_stage, stage_data, unit_id')
+        .in('project_id', memberProjectIds)
+        .not('unit_id', 'is', null)
+        .not('assigned_to', 'is', null);
+      if (pipelineErr) {
+        pageError(pipelineErr.message);
+        setPipelineBlockedMembers(new Set());
+      } else {
+        setPipelineBlockedMembers(
+          buildProjectMemberRemovalBlockSet(
+            (pipelineRows ?? []) as Array<{
+              project_id: string;
+              assigned_to: string | null;
+              funnel_stage: string | null;
+              stage_data: unknown;
+              unit_id: string | null;
+            }>
+          )
+        );
+      }
+    } else {
+      setPipelineBlockedMembers(new Set());
     }
 
     if (!addMemberProjectId && (projData ?? [])[0]) {
@@ -626,7 +664,11 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => (
+                {members.map((m) => {
+                  const removalBlocked = pipelineBlockedMembers.has(
+                    projectMemberRemovalKey(m.project_id, m.user_id)
+                  );
+                  return (
                   <tr key={`${m.project_id}-${m.user_id}`} className="border-b">
                     <td className="max-w-[140px] truncate px-3 py-2 text-xs text-gray-600">
                       {projectNameById.get(m.project_id) ?? 'Unknown project'}
@@ -686,6 +728,12 @@ export default function UsersPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={removalBlocked}
+                          title={
+                            removalBlocked
+                              ? PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
+                              : undefined
+                          }
                           onClick={() => removeMember(m.project_id, m.user_id)}
                         >
                           Remove
@@ -695,7 +743,8 @@ export default function UsersPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {members.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
