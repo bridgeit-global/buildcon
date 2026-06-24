@@ -32,6 +32,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { UnitStatusChip } from '@/components/ui/status-chip';
 import {
   formatFloorLabel,
+  isUnitAvailableForBooking,
   statusLabelForUnit,
   STATUS_LABEL,
   UNIT_STATUS_CODES
@@ -243,13 +244,15 @@ export function InventoryListTable({
             className="flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
-              onClick={() => onEdit(row.original)}
-            >
-              Edit
-            </button>
+            {isUnitAvailableForBooking(row.original.status) ? (
+              <button
+                type="button"
+                className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
+                onClick={() => onEdit(row.original)}
+              >
+                Edit
+              </button>
+            ) : null}
             <TableViewButton onClick={() => onOpenDetail(row.original)} />
           </div>
         )
