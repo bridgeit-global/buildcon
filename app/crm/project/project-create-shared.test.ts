@@ -78,22 +78,18 @@ describe('createProjectStep1FieldsSchema', () => {
 });
 
 describe('createProjectStep3Schema', () => {
-  it('accepts non-negative rates', () => {
+  it('accepts non-negative base rate', () => {
     expect(
       createProjectStep3Schema.safeParse({
-        base_rate: 10000,
-        min_rate: 9000,
-        max_rate: 12000
+        base_rate: 10000
       }).success
     ).toBe(true);
   });
 
-  it('rejects negative rates', () => {
+  it('rejects negative base rate', () => {
     expect(
       createProjectStep3Schema.safeParse({
-        base_rate: -1,
-        min_rate: 0,
-        max_rate: 0
+        base_rate: -1
       }).success
     ).toBe(false);
   });

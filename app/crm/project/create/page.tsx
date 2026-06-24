@@ -193,8 +193,8 @@ export default function CreateProjectPage() {
             floors_per_wing: metaFloors,
             units_per_floor: metaUnits,
             base_rate: Number(draft.base_rate || 0) || null,
-            min_rate: Number(draft.min_rate || 0) || null,
-            max_rate: Number(draft.max_rate || 0) || null,
+            min_rate: null,
+            max_rate: null,
             parking_slots:
               parkingSlotsTotal > 0 ? parkingSlotsTotal : null,
             parking_rate:
@@ -334,11 +334,9 @@ export default function CreateProjectPage() {
   );
   const step3Values = useMemo(
     () => ({
-      base_rate: draft.base_rate,
-      min_rate: draft.min_rate,
-      max_rate: draft.max_rate
+      base_rate: draft.base_rate
     }),
-    [draft.base_rate, draft.min_rate, draft.max_rate]
+    [draft.base_rate]
   );
 
   const step0Schema = useMemo(
@@ -631,36 +629,6 @@ export default function CreateProjectPage() {
                 onBlur={() => step3Validation.touch('base_rate')}
                 error={step3Validation.fieldError('base_rate')}
               />
-              <TextInputField
-                label="Min rate"
-                type="number"
-                min={0}
-                value={String(draft.min_rate)}
-                onChange={(e) => {
-                  setDraft((d) => ({
-                    ...d,
-                    min_rate: Number(e.target.value) || 0
-                  }));
-                  step3Validation.touch('min_rate');
-                }}
-                onBlur={() => step3Validation.touch('min_rate')}
-                error={step3Validation.fieldError('min_rate')}
-              />
-              <TextInputField
-                label="Max rate"
-                type="number"
-                min={0}
-                value={String(draft.max_rate)}
-                onChange={(e) => {
-                  setDraft((d) => ({
-                    ...d,
-                    max_rate: Number(e.target.value) || 0
-                  }));
-                  step3Validation.touch('max_rate');
-                }}
-                onBlur={() => step3Validation.touch('max_rate')}
-                error={step3Validation.fieldError('max_rate')}
-              />
             </div>
           ) : null}
 
@@ -803,10 +771,7 @@ export default function CreateProjectPage() {
                     'Floor provision rows',
                     String(draft.floorProvisions.length)
                   ],
-                  [
-                    'Rates (base / min / max)',
-                    `${draft.base_rate} / ${draft.min_rate} / ${draft.max_rate}`
-                  ],
+                  ['Base rate (₹/sq.ft)', String(draft.base_rate)],
                   ['Unit types', mergedUnitTypes.join(', ') || '—'],
                   ['Members', `${draft.memberIds.length} selected`]
                 ].map(([k, v]) => (

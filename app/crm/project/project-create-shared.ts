@@ -32,8 +32,6 @@ export type CreateProjectDraft = {
   floors_per_wing: number;
   units_per_floor: number;
   base_rate: number;
-  min_rate: number;
-  max_rate: number;
   unitTypesCsv: string;
   memberIds: string[];
   structures: StructureNode[];
@@ -95,9 +93,7 @@ export const createProjectStep1FieldsSchema = z.object({
 });
 
 export const createProjectStep3Schema = z.object({
-  base_rate: z.number().min(0, 'Rate cannot be negative.'),
-  min_rate: z.number().min(0, 'Rate cannot be negative.'),
-  max_rate: z.number().min(0, 'Rate cannot be negative.')
+  base_rate: z.number().min(0, 'Rate cannot be negative.')
 });
 
 export type CreateProjectStep0Values = z.infer<typeof createProjectStep0Schema>;
@@ -219,8 +215,8 @@ export function validateCreateStep(
     return validateFloorUnitTypesAssigned(draft);
   }
   if (step === 3) {
-    if (draft.base_rate < 0 || draft.min_rate < 0 || draft.max_rate < 0) {
-      return 'Rates cannot be negative.';
+    if (draft.base_rate < 0) {
+      return 'Rate cannot be negative.';
     }
     return null;
   }
@@ -238,8 +234,6 @@ export function createInitialDraft(): CreateProjectDraft {
     floors_per_wing: 7,
     units_per_floor: 4,
     base_rate: 10500,
-    min_rate: 9500,
-    max_rate: 13000,
     unitTypesCsv: '1BHK,2BHK,3BHK',
     memberIds: [],
     structures: defaultRootStructures(7, 4),
