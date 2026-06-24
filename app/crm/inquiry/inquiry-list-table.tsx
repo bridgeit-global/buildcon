@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
-import { cn } from '@/lib/utils';
+import { funnelStageTone, StatusChip } from '@/components/ui/status-chip';
 import {
   INQUIRY_CLOSED_FUNNEL_STAGE,
   INQUIRY_LIST_FUNNEL_STAGES
@@ -293,24 +293,9 @@ export function InquiryListTable({
             ? INQUIRY_CLOSED_FUNNEL_STAGE
             : String(row.original.funnel_stage || '').trim() || '—';
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                stageOnly === INQUIRY_CLOSED_FUNNEL_STAGE
-                  ? 'border-ds-gray-300 bg-ds-gray-100 text-ds-gray-800'
-                  : stageOnly === 'Enquiry' || !stageOnly || stageOnly === '—'
-                    ? 'border-red-200 bg-red-50 text-red-800'
-                    : stageOnly === 'Qualified'
-                      ? 'border-teal-200 bg-teal-50 text-teal-900'
-                      : stageOnly === 'Site Visit'
-                        ? 'border-green-200 bg-green-50 text-green-900'
-                        : stageOnly === 'Token'
-                          ? 'border-teal-300 bg-teal-100 text-teal-950'
-                          : 'border-slate-200 bg-slate-50 text-slate-800'
-              )}
-            >
+            <StatusChip tone={funnelStageTone(stageOnly)} uppercase>
               {label}
-            </span>
+            </StatusChip>
           );
         }
       },

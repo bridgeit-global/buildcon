@@ -58,6 +58,7 @@ import {
   parseCsvRows
 } from '@/lib/inventory/inventory-csv';
 
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import { InventoryListTable, type UnitRow } from './inventory-list-table';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { resolveSortFromState } from '@/lib/crm/list-sort';
@@ -111,32 +112,6 @@ function tabCardClass() {
 
 const filterLabelClass = 'text-xs text-ds-gray-500';
 const filterSelectClass = 'mt-1 w-full min-w-[10rem]';
-
-function StatusBadge({
-  code,
-  className
-}: {
-  code: string;
-  className?: string;
-}) {
-  const bg = STATUS_COLOR[code] ?? '#94A3B8';
-  const label = statusLabelForUnit(code);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold',
-        className
-      )}
-      style={{
-        background: `${bg}22`,
-        color: bg,
-        borderColor: `${bg}44`
-      }}
-    >
-      {label}
-    </span>
-  );
-}
 
 function UnitDetailDialog({
   unit,
@@ -234,7 +209,7 @@ function UnitDetailDialog({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <StatusBadge code={unit.status} className="text-[10px] px-2.5" />
+              <UnitStatusChip status={unit.status} size="sm" className="px-2.5" />
               <button
                 type="button"
                 aria-label="Close"

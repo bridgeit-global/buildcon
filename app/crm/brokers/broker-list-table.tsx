@@ -12,6 +12,7 @@ import {
   type OnChangeFn,
   type SortingState
 } from '@tanstack/react-table';
+import { brokerStatusTone, StatusChip } from '@/components/ui/status-chip';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type BrokerTableRow = {
@@ -78,15 +79,9 @@ export function BrokerListTable({
         header: 'Status',
         accessorKey: 'status',
         cell: ({ row }) => (
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-              row.original.status === 'Active'
-                ? 'border border-ds-success-200 bg-ds-success-50 text-ds-success-800'
-                : 'border border-ds-gray-200 bg-ds-gray-100 text-ds-gray-600'
-            }`}
-          >
+          <StatusChip tone={brokerStatusTone(row.original.status)} size="md">
             {row.original.status}
-          </span>
+          </StatusChip>
         )
       },
       {

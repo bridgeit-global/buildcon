@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { approvalStatusTone, StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
@@ -124,21 +125,6 @@ const statusFilter: FilterFn<ApprovalRow> = (row, columnId, raw) => {
   if (!v || v === STATUS_FILTER_ALL) return true;
   return String(row.getValue(columnId) ?? '') === v;
 };
-
-function statusPillClass(status: ApprovalStatus) {
-  switch (status) {
-    case 'Pending':
-      return 'border-amber-200 bg-amber-50 text-amber-800';
-    case 'Approved':
-      return 'border-teal-200 bg-teal-50 text-teal-900';
-    case 'Rejected':
-      return 'border-red-200 bg-red-50 text-red-800';
-    case 'Cancelled':
-      return 'border-slate-200 bg-slate-50 text-slate-700';
-    default:
-      return 'border-slate-200 bg-slate-50 text-slate-700';
-  }
-}
 
 function fmtInr(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return '—';
@@ -454,14 +440,9 @@ export default function ApprovalsPage() {
         cell: ({ getValue }) => {
           const status = getValue() as ApprovalStatus;
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                statusPillClass(status)
-              )}
-            >
+            <StatusChip tone={approvalStatusTone(status)} uppercase>
               {status}
-            </span>
+            </StatusChip>
           );
         }
       },
@@ -569,9 +550,9 @@ export default function ApprovalsPage() {
                 {loading ? 'Loading…' : `${rows.length} loaded`}
               </span>
               {pendingCount > 0 ? (
-                <span className="ml-2 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                <StatusChip tone="warning" uppercase className="ml-2">
                   {pendingCount} pending
-                </span>
+                </StatusChip>
               ) : null}
             </div>
           </div>

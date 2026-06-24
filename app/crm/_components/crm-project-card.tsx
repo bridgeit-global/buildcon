@@ -1,5 +1,6 @@
 'use client';
 
+import { projectStatusTone, StatusChip } from '@/components/ui/status-chip';
 import type { CrmProjectListItem } from './types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -13,22 +14,8 @@ const PROJECT_TYPE_ACCENT: Record<string, string> = {
   Ready: '#0F766E'
 };
 
-const STATUS_BADGE: Record<
-  string,
-  { bg: string; text: string }
-> = {
-  Active: { bg: '#DCFCE7', text: '#16A34A' },
-  Planning: { bg: '#FEF3C7', text: '#92400E' },
-  'On Hold': { bg: '#F1F5F9', text: '#64748B' },
-  Inactive: { bg: '#F1F5F9', text: '#64748B' }
-};
-
 function accentForType(type: string) {
   return PROJECT_TYPE_ACCENT[type] ?? '#64748B';
-}
-
-function badgeForStatus(status: string) {
-  return STATUS_BADGE[status] ?? { bg: '#F1F5F9', text: '#64748B' };
 }
 
 export type CrmProjectCardProps = {
@@ -49,10 +36,6 @@ export function CrmProjectCard({
   onSettings
 }: CrmProjectCardProps) {
   const typeColor = accentForType(p.type);
-  const [sc, tc] = (() => {
-    const b = badgeForStatus(p.status);
-    return [b.bg, b.text] as const;
-  })();
 
   return (
     <div
@@ -80,12 +63,9 @@ export function CrmProjectCard({
           🏗
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          <span
-            className="px-2 py-0.5 text-[9px] font-bold"
-            style={{ backgroundColor: sc, color: tc }}
-          >
+          <StatusChip tone={projectStatusTone(p.status)} size="xs">
             {p.status}
-          </span>
+          </StatusChip>
           <Button
             type="button"
             size="sm"

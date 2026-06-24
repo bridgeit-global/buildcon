@@ -26,9 +26,9 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { formatInrCompactLacCr } from '../inr-format';
-import { STATUS_COLOR, STATUS_LABEL } from '../inventory/unit-status';
 
 export type FinancialBookingRow = {
   id: string;
@@ -120,16 +120,7 @@ export function FinancialsListTable({
         cell: ({ row }) => {
           const code = String(row.original.unit_status ?? '').toUpperCase();
           if (!code) return <span className="text-ds-gray-400">—</span>;
-          const label = STATUS_LABEL[code] ?? code;
-          const color = STATUS_COLOR[code] ?? '#64748B';
-          return (
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-              style={{ backgroundColor: `${color}1a`, color }}
-            >
-              {label}
-            </span>
-          );
+          return <UnitStatusChip status={code} size="md" />;
         }
       },
       {

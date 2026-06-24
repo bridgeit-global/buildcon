@@ -23,11 +23,8 @@ import {
   type BookingLedgerCollectionInput,
   type BookingLedgerScheduleInput
 } from '@/app/crm/financials/booking-ledger-table';
-import {
-  STATUS_COLOR,
-  STATUS_LABEL,
-  statusLabelForUnit
-} from '@/app/crm/inventory/unit-status';
+import { notificationStatusColor, StatusChip, UnitStatusChip } from '@/components/ui/status-chip';
+import { statusLabelForUnit } from '@/app/crm/inventory/unit-status';
 import { formatInr } from '@/app/crm/inr-format';
 import BackButton from '@/components/buttons/back-button';
 
@@ -239,10 +236,6 @@ export default function UnitDetailPage() {
   );
   const outstanding = Math.max(0, totalDemand - totalReceived);
 
-  const status = String(unit?.status ?? '').toUpperCase();
-  const statusColor = STATUS_COLOR[status] ?? '#64748B';
-  const statusLabel = STATUS_LABEL[status] ?? statusLabelForUnit(unit?.status);
-
   return (
     <div className="space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -251,12 +244,7 @@ export default function UnitDetailPage() {
           <h1 className="text-xl font-semibold text-ds-gray-900">
             {unit?.unit_code ?? 'Unit'}
           </h1>
-          <span
-            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-            style={{ backgroundColor: `${statusColor}1a`, color: statusColor }}
-          >
-            {statusLabel}
-          </span>
+          <UnitStatusChip status={unit?.status} size="md" />
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => void load()}>
           <RefreshCw className="h-4 w-4" />
@@ -373,7 +361,7 @@ export default function UnitDetailPage() {
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <li>
                 <span className="text-ds-gray-500">Current status:</span>{' '}
-                <span className="font-medium">{statusLabel}</span>
+                <span className="font-medium">{statusLabelForUnit(unit?.status)}</span>
               </li>
               <li>
                 <span className="text-ds-gray-500">Active booking:</span>{' '}
@@ -483,7 +471,9 @@ function NotificationsList({
               <td className="px-3 py-2 capitalize">{r.channel}</td>
               <td className="px-3 py-2 text-xs text-ds-gray-700">{r.recipient ?? '—'}</td>
               <td className="px-3 py-2">
-                <StatusBadge status={r.status} />
+                <StatusChip color={notificationStatusColor(r.status)} size="md">
+                  {r.status}
+                </StatusChip>
               </td>
               <td className="px-3 py-2 text-xs text-ds-gray-700">{r.template_name ?? '—'}</td>
               <td className="px-3 py-2 text-xs text-ds-error-700">{r.error ?? '—'}</td>
@@ -492,24 +482,5 @@ function NotificationsList({
         </tbody>
       </table>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: OutboundNotificationRow['status'] }) {
-  const color =
-    status === 'sent' || status === 'delivered' || status === 'read'
-      ? '#0d9488'
-      : status === 'failed'
-        ? '#dc2626'
-        : status === 'skipped'
-          ? '#64748b'
-          : '#f97316';
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-      style={{ backgroundColor: `${color}1a`, color }}
-    >
-      {status}
-    </span>
   );
 }

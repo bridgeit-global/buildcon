@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { bookingWorkflowTone, StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import {
   BOOKING_WORKFLOW_LABEL,
@@ -175,18 +176,12 @@ export function BookingListTable({
           const label = BOOKING_WORKFLOW_LABEL[ws] ?? ws;
           const cancelled = row.original.status === 'cancelled';
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
-                cancelled
-                  ? 'bg-ds-error-50 text-ds-error-700'
-                  : ws === 'confirmation'
-                    ? 'bg-ds-primary-50 text-ds-primary-700'
-                    : 'bg-ds-gray-100 text-ds-gray-700'
-              )}
+            <StatusChip
+              tone={bookingWorkflowTone(ws, cancelled)}
+              size="md"
             >
               {cancelled ? 'Cancelled' : label}
-            </span>
+            </StatusChip>
           );
         }
       },

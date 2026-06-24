@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { possessionUnitStatusTone, StatusChip } from '@/components/ui/status-chip';
 import {
   countChecklistDone,
   POSSESSION_WORKFLOW_LABELS,
@@ -124,21 +124,14 @@ export function PossessionListTable({
         id: 'unitStatus',
         header: 'Unit status',
         accessorFn: (row) => statusLabelForUnit(row.unitStatus),
-        cell: ({ row }) => {
-          const s = normalizeUnitStatusCode(row.original.unitStatus);
-          return (
-            <span
-              className={cn(
-                'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold',
-                s === 'POSSESSED'
-                  ? 'bg-ds-primary-100 text-ds-primary-700'
-                  : 'bg-teal-50 text-teal-800'
-              )}
-            >
-              {statusLabelForUnit(row.original.unitStatus)}
-            </span>
-          );
-        }
+        cell: ({ row }) => (
+          <StatusChip
+            tone={possessionUnitStatusTone(row.original.unitStatus)}
+            size="md"
+          >
+            {statusLabelForUnit(row.original.unitStatus)}
+          </StatusChip>
+        )
       },
       {
         id: 'progress',

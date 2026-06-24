@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { projectStatusTone, StatusChip } from '@/components/ui/status-chip';
 
 const globalProjectFilter: FilterFn<CrmProjectListItem> = (row, _columnId, raw) => {
   const q = String(raw ?? '')
@@ -43,12 +43,6 @@ const globalProjectFilter: FilterFn<CrmProjectListItem> = (row, _columnId, raw) 
     `${p.name} ${p.location ?? ''} ${p.type} ${p.status} ${p.fy ?? ''} ${p.rera_no ?? ''}`.toLowerCase();
   return hay.includes(q);
 };
-
-function statusBadgeClass(status: string) {
-  if (status === 'Active') return 'bg-ds-success-25 text-ds-success-700';
-  if (status === 'Planning') return 'bg-ds-warning-25 text-ds-warning-700';
-  return 'bg-ds-gray-100 text-ds-gray-600';
-}
 
 type ProjectListTableProps = ServerSortedTableProps & {
   projects: CrmProjectListItem[];
@@ -101,14 +95,9 @@ export function ProjectListTable({
         cell: ({ getValue }) => {
           const status = String(getValue() ?? '—');
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
-                statusBadgeClass(status)
-              )}
-            >
+            <StatusChip tone={projectStatusTone(status)} size="md">
               {status}
-            </span>
+            </StatusChip>
           );
         }
       },

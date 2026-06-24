@@ -29,11 +29,10 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { cn } from '@/lib/utils';
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import {
   formatFloorLabel,
   statusLabelForUnit,
-  STATUS_COLOR,
   STATUS_LABEL,
   UNIT_STATUS_CODES
 } from './inventory-utils';
@@ -62,32 +61,6 @@ export type UnitRow = {
   blocked_reason: string | null;
   blocked_on: string | null;
 };
-
-function StatusBadge({
-  code,
-  className
-}: {
-  code: string;
-  className?: string;
-}) {
-  const bg = STATUS_COLOR[code] ?? '#94A3B8';
-  const label = statusLabelForUnit(code);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold',
-        className
-      )}
-      style={{
-        background: `${bg}22`,
-        color: bg,
-        borderColor: `${bg}44`
-      }}
-    >
-      {label}
-    </span>
-  );
-}
 
 const globalUnitFilter: FilterFn<UnitRow> = (row, _columnId, value) => {
   const q = String(value ?? '')
@@ -256,7 +229,7 @@ export function InventoryListTable({
         accessorKey: 'status',
         filterFn: exactOrAll,
         enableGlobalFilter: false,
-        cell: ({ row }) => <StatusBadge code={row.original.status} />
+        cell: ({ row }) => <UnitStatusChip status={row.original.status} />
       },
       {
         id: 'actions',
