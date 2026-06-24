@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError, toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
@@ -82,6 +84,11 @@ export function CollectionManageDialog({
   onSaved
 }: Props) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const { sorting, onSortingChange } = useServerListSorting([
+    { id: 'amount', desc: true }
+  ]);
+  const [listedCollections, setListedCollections] = useState<CollectionsListRow[]>(collections);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
 
   const [entryScheduleId, setEntryScheduleId] = useState('');
   const [entryAmount, setEntryAmount] = useState('');
@@ -115,6 +122,53 @@ export function CollectionManageDialog({
   function touchCollectionField(field: keyof CollectionEntryValues) {
     setCollectionTouched((t) => ({ ...t, [field]: true }));
   }
+
+  const loadCollections = useCallback(async () => {
+    if (!bookingId) {
+      setListedCollections([]);
+      return;
+    }
+    setCollectionsLoading(true);
+    const COLLECTION_DB_SORT: Record<string, string> = {
+      amount: 'received_amount'
+    };
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      COLLECTION_DB_SORT,
+      'received_at',
+      false
+    );
+    const { data, error } = await supabase
+      .from('collections')
+      .select('id,schedule_id,received_amount,received_at,mode,reference,created_at')
+      .eq('booking_id', bookingId)
+      .order(column, { ascending });
+    if (error) {
+      pageError(error.message);
+      setListedCollections([]);
+    } else {
+      let rows = (data ?? []) as CollectionsListRow[];
+      if (first && (first.id === 'milestone' || first.id === 'modeRef')) {
+        rows = sortRowsByState(rows, sorting, (row, colId) => {
+          if (colId === 'milestone') {
+            if (!row.schedule_id) return 'Unassigned';
+            return scheduleLabelById.get(row.schedule_id) ?? '';
+          }
+          if (colId === 'modeRef') {
+            return `${row.mode ?? ''} ${row.reference ?? ''}`.trim();
+          }
+          return null;
+        });
+      }
+      setListedCollections(rows);
+    }
+    setCollectionsLoading(false);
+  }, [bookingId, scheduleLabelById, sorting, supabase]);
+
+  useEffect(() => {
+    if (open) void loadCollections();
+  }, [loadCollections, open]);
 
   const instalmentSelectOptions = useMemo(
     () => [
@@ -216,6 +270,7 @@ export function CollectionManageDialog({
       }
       resetForm(entryScheduleId || null);
       await onSaved();
+      await loadCollections();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save collection');
     } finally {
@@ -277,6 +332,7 @@ export function CollectionManageDialog({
       if (error) throw error;
       toast.success('Collection entry deleted.');
       await onSaved();
+      await loadCollections();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Delete failed');
     } finally {
@@ -415,6 +471,21 @@ export function CollectionManageDialog({
               </div>
             </div>
 
+            <div className="mt-6 border-t border-ds-gray-100 pt-4">
+              <div className="text-xs font-semibold text-ds-gray-500">Saved collections</div>
+              <div className="mt-2">
+                <CollectionsListTable
+                  rows={listedCollections}
+                  scheduleLabelById={scheduleLabelById}
+                  loading={collectionsLoading || loading}
+                  busy={saving}
+                  onDelete={deleteCollection}
+                  onGenerateReceipt={generateReceiptForCollection}
+                  sorting={sorting}
+                  onSortingChange={onSortingChange}
+                />
+              </div>
+            </div>
 
           </div>
 

@@ -20,6 +20,8 @@ import {
   WorkOverdueTable,
   type WorkOverdueRow
 } from './work-overdue-table';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 
 type WorkTab = 'followups' | 'visits' | 'overdue';
 
@@ -47,6 +49,12 @@ export default function WorkQueuePage() {
   const [visitRows, setVisitRows] = useState<WorkVisitRow[]>([]);
   const [overdueRows, setOverdueRows] = useState<WorkOverdueRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const { sorting: followSorting, onSortingChange: onFollowSortingChange } =
+    useServerListSorting([{ id: 'dueAt', desc: false }]);
+  const { sorting: visitSorting, onSortingChange: onVisitSortingChange } =
+    useServerListSorting([{ id: 'scheduledAt', desc: false }]);
+  const { sorting: overdueSorting, onSortingChange: onOverdueSortingChange } =
+    useServerListSorting([{ id: 'due_date', desc: false }]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -173,27 +181,64 @@ export default function WorkQueuePage() {
         (a, b) =>
           new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
       );
-      setFollowRows(follows);
-      setVisitRows(visits);
+      setFollowRows(
+        sortRowsByState(follows, followSorting, (row, colId) => {
+          if (colId === 'dueAt') return row.dueAt;
+          if (colId === 'projectName') return row.projectName;
+          if (colId === 'customerName') return row.customerName;
+          if (colId === 'stage') return row.funnelStage;
+          if (colId === 'assignee') return row.assignedToMe ? 'you' : row.assignedTo ?? '';
+          if (colId === 'note') return row.note ?? '';
+          return null;
+        })
+      );
+      setVisitRows(
+        sortRowsByState(visits, visitSorting, (row, colId) => {
+          if (colId === 'scheduledAt') return row.scheduledAt;
+          if (colId === 'projectName') return row.projectName;
+          if (colId === 'customerName') return row.customerName;
+          if (colId === 'status') return row.status;
+          return null;
+        })
+      );
 
+      const OVERDUE_DB_SORT: Record<string, string> = {
+        due_date: 'due_date',
+        instalment_no: 'instalment_no',
+        outstanding_amount: 'outstanding_amount',
+        booking_id: 'booking_id'
+      };
+      const { column, ascending } = resolveSortFromState(
+        overdueSorting,
+        OVERDUE_DB_SORT,
+        'due_date',
+        true
+      );
       const { data: ovd, error: ovErr } = await supabase
         .from('v_payment_schedule_outstanding')
         .select(
           'booking_id,schedule_id,instalment_no,milestone,due_date,demand_amount,outstanding_amount,customer_id,project_id'
         )
         .eq('is_overdue', true)
-        .order('due_date', { ascending: true })
+        .order(column, { ascending })
         .limit(200);
       if (ovErr) throw ovErr;
-      setOverdueRows(
-        (ovd ?? []).map((r) => {
-          const row = r as WorkOverdueRow & { project_id: string };
-          return {
-            ...row,
-            projectName: projectNameById.get(row.project_id) ?? '—'
-          };
-        })
-      );
+      let overdue = (ovd ?? []).map((r) => {
+        const row = r as WorkOverdueRow & { project_id: string };
+        return {
+          ...row,
+          projectName: projectNameById.get(row.project_id) ?? '—'
+        };
+      });
+      const overdueFirst = overdueSorting[0];
+      if (overdueFirst && (overdueFirst.id === 'projectName' || overdueFirst.id === 'milestone')) {
+        overdue = sortRowsByState(overdue, overdueSorting, (row, colId) => {
+          if (colId === 'projectName') return row.projectName;
+          if (colId === 'milestone') return row.milestone;
+          return null;
+        });
+      }
+      setOverdueRows(overdue);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to load work queue');
       setFollowRows([]);
@@ -202,7 +247,7 @@ export default function WorkQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, projectNameById]);
+  }, [followSorting, overdueSorting, projectNameById, supabase, visitSorting]);
 
   useEffect(() => {
     void load();
@@ -258,7 +303,12 @@ export default function WorkQueuePage() {
             site). Rows highlighted when assigned to you and due today or overdue.
           </div>
           <div className="p-4">
-            <WorkFollowupsTable rows={followRows} loading={loading} />
+            <WorkFollowupsTable
+              rows={followRows}
+              loading={loading}
+              sorting={followSorting}
+              onSortingChange={onFollowSortingChange}
+            />
           </div>
         </Card>
       ) : null}
@@ -269,7 +319,12 @@ export default function WorkQueuePage() {
             Scheduled site visits from today onward
           </div>
           <div className="p-4">
-            <WorkVisitsTable rows={visitRows} loading={loading} />
+            <WorkVisitsTable
+              rows={visitRows}
+              loading={loading}
+              sorting={visitSorting}
+              onSortingChange={onVisitSortingChange}
+            />
           </div>
         </Card>
       ) : null}
@@ -288,7 +343,12 @@ export default function WorkQueuePage() {
             </Link>
           </div>
           <div className="p-4">
-            <WorkOverdueTable rows={overdueRows} loading={loading} />
+            <WorkOverdueTable
+              rows={overdueRows}
+              loading={loading}
+              sorting={overdueSorting}
+              onSortingChange={onOverdueSortingChange}
+            />
           </div>
         </Card>
       ) : null}

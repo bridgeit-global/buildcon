@@ -4,7 +4,7 @@ import { requireSuperAdmin } from '@/lib/authz';
 
 type InviteUserBody = {
   email: string;
-  name?: string | null;
+  name: string;
   profileRole:
     | 'Super Admin'
     | 'Sales Manager'
@@ -22,6 +22,9 @@ export async function POST(request: Request) {
   const body = (await request.json()) as InviteUserBody;
   const email = String(body.email || '').trim().toLowerCase();
   if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+
+  const name = String(body.name ?? '').trim();
+  if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
   const admin = createSupabaseAdminClient();
 
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
   const { error: profErr } = await admin.from('profiles').upsert(
     {
       id: invitedUserId,
-      name: body.name ?? null,
+      name,
       role: body.profileRole
     },
     { onConflict: 'id' }

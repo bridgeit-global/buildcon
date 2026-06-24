@@ -31,6 +31,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { isIsoDateNotAfterToday, todayIsoDate } from '@/lib/date-input-value';
 import {
   BOOKING_WORKFLOW_LABEL,
   BOOKING_WORKFLOW_STAGES,
@@ -74,7 +75,7 @@ import { EmailInputField } from '@/components/ui/email-input-field';
 import {
   bookingAllotmentSchema,
   bookingCancelSchema,
-  bookingTokenStageSchema,
+  createBookingTokenStageSchema,
   parseBookingBuyerAadhaarInlineError,
   parseBookingBuyerKycFieldErrors,
   parseBookingBuyerPanInlineError
@@ -94,6 +95,9 @@ import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { isUnitPossessedStatus } from '@/app/crm/inventory/unit-status';
 import BackButton from '@/components/buttons/back-button';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
+import { BOOKING_PAYMENT_MODE_OPTIONS } from '@/lib/booking/booking-payment';
 
 const KYC_BUCKET = 'kyc';
 function unwrapJoin<T>(x: T | T[] | null): T | null {
@@ -204,6 +208,14 @@ export default function BookingDetailPage() {
   );
   const [confirmationDocsLoading, setConfirmationDocsLoading] = useState(false);
   const [confirmationGenerated, setConfirmationGenerated] = useState<GeneratedDocRow[]>([]);
+  const {
+    sorting: confirmationGeneratedSorting,
+    onSortingChange: onConfirmationGeneratedSortingChange
+  } = useServerListSorting([{ id: 'generated_at', desc: true }]);
+  const {
+    sorting: confirmationMatrixSorting,
+    onSortingChange: onConfirmationMatrixSortingChange
+  } = useServerListSorting();
   const [generatingDocKind, setGeneratingDocKind] = useState<BookingDocumentPrintKind | null>(null);
   const [confirmationDocsLoadingGenerated, setConfirmationDocsLoadingGenerated] =
     useState(false);
@@ -469,11 +481,21 @@ export default function BookingDetailPage() {
   const refreshConfirmationGenerated = useCallback(async () => {
     if (!bookingId) return;
     setConfirmationDocsLoadingGenerated(true);
+    const GENERATED_SORT: Record<string, string> = {
+      generated_at: 'generated_at',
+      storage_path: 'storage_path'
+    };
+    const { column, ascending } = resolveSortFromState(
+      confirmationGeneratedSorting,
+      GENERATED_SORT,
+      'generated_at',
+      false
+    );
     const { data, error: gErr } = await supabase
       .from('generated_documents')
       .select(GENERATED_DOCUMENTS_LIST_SELECT)
       .eq('booking_id', bookingId)
-      .order('generated_at', { ascending: false })
+      .order(column, { ascending })
       .limit(200);
     if (gErr) {
       pageError(gErr.message);
@@ -481,7 +503,7 @@ export default function BookingDetailPage() {
       setConfirmationGenerated((data ?? []) as GeneratedDocRow[]);
     }
     setConfirmationDocsLoadingGenerated(false);
-  }, [bookingId, supabase]);
+  }, [bookingId, confirmationGeneratedSorting, supabase]);
 
   useEffect(() => {
     if (!bookingId || workflowStage !== 'confirmation' || cancelled) {
@@ -493,13 +515,19 @@ export default function BookingDetailPage() {
     let ignore = false;
     (async () => {
       setConfirmationDocsLoading(true);
+      const { column, ascending } = resolveSortFromState(
+        confirmationGeneratedSorting,
+        { generated_at: 'generated_at', storage_path: 'storage_path' },
+        'generated_at',
+        false
+      );
       const [packRes, genRes] = await Promise.all([
         loadBookingPrintPack(supabase, bookingId),
         supabase
           .from('generated_documents')
           .select(GENERATED_DOCUMENTS_LIST_SELECT)
           .eq('booking_id', bookingId)
-          .order('generated_at', { ascending: false })
+          .order(column, { ascending })
           .limit(200)
       ]);
       if (ignore) return;
@@ -512,7 +540,7 @@ export default function BookingDetailPage() {
     return () => {
       ignore = true;
     };
-  }, [bookingId, workflowStage, cancelled, supabase]);
+  }, [bookingId, workflowStage, cancelled, confirmationGeneratedSorting, supabase]);
 
   useEffect(() => {
     if (!bookingId || workflowStage !== 'application' || cancelled) {
@@ -563,10 +591,14 @@ export default function BookingDetailPage() {
     return m;
   }, [paymentSchedules, bookingCollections]);
 
-  const confirmationMatrixRows = useMemo(
-    () => buildMatrixRows(confirmationGenerated),
-    [confirmationGenerated]
-  );
+  const confirmationMatrixRows = useMemo(() => {
+    const built = buildMatrixRows(confirmationGenerated);
+    return sortRowsByState(built, confirmationMatrixSorting, (row, colId) => {
+      if (colId === 'document') return row.label;
+      if (colId === 'status') return row.latest?.generated_at ?? '';
+      return null;
+    });
+  }, [confirmationGenerated, confirmationMatrixSorting]);
 
   const outstandingTotal = useMemo(() => {
     if (paymentSchedules.length === 0) return null;
@@ -812,6 +844,19 @@ export default function BookingDetailPage() {
 
   async function saveStagePatch(patch: Record<string, unknown>) {
     if (!booking || cancelled) return;
+    if (workflowStage === 'token') {
+      const tokenParsed = createBookingTokenStageSchema({
+        loanBank: booking.loan_bank
+      }).safeParse({
+        amount: String(patch.amount ?? ''),
+        date: String(patch.date ?? ''),
+        mode: String(patch.mode ?? '')
+      });
+      if (!tokenParsed.success) {
+        pageError(tokenParsed.error.issues[0]?.message ?? 'Complete token details.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/crm/bookings/${booking.id}/stage`, {
@@ -857,7 +902,9 @@ export default function BookingDetailPage() {
     if (!booking || cancelled) return;
     const patch = stagePatchForAdvance();
     if (workflowStage === 'token') {
-      const tokenParsed = bookingTokenStageSchema.safeParse({
+      const tokenParsed = createBookingTokenStageSchema({
+        loanBank: booking.loan_bank
+      }).safeParse({
         amount: String(patch.amount ?? ''),
         date: String(patch.date ?? ''),
         mode: String(patch.mode ?? '')
@@ -1052,6 +1099,8 @@ export default function BookingDetailPage() {
     if (!b.guardian_name?.trim())
       errors.guardian_name = "Father's/Mother's/Spouse's name is required.";
     if (!b.dob) errors.dob = 'Date of birth is required.';
+    else if (!isIsoDateNotAfterToday(b.dob))
+      errors.dob = 'Date of birth cannot be in the future.';
     if (!b.pan.trim()) errors.pan = 'PAN is required.';
     if (!b.aadhaarLast4.trim()) errors.aadhaar = 'Aadhaar number is required.';
     if (!b.nationality?.trim()) errors.nationality = 'Nationality is required.';
@@ -1419,15 +1468,26 @@ export default function BookingDetailPage() {
                     />
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Payment mode</Label>
-                      <Input
+                      <Select
                         value={stageData.token?.mode ?? booking.payment_mode ?? ''}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setStageData((d) => ({
                             ...d,
-                            token: { ...d.token, mode: e.target.value }
+                            token: { ...d.token, mode: v }
                           }))
                         }
-                      />
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select payment mode…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BOOKING_PAYMENT_MODE_OPTIONS.map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <Button
@@ -1526,6 +1586,7 @@ export default function BookingDetailPage() {
                           label="Date of Birth"
                           required
                           type="date"
+                          max={todayIsoDate()}
                           value={b.dob ?? ''}
                           onChange={(e) =>
                             setBuyerKyc((rows) =>
@@ -2153,6 +2214,8 @@ export default function BookingDetailPage() {
                         scheduleLabelById={scheduleLabelById}
                         outstandingTotal={outstandingTotal}
                         unitPossessed={unitPossessed}
+                        sorting={confirmationMatrixSorting}
+                        onSortingChange={onConfirmationMatrixSortingChange}
                       />
                     ) : (
                       <p className="text-sm text-ds-warning-800">
@@ -2182,6 +2245,8 @@ export default function BookingDetailPage() {
                         onNotify={(_bId, docId) => handleConfirmationDocNotify(docId)}
                         scheduleLabelById={scheduleLabelById}
                         onRefresh={() => void refreshConfirmationGenerated()}
+                        sorting={confirmationGeneratedSorting}
+                        onSortingChange={onConfirmationGeneratedSortingChange}
                       />
                     </div>
                   </div>

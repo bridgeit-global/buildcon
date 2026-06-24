@@ -85,6 +85,9 @@ create table if not exists public.projects (
   created_at timestamptz not null default now()
 );
 
+create unique index if not exists projects_name_normalized_unique
+  on public.projects (lower(btrim(name)));
+
 create table if not exists public.project_members (
   project_id uuid not null references public.projects (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,

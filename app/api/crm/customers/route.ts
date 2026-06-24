@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildIlikeOrFilter } from '@/lib/crm/list-search';
+import { resolveDbSort } from '@/lib/crm/list-sort';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz';
 
 const CUSTOMER_SELECT =
   'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
+
+const SORTABLE_COLUMNS: Record<string, string> = {
+  full_name: 'full_name',
+  phone: 'phone',
+  email: 'email',
+  created_at: 'created_at'
+};
 
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 50;
@@ -20,10 +29,6 @@ function parseOffset(raw: string | null): number {
   return n;
 }
 
-function escapeIlike(term: string): string {
-  return term.replace(/[%_\\]/g, '\\$&');
-}
-
 export async function GET(request: NextRequest) {
   const gate = await requireUser();
   if (!gate.ok) {
@@ -34,20 +39,24 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(searchParams.get('limit'));
   const offset = parseOffset(searchParams.get('offset'));
   const q = (searchParams.get('q') || '').trim();
+  const { column, ascending } = resolveDbSort(
+    searchParams.get('sort'),
+    searchParams.get('sortDir'),
+    SORTABLE_COLUMNS,
+    'created_at',
+    false
+  );
 
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from('customers')
     .select(CUSTOMER_SELECT, { count: offset === 0 ? 'exact' : 'estimated' })
-    .order('created_at', { ascending: false })
+    .order(column, { ascending })
     .order('id', { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (q) {
-    const like = `%${escapeIlike(q)}%`;
-    query = query.or(
-      `full_name.ilike.${like},phone.ilike.${like},email.ilike.${like},id.ilike.${like}`
-    );
+    query = query.or(buildIlikeOrFilter(['full_name', 'phone', 'email'], q));
   }
 
   const { data, error, count } = await query;

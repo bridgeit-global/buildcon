@@ -47,39 +47,11 @@ import {
   statusLabelForUnit,
   unitStatusGridAbbrev
 } from '../inventory/inventory-utils';
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import { unitStatusInquiryStageHint } from './inquiry-stage-unit-map';
 import type { UnitRow } from './inquiry-types';
 
 const UNIT_FILTER_ALL = '__unit_filter_all__';
-
-function UnitStatusPill({
-  status,
-  className
-}: {
-  status: string | null | undefined;
-  className?: string;
-}) {
-  const raw = String(status || '').trim();
-  const code = normalizeUnitStatusCode(status);
-  const bg = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? '#94A3B8';
-  const label = statusLabelForUnit(status);
-
-  return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[9px] font-bold',
-        className
-      )}
-      style={{
-        background: `${bg}22`,
-        color: bg,
-        borderColor: `${bg}44`
-      }}
-    >
-      {label}
-    </span>
-  );
-}
 
 export type UnitPickFilters = {
   projectId: string;
@@ -515,7 +487,7 @@ function SelectedUnitCard({
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <UnitStatusPill status={unit.status} />
+            <UnitStatusChip status={unit.status} />
             <Button
               type="button"
               variant="outline"
@@ -692,7 +664,7 @@ export function InquiryUnitPicker({
                       {formatFloorLabel(previewUnit.floor, previewUnit.unit_type)}
                     </DialogDescription>
                   </div>
-                  <UnitStatusPill status={previewUnit.status} />
+                  <UnitStatusChip status={previewUnit.status} />
                 </div>
                 <p className="mt-2 text-sm font-bold text-ds-primary-700">
                   {formatUnitAgreementValueCompact(previewUnit)}
@@ -1434,7 +1406,7 @@ function UnitResultRow({
         <span className="font-semibold text-ds-primary-600">
           {formatUnitAgreementValueCompact(unit)}
         </span>
-        <UnitStatusPill status={unit.status} />
+        <UnitStatusChip status={unit.status} />
       </div>
     </button>
   );

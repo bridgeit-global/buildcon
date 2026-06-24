@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { useRouter } from 'next/navigation';
+import type { SortingState } from '@tanstack/react-table';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { navigateToCreateBookingFromInquiry } from './booking-prefill-from-inquiry';
 import {
   isInquiryClosed,
   negotiationApprovalBlockMessage
 } from './inquiry-stage-transitions';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
+import { embedOne, inquiryProjectLabel } from './inquiry-helpers';
 
 const INQUIRY_SELECT = `
   id,
@@ -47,7 +50,7 @@ function mapUnitLabelFromDb(row: Record<string, unknown>): UnitLabelRow {
   };
 }
 
-export function useInquiryListResources() {
+export function useInquiryListResources(sorting: SortingState) {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -57,20 +60,50 @@ export function useInquiryListResources() {
 
   const loadInquiries = useCallback(async () => {
     setLoadingInquiries(true);
-    const { data, error: qErr } = await supabase
-      .from('sales_inquiries')
-      .select(INQUIRY_SELECT)
-      .order('created_at', { ascending: false })
-      .limit(500);
+    const INQUIRY_DB_SORT: Record<string, string> = {
+      ref: 'created_at',
+      funnelStage: 'funnel_stage',
+      leadSource: 'lead_source',
+      unit: 'unit_id',
+      seller: 'assigned_to'
+    };
+    const CLIENT_SORT = new Set(['customer', 'project']);
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      INQUIRY_DB_SORT,
+      'created_at',
+      false
+    );
+
+    let query = supabase.from('sales_inquiries').select(INQUIRY_SELECT).limit(500);
+    if (first && CLIENT_SORT.has(first.id)) {
+      query = query.order('created_at', { ascending: false });
+    } else {
+      query = query.order(column, { ascending });
+    }
+
+    const { data, error: qErr } = await query;
 
     if (qErr) {
       pageError(qErr.message);
       setInquiries([]);
     } else {
-      setInquiries((data ?? []) as unknown as InquiryRowDb[]);
+      let rows = (data ?? []) as unknown as InquiryRowDb[];
+      if (first && CLIENT_SORT.has(first.id)) {
+        rows = sortRowsByState(rows, sorting, (row, colId) => {
+          if (colId === 'customer') {
+            const c = embedOne(row.customers);
+            return c?.full_name ?? '';
+          }
+          if (colId === 'project') return inquiryProjectLabel(row);
+          return null;
+        });
+      }
+      setInquiries(rows);
     }
     setLoadingInquiries(false);
-  }, [supabase]);
+  }, [supabase, sorting]);
 
   useEffect(() => {
     void loadInquiries();

@@ -14,6 +14,7 @@ import { negotiationApprovalBlockMessage } from '@/app/crm/inquiry/inquiry-stage
 import { enrichNegotiationFromApprovals } from '@/app/crm/inquiry/inquiry-stage-store';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+import { isBookingPaymentMode } from '@/lib/booking/booking-payment';
 import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type PaymentDetailPayload = {
@@ -84,6 +85,9 @@ export async function POST(request: Request) {
   }
   if (!modeTrim) {
     return NextResponse.json({ error: 'Payment mode is required' }, { status: 400 });
+  }
+  if (!isBookingPaymentMode(modeTrim)) {
+    return NextResponse.json({ error: 'Select a valid payment mode' }, { status: 400 });
   }
   const bookingAmountNum = Number(body.bookingAmount ?? 0);
   if (!Number.isFinite(bookingAmountNum) || bookingAmountNum <= 0) {

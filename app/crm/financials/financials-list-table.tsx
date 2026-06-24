@@ -1,9 +1,13 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  type ServerSortedTableProps
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -12,6 +16,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,9 +26,9 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { formatInrCompactLacCr } from '../inr-format';
-import { STATUS_COLOR, STATUS_LABEL } from '../inventory/unit-status';
 
 export type FinancialBookingRow = {
   id: string;
@@ -63,7 +68,7 @@ const globalFinancialFilter: FilterFn<FinancialBookingRow> = (
   return hay.includes(q);
 };
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: FinancialBookingRow[];
   projectNameById: Map<string, string>;
   loading?: boolean;
@@ -72,7 +77,9 @@ type Props = {
 export function FinancialsListTable({
   rows,
   projectNameById,
-  loading
+  loading,
+  sorting,
+  onSortingChange
 }: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
 
@@ -81,6 +88,7 @@ export function FinancialsListTable({
       {
         id: 'project',
         header: 'Project',
+        accessorFn: (row) => projectNameById.get(row.project_id) ?? '',
         cell: ({ row }) => (
           <span className="text-xs text-ds-gray-600">
             {projectNameById.get(row.original.project_id) ?? '—'}
@@ -112,16 +120,7 @@ export function FinancialsListTable({
         cell: ({ row }) => {
           const code = String(row.original.unit_status ?? '').toUpperCase();
           if (!code) return <span className="text-ds-gray-400">—</span>;
-          const label = STATUS_LABEL[code] ?? code;
-          const color = STATUS_COLOR[code] ?? '#64748B';
-          return (
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-              style={{ backgroundColor: `${color}1a`, color }}
-            >
-              {label}
-            </span>
-          );
+          return <UnitStatusChip status={code} size="md" />;
         }
       },
       {
@@ -179,26 +178,36 @@ export function FinancialsListTable({
         header: '',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/crm/financials/${row.original.id}`}>Manage</Link>
-          </Button>
+          <TableViewButton
+            href={`/crm/financials/${row.original.id}`}
+            label="Manage"
+          />
         )
       }
     ],
     [projectNameById]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { globalFilter },
+    state: { globalFilter, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalFinancialFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } }
+    initialState: { pagination: { pageSize: 10 } },
+    ...tableFeatures
   });
 
   return (
@@ -234,17 +243,15 @@ export function FinancialsListTable({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th
-                    key={h.id}
-                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                  >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                  <CrmDataTableHead key={h.id} header={h} />
                 ))}
               </tr>
             ))}
@@ -277,9 +284,7 @@ export function FinancialsListTable({
                   className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-top">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                   ))}
                 </tr>
               ))

@@ -41,7 +41,6 @@ import {
 } from '../inquiry-stage-store';
 import {
   parseInquiryWizardUi,
-  pipelineStagesWithUnsavedChanges,
   saveInquiryWizardUi
 } from '../inquiry-wizard-ui';
 import BackButton from '@/components/buttons/back-button';
@@ -85,9 +84,7 @@ function NewInquiryPageInner() {
     () => new Set()
   );
   const [linkedBookingId, setLinkedBookingId] = useState<string | null>(null);
-  const [stagesWithUnsaved, setStagesWithUnsaved] = useState<
-    Set<InquiryPipelineUiStage>
-  >(() => new Set());
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [resumeReady, setResumeReady] = useState(() => !resumeInquiryId);
   const [resumeError, setResumeError] = useState(false);
   const prevResumeInquiryRef = useRef('');
@@ -167,17 +164,10 @@ function NewInquiryPageInner() {
         );
       }
 
-      if (wizardUi.dirty) {
-        setStagesWithUnsaved(
-          pipelineStagesWithUnsavedChanges({
-            1: Boolean(wizardUi.dirty['1']),
-            2: Boolean(wizardUi.dirty['2']),
-            3: Boolean(wizardUi.dirty['3'])
-          })
-        );
-      } else {
-        setStagesWithUnsaved(new Set());
-      }
+      setHasUnsavedChanges(
+        Boolean(wizardUi.unsaved) ||
+          Boolean(wizardUi.drafts && Object.keys(wizardUi.drafts).length > 0)
+      );
       if (row.customers?.full_name) setCustomerName(row.customers.full_name);
       if (row.units?.unit_code) setUnitCode(row.units.unit_code);
       const st = row.units?.status;
@@ -218,7 +208,7 @@ function NewInquiryPageInner() {
         setProjectId('');
         setStagesWithData(new Set());
         setLinkedBookingId(null);
-        setStagesWithUnsaved(new Set());
+        setHasUnsavedChanges(false);
         resetWizardState();
       }
       prevResumeInquiryRef.current = '';
@@ -255,7 +245,7 @@ function NewInquiryPageInner() {
         setProjectId('');
         setStagesWithData(new Set());
         setLinkedBookingId(null);
-        setStagesWithUnsaved(new Set());
+        setHasUnsavedChanges(false);
       }
       setResumeReady(true);
     })();
@@ -343,12 +333,9 @@ function NewInquiryPageInner() {
     if (inquiryId) void loadInquiry(inquiryId);
   }, [inquiryId, loadInquiry]);
 
-  const handleWizardDirtyChange = useCallback(
-    (dirty: Record<1 | 2 | 3, boolean>) => {
-      setStagesWithUnsaved(pipelineStagesWithUnsavedChanges(dirty));
-    },
-    []
-  );
+  const handleWizardUnsavedChange = useCallback((unsaved: boolean) => {
+    setHasUnsavedChanges(unsaved);
+  }, []);
 
   const handlePipelineStageChange = useCallback(
     (stage: InquiryPipelineUiStage) => {
@@ -440,7 +427,7 @@ function NewInquiryPageInner() {
             currentStage={stepperHighlightStage}
             maxReachableIndex={maxReachableIndex}
             stagesWithData={stagesWithData}
-            stagesWithUnsaved={stagesWithUnsaved}
+            hasUnsavedChanges={hasUnsavedChanges}
             disabled={resuming}
             onSelect={inquiryId || wizardStep > 1 ? handleStageSelect : undefined}
           />
@@ -490,7 +477,7 @@ function NewInquiryPageInner() {
                   onFunnelStageChange={handleFunnelStageChange}
                   onStageDataSaved={handleStageDataSaved}
                   onSkipToStage={handleSkipToStage}
-                  onDirtyChange={handleWizardDirtyChange}
+                  onUnsavedChange={handleWizardUnsavedChange}
                 />
               ) : null}
 

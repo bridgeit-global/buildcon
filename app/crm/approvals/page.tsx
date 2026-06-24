@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  useServerListSorting
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -14,6 +19,7 @@ import {
 } from '@tanstack/react-table';
 import { Check, ChevronLeft, ChevronRight, Lock, X } from 'lucide-react';
 import Link from 'next/link';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,14 +40,13 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { approvalStatusTone, StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatInrCompactLacCr } from '../inr-format';
-import {
-  embedOne,
-  inquiryReference
-} from '../inquiry/inquiry-helpers';
+import { embedOne, inquiryReference } from '../inquiry/inquiry-helpers';
 
 const STATUS_FILTER_ALL = '__all__';
 
@@ -119,21 +124,6 @@ const statusFilter: FilterFn<ApprovalRow> = (row, columnId, raw) => {
   return String(row.getValue(columnId) ?? '') === v;
 };
 
-function statusPillClass(status: ApprovalStatus) {
-  switch (status) {
-    case 'Pending':
-      return 'border-amber-200 bg-amber-50 text-amber-800';
-    case 'Approved':
-      return 'border-teal-200 bg-teal-50 text-teal-900';
-    case 'Rejected':
-      return 'border-red-200 bg-red-50 text-red-800';
-    case 'Cancelled':
-      return 'border-slate-200 bg-slate-50 text-slate-700';
-    default:
-      return 'border-slate-200 bg-slate-50 text-slate-700';
-  }
-}
-
 function fmtInr(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return '—';
   return formatInrCompactLacCr(value);
@@ -158,6 +148,9 @@ export default function ApprovalsPage() {
   const [activeRow, setActiveRow] = useState<ApprovalRow | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [deciding, setDeciding] = useState(false);
+  const { sorting, onSortingChange } = useServerListSorting([
+    { id: 'requested_at', desc: true }
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,7 +180,21 @@ export default function ApprovalsPage() {
 
   const loadRows = useCallback(async () => {
     setLoading(true);
-    const { data, error: readErr } = await supabase
+    const APPROVAL_DB_SORT: Record<string, string> = {
+      status: 'status',
+      pricing: 'offered_price',
+      requested_at: 'requested_at'
+    };
+    const CLIENT_SORT = new Set(['customer', 'unitProject', 'reference', 'requester']);
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      APPROVAL_DB_SORT,
+      'requested_at',
+      false
+    );
+
+    let query = supabase
       .from('negotiation_approvals')
       .select(
         `
@@ -211,8 +218,15 @@ export default function ApprovalsPage() {
         projects ( name )
       `
       )
-      .order('requested_at', { ascending: false })
       .limit(500);
+
+    if (first && CLIENT_SORT.has(first.id)) {
+      query = query.order('requested_at', { ascending: false });
+    } else {
+      query = query.order(column, { ascending });
+    }
+
+    const { data, error: readErr } = await query;
     if (readErr) {
       pageError(readErr.message);
       setRows([]);
@@ -243,10 +257,10 @@ export default function ApprovalsPage() {
         const id = String((p as { id?: string }).id ?? '').trim();
         if (!id) continue;
         const name = String((p as { name?: string | null }).name ?? '').trim();
-        requesterNameById.set(id, name || id);
+        if (name) requesterNameById.set(id, name);
       }
     }
-    const mapped: ApprovalRow[] = records.map((r) => {
+    let mapped: ApprovalRow[] = records.map((r) => {
       const customer = embedOne<EmbedCustomer>(r.customers);
       const unit = embedOne<EmbedUnit>(r.units);
       const project = embedOne<EmbedProject>(r.projects);
@@ -275,9 +289,20 @@ export default function ApprovalsPage() {
           : null
       };
     });
+    if (first && CLIENT_SORT.has(first.id)) {
+      mapped = sortRowsByState(mapped, sorting, (row, colId) => {
+        if (colId === 'customer') return row.customer_name ?? '';
+        if (colId === 'unitProject') {
+          return [row.unit_code, row.project_name].filter(Boolean).join(' · ');
+        }
+        if (colId === 'reference') return row.requested_at;
+        if (colId === 'requester') return row.requester_name ?? '';
+        return null;
+      });
+    }
     setRows(mapped);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, sorting]);
 
   useEffect(() => {
     void loadRows();
@@ -413,14 +438,9 @@ export default function ApprovalsPage() {
         cell: ({ getValue }) => {
           const status = getValue() as ApprovalStatus;
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                statusPillClass(status)
-              )}
-            >
+            <StatusChip tone={approvalStatusTone(status)} uppercase>
               {status}
-            </span>
+            </StatusChip>
           );
         }
       },
@@ -429,6 +449,8 @@ export default function ApprovalsPage() {
         header: '',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => {
           const r = row.original;
           if (r.status !== 'Pending') {
@@ -440,18 +462,14 @@ export default function ApprovalsPage() {
           }
           return (
             <div className="flex justify-end">
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
+              <TableViewButton
+                label="Review"
                 disabled={!isSuperAdmin}
                 onClick={() => {
                   setActiveRow(r);
                   setDecisionNote(r.decision_note ?? '');
                 }}
-              >
-                Review
-              </Button>
+              />
             </div>
           );
         }
@@ -460,19 +478,26 @@ export default function ApprovalsPage() {
     [isSuperAdmin]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: rows,
     columns,
-    state: { globalFilter: globalFilterValue, columnFilters },
+    state: { globalFilter: globalFilterValue, columnFilters, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilterValue,
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalApprovalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
-    }
+    },
+    ...tableFeatures
   });
 
   const statusCol = table.getColumn('status');
@@ -519,9 +544,9 @@ export default function ApprovalsPage() {
                 {loading ? 'Loading…' : `${rows.length} loaded`}
               </span>
               {pendingCount > 0 ? (
-                <span className="ml-2 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                <StatusChip tone="warning" uppercase className="ml-2">
                   {pendingCount} pending
-                </span>
+                </StatusChip>
               ) : null}
             </div>
           </div>
@@ -594,19 +619,19 @@ export default function ApprovalsPage() {
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[56rem] caption-bottom text-sm">
+          <table
+            className="w-full min-w-[56rem] caption-bottom text-sm"
+            style={{ width: table.getCenterTotalSize() }}
+          >
             <thead className="border-b border-border bg-muted/40 [&_tr]:border-border">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
                   {hg.headers.map((h) => (
-                    <th
+                    <CrmDataTableHead
                       key={h.id}
-                      className="h-10 px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                    >
-                      {h.isPlaceholder
-                        ? null
-                        : flexRender(h.column.columnDef.header, h.getContext())}
-                    </th>
+                      header={h}
+                      className="px-3 uppercase tracking-wide text-muted-foreground"
+                    />
                   ))}
                 </tr>
               ))}
@@ -637,12 +662,11 @@ export default function ApprovalsPage() {
                     className="border-b border-border/80 transition-colors hover:bg-muted/25"
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-2.5 align-top">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
+                      <CrmDataTableCell
+                        key={cell.id}
+                        cell={cell}
+                        className="px-3 py-2.5 align-top"
+                      />
                     ))}
                   </tr>
                 ))
@@ -774,19 +798,19 @@ export default function ApprovalsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="min-h-11 border-red-300 text-red-700 hover:bg-red-50"
+                    className="min-h-11 gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('reject')}
                   >
-                    <X className="mr-1 size-4" /> Reject
+                    <X className="size-4" /> Reject
                   </Button>
                   <Button
                     type="button"
-                    className="min-h-11 bg-teal-600 hover:bg-teal-700"
+                    className="min-h-11 gap-1 bg-teal-600 hover:bg-teal-700"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('approve')}
                   >
-                    <Check className="mr-1 size-4" /> Approve
+                    <Check className="size-4" /> Approve
                   </Button>
                 </div>
               </DialogFooter>

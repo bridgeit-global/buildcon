@@ -1,4 +1,10 @@
+import { defaultProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import type { FloorProvisionDraft, StructureNode } from './project-structure-utils';
+import {
+  isProjectNameTaken,
+  PROJECT_NAME_DUPLICATE_ERROR,
+  type ProjectNameRow
+} from '@/lib/project/project-name';
 import { z } from 'zod';
 import {
   countProjectUnits,
@@ -26,8 +32,6 @@ export type CreateProjectDraft = {
   floors_per_wing: number;
   units_per_floor: number;
   base_rate: number;
-  min_rate: number;
-  max_rate: number;
   unitTypesCsv: string;
   memberIds: string[];
   structures: StructureNode[];
@@ -56,6 +60,27 @@ export const createProjectStep0Schema = z.object({
   location: z.string().trim().min(1, 'Location is required.')
 });
 
+export type CreateProjectValidationOptions = {
+  existingProjects?: Iterable<ProjectNameRow>;
+};
+
+export function createProjectStep0SchemaWithExisting(
+  existingProjects?: Iterable<ProjectNameRow>
+) {
+  return createProjectStep0Schema.superRefine((data, ctx) => {
+    if (
+      existingProjects &&
+      isProjectNameTaken(data.name, existingProjects)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: PROJECT_NAME_DUPLICATE_ERROR,
+        path: ['name']
+      });
+    }
+  });
+}
+
 export const createProjectStep1FieldsSchema = z.object({
   unitTypesCsv: z.string().superRefine((val, ctx) => {
     if (!parseUnitTypesCsv(val).length) {
@@ -68,9 +93,7 @@ export const createProjectStep1FieldsSchema = z.object({
 });
 
 export const createProjectStep3Schema = z.object({
-  base_rate: z.number().min(0, 'Rate cannot be negative.'),
-  min_rate: z.number().min(0, 'Rate cannot be negative.'),
-  max_rate: z.number().min(0, 'Rate cannot be negative.')
+  base_rate: z.number().min(0, 'Rate cannot be negative.')
 });
 
 export type CreateProjectStep0Values = z.infer<typeof createProjectStep0Schema>;
@@ -143,9 +166,12 @@ export function validateFloorUnitTypesAssigned(
   return null;
 }
 
-export function validateCreateDraft(draft: CreateProjectDraft): string | null {
+export function validateCreateDraft(
+  draft: CreateProjectDraft,
+  options?: CreateProjectValidationOptions
+): string | null {
   for (let step = 0; step <= 3; step++) {
-    const err = validateCreateStep(step, draft);
+    const err = validateCreateStep(step, draft, options);
     if (err) return err;
   }
   return validateFloorUnitTypesAssigned(draft);
@@ -153,11 +179,19 @@ export function validateCreateDraft(draft: CreateProjectDraft): string | null {
 
 export function validateCreateStep(
   step: number,
-  draft: CreateProjectDraft
+  draft: CreateProjectDraft,
+  options?: CreateProjectValidationOptions
 ): string | null {
   if (step === 0) {
     if (!draft.name.trim()) return 'Project name is required.';
+    const duplicate = options?.existingProjects
+      ? isProjectNameTaken(draft.name, options.existingProjects)
+      : false;
+    if (duplicate) return PROJECT_NAME_DUPLICATE_ERROR;
     if (!draft.location.trim()) return 'Location is required.';
+    if (isReadyProjectType(draft.type) && !draft.rera_no.trim()) {
+      return 'RERA number is required for Ready projects.';
+    }
     return null;
   }
   if (step === 1) {
@@ -181,8 +215,8 @@ export function validateCreateStep(
     return validateFloorUnitTypesAssigned(draft);
   }
   if (step === 3) {
-    if (draft.base_rate < 0 || draft.min_rate < 0 || draft.max_rate < 0) {
-      return 'Rates cannot be negative.';
+    if (draft.base_rate < 0) {
+      return 'Rate cannot be negative.';
     }
     return null;
   }
@@ -195,13 +229,11 @@ export function createInitialDraft(): CreateProjectDraft {
     location: '',
     type: 'Redevelopment',
     status: 'Active',
-    fy: '2026-27',
+    fy: defaultProjectFy('Redevelopment'),
     rera_no: '',
     floors_per_wing: 7,
     units_per_floor: 4,
     base_rate: 10500,
-    min_rate: 9500,
-    max_rate: 13000,
     unitTypesCsv: '1BHK,2BHK,3BHK',
     memberIds: [],
     structures: defaultRootStructures(7, 4),

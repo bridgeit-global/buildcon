@@ -60,6 +60,17 @@ describe('canAdvanceWorkflowStage', () => {
     ).toEqual({ ok: true });
   });
 
+  it('rejects invalid token payment mode', () => {
+    expect(
+      canAdvanceWorkflowStage('token', {
+        token: { amount: '100000', date: '2026-01-01', mode: 'InvalidMode' }
+      })
+    ).toEqual({
+      ok: false,
+      reason: 'Select a valid token payment mode before continuing.'
+    });
+  });
+
   it('requires application submitted_at and complete KYC', () => {
     expect(canAdvanceWorkflowStage('application', {})).toEqual({
       ok: false,

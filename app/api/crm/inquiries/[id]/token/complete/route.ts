@@ -13,6 +13,7 @@ import { isInquiryTokenComplete } from '@/app/crm/inquiry/inquiry-token-stage';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+import { normalizeBookingPaymentMode } from '@/lib/booking/booking-payment';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -320,24 +321,6 @@ export async function POST(
     created: true,
     tokenReceiptId
   });
-}
-
-const BOOKING_PAYMENT_MODES = new Set([
-  'Cash',
-  'UPI',
-  'Cheque',
-  'NEFT/RTGS',
-  'Card',
-  'Down Payment',
-  'Home Loan',
-  'Construction Linked'
-]);
-
-function normalizeBookingPaymentMode(mode: string | null | undefined): string | null {
-  const m = String(mode ?? '').trim();
-  if (!m) return null;
-  if (BOOKING_PAYMENT_MODES.has(m)) return m;
-  return null;
 }
 
 function buildPaymentDetail(

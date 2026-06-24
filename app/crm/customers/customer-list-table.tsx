@@ -1,12 +1,16 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { TableViewButton } from '@/components/buttons/table-view-button';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
+import { useCrmTableFeatures } from '@/components/data-table/crm-table-features';
 import {
   useReactTable,
   getCoreRowModel,
-  flexRender,
-  type ColumnDef
+  type ColumnDef,
+  type OnChangeFn,
+  type SortingState
 } from '@tanstack/react-table';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
@@ -21,11 +25,14 @@ export type CustomerTableRow = {
 export function CustomerListTable({
   rows,
   loading,
+  sorting,
+  onSortingChange
 }: {
   rows: CustomerTableRow[];
   loading: boolean;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
 }) {
-  const router = useRouter();
   const columns = useMemo<ColumnDef<CustomerTableRow, unknown>[]>(
     () => [
       {
@@ -63,20 +70,41 @@ export function CustomerListTable({
             {formatDisplayDate(row.original.created_at)}
           </span>
         )
+      },
+      {
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        enableResizing: false,
+        size: 96,
+        cell: ({ row }) => (
+          <TableViewButton href={`/crm/customers/${row.original.id}`} />
+        )
       }
     ],
     []
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: rows,
     columns,
-    getCoreRowModel: getCoreRowModel()
+    state: { sorting, columnSizing },
+    onSortingChange,
+    onColumnSizingChange,
+    getCoreRowModel: getCoreRowModel(),
+    ...tableFeatures
   });
 
   return (
     <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-      <table className="w-full min-w-160 caption-bottom text-sm">
+      <table
+        className="w-full min-w-160 caption-bottom text-sm"
+        style={{ width: table.getCenterTotalSize() }}
+      >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr
@@ -84,12 +112,7 @@ export function CustomerListTable({
               className="border-b border-ds-gray-100 bg-ds-gray-50/80"
             >
               {hg.headers.map((h) => (
-                <th
-                  key={h.id}
-                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                >
-                  {flexRender(h.column.columnDef.header, h.getContext())}
-                </th>
+                <CrmDataTableHead key={h.id} header={h} />
               ))}
             </tr>
           ))}
@@ -117,13 +140,10 @@ export function CustomerListTable({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                onClick={() => router.push(`/crm/customers/${row.original.id}`)}
-                className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  <CrmDataTableCell key={cell.id} cell={cell} />
                 ))}
               </tr>
             ))

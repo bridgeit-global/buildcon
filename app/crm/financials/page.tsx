@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -74,16 +76,28 @@ export default function FinancialsPage() {
   const [totalReceived, setTotalReceived] = useState(0);
   const [totalOverdue, setTotalOverdue] = useState(0);
   const [tableRows, setTableRows] = useState<FinancialBookingRow[]>([]);
+  const { sorting, onSortingChange } = useServerListSorting();
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
 
-    const { data: bData, error: bErr } = await supabase
+    const BOOKING_DB_SORT: Record<string, string> = {};
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      BOOKING_DB_SORT,
+      'created_at',
+      false
+    );
+
+    let bookingsQuery = supabase
       .from('bookings')
       .select('id,project_id,unit_id,customer_id,created_at,status')
       .neq('status', 'cancelled')
-      .order('created_at', { ascending: false })
-      .limit(500);
+      .limit(500)
+      .order(column, { ascending });
+
+    const { data: bData, error: bErr } = await bookingsQuery;
 
     if (bErr) {
       pageError(bErr.message);
@@ -200,12 +214,27 @@ export default function FinancialsPage() {
       };
     });
 
+    let sortedRows = rows;
+    if (first) {
+      sortedRows = sortRowsByState(rows, sorting, (row, colId) => {
+        if (colId === 'project') return projectNameById.get(row.project_id) ?? '';
+        if (colId === 'unit') return row.unit_code;
+        if (colId === 'buyer') return row.customer_name;
+        if (colId === 'unit_status') return row.unit_status ?? '';
+        if (colId === 'demand') return row.total_demand;
+        if (colId === 'received') return row.total_received;
+        if (colId === 'balance') return row.balance;
+        if (colId === 'overdue') return row.overdue;
+        return row.created_at;
+      });
+    }
+
     setTotalDemand(demandSum);
     setTotalReceived(receivedSum);
-    setTotalOverdue(rows.reduce((s, r) => s + r.overdue, 0));
-    setTableRows(rows);
+    setTotalOverdue(sortedRows.reduce((s, r) => s + r.overdue, 0));
+    setTableRows(sortedRows);
     setLoading(false);
-  }
+  }, [projectNameById, sorting, supabase]);
 
   async function downloadFinancialsExport(kind: 'ledger' | 'receipts') {
     setExporting(kind);
@@ -242,8 +271,7 @@ export default function FinancialsPage() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   const totalBalance = Math.max(0, totalDemand - totalReceived);
 
@@ -339,6 +367,8 @@ export default function FinancialsPage() {
             rows={tableRows}
             projectNameById={projectNameById}
             loading={loading}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
           />
       </Card>
     </div>

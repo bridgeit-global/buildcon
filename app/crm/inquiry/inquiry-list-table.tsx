@@ -1,9 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  type ServerSortedTableProps
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -26,11 +31,17 @@ import {
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
-import { cn } from '@/lib/utils';
+import { funnelStageTone, StatusChip } from '@/components/ui/status-chip';
 import {
   INQUIRY_CLOSED_FUNNEL_STAGE,
   INQUIRY_LIST_FUNNEL_STAGES
 } from './inquiry-funnel-stages';
+import {
+  selectValueToStageFilter,
+  STAGE_FILTER_NEW_LEADS,
+  STAGE_FILTER_TOKEN,
+  stageFilterToSelectValue
+} from './inquiry-list-filters';
 import { getInquiryClosedStatus, isInquiryClosed } from './inquiry-stage-transitions';
 import {
   embedOne,
@@ -82,11 +93,6 @@ const equalsOrAll: FilterFn<InquiryRowDb> = (row, columnId, raw) => {
   return String(row.getValue(columnId) ?? '').trim() === v;
 };
 
-/** Matches dashboard KPI tiles: Enquiry stage. */
-const STAGE_FILTER_NEW_LEADS = '__new_leads__';
-/** Matches dashboard Token KPI. */
-const STAGE_FILTER_TOKEN = '__token__';
-
 const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const v = String(raw ?? '').trim();
   if (!v || v === '__all__') return true;
@@ -108,41 +114,13 @@ const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   return display === v;
 };
 
-function parseListUrlColumnFilters(sp: {
-  get: (name: string) => string | null;
-}): ColumnFiltersState {
-  const filters: ColumnFiltersState = [];
-  const stageRaw = sp.get('stage')?.trim();
-  if (stageRaw) {
-    const lower = stageRaw.toLowerCase();
-    if (lower === 'token' || lower === 'converted') {
-      filters.push({ id: 'funnelStage', value: STAGE_FILTER_TOKEN });
-    } else if (lower === 'new') {
-      filters.push({ id: 'funnelStage', value: STAGE_FILTER_NEW_LEADS });
-    } else {
-      if (lower === 'closed') {
-        filters.push({ id: 'funnelStage', value: INQUIRY_CLOSED_FUNNEL_STAGE });
-      } else {
-        const match = [...INQUIRY_LIST_FUNNEL_STAGES].find(
-          (s) => s.toLowerCase() === lower
-        );
-        if (match) filters.push({ id: 'funnelStage', value: match });
-      }
-    }
-  }
-  const sourceRaw = sp.get('source')?.trim();
-  if (sourceRaw) {
-    filters.push({ id: 'leadSource', value: sourceRaw });
-  }
-  return filters;
-}
-
-type InquiryListTableProps = {
+type InquiryListTableProps = ServerSortedTableProps & {
   inquiries: InquiryRowDb[];
   loadingInquiries: boolean;
   loadInquiries: () => void | Promise<void>;
   units: UnitLabelRow[];
   navigateToBookingFromInquiry: (inq: InquiryRowDb) => void;
+  urlColumnFilters?: ColumnFiltersState;
 };
 
 export function InquiryListTable({
@@ -150,23 +128,20 @@ export function InquiryListTable({
   loadingInquiries,
   loadInquiries,
   units,
-  navigateToBookingFromInquiry
+  navigateToBookingFromInquiry,
+  sorting,
+  onSortingChange,
+  urlColumnFilters = []
 }: InquiryListTableProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [globalFilter, setGlobalFilter] = useState('');
 
-  const filtersFromUrl = useMemo(
-    () => parseListUrlColumnFilters(searchParams),
-    [searchParams]
-  );
-
   const [columnFilters, setColumnFilters] =
-    useState<ColumnFiltersState>(filtersFromUrl);
+    useState<ColumnFiltersState>(urlColumnFilters);
 
   useEffect(() => {
-    setColumnFilters(filtersFromUrl);
-  }, [filtersFromUrl]);
+    setColumnFilters(urlColumnFilters);
+  }, [urlColumnFilters]);
 
   const unitNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -200,6 +175,11 @@ export function InquiryListTable({
     }
     return ordered;
   }, [inquiries]);
+
+  const stageSelectOptions = useMemo(
+    () => ['All stages', 'New', ...stageOptions],
+    [stageOptions]
+  );
 
   const leadSourceOptions = useMemo(() => {
     const set = new Set<string>();
@@ -286,24 +266,9 @@ export function InquiryListTable({
             ? INQUIRY_CLOSED_FUNNEL_STAGE
             : String(row.original.funnel_stage || '').trim() || '—';
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                stageOnly === INQUIRY_CLOSED_FUNNEL_STAGE
-                  ? 'border-ds-gray-300 bg-ds-gray-100 text-ds-gray-800'
-                  : stageOnly === 'Enquiry' || !stageOnly || stageOnly === '—'
-                    ? 'border-red-200 bg-red-50 text-red-800'
-                    : stageOnly === 'Qualified'
-                      ? 'border-teal-200 bg-teal-50 text-teal-900'
-                      : stageOnly === 'Site Visit'
-                        ? 'border-green-200 bg-green-50 text-green-900'
-                        : stageOnly === 'Token'
-                          ? 'border-teal-300 bg-teal-100 text-teal-950'
-                          : 'border-slate-200 bg-slate-50 text-slate-800'
-              )}
-            >
+            <StatusChip tone={funnelStageTone(stageOnly)} uppercase>
               {label}
-            </span>
+            </StatusChip>
           );
         }
       },
@@ -354,6 +319,8 @@ export function InquiryListTable({
         id: 'actions',
         header: '',
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         enableColumnFilter: false,
         enableGlobalFilter: false,
         cell: ({ row }) => {
@@ -405,19 +372,26 @@ export function InquiryListTable({
     [navigateToBookingFromInquiry, router, unitNameById]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: inquiries,
     columns,
-    state: { globalFilter, columnFilters },
+    state: { globalFilter, columnFilters, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalInquiryFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: { pageSize: 10, pageIndex: 0 }
-    }
+    },
+    ...tableFeatures
   });
 
   const stageCol = table.getColumn('funnelStage');
@@ -474,15 +448,11 @@ export function InquiryListTable({
           <div className="min-w-[10rem]">
             <Label className="text-xs text-ds-gray-500">Stage</Label>
             <SearchableSelect
-              value={
-                stageFilter && stageFilter !== '__all__'
-                  ? stageFilter
-                  : 'All stages'
-              }
+              value={stageFilterToSelectValue(stageFilter)}
               onValueChange={(v) =>
-                stageCol?.setFilterValue(v === 'All stages' ? undefined : v)
+                stageCol?.setFilterValue(selectValueToStageFilter(v))
               }
-              options={['All stages', ...stageOptions]}
+              options={stageSelectOptions}
               placeholder="All stages"
               searchPlaceholder="Search stage…"
               className="mt-1 w-full min-w-[10rem]"
@@ -527,19 +497,15 @@ export function InquiryListTable({
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th
-                    key={h.id}
-                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                  >
-                    {h.isPlaceholder
-                      ? null
-                      : flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                  <CrmDataTableHead key={h.id} header={h} />
                 ))}
               </tr>
             ))}
@@ -570,12 +536,7 @@ export function InquiryListTable({
                   className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-top">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                   ))}
                 </tr>
               ))

@@ -31,6 +31,11 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import {
+  buildProjectMemberRemovalBlockSet,
+  PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE,
+  projectMemberRemovalKey
+} from '@/lib/admin/project-member-pipeline-guard';
 
 type ProfileRow = {
   id: string;
@@ -81,6 +86,9 @@ export default function UsersPage() {
   const [portalCustomerId, setPortalCustomerId] = useState('');
   const [portalBrokerId, setPortalBrokerId] = useState('');
   const [savingPortal, setSavingPortal] = useState(false);
+  const [pipelineBlockedMembers, setPipelineBlockedMembers] = useState(
+    () => new Set<string>()
+  );
 
   const inviteValidation = useFieldValidation(
     userInviteSchema,
@@ -179,6 +187,36 @@ export default function UsersPage() {
       setProfiles([]);
     }
 
+    const memberProjectIds = [
+      ...new Set((memberData ?? []).map((m) => m.project_id).filter(Boolean))
+    ];
+    if (memberProjectIds.length > 0) {
+      const { data: pipelineRows, error: pipelineErr } = await supabase
+        .from('sales_inquiries')
+        .select('project_id, assigned_to, funnel_stage, stage_data, unit_id')
+        .in('project_id', memberProjectIds)
+        .not('unit_id', 'is', null)
+        .not('assigned_to', 'is', null);
+      if (pipelineErr) {
+        pageError(pipelineErr.message);
+        setPipelineBlockedMembers(new Set());
+      } else {
+        setPipelineBlockedMembers(
+          buildProjectMemberRemovalBlockSet(
+            (pipelineRows ?? []) as Array<{
+              project_id: string;
+              assigned_to: string | null;
+              funnel_stage: string | null;
+              stage_data: unknown;
+              unit_id: string | null;
+            }>
+          )
+        );
+      }
+    } else {
+      setPipelineBlockedMembers(new Set());
+    }
+
     if (!addMemberProjectId && (projData ?? [])[0]) {
       setAddMemberProjectId((projData ?? [])[0]!.id);
     }
@@ -226,11 +264,11 @@ export default function UsersPage() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: invite.email,
-          name: invite.name || null,
-          profileRole: invite.profileRole,
-          projectIds: invite.projectIds,
-          projectMemberRole: invite.projectMemberRole
+          email: parsed.data.email,
+          name: parsed.data.name,
+          profileRole: parsed.data.profileRole,
+          projectIds: parsed.data.projectIds,
+          projectMemberRole: parsed.data.projectMemberRole
         })
       });
       const json = (await res.json()) as { userId?: string; error?: string };
@@ -388,11 +426,14 @@ export default function UsersPage() {
                     </div>
                     <TextInputField
                       className="col-span-2"
-                      label="Name (optional)"
+                      label="Name"
+                      required
                       value={invite.name}
-                      onChange={(e) =>
-                        setInvite((s) => ({ ...s, name: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        setInvite((s) => ({ ...s, name: e.target.value }));
+                        inviteValidation.touch('name');
+                      }}
+                      error={inviteValidation.fieldError('name')}
                       placeholder="Full name"
                     />
                     <div>
@@ -623,7 +664,11 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => (
+                {members.map((m) => {
+                  const removalBlocked = pipelineBlockedMembers.has(
+                    projectMemberRemovalKey(m.project_id, m.user_id)
+                  );
+                  return (
                   <tr key={`${m.project_id}-${m.user_id}`} className="border-b">
                     <td className="max-w-[140px] truncate px-3 py-2 text-xs text-gray-600">
                       {projectNameById.get(m.project_id) ?? 'Unknown project'}
@@ -683,6 +728,12 @@ export default function UsersPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={removalBlocked}
+                          title={
+                            removalBlocked
+                              ? PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
+                              : undefined
+                          }
                           onClick={() => removeMember(m.project_id, m.user_id)}
                         >
                           Remove
@@ -692,7 +743,8 @@ export default function UsersPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {members.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-8 text-center text-gray-500">

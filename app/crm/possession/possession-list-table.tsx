@@ -1,8 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  type ServerSortedTableProps
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -21,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { possessionUnitStatusTone, StatusChip } from '@/components/ui/status-chip';
 import {
   countChecklistDone,
   POSSESSION_WORKFLOW_LABELS,
@@ -65,7 +70,7 @@ const globalPossessionFilter: FilterFn<PossessionListRow> = (row, _columnId, raw
   return hay.includes(q);
 };
 
-type PossessionListTableProps = {
+type PossessionListTableProps = ServerSortedTableProps & {
   rows: PossessionListRow[];
   loading: boolean;
   onManage: (row: PossessionListRow) => void;
@@ -74,7 +79,9 @@ type PossessionListTableProps = {
 export function PossessionListTable({
   rows,
   loading,
-  onManage
+  onManage,
+  sorting,
+  onSortingChange
 }: PossessionListTableProps) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'given'>('all');
@@ -117,21 +124,14 @@ export function PossessionListTable({
         id: 'unitStatus',
         header: 'Unit status',
         accessorFn: (row) => statusLabelForUnit(row.unitStatus),
-        cell: ({ row }) => {
-          const s = normalizeUnitStatusCode(row.original.unitStatus);
-          return (
-            <span
-              className={cn(
-                'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold',
-                s === 'POSSESSED'
-                  ? 'bg-ds-primary-100 text-ds-primary-700'
-                  : 'bg-teal-50 text-teal-800'
-              )}
-            >
-              {statusLabelForUnit(row.original.unitStatus)}
-            </span>
-          );
-        }
+        cell: ({ row }) => (
+          <StatusChip
+            tone={possessionUnitStatusTone(row.original.unitStatus)}
+            size="md"
+          >
+            {statusLabelForUnit(row.original.unitStatus)}
+          </StatusChip>
+        )
       },
       {
         id: 'progress',
@@ -161,6 +161,8 @@ export function PossessionListTable({
         header: 'Actions',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => (
           <Button
             type="button"
@@ -178,16 +180,23 @@ export function PossessionListTable({
     [onManage]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: filteredRows,
     columns,
-    state: { globalFilter },
+    state: { globalFilter, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalPossessionFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } }
+    initialState: { pagination: { pageSize: 10 } },
+    ...tableFeatures
   });
 
   return (
@@ -238,17 +247,15 @@ export function PossessionListTable({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th
-                    key={h.id}
-                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                  >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                  <CrmDataTableHead key={h.id} header={h} />
                 ))}
               </tr>
             ))}
@@ -281,9 +288,7 @@ export function PossessionListTable({
                   className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-top">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                   ))}
                 </tr>
               ))

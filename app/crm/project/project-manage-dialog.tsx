@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import {
-  projectDetailsSchema,
+  projectDetailsSchemaWithExisting,
   projectPricingSchema
 } from '@/lib/project/project-manage.schema';
+import { PROJECT_NAME_DUPLICATE_ERROR } from '@/lib/project/project-name';
+import type { ProjectNameRow } from '@/lib/project/project-name';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
@@ -30,6 +32,13 @@ import {
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
+import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
+import { ProjectFySelect } from './project-fy-select';
+import { ProjectLocationField } from './project-location-field';
+import {
+  buildPipelineBlockedUserIdsForProject,
+  PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
+} from '@/lib/admin/project-member-pipeline-guard';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -73,6 +82,9 @@ export function ProjectManageDialog({
   const [myProjectRole, setMyProjectRole] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [members, setMembers] = useState<ProjectMemberRow[]>([]);
+  const [pipelineBlockedUserIds, setPipelineBlockedUserIds] = useState(
+    () => new Set<string>()
+  );
   const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
 
   const [name, setName] = useState('');
@@ -88,12 +100,19 @@ export function ProjectManageDialog({
   const [pricingStampPct, setPricingStampPct] = useState('0');
   const [pricingRegFee, setPricingRegFee] = useState('0');
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [existingProjects, setExistingProjects] = useState<ProjectNameRow[]>([]);
 
   const canManageMembers = isSuperAdmin || myProjectRole === 'Manager';
   const canEditDetails = isSuperAdmin;
   const canEditPricing = isSuperAdmin;
 
-  const detailsValidation = useFieldValidation(projectDetailsSchema, {
+  const detailsSchema = useMemo(
+    () =>
+      projectDetailsSchemaWithExisting(existingProjects, project?.id ?? undefined),
+    [existingProjects, project?.id]
+  );
+
+  const detailsValidation = useFieldValidation(detailsSchema, {
     name,
     location,
     type,
@@ -108,6 +127,22 @@ export function ProjectManageDialog({
     stampPct: pricingStampPct,
     regFee: pricingRegFee
   });
+
+  const loadExistingProjects = useCallback(async () => {
+    if (!isSuperAdmin) {
+      setExistingProjects([]);
+      return;
+    }
+    const { data, error: projectErr } = await supabase
+      .from('projects')
+      .select('id,name')
+      .order('name', { ascending: true });
+    if (projectErr) {
+      pageError(projectErr.message);
+      return;
+    }
+    setExistingProjects((data ?? []) as ProjectNameRow[]);
+  }, [isSuperAdmin, supabase]);
 
   const resetFromProject = useCallback((p: CrmProjectListItem) => {
     setName(p.name);
@@ -131,6 +166,28 @@ export function ProjectManageDialog({
       return;
     }
     setMembers((data ?? []) as ProjectMemberRow[]);
+
+    const { data: pipelineRows, error: pipelineErr } = await supabase
+      .from('sales_inquiries')
+      .select('assigned_to, funnel_stage, stage_data, unit_id')
+      .eq('project_id', project.id)
+      .not('unit_id', 'is', null)
+      .not('assigned_to', 'is', null);
+    if (pipelineErr) {
+      pageError(pipelineErr.message);
+      setPipelineBlockedUserIds(new Set());
+    } else {
+      setPipelineBlockedUserIds(
+        buildPipelineBlockedUserIdsForProject(
+          (pipelineRows ?? []) as Array<{
+            assigned_to: string | null;
+            funnel_stage: string | null;
+            stage_data: unknown;
+            unit_id: string | null;
+          }>
+        )
+      );
+    }
 
     const {
       data: { user }
@@ -184,11 +241,12 @@ export function ProjectManageDialog({
     resetFromProject(project);
     setLoading(true);
     void (async () => {
+      await loadExistingProjects();
       await loadMembers();
       await loadPricing();
       setLoading(false);
     })();
-  }, [open, project, resetFromProject, loadMembers, loadPricing]);
+  }, [open, project, resetFromProject, loadExistingProjects, loadMembers, loadPricing]);
 
   useEffect(() => {
     if (!open) return;
@@ -212,11 +270,16 @@ export function ProjectManageDialog({
           type,
           status,
           fy: fy.trim() || null,
-          rera_no: reraNo.trim() || null,
+          rera_no: isReadyProjectType(type) ? reraNo.trim() || null : null,
           base_rate: baseRate.trim() ? Number(baseRate) || null : null
         })
         .eq('id', project.id);
-      if (updateErr) throw updateErr;
+      if (updateErr) {
+        if (updateErr.code === '23505') {
+          throw new Error(PROJECT_NAME_DUPLICATE_ERROR);
+        }
+        throw updateErr;
+      }
       onUpdated();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save project');
@@ -318,6 +381,7 @@ export function ProjectManageDialog({
               <div className="grid gap-1 sm:col-span-2">
                 <TextInputField
                   label="Project name"
+                  required
                   labelClassName="text-xs text-ds-gray-500"
                   value={name}
                   onChange={(e) => {
@@ -329,17 +393,23 @@ export function ProjectManageDialog({
                   disabled={!canEditDetails}
                 />
               </div>
-              <div className="grid gap-1 sm:col-span-2">
-                <TextInputField
-                  label="Location"
-                  labelClassName="text-xs text-ds-gray-500"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  disabled={!canEditDetails}
-                />
-              </div>
+              <ProjectLocationField
+                className="sm:col-span-2"
+                labelClassName="text-xs text-ds-gray-500"
+                value={location}
+                onChange={setLocation}
+                disabled={!canEditDetails}
+              />
               <Field label="Type">
-                <Select value={type} onValueChange={setType} disabled={!canEditDetails}>
+                <Select
+                  value={type}
+                  onValueChange={(v) => {
+                    setType(v);
+                    setFy((prev) => coerceProjectFy(v, prev));
+                    if (!isReadyProjectType(v)) setReraNo('');
+                  }}
+                  disabled={!canEditDetails}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -367,15 +437,26 @@ export function ProjectManageDialog({
                 </Select>
               </Field>
               <Field label="Financial year">
-                <Input value={fy} onChange={(e) => setFy(e.target.value)} disabled={!canEditDetails} />
-              </Field>
-              <Field label="RERA number">
-                <Input
-                  value={reraNo}
-                  onChange={(e) => setReraNo(e.target.value)}
+                <ProjectFySelect
+                  projectType={type}
+                  value={fy}
+                  onValueChange={setFy}
                   disabled={!canEditDetails}
                 />
               </Field>
+              {isReadyProjectType(type) ? (
+                <Field label="RERA number">
+                  <Input
+                    value={reraNo}
+                    onChange={(e) => setReraNo(e.target.value)}
+                    disabled={!canEditDetails}
+                    required
+                  />
+                  <FormFieldError
+                    message={detailsValidation.fieldError('rera_no')}
+                  />
+                </Field>
+              ) : null}
               <Field label="Base rate (₹/sq.ft)">
                 <Input
                   type="number"
@@ -407,6 +488,7 @@ export function ProjectManageDialog({
               addMemberPickerKey={addMemberPickerKey}
               onUpsert={upsertMember}
               onRemove={removeMember}
+              pipelineBlockedUserIds={pipelineBlockedUserIds}
               onAdd={(uid) => {
                 void upsertMember(uid, 'Member', 'Active');
                 setAddMemberPickerKey((k) => k + 1);
@@ -497,6 +579,7 @@ function MembersPanel({
   members,
   profiles,
   addMemberPickerKey,
+  pipelineBlockedUserIds,
   onUpsert,
   onRemove,
   onAdd
@@ -505,6 +588,7 @@ function MembersPanel({
   members: ProjectMemberRow[];
   profiles: ProfileRow[];
   addMemberPickerKey: number;
+  pipelineBlockedUserIds: Set<string>;
   onUpsert: (userId: string, role: string, status: string) => void;
   onRemove: (userId: string) => void;
   onAdd: (userId: string) => void;
@@ -531,6 +615,7 @@ function MembersPanel({
           <tbody>
             {members.map((m) => {
               const prof = profiles.find((p) => p.id === m.user_id);
+              const removalBlocked = pipelineBlockedUserIds.has(m.user_id);
               return (
                 <tr key={m.user_id} className="border-t border-ds-gray-100">
                   <td className="px-3 py-2">
@@ -585,7 +670,17 @@ function MembersPanel({
                   </td>
                   <td className="px-3 py-2">
                     {canManageMembers ? (
-                      <Button size="sm" variant="outline" onClick={() => onRemove(m.user_id)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={removalBlocked}
+                        title={
+                          removalBlocked
+                            ? PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
+                            : undefined
+                        }
+                        onClick={() => onRemove(m.user_id)}
+                      >
                         Remove
                       </Button>
                     ) : (

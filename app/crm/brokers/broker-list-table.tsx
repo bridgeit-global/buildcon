@@ -1,15 +1,18 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { TableViewButton } from '@/components/buttons/table-view-button';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
+import { useCrmTableFeatures } from '@/components/data-table/crm-table-features';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
-  flexRender,
   type ColumnDef,
-  type FilterFn
+  type OnChangeFn,
+  type SortingState
 } from '@tanstack/react-table';
+import { brokerStatusTone, StatusChip } from '@/components/ui/status-chip';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type BrokerTableRow = {
@@ -22,26 +25,17 @@ export type BrokerTableRow = {
   created_at: string;
 };
 
-const globalBrokerFilter: FilterFn<BrokerTableRow> = (row, _colId, value) => {
-  const q = String(value).toLowerCase().trim();
-  if (!q) return true;
-  const { full_name, phone, email, license_no } = row.original;
-  return [full_name, phone, email, license_no].some((v) =>
-    v?.toLowerCase().includes(q)
-  );
-};
-
 export function BrokerListTable({
   rows,
   loading,
-  globalFilter,
+  sorting,
+  onSortingChange
 }: {
   rows: BrokerTableRow[];
   loading: boolean;
-  globalFilter?: string;
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
 }) {
-  const router = useRouter();
-
   const columns = useMemo<ColumnDef<BrokerTableRow, unknown>[]>(
     () => [
       {
@@ -84,47 +78,56 @@ export function BrokerListTable({
         id: 'status',
         header: 'Status',
         accessorKey: 'status',
-        enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-              row.original.status === 'Active'
-                ? 'border border-ds-success-200 bg-ds-success-50 text-ds-success-800'
-                : 'border border-ds-gray-200 bg-ds-gray-100 text-ds-gray-600'
-            }`}
-          >
+          <StatusChip tone={brokerStatusTone(row.original.status)} size="md">
             {row.original.status}
-          </span>
+          </StatusChip>
         )
       },
       {
         id: 'created_at',
         header: 'Added',
         accessorKey: 'created_at',
-        enableGlobalFilter: false,
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-ds-gray-500">
             {formatDisplayDate(row.original.created_at)}
           </span>
+        )
+      },
+      {
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        enableResizing: false,
+        size: 96,
+        cell: ({ row }) => (
+          <TableViewButton href={`/crm/brokers/${row.original.id}`} />
         )
       }
     ],
     []
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: rows,
     columns,
+    state: { sorting, columnSizing },
+    onSortingChange,
+    onColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    globalFilterFn: globalBrokerFilter,
-    state: { globalFilter: globalFilter ?? '' },
-    onGlobalFilterChange: () => {}
+    ...tableFeatures
   });
 
   return (
     <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-      <table className="w-full min-w-4xl caption-bottom text-sm">
+      <table
+        className="w-full min-w-4xl caption-bottom text-sm"
+        style={{ width: table.getCenterTotalSize() }}
+      >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr
@@ -132,12 +135,7 @@ export function BrokerListTable({
               className="border-b border-ds-gray-100 bg-ds-gray-50/80"
             >
               {hg.headers.map((h) => (
-                <th
-                  key={h.id}
-                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                >
-                  {flexRender(h.column.columnDef.header, h.getContext())}
-                </th>
+                <CrmDataTableHead key={h.id} header={h} />
               ))}
             </tr>
           ))}
@@ -165,13 +163,10 @@ export function BrokerListTable({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                onClick={() => router.push(`/crm/brokers/${row.original.id}`)}
-                className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  <CrmDataTableCell key={cell.id} cell={cell} />
                 ))}
               </tr>
             ))

@@ -1,8 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  type ServerSortedTableProps
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -12,6 +17,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,11 +29,11 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { cn } from '@/lib/utils';
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import {
   formatFloorLabel,
+  isUnitAvailableForBooking,
   statusLabelForUnit,
-  STATUS_COLOR,
   STATUS_LABEL,
   UNIT_STATUS_CODES
 } from './inventory-utils';
@@ -57,32 +63,6 @@ export type UnitRow = {
   blocked_on: string | null;
 };
 
-function StatusBadge({
-  code,
-  className
-}: {
-  code: string;
-  className?: string;
-}) {
-  const bg = STATUS_COLOR[code] ?? '#94A3B8';
-  const label = statusLabelForUnit(code);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold',
-        className
-      )}
-      style={{
-        background: `${bg}22`,
-        color: bg,
-        borderColor: `${bg}44`
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 const globalUnitFilter: FilterFn<UnitRow> = (row, _columnId, value) => {
   const q = String(value ?? '')
     .trim()
@@ -103,7 +83,7 @@ const exactOrAll: FilterFn<UnitRow> = (row, columnId, value) => {
 
 const filterLabelClass = 'text-xs text-ds-gray-500';
 
-type Props = {
+type Props = ServerSortedTableProps & {
   units: UnitRow[];
   structureOptions: string[];
   typeOptions: string[];
@@ -120,7 +100,9 @@ export function InventoryListTable({
   loading,
   onOpenDetail,
   onEdit,
-  onRefresh
+  onRefresh,
+  sorting,
+  onSortingChange
 }: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [wingFilter, setWingFilter] = useState('All');
@@ -248,32 +230,30 @@ export function InventoryListTable({
         accessorKey: 'status',
         filterFn: exactOrAll,
         enableGlobalFilter: false,
-        cell: ({ row }) => <StatusBadge code={row.original.status} />
+        cell: ({ row }) => <UnitStatusChip status={row.original.status} />
       },
       {
         id: 'actions',
         header: 'Action',
         enableGlobalFilter: false,
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => (
           <div
             className="flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
-              onClick={() => onEdit(row.original)}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 hover:bg-blue-100"
-              onClick={() => onOpenDetail(row.original)}
-            >
-              View
-            </button>
+            {isUnitAvailableForBooking(row.original.status) ? (
+              <button
+                type="button"
+                className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
+                onClick={() => onEdit(row.original)}
+              >
+                Edit
+              </button>
+            ) : null}
+            <TableViewButton onClick={() => onOpenDetail(row.original)} />
           </div>
         )
       }
@@ -281,16 +261,23 @@ export function InventoryListTable({
     [onEdit, onOpenDetail]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: units,
     columns,
-    state: { globalFilter, columnFilters },
+    state: { globalFilter, columnFilters, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange,
+    onColumnSizingChange,
     globalFilterFn: globalUnitFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } }
+    initialState: { pagination: { pageSize: 10 } },
+    ...tableFeatures
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;
@@ -382,17 +369,19 @@ export function InventoryListTable({
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom border-collapse text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom border-collapse text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead className="sticky top-0 z-[1] bg-ds-gray-50/90">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100">
                 {hg.headers.map((h) => (
-                  <th
+                  <CrmDataTableHead
                     key={h.id}
-                    className="px-3 py-2 text-left text-[10px] font-semibold text-ds-gray-500"
-                  >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                    header={h}
+                    className="px-3 py-2 text-[10px]"
+                  />
                 ))}
               </tr>
             ))}
@@ -406,9 +395,7 @@ export function InventoryListTable({
                   onClick={() => onOpenDetail(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-2">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="px-3 py-2" />
                   ))}
                 </tr>
               ))

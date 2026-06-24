@@ -7,12 +7,15 @@ import { Card } from '@/components/ui/card';
 import {
   defaultPossessionChecklist,
   mergePossessionChecklist,
+  countChecklistDone,
   type PossessionWorkflowStage
 } from '@/lib/possession/possession-trackers';
 import { toast } from '@/lib/toast';
 import { normalizeUnitStatusCode } from '../inventory/unit-status';
 import { PossessionListTable, type PossessionListRow } from './possession-list-table';
 import { PossessionCaseDialog } from './possession-case-dialog';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 
 type UnitHandoverRow = {
   id: string;
@@ -56,6 +59,7 @@ export default function PossessionHandoverPage() {
   const [loading, setLoading] = useState(false);
   const [activeRow, setActiveRow] = useState<PossessionListRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { sorting, onSortingChange } = useServerListSorting();
 
   const load = useCallback(async () => {
     if (projectIds.length === 0) {
@@ -64,12 +68,33 @@ export default function PossessionHandoverPage() {
     }
     setLoading(true);
 
-    const { data: units, error: uErr } = await supabase
+    const POSSESSION_DB_SORT: Record<string, string> = {
+      unit: 'unit_code',
+      unitStatus: 'status',
+      workflow: 'status'
+    };
+    const CLIENT_SORT = new Set(['project', 'customer', 'progress']);
+    const first = sorting[0];
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      POSSESSION_DB_SORT,
+      'unit_code',
+      true
+    );
+
+    let unitsQuery = supabase
       .from('units')
       .select('id, project_id, unit_code, status, projects(name)')
       .in('project_id', projectIds)
-      .in('status', ['PRE_POSSESSION', 'POSSESSED'])
-      .order('unit_code', { ascending: true });
+      .in('status', ['PRE_POSSESSION', 'POSSESSED']);
+
+    if (first && CLIENT_SORT.has(first.id)) {
+      unitsQuery = unitsQuery.order('unit_code', { ascending: true });
+    } else {
+      unitsQuery = unitsQuery.order(column, { ascending });
+    }
+
+    const { data: units, error: uErr } = await unitsQuery;
 
     if (uErr) {
       toast.error({ title: 'Could not load units', description: uErr.message });
@@ -185,7 +210,7 @@ export default function PossessionHandoverPage() {
       }
     }
 
-    const list: PossessionListRow[] = unitRows.map((u) => {
+    let list: PossessionListRow[] = unitRows.map((u) => {
       const c = caseByUnit.get(u.id)!;
       const proj = unwrapJoin(u.projects);
       return {
@@ -202,16 +227,25 @@ export default function PossessionHandoverPage() {
       };
     });
 
-    list.sort((a, b) => {
-      const aReady = normalizeUnitStatusCode(a.unitStatus) === 'PRE_POSSESSION';
-      const bReady = normalizeUnitStatusCode(b.unitStatus) === 'PRE_POSSESSION';
-      if (aReady !== bReady) return aReady ? -1 : 1;
-      return a.unitCode.localeCompare(b.unitCode);
-    });
+    if (first && CLIENT_SORT.has(first.id)) {
+      list = sortRowsByState(list, sorting, (row, colId) => {
+        if (colId === 'project') return row.projectName;
+        if (colId === 'customer') return row.customerName;
+        if (colId === 'progress') return countChecklistDone(row.checklist).done;
+        return null;
+      });
+    } else if (!first) {
+      list.sort((a, b) => {
+        const aReady = normalizeUnitStatusCode(a.unitStatus) === 'PRE_POSSESSION';
+        const bReady = normalizeUnitStatusCode(b.unitStatus) === 'PRE_POSSESSION';
+        if (aReady !== bReady) return aReady ? -1 : 1;
+        return a.unitCode.localeCompare(b.unitCode);
+      });
+    }
 
     setRows(list);
     setLoading(false);
-  }, [projectIds, projectNameById, supabase]);
+  }, [projectIds, projectNameById, sorting, supabase]);
 
   useEffect(() => {
     void load();
@@ -239,6 +273,8 @@ export default function PossessionHandoverPage() {
             setActiveRow(row);
             setDialogOpen(true);
           }}
+          sorting={sorting}
+          onSortingChange={onSortingChange}
         />
       </Card>
 

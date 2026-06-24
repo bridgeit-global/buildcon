@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { paymentModeNeedsLoanBank } from '@/lib/booking/booking-payment';
+import {
+  bookingPaymentModeField,
+  paymentModeNeedsLoanBank
+} from '@/lib/booking/booking-payment';
 import {
   normalizePhoneDigits,
   optionalEmail,
@@ -27,7 +30,7 @@ export const bookingCreateSchema = z
   .object({
     unitId: z.string().trim().min(1, 'Select a unit.'),
     customerId: z.string().trim().min(1, 'Select a customer.'),
-    paymentMode: z.string().trim().min(1, 'Select a payment mode.'),
+    paymentMode: bookingPaymentModeField,
     loanBank: z.string(),
     upiUtr: z.string(),
     chequeNo: z.string(),

@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { sortRowsByState } from '@/lib/crm/list-sort';
 import { useCrmProjectsContext } from '../../_components/active-project-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -368,6 +370,20 @@ export default function FinancialsBookingPage() {
     () => buildBookingLedgerRows(schedules, collections, scheduleLabelById),
     [schedules, collections, scheduleLabelById]
   );
+  const { sorting: ledgerSorting, onSortingChange: onLedgerSortingChange } =
+    useServerListSorting([{ id: 'date', desc: false }]);
+  const sortedLedgerRows = useMemo(
+    () =>
+      sortRowsByState(ledgerRows, ledgerSorting, (row, colId) => {
+        if (colId === 'date') return row.sortDate;
+        if (colId === 'type') return row.type;
+        if (colId === 'label') return row.label;
+        if (colId === 'amount') return row.amount;
+        if (colId === 'balance') return row.runningBalance;
+        return null;
+      }),
+    [ledgerRows, ledgerSorting]
+  );
 
   function instalmentLabelForSchedule(scheduleId: string | null): string | null {
     if (!scheduleId) return 'Unassigned receipt';
@@ -720,7 +736,12 @@ export default function FinancialsBookingPage() {
           receipts (updates when you save a collection or when token is posted at confirmation).
         </p>
         <div className="mt-3">
-          <BookingLedgerTable rows={ledgerRows} loading={loading} />
+          <BookingLedgerTable
+            rows={sortedLedgerRows}
+            loading={loading}
+            sorting={ledgerSorting}
+            onSortingChange={onLedgerSortingChange}
+          />
         </div>
       </Card>
 

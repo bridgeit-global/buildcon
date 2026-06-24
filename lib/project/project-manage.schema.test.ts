@@ -36,6 +36,22 @@ describe('projectDetailsSchema', () => {
       projectDetailsSchema.safeParse({ ...valid, base_rate: '-1' }).success
     ).toBe(false);
   });
+
+  it('allows empty RERA for non-Ready project types', () => {
+    expect(
+      projectDetailsSchema.safeParse({ ...valid, rera_no: '' }).success
+    ).toBe(true);
+  });
+
+  it('requires RERA for Ready projects', () => {
+    expect(
+      projectDetailsSchema.safeParse({
+        ...valid,
+        type: 'Ready',
+        rera_no: ''
+      }).success
+    ).toBe(false);
+  });
 });
 
 describe('projectPricingSchema', () => {

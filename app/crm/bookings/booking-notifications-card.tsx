@@ -5,6 +5,7 @@ import { pageError, toast } from '@/lib/toast';
 import { Loader2, RefreshCw, Send } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
+import { notificationStatusColor, StatusChip } from '@/components/ui/status-chip';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -122,7 +123,9 @@ export function BookingNotificationsCard({ bookingId }: Props) {
                   <td className="px-4 py-3 capitalize">{r.channel}</td>
                   <td className="px-4 py-3 text-xs text-ds-gray-700">{r.recipient ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={r.status} />
+                    <StatusChip color={notificationStatusColor(r.status)} size="md">
+                      {r.status}
+                    </StatusChip>
                   </td>
                   <td className="px-4 py-3 text-xs text-ds-gray-700">{r.template_name ?? '—'}</td>
                   <td className="px-4 py-3 text-xs text-ds-error-700">{r.error ?? '—'}</td>
@@ -155,24 +158,5 @@ export function BookingNotificationsCard({ bookingId }: Props) {
         </div>
       )}
     </Card>
-  );
-}
-
-function StatusBadge({ status }: { status: OutboundRow['status'] }) {
-  const color =
-    status === 'sent' || status === 'delivered' || status === 'read'
-      ? '#0d9488'
-      : status === 'failed'
-        ? '#dc2626'
-        : status === 'skipped'
-          ? '#64748b'
-          : '#f97316';
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-      style={{ backgroundColor: `${color}1a`, color }}
-    >
-      {status}
-    </span>
   );
 }

@@ -58,7 +58,10 @@ import {
   parseCsvRows
 } from '@/lib/inventory/inventory-csv';
 
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import { InventoryListTable, type UnitRow } from './inventory-list-table';
+import { useServerListSorting } from '@/components/data-table/crm-table-features';
+import { resolveSortFromState } from '@/lib/crm/list-sort';
 
 const UNIT_SELECT =
   'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
@@ -110,39 +113,14 @@ function tabCardClass() {
 const filterLabelClass = 'text-xs text-ds-gray-500';
 const filterSelectClass = 'mt-1 w-full min-w-[10rem]';
 
-function StatusBadge({
-  code,
-  className
-}: {
-  code: string;
-  className?: string;
-}) {
-  const bg = STATUS_COLOR[code] ?? '#94A3B8';
-  const label = statusLabelForUnit(code);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold',
-        className
-      )}
-      style={{
-        background: `${bg}22`,
-        color: bg,
-        borderColor: `${bg}44`
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 function UnitDetailDialog({
   unit,
   projectId,
   projectName,
   open,
   onOpenChange,
-  onCreateBooking
+  onCreateBooking,
+  createBookingEligibility = 'available'
 }: {
   unit: UnitRow | null;
   projectId: string | null;
@@ -150,6 +128,7 @@ function UnitDetailDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onCreateBooking: (unit: UnitRow) => void;
+  createBookingEligibility?: 'available' | 'blocked';
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [booking, setBooking] = useState<BookingPreview | null>(null);
@@ -232,7 +211,7 @@ function UnitDetailDialog({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <StatusBadge code={unit.status} className="text-[10px] px-2.5" />
+              <UnitStatusChip status={unit.status} size="sm" className="px-2.5" />
               <button
                 type="button"
                 aria-label="Close"
@@ -444,7 +423,9 @@ function UnitDetailDialog({
           <Button asChild variant="outline">
             <Link href={`/crm/units/${unit.id}`}>Open unit page</Link>
           </Button>
-          {isUnitAvailableForBooking(unit.status) ? (
+          {(createBookingEligibility === 'blocked'
+            ? isUnitBlockedStatus(unit.status)
+            : isUnitAvailableForBooking(unit.status)) ? (
             <Button
               onClick={() => {
                 onCreateBooking(unit);
@@ -911,6 +892,7 @@ function InventoryPageContent() {
 
   const [tab, setTab] = useState<InventoryTab>('Grid View');
   const [units, setUnits] = useState<UnitRow[]>([]);
+  const { sorting, onSortingChange } = useServerListSorting();
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [wingNames, setWingNames] = useState<string[]>([]);
   const [unitTypeNames, setUnitTypeNames] = useState<string[]>([]);
@@ -921,6 +903,9 @@ function InventoryPageContent() {
 
   const [selected, setSelected] = useState<UnitRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailBookingEligibility, setDetailBookingEligibility] = useState<
+    'available' | 'blocked'
+  >('available');
   const [editUnit, setEditUnit] = useState<UnitRow | null>(null);
 
   const [blockUnitId, setBlockUnitId] = useState('');
@@ -965,13 +950,28 @@ function InventoryPageContent() {
 
     setLoading(true);
 
+    const UNIT_DB_SORT: Record<string, string> = {
+      unit_code: 'unit_code',
+      wing_name: 'wing_name',
+      floor: 'floor',
+      unit_type: 'unit_type',
+      rate: 'rate',
+      status: 'status',
+      parking: 'parking_slots_included'
+    };
+    const { column, ascending } = resolveSortFromState(
+      sorting,
+      UNIT_DB_SORT,
+      'unit_code',
+      true
+    );
+
     const [unitsRes, projRes, wingsRes, typesRes] = await Promise.all([
       supabase
         .from('units')
         .select(UNIT_SELECT)
         .eq('project_id', inventoryProjectId)
-        .order('wing_name', { ascending: true })
-        .order('floor', { ascending: false })
+        .order(column, { ascending })
         .order('unit_no', { ascending: true }),
       supabase
         .from('projects')
@@ -1007,7 +1007,7 @@ function InventoryPageContent() {
     setUnitTypeNames(typeList);
 
     setLoading(false);
-  }, [inventoryProjectId, supabase]);
+  }, [inventoryProjectId, sorting, supabase]);
 
   const runBulkImport = useCallback(async () => {
     if (!inventoryProjectId || !bulkCsv.trim()) return;
@@ -1109,7 +1109,11 @@ function InventoryPageContent() {
 
   const navigateToBookingForUnit = useCallback(
     (unit: UnitRow) => {
-      if (!isUnitAvailableForBooking(unit.status)) return;
+      const allowed =
+        detailBookingEligibility === 'blocked'
+          ? isUnitBlockedStatus(unit.status)
+          : isUnitAvailableForBooking(unit.status);
+      if (!allowed) return;
       writeBookingPrefill({
         projectId: unit.project_id,
         inquiryId: null,
@@ -1123,7 +1127,12 @@ function InventoryPageContent() {
       });
       router.push('/crm/bookings');
     },
-    [project?.parking_rate, project?.parking_slots, router]
+    [
+      detailBookingEligibility,
+      project?.parking_rate,
+      project?.parking_slots,
+      router
+    ]
   );
 
   const structureOptions = useMemo(() => {
@@ -1293,7 +1302,11 @@ function InventoryPageContent() {
     await load();
   }
 
-  function openDetail(u: UnitRow) {
+  function openDetail(
+    u: UnitRow,
+    createBookingEligibility: 'available' | 'blocked' = 'available'
+  ) {
+    setDetailBookingEligibility(createBookingEligibility);
     setSelected(u);
     setDetailOpen(true);
   }
@@ -1795,6 +1808,8 @@ function InventoryPageContent() {
             onOpenDetail={openDetail}
             onEdit={setEditUnit}
             onRefresh={() => void load()}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
           />
         </div>
       )}
@@ -1861,7 +1876,7 @@ function InventoryPageContent() {
                         <button
                           key={u.id}
                           type="button"
-                          onClick={() => openDetail(u)}
+                          onClick={() => openDetail(u, 'blocked')}
                           className="w-[110px] rounded-[10px] border-2 p-3.5 text-center transition hover:scale-[1.04]"
                           style={{
                             background: `${c}18`,
@@ -1917,7 +1932,7 @@ function InventoryPageContent() {
                         <button
                           key={u.id}
                           type="button"
-                          onClick={() => openDetail(u)}
+                          onClick={() => openDetail(u, 'blocked')}
                           className="w-[110px] rounded-[10px] border-2 p-3.5 text-center transition hover:scale-[1.04]"
                           style={{
                             background: `${c}18`,
@@ -2199,6 +2214,7 @@ function InventoryPageContent() {
           if (!o) setSelected(null);
         }}
         onCreateBooking={navigateToBookingForUnit}
+        createBookingEligibility={detailBookingEligibility}
       />
 
       <UnitEditDialog

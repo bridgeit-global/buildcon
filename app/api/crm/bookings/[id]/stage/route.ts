@@ -16,6 +16,7 @@ import {
 import type { BookingStageData, BookingWorkflowStage } from '@/app/crm/bookings/booking-types';
 import { loadBookingKycReport } from '@/lib/customer/server-kyc-loader';
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
+import { createBookingTokenStageSchema } from '@/lib/booking/booking-workflow.schema';
 import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type StageBody = {
@@ -34,7 +35,7 @@ export async function POST(
   const { data: booking, error: loadErr } = await admin
     .from('bookings')
     .select(
-      'id,project_id,unit_id,sales_inquiry_id,workflow_stage,stage,stage_data,status,booking_amount,payment_detail'
+      'id,project_id,unit_id,sales_inquiry_id,workflow_stage,stage,stage_data,status,booking_amount,payment_detail,loan_bank'
     )
     .eq('id', bookingId)
     .maybeSingle();
@@ -71,6 +72,22 @@ export async function POST(
     typeof body.stageDataPatch === 'object' &&
     !(current === 'token' && tokenLocked)
   ) {
+    if (current === 'token') {
+      const token = stageData.token ?? {};
+      const tokenParsed = createBookingTokenStageSchema({
+        loanBank: booking.loan_bank as string | null
+      }).safeParse({
+        amount: String(body.stageDataPatch.amount ?? token.amount ?? ''),
+        date: String(body.stageDataPatch.date ?? token.date ?? ''),
+        mode: String(body.stageDataPatch.mode ?? token.mode ?? '')
+      });
+      if (!tokenParsed.success) {
+        return NextResponse.json(
+          { error: tokenParsed.error.issues[0]?.message ?? 'Complete token details.' },
+          { status: 400 }
+        );
+      }
+    }
     stageData = mergeStageData(stageData, current, body.stageDataPatch);
   }
 

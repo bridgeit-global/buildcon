@@ -2,8 +2,13 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  type ServerSortedTableProps
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   useReactTable,
   type ColumnDef
@@ -66,7 +71,7 @@ function buildMatrixRows(generated: GeneratedDocRow[]): BookingDocMatrixRow[] {
   });
 }
 
-type BookingDocumentsMatrixTableProps = {
+type BookingDocumentsMatrixTableProps = ServerSortedTableProps & {
   rows: BookingDocMatrixRow[];
   kycComplete: boolean;
   generatingKind: BookingDocumentPrintKind | null;
@@ -141,7 +146,9 @@ export function BookingDocumentsMatrixTable({
   onNotify,
   scheduleLabelById,
   outstandingTotal,
-  unitPossessed = false
+  unitPossessed = false,
+  sorting,
+  onSortingChange
 }: BookingDocumentsMatrixTableProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [viewBusyId, setViewBusyId] = useState<string | null>(null);
@@ -217,6 +224,8 @@ export function BookingDocumentsMatrixTable({
         id: 'generate',
         header: 'Generate',
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => {
           const k = row.original.kind;
           const busy = generatingKind === k;
@@ -246,6 +255,8 @@ export function BookingDocumentsMatrixTable({
         id: 'review',
         header: 'Review',
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => {
           const latest = row.original.latest;
           if (!latest) {
@@ -271,6 +282,8 @@ export function BookingDocumentsMatrixTable({
         id: 'send',
         header: 'Send',
         enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => {
           const latest = row.original.latest;
           if (!latest) {
@@ -315,26 +328,32 @@ export function BookingDocumentsMatrixTable({
     ]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: rows,
     columns,
-    getCoreRowModel: getCoreRowModel()
+    state: { sorting, columnSizing },
+    onSortingChange,
+    onColumnSizingChange,
+    getCoreRowModel: getCoreRowModel(),
+    ...tableFeatures
   });
 
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-xl caption-bottom text-sm">
+        <table
+          className="w-full min-w-xl caption-bottom text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th
-                    key={h.id}
-                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                  >
-                    {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                  <CrmDataTableHead key={h.id} header={h} />
                 ))}
               </tr>
             ))}
@@ -343,9 +362,7 @@ export function BookingDocumentsMatrixTable({
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3 align-top">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                 ))}
               </tr>
             ))}

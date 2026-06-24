@@ -2,8 +2,13 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
+import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
-  flexRender,
+  useCrmTableFeatures,
+  type ServerSortedTableProps
+} from '@/components/data-table/crm-table-features';
+import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -12,6 +17,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { bookingWorkflowTone, StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import {
   BOOKING_WORKFLOW_LABEL,
@@ -57,7 +64,7 @@ function unwrapJoin<T>(x: T | T[] | null): T | null {
   return Array.isArray(x) ? x[0] ?? null : x;
 }
 
-type Props = {
+type Props = ServerSortedTableProps & {
   rows: BookingListRow[];
   projectNameById: Map<string, string>;
   loading?: boolean;
@@ -75,7 +82,13 @@ const STAGE_TABS: Array<{
     }))
   ];
 
-export function BookingListTable({ rows, projectNameById, loading }: Props) {
+export function BookingListTable({
+  rows,
+  projectNameById,
+  loading,
+  sorting,
+  onSortingChange
+}: Props) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [stageTab, setStageTab] = useState<(typeof STAGE_TABS)[number]['id']>('token');
 
@@ -105,6 +118,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
       {
         id: 'project',
         header: 'Project',
+        accessorFn: (row) => projectNameById.get(row.project_id) ?? '',
         cell: ({ row }) => (
           <span className="text-xs text-ds-gray-600">
             {projectNameById.get(row.original.project_id) ?? '—'}
@@ -114,6 +128,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
       {
         id: 'unit',
         header: 'Unit',
+        accessorFn: (row) => unwrapJoin(row.units)?.unit_code ?? '',
         cell: ({ row }) => {
           const u = unwrapJoin(row.original.units);
           const href = `/crm/bookings/${row.original.id}`;
@@ -135,6 +150,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
       {
         id: 'buyer',
         header: 'Buyer',
+        accessorFn: (row) => unwrapJoin(row.customers)?.full_name ?? '',
         cell: ({ row }) => {
           const c = unwrapJoin(row.original.customers);
           const co = row.original.co_buyers ?? [];
@@ -160,18 +176,12 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
           const label = BOOKING_WORKFLOW_LABEL[ws] ?? ws;
           const cancelled = row.original.status === 'cancelled';
           return (
-            <span
-              className={cn(
-                'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
-                cancelled
-                  ? 'bg-ds-error-50 text-ds-error-700'
-                  : ws === 'confirmation'
-                    ? 'bg-ds-primary-50 text-ds-primary-700'
-                    : 'bg-ds-gray-100 text-ds-gray-700'
-              )}
+            <StatusChip
+              tone={bookingWorkflowTone(ws, cancelled)}
+              size="md"
             >
               {cancelled ? 'Cancelled' : label}
-            </span>
+            </StatusChip>
           );
         }
       },
@@ -192,26 +202,37 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
         id: 'actions',
         header: '',
         enableGlobalFilter: false,
+        enableSorting: false,
+        enableResizing: false,
+        size: 96,
         cell: ({ row }) => (
-          <Button variant="outline" size="sm" className="h-8" asChild>
-            <Link href={`/crm/bookings/${row.original.id}`}>Open</Link>
-          </Button>
+          <TableViewButton
+            href={`/crm/bookings/${row.original.id}`}
+            label="Open"
+          />
         )
       }
     ],
     [projectNameById]
   );
 
+  const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({
+    serverSorting: true
+  });
+
   const table = useReactTable({
     data: filteredRows,
     columns,
-    state: { globalFilter },
+    state: { globalFilter, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
+    onSortingChange,
+    onColumnSizingChange,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     globalFilterFn: globalBookingFilter,
-    initialState: { pagination: { pageSize: 10 } }
+    initialState: { pagination: { pageSize: 10 } },
+    ...tableFeatures
   });
 
   return (
@@ -268,17 +289,15 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-        <table className="w-full min-w-[56rem] caption-bottom text-sm">
+        <table
+          className="w-full min-w-[56rem] caption-bottom text-sm"
+          style={{ width: table.getCenterTotalSize() }}
+        >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                 {hg.headers.map((h) => (
-                  <th
-                    key={h.id}
-                    className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
-                  >
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                  </th>
+                  <CrmDataTableHead key={h.id} header={h} />
                 ))}
               </tr>
             ))}
@@ -303,9 +322,7 @@ export function BookingListTable({ rows, projectNameById, loading }: Props) {
                   className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 align-top">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                   ))}
                 </tr>
               ))

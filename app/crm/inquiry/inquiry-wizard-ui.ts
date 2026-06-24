@@ -3,12 +3,13 @@ import {
   INQUIRY_PIPELINE_UI_STAGES,
   type InquiryPipelineUiStage
 } from './inquiry-funnel-stages';
-import type {
-  WizardSavedSnapshots,
-  WizardStep1Snapshot,
-  WizardStep2Snapshot,
-  WizardStep3Snapshot,
-  WizardStepId
+import {
+  wizardSnapshotsEqual,
+  type WizardSavedSnapshots,
+  type WizardStep1Snapshot,
+  type WizardStep2Snapshot,
+  type WizardStep3Snapshot,
+  type WizardStepId
 } from './inquiry-wizard-snapshots';
 
 export type InquiryWizardUiDrafts = {
@@ -17,18 +18,12 @@ export type InquiryWizardUiDrafts = {
   '3'?: WizardStep3Snapshot;
 };
 
-export type InquiryWizardUiDirty = {
-  '1'?: boolean;
-  '2'?: boolean;
-  '3'?: boolean;
-};
-
 /** Persisted on `sales_inquiries.wizard_ui`. */
 export type InquiryWizardUiState = {
   view_stage?: InquiryPipelineUiStage;
   wizard_step?: WizardStepId;
   drafts?: InquiryWizardUiDrafts;
-  dirty?: InquiryWizardUiDirty;
+  unsaved?: boolean;
   updated_at?: string;
 };
 
@@ -43,6 +38,12 @@ function isPipelineUiStage(v: unknown): v is InquiryPipelineUiStage {
 
 function isWizardStepId(v: unknown): v is WizardStepId {
   return v === 1 || v === 2 || v === 3;
+}
+
+function legacyDirtyIndicatesUnsaved(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  const dirty = raw as Record<string, unknown>;
+  return WIZARD_STEP_KEYS.some((key) => dirty[key] === true);
 }
 
 export function parseInquiryWizardUi(raw: unknown): InquiryWizardUiState {
@@ -63,14 +64,10 @@ export function parseInquiryWizardUi(raw: unknown): InquiryWizardUiState {
     if (Object.keys(drafts).length > 0) out.drafts = drafts;
   }
 
-  const dirtyRaw = o.dirty;
-  if (dirtyRaw && typeof dirtyRaw === 'object' && !Array.isArray(dirtyRaw)) {
-    const dirty: InquiryWizardUiDirty = {};
-    for (const key of WIZARD_STEP_KEYS) {
-      const v = (dirtyRaw as Record<string, unknown>)[key];
-      if (typeof v === 'boolean') dirty[key] = v;
-    }
-    if (Object.keys(dirty).length > 0) out.dirty = dirty;
+  if (typeof o.unsaved === 'boolean') {
+    out.unsaved = o.unsaved;
+  } else if (legacyDirtyIndicatesUnsaved(o.dirty)) {
+    out.unsaved = true;
   }
 
   if (typeof o.updated_at === 'string' && o.updated_at.trim()) {
@@ -81,22 +78,24 @@ export function parseInquiryWizardUi(raw: unknown): InquiryWizardUiState {
 }
 
 export function buildWizardUiDraftPayload(
-  _saved: WizardSavedSnapshots,
-  draft: WizardSavedSnapshots,
-  stepDirty: Record<WizardStepId, boolean>
-): Pick<InquiryWizardUiState, 'drafts' | 'dirty'> {
+  saved: WizardSavedSnapshots,
+  draft: WizardSavedSnapshots
+): Pick<InquiryWizardUiState, 'drafts' | 'unsaved'> {
   const drafts: InquiryWizardUiDrafts = {};
-  const dirty: InquiryWizardUiDirty = {};
+  let unsaved = false;
 
   for (const step of [1, 2, 3] as const) {
     const key = String(step) as keyof InquiryWizardUiDrafts;
-    dirty[key] = stepDirty[step];
-    if (stepDirty[step]) {
+    if (!wizardSnapshotsEqual(draft[step], saved[step])) {
+      unsaved = true;
       drafts[key] = draft[step] as never;
     }
   }
 
-  return { drafts, dirty };
+  return {
+    drafts: Object.keys(drafts).length > 0 ? drafts : undefined,
+    unsaved: unsaved || undefined
+  };
 }
 
 function mergeWizardUiState(
@@ -109,9 +108,8 @@ function mergeWizardUiState(
     next.drafts =
       patch.drafts && Object.keys(patch.drafts).length > 0 ? patch.drafts : undefined;
   }
-  if (patch.dirty !== undefined) {
-    next.dirty =
-      patch.dirty && Object.keys(patch.dirty).length > 0 ? patch.dirty : undefined;
+  if (patch.unsaved === false) {
+    next.unsaved = undefined;
   }
 
   next.updated_at = new Date().toISOString();
@@ -146,15 +144,4 @@ export async function saveInquiryWizardUi(
 
   if (writeErr) return { ok: false, error: writeErr.message };
   return { ok: true };
-}
-
-/** Map wizard step dirty flags to pipeline UI stage ids for the stepper. */
-export function pipelineStagesWithUnsavedChanges(
-  stepDirty: Record<WizardStepId, boolean>
-): Set<InquiryPipelineUiStage> {
-  const out = new Set<InquiryPipelineUiStage>();
-  if (stepDirty[1]) out.add('Enquiry');
-  if (stepDirty[2]) out.add('Qualified');
-  if (stepDirty[3]) out.add('Site Visit');
-  return out;
 }

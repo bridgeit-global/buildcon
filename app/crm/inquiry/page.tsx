@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { funnelStageTone, StatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { embedOne, inquiryProjectLabel, normalizeLeadSource } from './inquiry-helpers';
 import { INQUIRY_CLOSED_FUNNEL_STAGE } from './inquiry-funnel-stages';
@@ -34,26 +35,6 @@ function leadSourceColor(label: string, index: number) {
   if (l.includes('website')) return '#99f6e4';
   const palette = ['#ccfbf1', '#99f6e4', '#5eead4', '#2dd4bf', '#14b8a6'];
   return palette[index % palette.length];
-}
-
-function funnelStageBadgeClass(stage: string) {
-  const s = String(stage || '').trim();
-  if (s === INQUIRY_CLOSED_FUNNEL_STAGE) {
-    return 'border-ds-gray-300 bg-ds-gray-100 text-ds-gray-800';
-  }
-  if (!s || s === 'Enquiry') {
-    return 'border-red-200 bg-red-50 text-red-800';
-  }
-  if (s === 'Qualified') {
-    return 'border-teal-200 bg-teal-50 text-teal-900';
-  }
-  if (s === 'Site Visit') {
-    return 'border-green-200 bg-green-50 text-green-900';
-  }
-  if (s === 'Token') {
-    return 'border-teal-300 bg-teal-100 text-teal-950';
-  }
-  return 'border-slate-200 bg-slate-50 text-slate-800';
 }
 
 function funnelStageLabel(stage: string) {
@@ -383,14 +364,9 @@ function InquiryPageContent() {
                         </div>
                       ) : null}
                     </div>
-                    <span
-                      className={cn(
-                        'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                        funnelStageBadgeClass(stage)
-                      )}
-                    >
+                    <StatusChip tone={funnelStageTone(stage)} uppercase className="shrink-0">
                       {label}
-                    </span>
+                    </StatusChip>
                   </>
                 );
                 return (

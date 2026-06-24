@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { TextInputField } from '@/components/ui/text-input-field';
+import { ProjectLocationField } from '../project-location-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import {
@@ -37,7 +37,7 @@ import {
 import {
   WIZARD_STEPS,
   type CreateProjectDraft,
-  createProjectStep0Schema,
+  createProjectStep0SchemaWithExisting,
   createProjectStep1FieldsSchema,
   createProjectStep3Schema,
   wingsFromDraft,
@@ -51,8 +51,15 @@ import {
   resetDraft
 } from '../project-create-shared';
 import BackButton from '@/components/buttons/back-button';
+import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
+import { ProjectFySelect } from '../project-fy-select';
 
 type ProfileRow = { id: string; name: string | null; role: string };
+type ProjectNameRow = { id: string; name: string };
+
+function profileOptionLabel(p: ProfileRow): string {
+  return `${p.name || 'Unnamed user'} (${p.role})`;
+}
 
 export default function CreateProjectPage() {
   const router = useRouter();
@@ -60,10 +67,11 @@ export default function CreateProjectPage() {
 
   const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [existingProjects, setExistingProjects] = useState<ProjectNameRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [createStep, setCreateStep] = useState(0);
   const [creating, setCreating] = useState(false);
-  const [memberSearch, setMemberSearch] = useState('');
+  const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
   const [draft, setDraft] = useState<CreateProjectDraft>(() =>
     createInitialDraft()
   );
@@ -109,6 +117,13 @@ export default function CreateProjectPage() {
       if (!cancelled && !profErr) {
         setProfiles((profs ?? []) as ProfileRow[]);
       }
+      const { data: projects, error: projectErr } = await supabase
+        .from('projects')
+        .select('id,name')
+        .order('name', { ascending: true });
+      if (!cancelled && !projectErr) {
+        setExistingProjects((projects ?? []) as ProjectNameRow[]);
+      }
       setLoading(false);
     })();
     return () => {
@@ -116,23 +131,10 @@ export default function CreateProjectPage() {
     };
   }, [router, supabase]);
 
-  const filteredProfiles = profiles.filter((p) => {
-    const q = memberSearch.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      (p.name || '').toLowerCase().includes(q) ||
-      p.role.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q)
-    );
-  });
-
-  const selectVisibleMembers = () => {
-    const ids = filteredProfiles.map((p) => p.id);
-    setDraft((d) => ({
-      ...d,
-      memberIds: Array.from(new Set([...d.memberIds, ...ids]))
-    }));
-  };
+  const availableMemberProfiles = useMemo(
+    () => profiles.filter((p) => !draft.memberIds.includes(p.id)),
+    [profiles, draft.memberIds]
+  );
 
   const clearAllMembers = () => setDraft((d) => ({ ...d, memberIds: [] }));
 
@@ -142,7 +144,7 @@ export default function CreateProjectPage() {
   async function createProject() {
     setCreating(true);
         try {
-      const validationErr = validateCreateDraft(draft);
+      const validationErr = validateCreateDraft(draft, { existingProjects });
       if (validationErr) {
         pageError(validationErr);
         return;
@@ -175,12 +177,14 @@ export default function CreateProjectPage() {
             type: draft.type,
             status: draft.status,
             fy: draft.fy || null,
-            rera_no: draft.rera_no || null,
+            rera_no: isReadyProjectType(draft.type)
+              ? draft.rera_no.trim() || null
+              : null,
             floors_per_wing: metaFloors,
             units_per_floor: metaUnits,
             base_rate: Number(draft.base_rate || 0) || null,
-            min_rate: Number(draft.min_rate || 0) || null,
-            max_rate: Number(draft.max_rate || 0) || null,
+            min_rate: null,
+            max_rate: null,
             parking_slots:
               parkingSlotsTotal > 0 ? parkingSlotsTotal : null,
             parking_rate:
@@ -232,7 +236,7 @@ export default function CreateProjectPage() {
       }
     }
 
-    const err = validateCreateStep(createStep, draft);
+    const err = validateCreateStep(createStep, draft, { existingProjects });
     if (err) {
       pageError(err);
       return;
@@ -272,8 +276,8 @@ export default function CreateProjectPage() {
   );
 
   const createBlockedReason = useMemo(
-    () => validateCreateDraft(draft),
-    [draft]
+    () => validateCreateDraft(draft, { existingProjects }),
+    [draft, existingProjects]
   );
 
   const previewUnitTotal = useMemo(() => {
@@ -320,14 +324,17 @@ export default function CreateProjectPage() {
   );
   const step3Values = useMemo(
     () => ({
-      base_rate: draft.base_rate,
-      min_rate: draft.min_rate,
-      max_rate: draft.max_rate
+      base_rate: draft.base_rate
     }),
-    [draft.base_rate, draft.min_rate, draft.max_rate]
+    [draft.base_rate]
   );
 
-  const step0Validation = useFieldValidation(createProjectStep0Schema, step0Values);
+  const step0Schema = useMemo(
+    () => createProjectStep0SchemaWithExisting(existingProjects),
+    [existingProjects]
+  );
+
+  const step0Validation = useFieldValidation(step0Schema, step0Values);
   const step1FieldsValidation = useFieldValidation(
     createProjectStep1FieldsSchema,
     step1FieldValues
@@ -392,18 +399,16 @@ export default function CreateProjectPage() {
                 error={step0Validation.fieldError('name')}
                 placeholder="e.g. Sunrise Residency"
               />
-              <TextInputField
+              <ProjectLocationField
                 className="col-span-2"
-                label="Location"
                 required
                 value={draft.location}
-                onChange={(e) => {
-                  setDraft((d) => ({ ...d, location: e.target.value }));
+                onChange={(location) => {
+                  setDraft((d) => ({ ...d, location }));
                   step0Validation.touch('location');
                 }}
                 onBlur={() => step0Validation.touch('location')}
                 error={step0Validation.fieldError('location')}
-                placeholder="e.g. Pune, Maharashtra"
               />
               <div>
                 <Label>Type</Label>
@@ -412,7 +417,9 @@ export default function CreateProjectPage() {
                   onValueChange={(v) =>
                     setDraft((d) => ({
                       ...d,
-                      type: v as CreateProjectDraft['type']
+                      type: v as CreateProjectDraft['type'],
+                      fy: coerceProjectFy(v, d.fy),
+                      rera_no: isReadyProjectType(v) ? d.rera_no : ''
                     }))
                   }
                 >
@@ -449,22 +456,23 @@ export default function CreateProjectPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <TextInputField
+              <ProjectFySelect
                 label="FY"
+                projectType={draft.type}
                 value={draft.fy}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, fy: e.target.value }))
-                }
-                placeholder="2026-27"
+                onValueChange={(fy) => setDraft((d) => ({ ...d, fy }))}
               />
-              <TextInputField
-                label="RERA No."
-                value={draft.rera_no}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, rera_no: e.target.value }))
-                }
-                placeholder="e.g. P52100012345"
-              />
+              {isReadyProjectType(draft.type) ? (
+                <TextInputField
+                  label="RERA No."
+                  required
+                  value={draft.rera_no}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, rera_no: e.target.value }))
+                  }
+                  placeholder="e.g. P52100012345"
+                />
+              ) : null}
             </div>
           ) : null}
 
@@ -611,36 +619,6 @@ export default function CreateProjectPage() {
                 onBlur={() => step3Validation.touch('base_rate')}
                 error={step3Validation.fieldError('base_rate')}
               />
-              <TextInputField
-                label="Min rate"
-                type="number"
-                min={0}
-                value={String(draft.min_rate)}
-                onChange={(e) => {
-                  setDraft((d) => ({
-                    ...d,
-                    min_rate: Number(e.target.value) || 0
-                  }));
-                  step3Validation.touch('min_rate');
-                }}
-                onBlur={() => step3Validation.touch('min_rate')}
-                error={step3Validation.fieldError('min_rate')}
-              />
-              <TextInputField
-                label="Max rate"
-                type="number"
-                min={0}
-                value={String(draft.max_rate)}
-                onChange={(e) => {
-                  setDraft((d) => ({
-                    ...d,
-                    max_rate: Number(e.target.value) || 0
-                  }));
-                  step3Validation.touch('max_rate');
-                }}
-                onBlur={() => step3Validation.touch('max_rate')}
-                error={step3Validation.fieldError('max_rate')}
-              />
             </div>
           ) : null}
 
@@ -655,102 +633,68 @@ export default function CreateProjectPage() {
                     Selected: {draft.memberIds.length}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={selectVisibleMembers}
-                    disabled={filteredProfiles.length === 0}
-                  >
-                    Select visible
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={clearAllMembers}
-                    disabled={draft.memberIds.length === 0}
-                  >
-                    Clear
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={clearAllMembers}
+                  disabled={draft.memberIds.length === 0}
+                >
+                  Clear
+                </Button>
               </div>
 
               <div>
-                <Label>Search users</Label>
-                <Input
+                <Label>Add user</Label>
+                <SearchableSelect
+                  key={addMemberPickerKey}
+                  value=""
+                  onValueChange={(label) => {
+                    const user = profiles.find(
+                      (p) => profileOptionLabel(p) === label
+                    );
+                    if (user && !draft.memberIds.includes(user.id)) {
+                      setDraft((d) => ({
+                        ...d,
+                        memberIds: [...d.memberIds, user.id]
+                      }));
+                      setAddMemberPickerKey((k) => k + 1);
+                    }
+                  }}
+                  options={availableMemberProfiles.map(profileOptionLabel)}
+                  placeholder={
+                    profiles.length === 0
+                      ? 'No users available'
+                      : availableMemberProfiles.length === 0
+                        ? 'All users assigned'
+                        : 'Search and select user…'
+                  }
+                  searchPlaceholder="Search by name or role…"
                   className={formControlFieldGapClass}
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
-                  placeholder="Search by name, role, or id…"
+                  disabled={
+                    profiles.length === 0 || availableMemberProfiles.length === 0
+                  }
                 />
               </div>
 
               {draft.memberIds.length ? (
                 <div className="flex flex-wrap gap-2">
-                  {draft.memberIds.slice(0, 8).map((id) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => removeMemberChip(id)}
-                      className="border bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                      title="Remove"
-                    >
-                      {profiles.find((p) => p.id === id)?.name ?? 'Unnamed user'} ×
-                    </button>
-                  ))}
-                  {draft.memberIds.length > 8 ? (
-                    <div className="border bg-gray-50 px-3 py-1 text-xs text-gray-500">
-                      +{draft.memberIds.length - 8} more
-                    </div>
-                  ) : null}
+                  {draft.memberIds.map((id) => {
+                    const profile = profiles.find((p) => p.id === id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => removeMemberChip(id)}
+                        className="rounded-lg border border-ds-gray-200 bg-white px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
+                        title="Remove"
+                      >
+                        {profile ? profileOptionLabel(profile) : 'Unnamed user'} ×
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
-
-              <div className="grid max-h-[280px] grid-cols-1 gap-2 overflow-auto border bg-gray-50 p-2 sm:grid-cols-2">
-                {filteredProfiles.map((p) => {
-                  const checked = draft.memberIds.includes(p.id);
-                  return (
-                    <label
-                      key={p.id}
-                      className={`flex cursor-pointer items-center gap-3 border px-3 py-2 text-sm transition-colors ${checked
-                        ? 'border-blue-200 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:bg-gray-50'
-                        }`}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(next) =>
-                          setDraft((d) => ({
-                            ...d,
-                            memberIds:
-                              next === true
-                                ? [...d.memberIds, p.id]
-                                : d.memberIds.filter((x) => x !== p.id)
-                          }))
-                        }
-                      />
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-gray-900">
-                          {p.name || 'Unnamed user'}
-                        </div>
-                        <div className="truncate text-xs text-gray-500">{p.role}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-                {profiles.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">
-                    No users found.
-                  </div>
-                ) : null}
-                {profiles.length > 0 && filteredProfiles.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">
-                    No users match your search.
-                  </div>
-                ) : null}
-              </div>
             </div>
           ) : null}
 
@@ -766,7 +710,9 @@ export default function CreateProjectPage() {
                   ['Type', draft.type],
                   ['Status', draft.status],
                   ['FY', draft.fy || '—'],
-                  ['RERA', draft.rera_no || '—'],
+                  ...(isReadyProjectType(draft.type)
+                    ? ([['RERA', draft.rera_no || '—']] as const)
+                    : []),
                   [
                     'Structure paths',
                     wingsFromDraft(draft).join(' · ') || '—'
@@ -781,10 +727,7 @@ export default function CreateProjectPage() {
                     'Floor provision rows',
                     String(draft.floorProvisions.length)
                   ],
-                  [
-                    'Rates (base / min / max)',
-                    `${draft.base_rate} / ${draft.min_rate} / ${draft.max_rate}`
-                  ],
+                  ['Base rate (₹/sq.ft)', String(draft.base_rate)],
                   ['Unit types', mergedUnitTypes.join(', ') || '—'],
                   ['Members', `${draft.memberIds.length} selected`]
                 ].map(([k, v]) => (

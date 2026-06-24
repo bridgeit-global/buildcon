@@ -26,8 +26,13 @@ vi.mock('@/lib/authz', async (importOriginal) => {
 });
 
 import { GET, POST } from './route';
+import { NextRequest } from 'next/server';
 import { createMockSupabaseClient } from '@/test/mocks/supabase';
 import { postJson, readJson } from '@/test/mocks/route-helpers';
+
+function projectsGetRequest() {
+  return new NextRequest('http://localhost/api/crm/projects');
+}
 
 describe('GET /api/crm/projects', () => {
   beforeEach(() => {
@@ -43,7 +48,7 @@ describe('GET /api/crm/projects', () => {
       })
     );
 
-    const res = await GET();
+    const res = await GET(projectsGetRequest());
     expect(res.status).toBe(401);
     expect(await readJson(res)).toEqual({ error: 'Unauthorized' });
   });
@@ -86,7 +91,7 @@ describe('GET /api/crm/projects', () => {
       })
     );
 
-    const res = await GET();
+    const res = await GET(projectsGetRequest());
     expect(res.status).toBe(200);
     const json = await readJson<{ projects: unknown[]; canCreateProject: boolean }>(res);
     expect(json.projects).toHaveLength(1);
@@ -113,5 +118,25 @@ describe('POST /api/crm/projects', () => {
     const res = await POST(postJson({ project: {} }));
     expect(res.status).toBe(400);
     expect(await readJson(res)).toEqual({ error: 'Missing project name' });
+  });
+
+  it('returns 409 when project name already exists', async () => {
+    requireSuperAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
+    createSupabaseAdminClient.mockReturnValue(
+      createMockSupabaseClient({
+        tables: {
+          projects: {
+            data: [{ id: 'proj-1', name: 'Existing Project' }],
+            error: null
+          }
+        }
+      })
+    );
+
+    const res = await POST(postJson({ project: { name: 'existing project' } }));
+    expect(res.status).toBe(409);
+    expect(await readJson(res)).toEqual({
+      error: 'A project with this name already exists.'
+    });
   });
 });

@@ -18,6 +18,7 @@ import {
   nomineeFormSchema,
   type NomineeFormValues
 } from '@/lib/customer/customer-forms.schema';
+import { todayIsoDate } from '@/lib/date-input-value';
 
 type Props = {
   open: boolean;
@@ -94,6 +95,7 @@ export function CustomerNomineeDialog({
                   className="col-span-2"
                   label="Date of birth"
                   type="date"
+                  max={todayIsoDate()}
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   onBlur={field.onBlur}

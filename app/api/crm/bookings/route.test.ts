@@ -60,6 +60,14 @@ describe('POST /api/crm/bookings', () => {
     expect(await readJson(res)).toEqual({ error: 'Payment mode is required' });
   });
 
+  it('returns 400 when payment mode is invalid', async () => {
+    const res = await POST(
+      postJson({ ...validBody, paymentMode: 'InvalidMode' })
+    );
+    expect(res.status).toBe(400);
+    expect(await readJson(res)).toEqual({ error: 'Select a valid payment mode' });
+  });
+
   it('returns 400 when UPI mode lacks UTR', async () => {
     const res = await POST(
       postJson({ ...validBody, paymentMode: 'UPI', paymentDetail: {} })

@@ -3,6 +3,7 @@ import {
   applyDefaultUnitTypeToFloorProvisions,
   createInitialDraft,
   createProjectStep0Schema,
+  createProjectStep0SchemaWithExisting,
   createProjectStep1FieldsSchema,
   createProjectStep3Schema,
   firstUnitTypeFromCsv,
@@ -12,6 +13,7 @@ import {
   validateFloorUnitTypesAssigned,
   type CreateProjectDraft
 } from './project-create-shared';
+import { PROJECT_NAME_DUPLICATE_ERROR } from '@/lib/project/project-name';
 
 describe('parseUnitTypesCsv', () => {
   it('parses and dedupes comma-separated types', () => {
@@ -47,6 +49,18 @@ describe('createProjectStep0Schema', () => {
       }).success
     ).toBe(false);
   });
+
+  it('rejects duplicate project names', () => {
+    const schema = createProjectStep0SchemaWithExisting([
+      { id: 'p1', name: 'Sunrise Heights' }
+    ]);
+    expect(
+      schema.safeParse({
+        name: 'sunrise heights',
+        location: 'Mumbai'
+      }).success
+    ).toBe(false);
+  });
 });
 
 describe('createProjectStep1FieldsSchema', () => {
@@ -64,22 +78,18 @@ describe('createProjectStep1FieldsSchema', () => {
 });
 
 describe('createProjectStep3Schema', () => {
-  it('accepts non-negative rates', () => {
+  it('accepts non-negative base rate', () => {
     expect(
       createProjectStep3Schema.safeParse({
-        base_rate: 10000,
-        min_rate: 9000,
-        max_rate: 12000
+        base_rate: 10000
       }).success
     ).toBe(true);
   });
 
-  it('rejects negative rates', () => {
+  it('rejects negative base rate', () => {
     expect(
       createProjectStep3Schema.safeParse({
-        base_rate: -1,
-        min_rate: 0,
-        max_rate: 0
+        base_rate: -1
       }).success
     ).toBe(false);
   });
@@ -126,6 +136,16 @@ describe('validateCreateStep', () => {
     const draft = createInitialDraft();
     draft.name = '';
     expect(validateCreateStep(0, draft)).toMatch(/name/i);
+  });
+
+  it('validates step 0 duplicate project name', () => {
+    const draft = createInitialDraft();
+    draft.name = 'Sunrise Heights';
+    expect(
+      validateCreateStep(0, draft, {
+        existingProjects: [{ id: 'p1', name: 'Sunrise Heights' }]
+      })
+    ).toBe(PROJECT_NAME_DUPLICATE_ERROR);
   });
 
   it('validates step 1 unit types', () => {
