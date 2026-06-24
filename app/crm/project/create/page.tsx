@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { ProjectLocationField } from '../project-location-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
@@ -58,6 +57,10 @@ import { ProjectFySelect } from '../project-fy-select';
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectNameRow = { id: string; name: string };
 
+function profileOptionLabel(p: ProfileRow): string {
+  return `${p.name || 'Unnamed user'} (${p.role})`;
+}
+
 export default function CreateProjectPage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -68,7 +71,7 @@ export default function CreateProjectPage() {
   const [loading, setLoading] = useState(true);
   const [createStep, setCreateStep] = useState(0);
   const [creating, setCreating] = useState(false);
-  const [memberSearch, setMemberSearch] = useState('');
+  const [addMemberPickerKey, setAddMemberPickerKey] = useState(0);
   const [draft, setDraft] = useState<CreateProjectDraft>(() =>
     createInitialDraft()
   );
@@ -128,23 +131,10 @@ export default function CreateProjectPage() {
     };
   }, [router, supabase]);
 
-  const filteredProfiles = profiles.filter((p) => {
-    const q = memberSearch.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      (p.name || '').toLowerCase().includes(q) ||
-      p.role.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q)
-    );
-  });
-
-  const selectVisibleMembers = () => {
-    const ids = filteredProfiles.map((p) => p.id);
-    setDraft((d) => ({
-      ...d,
-      memberIds: Array.from(new Set([...d.memberIds, ...ids]))
-    }));
-  };
+  const availableMemberProfiles = useMemo(
+    () => profiles.filter((p) => !draft.memberIds.includes(p.id)),
+    [profiles, draft.memberIds]
+  );
 
   const clearAllMembers = () => setDraft((d) => ({ ...d, memberIds: [] }));
 
@@ -643,102 +633,68 @@ export default function CreateProjectPage() {
                     Selected: {draft.memberIds.length}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={selectVisibleMembers}
-                    disabled={filteredProfiles.length === 0}
-                  >
-                    Select visible
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={clearAllMembers}
-                    disabled={draft.memberIds.length === 0}
-                  >
-                    Clear
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={clearAllMembers}
+                  disabled={draft.memberIds.length === 0}
+                >
+                  Clear
+                </Button>
               </div>
 
               <div>
-                <Label>Search users</Label>
-                <Input
+                <Label>Add user</Label>
+                <SearchableSelect
+                  key={addMemberPickerKey}
+                  value=""
+                  onValueChange={(label) => {
+                    const user = profiles.find(
+                      (p) => profileOptionLabel(p) === label
+                    );
+                    if (user && !draft.memberIds.includes(user.id)) {
+                      setDraft((d) => ({
+                        ...d,
+                        memberIds: [...d.memberIds, user.id]
+                      }));
+                      setAddMemberPickerKey((k) => k + 1);
+                    }
+                  }}
+                  options={availableMemberProfiles.map(profileOptionLabel)}
+                  placeholder={
+                    profiles.length === 0
+                      ? 'No users available'
+                      : availableMemberProfiles.length === 0
+                        ? 'All users assigned'
+                        : 'Search and select user…'
+                  }
+                  searchPlaceholder="Search by name or role…"
                   className={formControlFieldGapClass}
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
-                  placeholder="Search by name, role, or id…"
+                  disabled={
+                    profiles.length === 0 || availableMemberProfiles.length === 0
+                  }
                 />
               </div>
 
               {draft.memberIds.length ? (
                 <div className="flex flex-wrap gap-2">
-                  {draft.memberIds.slice(0, 8).map((id) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => removeMemberChip(id)}
-                      className="border bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                      title="Remove"
-                    >
-                      {profiles.find((p) => p.id === id)?.name ?? 'Unnamed user'} ×
-                    </button>
-                  ))}
-                  {draft.memberIds.length > 8 ? (
-                    <div className="border bg-gray-50 px-3 py-1 text-xs text-gray-500">
-                      +{draft.memberIds.length - 8} more
-                    </div>
-                  ) : null}
+                  {draft.memberIds.map((id) => {
+                    const profile = profiles.find((p) => p.id === id);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => removeMemberChip(id)}
+                        className="rounded-lg border border-ds-gray-200 bg-white px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
+                        title="Remove"
+                      >
+                        {profile ? profileOptionLabel(profile) : 'Unnamed user'} ×
+                      </button>
+                    );
+                  })}
                 </div>
               ) : null}
-
-              <div className="grid max-h-[280px] grid-cols-1 gap-2 overflow-auto border bg-gray-50 p-2 sm:grid-cols-2">
-                {filteredProfiles.map((p) => {
-                  const checked = draft.memberIds.includes(p.id);
-                  return (
-                    <label
-                      key={p.id}
-                      className={`flex cursor-pointer items-center gap-3 border px-3 py-2 text-sm transition-colors ${checked
-                        ? 'border-blue-200 bg-blue-50'
-                        : 'border-gray-200 bg-white hover:bg-gray-50'
-                        }`}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(next) =>
-                          setDraft((d) => ({
-                            ...d,
-                            memberIds:
-                              next === true
-                                ? [...d.memberIds, p.id]
-                                : d.memberIds.filter((x) => x !== p.id)
-                          }))
-                        }
-                      />
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-gray-900">
-                          {p.name || 'Unnamed user'}
-                        </div>
-                        <div className="truncate text-xs text-gray-500">{p.role}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-                {profiles.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">
-                    No users found.
-                  </div>
-                ) : null}
-                {profiles.length > 0 && filteredProfiles.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">
-                    No users match your search.
-                  </div>
-                ) : null}
-              </div>
             </div>
           ) : null}
 
