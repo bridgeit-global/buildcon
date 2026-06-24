@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TextInputField } from '@/components/ui/text-input-field';
+import { ProjectLocationField } from '../project-location-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import {
@@ -410,18 +411,16 @@ export default function CreateProjectPage() {
                 error={step0Validation.fieldError('name')}
                 placeholder="e.g. Sunrise Residency"
               />
-              <TextInputField
+              <ProjectLocationField
                 className="col-span-2"
-                label="Location"
                 required
                 value={draft.location}
-                onChange={(e) => {
-                  setDraft((d) => ({ ...d, location: e.target.value }));
+                onChange={(location) => {
+                  setDraft((d) => ({ ...d, location }));
                   step0Validation.touch('location');
                 }}
                 onBlur={() => step0Validation.touch('location')}
                 error={step0Validation.fieldError('location')}
-                placeholder="e.g. Pune, Maharashtra"
               />
               <div>
                 <Label>Type</Label>

@@ -34,6 +34,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
 import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import { ProjectFySelect } from './project-fy-select';
+import { ProjectLocationField } from './project-location-field';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectMemberRow = {
@@ -363,15 +364,13 @@ export function ProjectManageDialog({
                   disabled={!canEditDetails}
                 />
               </div>
-              <div className="grid gap-1 sm:col-span-2">
-                <TextInputField
-                  label="Location"
-                  labelClassName="text-xs text-ds-gray-500"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  disabled={!canEditDetails}
-                />
-              </div>
+              <ProjectLocationField
+                className="sm:col-span-2"
+                labelClassName="text-xs text-ds-gray-500"
+                value={location}
+                onChange={setLocation}
+                disabled={!canEditDetails}
+              />
               <Field label="Type">
                 <Select
                   value={type}
