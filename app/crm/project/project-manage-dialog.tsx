@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
-import { coerceProjectFy } from '@/lib/project/project-fy';
+import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import { ProjectFySelect } from './project-fy-select';
 
 type ProfileRow = { id: string; name: string | null; role: string };
@@ -240,7 +240,7 @@ export function ProjectManageDialog({
           type,
           status,
           fy: fy.trim() || null,
-          rera_no: reraNo.trim() || null,
+          rera_no: isReadyProjectType(type) ? reraNo.trim() || null : null,
           base_rate: baseRate.trim() ? Number(baseRate) || null : null
         })
         .eq('id', project.id);
@@ -378,6 +378,7 @@ export function ProjectManageDialog({
                   onValueChange={(v) => {
                     setType(v);
                     setFy((prev) => coerceProjectFy(v, prev));
+                    if (!isReadyProjectType(v)) setReraNo('');
                   }}
                   disabled={!canEditDetails}
                 >
@@ -415,13 +416,19 @@ export function ProjectManageDialog({
                   disabled={!canEditDetails}
                 />
               </Field>
-              <Field label="RERA number">
-                <Input
-                  value={reraNo}
-                  onChange={(e) => setReraNo(e.target.value)}
-                  disabled={!canEditDetails}
-                />
-              </Field>
+              {isReadyProjectType(type) ? (
+                <Field label="RERA number">
+                  <Input
+                    value={reraNo}
+                    onChange={(e) => setReraNo(e.target.value)}
+                    disabled={!canEditDetails}
+                    required
+                  />
+                  <FormFieldError
+                    message={detailsValidation.fieldError('rera_no')}
+                  />
+                </Field>
+              ) : null}
               <Field label="Base rate (₹/sq.ft)">
                 <Input
                   type="number"

@@ -1,4 +1,4 @@
-import { defaultProjectFy } from '@/lib/project/project-fy';
+import { defaultProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import type { FloorProvisionDraft, StructureNode } from './project-structure-utils';
 import {
   isProjectNameTaken,
@@ -193,6 +193,9 @@ export function validateCreateStep(
       : false;
     if (duplicate) return PROJECT_NAME_DUPLICATE_ERROR;
     if (!draft.location.trim()) return 'Location is required.';
+    if (isReadyProjectType(draft.type) && !draft.rera_no.trim()) {
+      return 'RERA number is required for Ready projects.';
+    }
     return null;
   }
   if (step === 1) {
