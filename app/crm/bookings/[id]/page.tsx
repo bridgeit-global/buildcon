@@ -31,6 +31,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { isIsoDateNotAfterToday, todayIsoDate } from '@/lib/date-input-value';
 import {
   BOOKING_WORKFLOW_LABEL,
   BOOKING_WORKFLOW_STAGES,
@@ -1082,6 +1083,8 @@ export default function BookingDetailPage() {
     if (!b.guardian_name?.trim())
       errors.guardian_name = "Father's/Mother's/Spouse's name is required.";
     if (!b.dob) errors.dob = 'Date of birth is required.';
+    else if (!isIsoDateNotAfterToday(b.dob))
+      errors.dob = 'Date of birth cannot be in the future.';
     if (!b.pan.trim()) errors.pan = 'PAN is required.';
     if (!b.aadhaarLast4.trim()) errors.aadhaar = 'Aadhaar number is required.';
     if (!b.nationality?.trim()) errors.nationality = 'Nationality is required.';
@@ -1556,6 +1559,7 @@ export default function BookingDetailPage() {
                           label="Date of Birth"
                           required
                           type="date"
+                          max={todayIsoDate()}
                           value={b.dob ?? ''}
                           onChange={(e) =>
                             setBuyerKyc((rows) =>

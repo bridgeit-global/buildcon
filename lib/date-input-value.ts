@@ -34,3 +34,10 @@ export function withDateInputDefault(
 ): string {
   return String(value ?? '').trim() || fallback;
 }
+
+/** True when `iso` is empty or on/before today in the local calendar. */
+export function isIsoDateNotAfterToday(iso: string, at: Date = new Date()): boolean {
+  const t = iso.trim();
+  if (!t) return true;
+  return t <= todayIsoDate(at);
+}

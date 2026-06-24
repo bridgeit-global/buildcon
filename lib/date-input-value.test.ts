@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   datetimeLocalValue,
   datetimeLocalValueNextWeek,
+  isIsoDateNotAfterToday,
   nextWeekIsoDate,
   todayIsoDate,
   withDateInputDefault
@@ -63,5 +64,26 @@ describe('withDateInputDefault', () => {
 
   it('returns trimmed value when present', () => {
     expect(withDateInputDefault(' 2026-03-10 ', '2026-01-01')).toBe('2026-03-10');
+  });
+});
+
+describe('isIsoDateNotAfterToday', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T10:30:00'));
+  });
+
+  it('accepts empty values', () => {
+    expect(isIsoDateNotAfterToday('')).toBe(true);
+    expect(isIsoDateNotAfterToday('  ')).toBe(true);
+  });
+
+  it('accepts today and past dates', () => {
+    expect(isIsoDateNotAfterToday('2026-06-15')).toBe(true);
+    expect(isIsoDateNotAfterToday('1990-01-01')).toBe(true);
+  });
+
+  it('rejects future dates', () => {
+    expect(isIsoDateNotAfterToday('2026-06-16')).toBe(false);
   });
 });

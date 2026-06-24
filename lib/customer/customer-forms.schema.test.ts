@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   addressFormSchema,
   bankFormSchema,
@@ -39,6 +39,15 @@ describe('customerCreateSchema', () => {
     expect(
       customerCreateSchema.safeParse({ ...valid, phone: '12' }).success
     ).toBe(false);
+  });
+
+  it('rejects future date of birth', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T10:30:00'));
+    expect(
+      customerCreateSchema.safeParse({ ...valid, dob: '2026-06-16' }).success
+    ).toBe(false);
+    vi.useRealTimers();
   });
 });
 
@@ -134,6 +143,19 @@ describe('nomineeFormSchema', () => {
         nominee_dob: ''
       }).success
     ).toBe(false);
+  });
+
+  it('rejects future nominee date of birth', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T10:30:00'));
+    expect(
+      nomineeFormSchema.safeParse({
+        nominee_name: 'Priya Kumar',
+        relationship: 'Spouse',
+        nominee_dob: '2026-06-16'
+      }).success
+    ).toBe(false);
+    vi.useRealTimers();
   });
 });
 

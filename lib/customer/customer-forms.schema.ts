@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isIsoDateNotAfterToday } from '@/lib/date-input-value';
 import {
   isAadhaarValid,
   isPanValid,
@@ -61,12 +62,16 @@ const ifscOptional = z.string().refine(
 
 const addressKind = z.enum(['current', 'permanent']);
 
+const optionalPastDate = z.string().refine(isIsoDateNotAfterToday, {
+  message: 'Date of birth cannot be in the future.'
+});
+
 /** Add-customer dialog */
 export const customerCreateSchema = z.object({
   full_name: z.string().trim().min(1, 'Customer name is required.'),
   phone: phone10,
   email: optionalEmail,
-  dob: z.string(),
+  dob: optionalPastDate,
   occupation: z.string(),
   nationality: z.string(),
   guardian_name: z.string(),
@@ -124,7 +129,7 @@ export const addressFormSchema = z.object({
 export const nomineeFormSchema = z.object({
   nominee_name: z.string().trim().min(1, 'Nominee name is required.'),
   relationship: z.string(),
-  nominee_dob: z.string()
+  nominee_dob: optionalPastDate
 });
 
 /** Bank dialog */

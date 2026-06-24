@@ -18,6 +18,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
+import { todayIsoDate } from '@/lib/date-input-value';
 import { cn } from '@/lib/utils';
 
 export const CUSTOMER_FORM_DIALOG_CLASS =
@@ -220,6 +221,7 @@ export function CustomerProfileFields<T extends FieldValues>({
             value={field.value ?? ''}
             label="Date of birth"
             type="date"
+            max={todayIsoDate()}
             error={fieldState.error?.message}
           />
         )}
