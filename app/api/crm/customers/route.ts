@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildIlikeOrFilter } from '@/lib/crm/list-search';
 import { resolveDbSort } from '@/lib/crm/list-sort';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz';
@@ -28,10 +29,6 @@ function parseOffset(raw: string | null): number {
   return n;
 }
 
-function escapeIlike(term: string): string {
-  return term.replace(/[%_\\]/g, '\\$&');
-}
-
 export async function GET(request: NextRequest) {
   const gate = await requireUser();
   if (!gate.ok) {
@@ -59,10 +56,7 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit - 1);
 
   if (q) {
-    const like = `%${escapeIlike(q)}%`;
-    query = query.or(
-      `full_name.ilike.${like},phone.ilike.${like},email.ilike.${like},id.ilike.${like}`
-    );
+    query = query.or(buildIlikeOrFilter(['full_name', 'phone', 'email'], q));
   }
 
   const { data, error, count } = await query;
