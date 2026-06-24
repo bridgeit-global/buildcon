@@ -19,6 +19,7 @@ import {
 } from '@tanstack/react-table';
 import { Check, ChevronLeft, ChevronRight, Lock, X } from 'lucide-react';
 import Link from 'next/link';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -464,18 +465,14 @@ export default function ApprovalsPage() {
           }
           return (
             <div className="flex justify-end">
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
+              <TableViewButton
+                label="Review"
                 disabled={!isSuperAdmin}
                 onClick={() => {
                   setActiveRow(r);
                   setDecisionNote(r.decision_note ?? '');
                 }}
-              >
-                Review
-              </Button>
+              />
             </div>
           );
         }
@@ -804,19 +801,19 @@ export default function ApprovalsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="min-h-11 border-red-300 text-red-700 hover:bg-red-50"
+                    className="min-h-11 gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('reject')}
                   >
-                    <X className="mr-1 size-4" /> Reject
+                    <X className="size-4" /> Reject
                   </Button>
                   <Button
                     type="button"
-                    className="min-h-11 bg-teal-600 hover:bg-teal-700"
+                    className="min-h-11 gap-1 bg-teal-600 hover:bg-teal-700"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('approve')}
                   >
-                    <Check className="mr-1 size-4" /> Approve
+                    <Check className="size-4" /> Approve
                   </Button>
                 </div>
               </DialogFooter>

@@ -119,7 +119,8 @@ function UnitDetailDialog({
   projectName,
   open,
   onOpenChange,
-  onCreateBooking
+  onCreateBooking,
+  createBookingEligibility = 'available'
 }: {
   unit: UnitRow | null;
   projectId: string | null;
@@ -127,6 +128,7 @@ function UnitDetailDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onCreateBooking: (unit: UnitRow) => void;
+  createBookingEligibility?: 'available' | 'blocked';
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [booking, setBooking] = useState<BookingPreview | null>(null);
@@ -421,7 +423,9 @@ function UnitDetailDialog({
           <Button asChild variant="outline">
             <Link href={`/crm/units/${unit.id}`}>Open unit page</Link>
           </Button>
-          {isUnitAvailableForBooking(unit.status) ? (
+          {(createBookingEligibility === 'blocked'
+            ? isUnitBlockedStatus(unit.status)
+            : isUnitAvailableForBooking(unit.status)) ? (
             <Button
               onClick={() => {
                 onCreateBooking(unit);
@@ -899,6 +903,9 @@ function InventoryPageContent() {
 
   const [selected, setSelected] = useState<UnitRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailBookingEligibility, setDetailBookingEligibility] = useState<
+    'available' | 'blocked'
+  >('available');
   const [editUnit, setEditUnit] = useState<UnitRow | null>(null);
 
   const [blockUnitId, setBlockUnitId] = useState('');
@@ -1102,7 +1109,11 @@ function InventoryPageContent() {
 
   const navigateToBookingForUnit = useCallback(
     (unit: UnitRow) => {
-      if (!isUnitAvailableForBooking(unit.status)) return;
+      const allowed =
+        detailBookingEligibility === 'blocked'
+          ? isUnitBlockedStatus(unit.status)
+          : isUnitAvailableForBooking(unit.status);
+      if (!allowed) return;
       writeBookingPrefill({
         projectId: unit.project_id,
         inquiryId: null,
@@ -1116,7 +1127,12 @@ function InventoryPageContent() {
       });
       router.push('/crm/bookings');
     },
-    [project?.parking_rate, project?.parking_slots, router]
+    [
+      detailBookingEligibility,
+      project?.parking_rate,
+      project?.parking_slots,
+      router
+    ]
   );
 
   const structureOptions = useMemo(() => {
@@ -1286,7 +1302,11 @@ function InventoryPageContent() {
     await load();
   }
 
-  function openDetail(u: UnitRow) {
+  function openDetail(
+    u: UnitRow,
+    createBookingEligibility: 'available' | 'blocked' = 'available'
+  ) {
+    setDetailBookingEligibility(createBookingEligibility);
     setSelected(u);
     setDetailOpen(true);
   }
@@ -1856,7 +1876,7 @@ function InventoryPageContent() {
                         <button
                           key={u.id}
                           type="button"
-                          onClick={() => openDetail(u)}
+                          onClick={() => openDetail(u, 'blocked')}
                           className="w-[110px] rounded-[10px] border-2 p-3.5 text-center transition hover:scale-[1.04]"
                           style={{
                             background: `${c}18`,
@@ -1912,7 +1932,7 @@ function InventoryPageContent() {
                         <button
                           key={u.id}
                           type="button"
-                          onClick={() => openDetail(u)}
+                          onClick={() => openDetail(u, 'blocked')}
                           className="w-[110px] rounded-[10px] border-2 p-3.5 text-center transition hover:scale-[1.04]"
                           style={{
                             background: `${c}18`,
@@ -2194,6 +2214,7 @@ function InventoryPageContent() {
           if (!o) setSelected(null);
         }}
         onCreateBooking={navigateToBookingForUnit}
+        createBookingEligibility={detailBookingEligibility}
       />
 
       <UnitEditDialog
