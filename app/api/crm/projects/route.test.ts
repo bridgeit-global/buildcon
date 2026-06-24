@@ -119,4 +119,24 @@ describe('POST /api/crm/projects', () => {
     expect(res.status).toBe(400);
     expect(await readJson(res)).toEqual({ error: 'Missing project name' });
   });
+
+  it('returns 409 when project name already exists', async () => {
+    requireSuperAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
+    createSupabaseAdminClient.mockReturnValue(
+      createMockSupabaseClient({
+        tables: {
+          projects: {
+            data: [{ id: 'proj-1', name: 'Existing Project' }],
+            error: null
+          }
+        }
+      })
+    );
+
+    const res = await POST(postJson({ project: { name: 'existing project' } }));
+    expect(res.status).toBe(409);
+    expect(await readJson(res)).toEqual({
+      error: 'A project with this name already exists.'
+    });
+  });
 });

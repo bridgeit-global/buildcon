@@ -1,4 +1,9 @@
 import type { FloorProvisionDraft, StructureNode } from './project-structure-utils';
+import {
+  isProjectNameTaken,
+  PROJECT_NAME_DUPLICATE_ERROR,
+  type ProjectNameRow
+} from '@/lib/project/project-name';
 import { z } from 'zod';
 import {
   countProjectUnits,
@@ -55,6 +60,27 @@ export const createProjectStep0Schema = z.object({
   name: z.string().trim().min(1, 'Project name is required.'),
   location: z.string().trim().min(1, 'Location is required.')
 });
+
+export type CreateProjectValidationOptions = {
+  existingProjects?: Iterable<ProjectNameRow>;
+};
+
+export function createProjectStep0SchemaWithExisting(
+  existingProjects?: Iterable<ProjectNameRow>
+) {
+  return createProjectStep0Schema.superRefine((data, ctx) => {
+    if (
+      existingProjects &&
+      isProjectNameTaken(data.name, existingProjects)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: PROJECT_NAME_DUPLICATE_ERROR,
+        path: ['name']
+      });
+    }
+  });
+}
 
 export const createProjectStep1FieldsSchema = z.object({
   unitTypesCsv: z.string().superRefine((val, ctx) => {
@@ -143,9 +169,12 @@ export function validateFloorUnitTypesAssigned(
   return null;
 }
 
-export function validateCreateDraft(draft: CreateProjectDraft): string | null {
+export function validateCreateDraft(
+  draft: CreateProjectDraft,
+  options?: CreateProjectValidationOptions
+): string | null {
   for (let step = 0; step <= 3; step++) {
-    const err = validateCreateStep(step, draft);
+    const err = validateCreateStep(step, draft, options);
     if (err) return err;
   }
   return validateFloorUnitTypesAssigned(draft);
@@ -153,10 +182,15 @@ export function validateCreateDraft(draft: CreateProjectDraft): string | null {
 
 export function validateCreateStep(
   step: number,
-  draft: CreateProjectDraft
+  draft: CreateProjectDraft,
+  options?: CreateProjectValidationOptions
 ): string | null {
   if (step === 0) {
     if (!draft.name.trim()) return 'Project name is required.';
+    const duplicate = options?.existingProjects
+      ? isProjectNameTaken(draft.name, options.existingProjects)
+      : false;
+    if (duplicate) return PROJECT_NAME_DUPLICATE_ERROR;
     if (!draft.location.trim()) return 'Location is required.';
     return null;
   }

@@ -3,6 +3,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { getProfileRole, isSuperAdmin, requireSuperAdmin } from '@/lib/authz';
 import { resolveDbSort, sortRowsByState } from '@/lib/crm/list-sort';
+import {
+  assertProjectNameAvailable,
+  isProjectNameUniqueViolation
+} from '@/lib/project/project-name-server';
+import { PROJECT_NAME_DUPLICATE_ERROR } from '@/lib/project/project-name';
 import type { CrmProjectListItem } from '@/app/crm/_components/types';
 
 type FloorProvisionInput = {
@@ -256,21 +261,35 @@ export async function POST(request: Request) {
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const body = (await request.json()) as CreateProjectBody;
-  if (!body?.project?.name) {
+  const projectName = String(body?.project?.name ?? '').trim();
+  if (!projectName) {
     return NextResponse.json({ error: 'Missing project name' }, { status: 400 });
   }
 
   const admin = createSupabaseAdminClient();
 
+  const nameError = await assertProjectNameAvailable(admin, projectName);
+  if (nameError) {
+    const status = nameError === PROJECT_NAME_DUPLICATE_ERROR ? 409 : 400;
+    return NextResponse.json({ error: nameError }, { status });
+  }
+
   const { data: projectRow, error: projErr } = await admin
     .from('projects')
     .insert({
-      ...body.project
+      ...body.project,
+      name: projectName
     })
     .select('id')
     .single();
 
   if (projErr) {
+    if (isProjectNameUniqueViolation(projErr)) {
+      return NextResponse.json(
+        { error: PROJECT_NAME_DUPLICATE_ERROR },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: projErr.message }, { status: 500 });
   }
 

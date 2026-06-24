@@ -37,7 +37,7 @@ import {
 import {
   WIZARD_STEPS,
   type CreateProjectDraft,
-  createProjectStep0Schema,
+  createProjectStep0SchemaWithExisting,
   createProjectStep1FieldsSchema,
   createProjectStep3Schema,
   wingsFromDraft,
@@ -53,6 +53,7 @@ import {
 import BackButton from '@/components/buttons/back-button';
 
 type ProfileRow = { id: string; name: string | null; role: string };
+type ProjectNameRow = { id: string; name: string };
 
 export default function CreateProjectPage() {
   const router = useRouter();
@@ -60,6 +61,7 @@ export default function CreateProjectPage() {
 
   const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [existingProjects, setExistingProjects] = useState<ProjectNameRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [createStep, setCreateStep] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -109,6 +111,13 @@ export default function CreateProjectPage() {
       if (!cancelled && !profErr) {
         setProfiles((profs ?? []) as ProfileRow[]);
       }
+      const { data: projects, error: projectErr } = await supabase
+        .from('projects')
+        .select('id,name')
+        .order('name', { ascending: true });
+      if (!cancelled && !projectErr) {
+        setExistingProjects((projects ?? []) as ProjectNameRow[]);
+      }
       setLoading(false);
     })();
     return () => {
@@ -142,7 +151,7 @@ export default function CreateProjectPage() {
   async function createProject() {
     setCreating(true);
         try {
-      const validationErr = validateCreateDraft(draft);
+      const validationErr = validateCreateDraft(draft, { existingProjects });
       if (validationErr) {
         pageError(validationErr);
         return;
@@ -232,7 +241,7 @@ export default function CreateProjectPage() {
       }
     }
 
-    const err = validateCreateStep(createStep, draft);
+    const err = validateCreateStep(createStep, draft, { existingProjects });
     if (err) {
       pageError(err);
       return;
@@ -272,8 +281,8 @@ export default function CreateProjectPage() {
   );
 
   const createBlockedReason = useMemo(
-    () => validateCreateDraft(draft),
-    [draft]
+    () => validateCreateDraft(draft, { existingProjects }),
+    [draft, existingProjects]
   );
 
   const previewUnitTotal = useMemo(() => {
@@ -327,7 +336,12 @@ export default function CreateProjectPage() {
     [draft.base_rate, draft.min_rate, draft.max_rate]
   );
 
-  const step0Validation = useFieldValidation(createProjectStep0Schema, step0Values);
+  const step0Schema = useMemo(
+    () => createProjectStep0SchemaWithExisting(existingProjects),
+    [existingProjects]
+  );
+
+  const step0Validation = useFieldValidation(step0Schema, step0Values);
   const step1FieldsValidation = useFieldValidation(
     createProjectStep1FieldsSchema,
     step1FieldValues

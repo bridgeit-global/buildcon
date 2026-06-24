@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
 import {
-  projectDetailsSchema,
+  projectDetailsSchemaWithExisting,
   projectPricingSchema
 } from '@/lib/project/project-manage.schema';
+import { PROJECT_NAME_DUPLICATE_ERROR } from '@/lib/project/project-name';
+import type { ProjectNameRow } from '@/lib/project/project-name';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
@@ -88,12 +90,19 @@ export function ProjectManageDialog({
   const [pricingStampPct, setPricingStampPct] = useState('0');
   const [pricingRegFee, setPricingRegFee] = useState('0');
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [existingProjects, setExistingProjects] = useState<ProjectNameRow[]>([]);
 
   const canManageMembers = isSuperAdmin || myProjectRole === 'Manager';
   const canEditDetails = isSuperAdmin;
   const canEditPricing = isSuperAdmin;
 
-  const detailsValidation = useFieldValidation(projectDetailsSchema, {
+  const detailsSchema = useMemo(
+    () =>
+      projectDetailsSchemaWithExisting(existingProjects, project?.id ?? undefined),
+    [existingProjects, project?.id]
+  );
+
+  const detailsValidation = useFieldValidation(detailsSchema, {
     name,
     location,
     type,
@@ -108,6 +117,22 @@ export function ProjectManageDialog({
     stampPct: pricingStampPct,
     regFee: pricingRegFee
   });
+
+  const loadExistingProjects = useCallback(async () => {
+    if (!isSuperAdmin) {
+      setExistingProjects([]);
+      return;
+    }
+    const { data, error: projectErr } = await supabase
+      .from('projects')
+      .select('id,name')
+      .order('name', { ascending: true });
+    if (projectErr) {
+      pageError(projectErr.message);
+      return;
+    }
+    setExistingProjects((data ?? []) as ProjectNameRow[]);
+  }, [isSuperAdmin, supabase]);
 
   const resetFromProject = useCallback((p: CrmProjectListItem) => {
     setName(p.name);
@@ -184,11 +209,12 @@ export function ProjectManageDialog({
     resetFromProject(project);
     setLoading(true);
     void (async () => {
+      await loadExistingProjects();
       await loadMembers();
       await loadPricing();
       setLoading(false);
     })();
-  }, [open, project, resetFromProject, loadMembers, loadPricing]);
+  }, [open, project, resetFromProject, loadExistingProjects, loadMembers, loadPricing]);
 
   useEffect(() => {
     if (!open) return;
@@ -216,7 +242,12 @@ export function ProjectManageDialog({
           base_rate: baseRate.trim() ? Number(baseRate) || null : null
         })
         .eq('id', project.id);
-      if (updateErr) throw updateErr;
+      if (updateErr) {
+        if (updateErr.code === '23505') {
+          throw new Error(PROJECT_NAME_DUPLICATE_ERROR);
+        }
+        throw updateErr;
+      }
       onUpdated();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save project');
@@ -318,6 +349,7 @@ export function ProjectManageDialog({
               <div className="grid gap-1 sm:col-span-2">
                 <TextInputField
                   label="Project name"
+                  required
                   labelClassName="text-xs text-ds-gray-500"
                   value={name}
                   onChange={(e) => {
