@@ -46,10 +46,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatInrCompactLacCr } from '../inr-format';
-import {
-  embedOne,
-  inquiryReference
-} from '../inquiry/inquiry-helpers';
+import { embedOne, inquiryReference } from '../inquiry/inquiry-helpers';
 
 const STATUS_FILTER_ALL = '__all__';
 
@@ -81,6 +78,7 @@ type ApprovalRow = {
 type EmbedCustomer = { full_name: string | null; phone: string | null };
 type EmbedUnit = { unit_code: string | null };
 type EmbedProject = { name: string | null };
+type EmbedProfile = { name: string | null };
 type ApprovalRecordFromDb = {
   id: string;
   sales_inquiry_id: string;
@@ -100,6 +98,7 @@ type ApprovalRecordFromDb = {
   customers?: EmbedCustomer | EmbedCustomer[] | null;
   units?: EmbedUnit | EmbedUnit[] | null;
   projects?: EmbedProject | EmbedProject[] | null;
+  requester?: EmbedProfile | EmbedProfile[] | null;
 };
 
 const globalApprovalFilter: FilterFn<ApprovalRow> = (row, _col, raw) => {
@@ -218,7 +217,8 @@ export default function ApprovalsPage() {
         decided_at,
         customers ( full_name, phone ),
         units ( unit_code ),
-        projects ( name )
+        projects ( name ),
+        requester:profiles!requested_by ( name )
       `
       )
       .limit(500);
@@ -237,32 +237,6 @@ export default function ApprovalsPage() {
       return;
     }
     const records = (data ?? []) as unknown as ApprovalRecordFromDb[];
-    const requesterIds = [
-      ...new Set(
-        records
-          .map((r) => r.requested_by)
-          .filter((id): id is string => Boolean(id))
-      )
-    ];
-    const requesterNameById = new Map<string, string>();
-    if (requesterIds.length > 0) {
-      const { data: profileRows, error: profileErr } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', requesterIds);
-      if (profileErr) {
-        pageError(profileErr.message);
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-      for (const p of profileRows ?? []) {
-        const id = String((p as { id?: string }).id ?? '').trim();
-        if (!id) continue;
-        const name = String((p as { name?: string | null }).name ?? '').trim();
-        requesterNameById.set(id, name || id);
-      }
-    }
     let mapped: ApprovalRow[] = records.map((r) => {
       const customer = embedOne<EmbedCustomer>(r.customers);
       const unit = embedOne<EmbedUnit>(r.units);
@@ -287,9 +261,7 @@ export default function ApprovalsPage() {
         customer_phone: customer?.phone ?? null,
         unit_code: unit?.unit_code ?? null,
         project_name: project?.name ?? null,
-        requester_name: r.requested_by
-          ? (requesterNameById.get(r.requested_by) ?? null)
-          : null
+        requester_name: String(embedOne(r.requester)?.name ?? '').trim() || null
       };
     });
     if (first && CLIENT_SORT.has(first.id)) {
