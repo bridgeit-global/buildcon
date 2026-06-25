@@ -7,6 +7,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInrCompactLacCr } from '../inr-format';
 import { statusLabelForUnit } from '../inventory/unit-status';
+import { CrmKpiGridSkeleton } from '../_components/crm-skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type BookingIdRow = { id: string };
 type CollectionSumRow = { received_amount: number };
@@ -15,7 +17,7 @@ type ScheduleSumRow = { amount: number };
 export default function ReportsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [unitCounts, setUnitCounts] = useState<Record<string, number>>({});
   const [totalSchedules, setTotalSchedules] = useState(0);
@@ -94,6 +96,8 @@ export default function ReportsPage() {
   const totalInventory = Object.values(unitCounts).reduce((s, v) => s + v, 0);
   const balance = totalSchedules - totalCollections;
 
+  const initialLoading = loading && totalInventory === 0 && totalSchedules === 0;
+
   return (
     <div className="flex flex-col gap-4">
       <Card className="p-4 flex items-center justify-between">
@@ -106,10 +110,24 @@ export default function ReportsPage() {
           </div>
         </div>
         <Button variant="outline" onClick={load} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
+          {loading ? 'Refreshing…' : 'Refresh'}
         </Button>
       </Card>
 
+      {initialLoading ? (
+        <>
+          <CrmKpiGridSkeleton count={4} cols={4} />
+          <Card className="p-4">
+            <Skeleton className="h-4 w-40" />
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full rounded-lg" />
+              ))}
+            </div>
+          </Card>
+        </>
+      ) : (
+        <>
       <div className="grid grid-cols-4 gap-3">
         {[
           ['Total inventory', totalInventory],
@@ -145,6 +163,8 @@ export default function ReportsPage() {
           )}
         </div>
       </Card>
+        </>
+      )}
 
       <Card className="p-4 text-sm text-gray-600">
         Next steps: exportable report views, date filters (FY/month), and SQL

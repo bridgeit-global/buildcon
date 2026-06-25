@@ -11,6 +11,8 @@ import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { Card } from '@/components/ui/card';
+import { CrmDetailPageSkeleton } from '@/app/crm/_components/crm-skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
   GeneratedDocumentsTable,
@@ -236,6 +238,14 @@ export default function UnitDetailPage() {
   );
   const outstanding = Math.max(0, totalDemand - totalReceived);
 
+  if (loading && !unit) {
+    return (
+      <div className="space-y-4 p-4 lg:p-6">
+        <CrmDetailPageSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 p-4 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -356,7 +366,11 @@ export default function UnitDetailPage() {
         <Card className="space-y-3 p-4 text-sm">
           <h2 className="text-base font-semibold text-ds-gray-800">Unit summary</h2>
           {loading ? (
-            <p className="text-ds-gray-500">Loading…</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-5 w-full" />
+              ))}
+            </div>
           ) : (
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <li>
@@ -445,7 +459,15 @@ function NotificationsList({
   rows: OutboundNotificationRow[];
   loading: boolean;
 }) {
-  if (loading) return <p className="text-sm text-ds-gray-500">Loading…</p>;
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    );
+  }
   if (rows.length === 0) {
     return <p className="text-sm text-ds-gray-500">No notifications yet for this unit.</p>;
   }

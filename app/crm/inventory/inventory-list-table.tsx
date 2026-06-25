@@ -38,6 +38,7 @@ import {
   UNIT_STATUS_CODES
 } from './inventory-utils';
 import { formatUnitAgreementValueCompact } from '../inr-format';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type UnitRow = {
   id: string;
@@ -362,7 +363,7 @@ export function InventoryListTable({
         <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
           <span className="text-xs text-ds-gray-500">{filteredCount} units</span>
           <Button variant="outline" size="sm" onClick={onRefresh}>
-            {loading ? 'Loading…' : 'Refresh'}
+            {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
       </div>
@@ -387,7 +388,9 @@ export function InventoryListTable({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.length > 0 ? (
+            {loading && table.getRowModel().rows.length === 0 ? (
+              <CrmTableBodySkeleton colSpan={columns.length} />
+            ) : table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
@@ -405,7 +408,7 @@ export function InventoryListTable({
                   colSpan={columns.length}
                   className="px-4 py-12 text-center text-xs text-ds-gray-500"
                 >
-                  {loading ? 'Loading…' : 'No units match the current filters.'}
+                  No units match the current filters.
                 </td>
               </tr>
             )}

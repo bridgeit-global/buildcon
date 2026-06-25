@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { pageError, toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { CrmFormSkeleton } from '../../_components/crm-skeletons';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
 import { useInquiryWizardStore } from '../inquiry-wizard-store';
 import {
@@ -417,10 +418,7 @@ function NewInquiryPageInner() {
 
         <div className="px-4 py-4 sm:px-6">
           {resuming ? (
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="size-8 animate-spin rounded-full border-2 border-border border-t-teal-600" />
-              <p className="text-sm text-muted-foreground">Loading enquiry…</p>
-            </div>
+            <CrmFormSkeleton fields={8} />
           ) : resumeError && resumeInquiryId ? (
             <div className="space-y-4 py-6 text-center">
               <p className="text-sm text-muted-foreground">
@@ -494,13 +492,7 @@ function NewInquiryPageInner() {
 
 export default function NewInquiryPage() {
   return (
-    <Suspense
-      fallback={
-        <Card className="p-8 text-center text-sm text-muted-foreground">
-          Loading…
-        </Card>
-      }
-    >
+    <Suspense fallback={<CrmFormSkeleton fields={8} />}>
       <NewInquiryPageInner />
     </Suspense>
   );

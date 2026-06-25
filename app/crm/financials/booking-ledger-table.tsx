@@ -13,6 +13,7 @@ import {
   type ColumnDef
 } from '@tanstack/react-table';
 import { formatDisplayDate } from '@/lib/format-display-date';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 import { formatInr } from '../inr-format';
 
 export type BookingLedgerScheduleInput = {
@@ -222,12 +223,8 @@ export function BookingLedgerTable({
           ))}
         </thead>
         <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
-                Loading ledger…
-              </td>
-            </tr>
+          {loading && table.getRowModel().rows.length === 0 ? (
+            <CrmTableBodySkeleton colSpan={columns.length} />
           ) : table.getRowModel().rows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">

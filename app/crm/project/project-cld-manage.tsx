@@ -8,6 +8,7 @@ import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -243,10 +244,12 @@ export function ProjectCldManage({
                   </td>
                 </tr>
               ))}
-              {stages.length === 0 ? (
+              {loading && stages.length === 0 ? (
+                <CrmTableBodySkeleton colSpan={5} rows={5} />
+              ) : stages.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-8 text-center text-ds-gray-500">
-                    {loading ? 'Loading…' : 'No CLD stages yet.'}
+                    No CLD stages yet.
                   </td>
                 </tr>
               ) : null}

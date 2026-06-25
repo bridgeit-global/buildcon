@@ -35,6 +35,7 @@ import {
   PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE,
   projectMemberRemovalKey
 } from '@/lib/admin/project-member-pipeline-guard';
+import { CrmTableSkeleton } from '../_components/crm-skeletons';
 
 type ProfileRow = {
   id: string;
@@ -66,7 +67,7 @@ export default function UsersPage() {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>(
     []
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [openInvite, setOpenInvite] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -386,6 +387,14 @@ export default function UsersPage() {
     const json = (await res.json()) as { error?: string };
     if (!res.ok) pageError(json.error || 'Failed to remove member');
     await load();
+  }
+
+  if (loading && !profile && projects.length === 0) {
+    return (
+      <div className="flex flex-col gap-4">
+        <CrmTableSkeleton rows={6} />
+      </div>
+    );
   }
 
   return (

@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { CrmTableBodySkeleton, CrmSkeletonBar } from '../_components/crm-skeletons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -541,7 +542,11 @@ export default function ApprovalsPage() {
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               <span className="tabular-nums text-foreground">
-                {loading ? 'Loading…' : `${rows.length} loaded`}
+                {loading && rows.length === 0 ? (
+                  <CrmSkeletonBar className="inline-block w-16" />
+                ) : (
+                  `${rows.length} loaded`
+                )}
               </span>
               {pendingCount > 0 ? (
                 <StatusChip tone="warning" uppercase className="ml-2">
@@ -638,14 +643,7 @@ export default function ApprovalsPage() {
             </thead>
             <tbody>
               {loading && rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-3 py-10 text-center text-muted-foreground"
-                  >
-                    Loading…
-                  </td>
-                </tr>
+                <CrmTableBodySkeleton colSpan={columns.length} />
               ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td

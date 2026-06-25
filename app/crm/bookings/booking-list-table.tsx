@@ -28,6 +28,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { bookingWorkflowTone, StatusChip } from '@/components/ui/status-chip';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 import { cn } from '@/lib/utils';
 import {
   BOOKING_WORKFLOW_LABEL,
@@ -303,12 +304,8 @@ export function BookingListTable({
             ))}
           </thead>
           <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
-                  Loading bookings…
-                </td>
-              </tr>
+            {loading && table.getRowModel().rows.length === 0 ? (
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">

@@ -10,6 +10,11 @@ import { pageError } from '@/lib/toast';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  CrmDetailPageSkeleton,
+  CrmTableBodySkeleton
+} from '@/app/crm/_components/crm-skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { CustomerAddressDialog } from '@/app/crm/customers/customer-address-dialog';
 import { CustomerNomineeDialog } from '@/app/crm/customers/customer-nominee-dialog';
@@ -615,7 +620,7 @@ export default function CustomerDetailPage() {
         <div className="flex items-center gap-2">
           <BackButton href="/crm/customers" label="Customers" />
         </div>
-        <Card className="p-6 text-center text-sm text-ds-gray-500">Loading customer…</Card>
+        <CrmDetailPageSkeleton />
       </div>
     );
   }
@@ -785,8 +790,8 @@ export default function CustomerDetailPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {loadingInquiries ? (
-                          <tr><td colSpan={6} className="px-4 py-12 text-center text-ds-gray-500">Loading…</td></tr>
+                        {loadingInquiries && customerInquiries.length === 0 ? (
+                          <CrmTableBodySkeleton colSpan={6} rows={4} />
                         ) : customerInquiries.length === 0 ? (
                           <tr><td colSpan={6} className="px-4 py-12 text-center text-ds-gray-500">No inquiries yet.</td></tr>
                         ) : (
@@ -842,7 +847,11 @@ export default function CustomerDetailPage() {
 
                 <div className="rounded-lg border bg-white">
                   {loadingExtras ? (
-                    <div className="p-6 text-center text-sm text-gray-500">Loading…</div>
+                    <div className="space-y-3 p-6">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-10 w-full" />
+                      ))}
+                    </div>
                   ) : kycDocs.length === 0 ? (
                     <div className="p-6 text-center text-sm text-gray-500">
                       No documents yet. Upload a PDF or image (max 50 MB). Files are stored in the private{' '}
@@ -906,7 +915,11 @@ export default function CustomerDetailPage() {
                 </div>
 
                 {loadingExtras ? (
-                  <div className="text-sm text-gray-500">Loading…</div>
+                  <div className="space-y-2">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} className="h-8 w-full" />
+                    ))}
+                  </div>
                 ) : addresses.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
                     No address saved for this customer.
@@ -954,7 +967,11 @@ export default function CustomerDetailPage() {
 
                 <div className="rounded-lg border bg-white">
                   {loadingExtras ? (
-                    <div className="p-6 text-center text-sm text-gray-500">Loading…</div>
+                    <div className="space-y-3 p-6">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-10 w-full" />
+                      ))}
+                    </div>
                   ) : nominees.length === 0 ? (
                     <div className="p-6 text-center text-sm text-gray-500">No nominee records.</div>
                   ) : (
@@ -1000,7 +1017,11 @@ export default function CustomerDetailPage() {
 
                 <div className="rounded-lg border bg-white">
                   {loadingExtras ? (
-                    <div className="p-6 text-center text-sm text-gray-500">Loading…</div>
+                    <div className="space-y-3 p-6">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-10 w-full" />
+                      ))}
+                    </div>
                   ) : bankRows.length === 0 ? (
                     <div className="p-6 text-center text-sm text-gray-500">No bank details on file.</div>
                   ) : (

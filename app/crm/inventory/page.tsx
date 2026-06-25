@@ -10,6 +10,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
+import { CrmInventoryPageSkeleton } from '../_components/crm-skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -896,7 +898,7 @@ function InventoryPageContent() {
   const [project, setProject] = useState<ProjectRow | null>(null);
   const [wingNames, setWingNames] = useState<string[]>([]);
   const [unitTypeNames, setUnitTypeNames] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [structFilter, setStructFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('all');
@@ -1311,6 +1313,10 @@ function InventoryPageContent() {
     setDetailOpen(true);
   }
 
+  if (loading && !project) {
+    return <CrmInventoryPageSkeleton />;
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div
@@ -1440,9 +1446,15 @@ function InventoryPageContent() {
                   ))}
                 </>
               ) : (
-                <p className="text-sm text-slate-500">
-                  {loading ? 'Loading…' : 'Could not load project.'}
-                </p>
+                <div className="space-y-2">
+                  {loading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-4 w-full" />
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">Could not load project.</p>
+                  )}
+                </div>
               )}
             </div>
             <div className={cn('p-4', tabCardClass())}>

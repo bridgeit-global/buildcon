@@ -32,6 +32,10 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { projectStatusTone, StatusChip } from '@/components/ui/status-chip';
+import {
+  CrmSkeletonBar,
+  CrmTableBodySkeleton
+} from '../_components/crm-skeletons';
 
 const globalProjectFilter: FilterFn<CrmProjectListItem> = (row, _columnId, raw) => {
   const q = String(raw ?? '')
@@ -227,8 +231,14 @@ export function ProjectListTable({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs text-ds-gray-500">
-            {loading ? 'Loading…' : `${filteredCount} project${filteredCount !== 1 ? 's' : ''}`}
-            {globalFilter.trim() ? ' (filtered)' : ''}
+            {loading && projects.length === 0 ? (
+              <CrmSkeletonBar className="inline-block w-16" />
+            ) : (
+              <>
+                {filteredCount} project{filteredCount !== 1 ? 's' : ''}
+                {globalFilter.trim() ? ' (filtered)' : ''}
+              </>
+            )}
           </p>
           <div className="min-w-[7rem]">
             <Label className="text-xs text-ds-gray-500">Rows per page</Label>
@@ -267,14 +277,7 @@ export function ProjectListTable({
           </thead>
           <tbody>
             {loading && projects.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
-                >
-                  Loading projects…
-                </td>
-              </tr>
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center">

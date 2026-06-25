@@ -6,6 +6,7 @@ import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type NotificationRow = {
   id: string;
@@ -110,8 +111,12 @@ export function CrmNotificationBell() {
             </div>
             <ul className="max-h-72 overflow-y-auto">
               {loading && rows.length === 0 ? (
-                <li className="px-3 py-4 text-center text-xs text-slate-500">
-                  Loading…
+                <li className="px-3 py-4">
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
                 </li>
               ) : rows.length === 0 ? (
                 <li className="px-3 py-4 text-center text-xs text-slate-500">

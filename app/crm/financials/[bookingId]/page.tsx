@@ -12,6 +12,7 @@ import { useCrmProjectsContext } from '../../_components/active-project-context'
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInr, formatInrCompactLacCr } from '../../inr-format';
+import { CrmDetailPageSkeleton } from '../../_components/crm-skeletons';
 import { PaymentScheduleTable } from '../payment-schedule-table';
 import {
   BookingLedgerTable,
@@ -470,6 +471,10 @@ export default function FinancialsBookingPage() {
         </Button>
       </div>
 
+      {loading && schedules.length === 0 && collections.length === 0 ? (
+        <CrmDetailPageSkeleton />
+      ) : (
+        <>
       <Card className="p-4 sm:p-6">
         <div className="text-sm font-semibold text-ds-gray-900">
           {projectNameById.get(projectId) ?? 'Project'} · {unitCode}
@@ -744,6 +749,8 @@ export default function FinancialsBookingPage() {
           />
         </div>
       </Card>
+        </>
+      )}
 
       <CollectionManageDialog
         open={manageOpen}

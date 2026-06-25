@@ -1378,7 +1378,7 @@ export default function BookingsPage() {
             onClick={load}
             disabled={loading}
           >
-            {loading ? 'Loading…' : 'Refresh'}
+            {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
 

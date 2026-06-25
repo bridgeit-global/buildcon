@@ -52,6 +52,10 @@ import {
   unitDisplayName
 } from './inquiry-helpers';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
+import {
+  CrmSkeletonBar,
+  CrmTableBodySkeleton
+} from '../_components/crm-skeletons';
 
 const globalInquiryFilter: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const q = String(raw ?? '')
@@ -417,7 +421,11 @@ export function InquiryListTable({
           <div className="mt-1 text-xs text-ds-gray-500">
             Table view with search, filters, and pagination.{' '}
             <span className="tabular-nums text-ds-gray-900">
-              {loadingInquiries ? 'Loading…' : `${inquiries.length} loaded`}
+              {loadingInquiries && inquiries.length === 0 ? (
+                <CrmSkeletonBar className="inline-block w-16" />
+              ) : (
+                `${inquiries.length} loaded`
+              )}
             </span>
           </div>
         </div>
@@ -512,14 +520,7 @@ export function InquiryListTable({
           </thead>
           <tbody>
             {loadingInquiries && inquiries.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
-                >
-                  Loading…
-                </td>
-              </tr>
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td

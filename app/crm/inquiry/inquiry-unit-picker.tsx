@@ -26,6 +26,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { CrmSkeletonBar } from '../_components/crm-skeletons';
 import type {
   ProjectParkingMeta,
   ProjectPricingMeta
@@ -892,9 +893,11 @@ export function InquiryUnitPicker({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ds-gray-100 pt-3">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ds-gray-600">
             <span className="font-semibold text-ds-gray-800">
-              {loadingUnits
-                ? 'Loading…'
-                : `${selectableFilteredCount} selectable · ${filteredUnits.length} shown`}
+              {loadingUnits && filteredUnits.length === 0 ? (
+                <CrmSkeletonBar className="inline-block w-28" />
+              ) : (
+                `${selectableFilteredCount} selectable · ${filteredUnits.length} shown`
+              )}
             </span>
             {activeFilterCount > 0 ? (
               <button

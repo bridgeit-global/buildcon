@@ -8,6 +8,7 @@ import { Briefcase } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { pageError } from '@/lib/toast';
 import { Card } from '@/components/ui/card';
+import { CrmDetailPageSkeleton } from '../../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { TextInputField } from '@/components/ui/text-input-field';
@@ -129,11 +130,7 @@ export default function BrokerDetailPage() {
         <div className="flex items-center gap-2">
           <BackButton href="/crm/brokers" label="Brokers" />
         </div>
-        <Card className="p-6">
-          <div className="py-12 text-center text-sm text-ds-gray-500">
-            Loading…
-          </div>
-        </Card>
+        <CrmDetailPageSkeleton />
       </div>
     );
   }

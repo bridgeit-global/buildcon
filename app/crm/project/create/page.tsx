@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { CrmFormSkeleton } from '../../_components/crm-skeletons';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { TextInputField } from '@/components/ui/text-input-field';
@@ -344,9 +345,11 @@ export default function CreateProjectPage() {
   if (loading || !canCreateProject) {
     return (
       <div className="flex flex-col gap-4 p-4">
-        <div className="text-sm text-muted-foreground">
-          {loading ? 'Loading…' : 'Redirecting…'}
-        </div>
+        {loading ? (
+          <CrmFormSkeleton fields={8} />
+        ) : (
+          <div className="text-sm text-muted-foreground">Redirecting…</div>
+        )}
       </div>
     );
   }

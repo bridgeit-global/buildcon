@@ -8,6 +8,7 @@ import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { notificationStatusColor, StatusChip } from '@/components/ui/status-chip';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 type OutboundRow = {
   id: string;
@@ -96,8 +97,14 @@ export function BookingNotificationsCard({ bookingId }: Props) {
           Refresh
         </Button>
       </div>
-      {loading ? (
-        <p className="text-sm text-ds-gray-500">Loading…</p>
+      {loading && rows.length === 0 ? (
+        <div className="overflow-hidden rounded-lg border border-ds-gray-200">
+          <table className="w-full caption-bottom text-sm">
+            <tbody>
+              <CrmTableBodySkeleton colSpan={7} rows={4} />
+            </tbody>
+          </table>
+        </div>
       ) : rows.length === 0 ? (
         <p className="text-sm text-ds-gray-500">No notifications yet.</p>
       ) : (

@@ -28,6 +28,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type DocumentsBookingListRow = {
   id: string;
@@ -204,12 +205,8 @@ export function DocumentsBookingListTable({
             ))}
           </thead>
           <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
-                  Loading bookings…
-                </td>
-              </tr>
+            {loading && rows.length === 0 ? (
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">

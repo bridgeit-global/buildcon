@@ -16,6 +16,10 @@ import {
   StatCard
 } from './dashboard-widgets';
 import {
+  CrmChartSkeleton,
+  CrmKpiGridSkeleton
+} from '../_components/crm-skeletons';
+import {
   InventoryDonutChart,
   MonthlyCollectionsBarChart,
   SalesVsCollectionsLineChart
@@ -59,14 +63,6 @@ function unitDisplayLine(
   if (!u) return '—';
   const floor = formatFloorLabel(u.floor, u.unit_type);
   return `${u.unit_code} · ${u.wing_name} · ${floor}`;
-}
-
-function ChartLoading() {
-  return (
-    <div className="flex h-[220px] items-center justify-center text-xs text-ds-gray-400">
-      Loading…
-    </div>
-  );
 }
 
 export default function DashboardPage() {
@@ -198,9 +194,18 @@ export default function DashboardPage() {
       ? ((totalCollectionsInr / totalSalesInr) * 100).toFixed(2)
       : '0';
 
+  const initialLoading = loading && totalInventory === 0;
+
   return (
     <div className="flex flex-col gap-4">
 
+      {initialLoading ? (
+        <>
+          <CrmKpiGridSkeleton count={4} cols={4} />
+          <CrmKpiGridSkeleton count={4} cols={4} />
+        </>
+      ) : (
+        <>
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           label="Total Inventory"
@@ -270,12 +275,14 @@ export default function DashboardPage() {
           href="/crm/financials"
         />
       </section>
+        </>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <div className="flex min-w-0 flex-col gap-4">
           <ChartPanel title="Sales vs Collections">
             {loading ? (
-              <ChartLoading />
+              <CrmChartSkeleton />
             ) : (
               <SalesVsCollectionsLineChart points={salesVsCollections} />
             )}
@@ -283,7 +290,7 @@ export default function DashboardPage() {
 
           <ChartPanel title="Monthly Collections (₹)">
             {loading ? (
-              <ChartLoading />
+              <CrmChartSkeleton />
             ) : (
               <MonthlyCollectionsBarChart points={monthlyCollections} />
             )}
@@ -345,7 +352,7 @@ export default function DashboardPage() {
         <aside className="flex min-w-0 flex-col gap-4">
           <ChartPanel title="Inventory Status">
             {loading ? (
-              <ChartLoading />
+              <CrmChartSkeleton className="h-[280px]" />
             ) : (
               <InventoryDonutChart breakdown={statusBreakdown} />
             )}

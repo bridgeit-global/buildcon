@@ -35,6 +35,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 export type GeneratedDocRow = {
   id: string;
   project_id: string;
@@ -498,12 +499,8 @@ export function GeneratedDocumentsTable({
             ))}
           </thead>
           <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
-                  Loading…
-                </td>
-              </tr>
+            {loading && rows.length === 0 ? (
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">

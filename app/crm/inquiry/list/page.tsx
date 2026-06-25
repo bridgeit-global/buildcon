@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, type ComponentProps } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Card } from '@/components/ui/card';
+import { CrmTableSkeleton } from '../../_components/crm-skeletons';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { InquiryListTable } from '../inquiry-list-table';
 import { parseInquiryListUrlColumnFilters } from '../inquiry-list-filters';
@@ -36,13 +36,7 @@ export default function InquiryListPage() {
       <div className="flex flex-wrap items-center gap-2">
         <BackButton href="/crm/inquiry" label="Leads overview" />
       </div>
-      <Suspense
-        fallback={
-          <Card className="p-4 text-sm text-muted-foreground">
-            Loading inquiry table…
-          </Card>
-        }
-      >
+      <Suspense fallback={<CrmTableSkeleton />}>
         <InquiryListTableWithUrlFilters
           inquiries={inquiries}
           loadingInquiries={loadingInquiries}

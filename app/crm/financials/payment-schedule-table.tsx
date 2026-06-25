@@ -3,6 +3,7 @@
 import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr } from '../inr-format';
 import type { ReactNode } from 'react';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type PaymentScheduleLine = {
   id?: string;
@@ -92,14 +93,7 @@ export function PaymentScheduleTable({
         </thead>
         <tbody>
           {loading ? (
-            <tr>
-              <td
-                colSpan={colCount}
-                className="px-4 py-12 text-center text-ds-gray-500"
-              >
-                Loading schedule…
-              </td>
-            </tr>
+            <CrmTableBodySkeleton colSpan={colCount} rows={6} />
           ) : null}
           {!loading
             ? displayRows.map((s) => {

@@ -9,6 +9,7 @@ import type { SortingState } from '@tanstack/react-table';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { sortingStateToQuery } from '@/lib/crm/list-sort';
 import { Card } from '@/components/ui/card';
+import { CrmSkeletonBar } from '../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ChevronDown, Search } from 'lucide-react';
@@ -190,7 +191,7 @@ export default function CustomersPage() {
             onClick={() => void fetchCustomerList({ reset: true })}
             disabled={loading}
           >
-            {loading ? 'Loading…' : 'Refresh'}
+            {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
 
@@ -232,11 +233,13 @@ export default function CustomersPage() {
               Customers
             </div>
             <div className="text-xs text-ds-gray-500">
-              {loading
-                ? 'Loading…'
-                : searchQuery
-                  ? `${customers.length} of ${listShownCount} shown`
-                  : `${listShownCount} shown`}
+              {loading && customers.length === 0 ? (
+                <CrmSkeletonBar className="w-20" />
+              ) : searchQuery ? (
+                `${customers.length} of ${listShownCount} shown`
+              ) : (
+                `${listShownCount} shown`
+              )}
             </div>
           </div>
           <div className="relative w-full max-w-[260px] sm:w-auto">

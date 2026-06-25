@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr } from '../inr-format';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type CollectionsListRow = {
   id: string;
@@ -211,14 +212,7 @@ export function CollectionsListTable({
           </thead>
           <tbody>
             {loading && rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
-                >
-                  Loading…
-                </td>
-              </tr>
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td

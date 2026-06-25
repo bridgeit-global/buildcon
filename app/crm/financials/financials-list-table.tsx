@@ -29,6 +29,7 @@ import {
 import { UnitStatusChip } from '@/components/ui/status-chip';
 import { cn } from '@/lib/utils';
 import { formatInrCompactLacCr } from '../inr-format';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type FinancialBookingRow = {
   id: string;
@@ -257,15 +258,8 @@ export function FinancialsListTable({
             ))}
           </thead>
           <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
-                >
-                  Loading bookings…
-                </td>
-              </tr>
+            {loading && table.getRowModel().rows.length === 0 ? (
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td

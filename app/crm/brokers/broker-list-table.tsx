@@ -14,6 +14,7 @@ import {
 } from '@tanstack/react-table';
 import { brokerStatusTone, StatusChip } from '@/components/ui/status-chip';
 import { formatDisplayDate } from '@/lib/format-display-date';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type BrokerTableRow = {
   id: string;
@@ -141,15 +142,8 @@ export function BrokerListTable({
           ))}
         </thead>
         <tbody>
-          {loading ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-4 py-12 text-center text-ds-gray-500"
-              >
-                Loading…
-              </td>
-            </tr>
+          {loading && table.getRowModel().rows.length === 0 ? (
+            <CrmTableBodySkeleton colSpan={columns.length} />
           ) : table.getRowModel().rows.length === 0 ? (
             <tr>
               <td

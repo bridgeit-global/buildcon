@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Eye, FileText, Loader2, Upload } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
+import { CrmDetailPageSkeleton } from '../../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { Input } from '@/components/ui/input';
@@ -1400,8 +1401,8 @@ export default function BookingDetailPage() {
         </ol>
       </Card>
 
-      {loading ? (
-        <p className="text-sm text-ds-gray-500">Loading…</p>
+      {loading && !booking ? (
+        <CrmDetailPageSkeleton />
       ) : !booking ? null : (
         <>
           {workflowStage === 'token' && !cancelled ? (

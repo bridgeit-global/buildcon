@@ -16,6 +16,8 @@ import {
   isInquiryClosed
 } from './inquiry-stage-transitions';
 import type { InquiryRowDb } from './inquiry-types';
+import { CrmKpiGridSkeleton } from '../_components/crm-skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 /** Light teal shades for donut + legend (Tailwind teal 100–400). */
 const LEAD_SOURCE_COLOR: Record<string, string> = {
@@ -151,6 +153,8 @@ function InquiryPageContent() {
     [inquiries]
   );
 
+  const initialLoading = loadingInquiries && inquiries.length === 0;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -167,6 +171,9 @@ function InquiryPageContent() {
         </Button>
       </div>
 
+      {initialLoading ? (
+        <CrmKpiGridSkeleton count={4} cols={2} />
+      ) : (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {(
           [
@@ -246,6 +253,7 @@ function InquiryPageContent() {
           );
         })}
       </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="gap-4 border-slate-200/90 p-4 shadow-sm">
@@ -270,9 +278,11 @@ function InquiryPageContent() {
             <ul className="w-full max-w-sm flex-1 space-y-2 text-sm">
               {leadSourceSlices.length === 0 ? (
                 <li className="text-xs text-muted-foreground">
-                  {loadingInquiries
-                    ? 'Loading…'
-                    : 'No enquiries yet.'}
+                  {loadingInquiries && inquiries.length === 0 ? (
+                    <Skeleton className="h-3 w-24" />
+                  ) : (
+                    'No enquiries yet.'
+                  )}
                 </li>
               ) : (
                 leadSourceSlices.map((s) => (
@@ -326,9 +336,11 @@ function InquiryPageContent() {
           <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
             {recentInquiriesPreview.length === 0 ? (
               <li className="px-3 py-6 text-center text-xs text-muted-foreground">
-                {loadingInquiries
-                  ? 'Loading…'
-                  : 'No enquiries yet.'}
+                {loadingInquiries && inquiries.length === 0 ? (
+                  <Skeleton className="mx-auto h-3 w-24" />
+                ) : (
+                  'No enquiries yet.'
+                )}
               </li>
             ) : (
               recentInquiriesPreview.map((inq) => {

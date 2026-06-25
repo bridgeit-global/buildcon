@@ -37,6 +37,7 @@ import {
   normalizeUnitStatusCode,
   statusLabelForUnit
 } from '../inventory/unit-status';
+import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type PossessionListRow = {
   caseId: string;
@@ -261,15 +262,8 @@ export function PossessionListTable({
             ))}
           </thead>
           <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
-                >
-                  Loading possession cases…
-                </td>
-              </tr>
+            {loading && table.getRowModel().rows.length === 0 ? (
+              <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td

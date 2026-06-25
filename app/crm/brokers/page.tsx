@@ -15,6 +15,7 @@ import {
   type BrokerFormValues
 } from '@/lib/broker/broker-forms.schema';
 import { Card } from '@/components/ui/card';
+import { CrmSkeletonBar } from '../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -200,7 +201,7 @@ export default function BrokersPage() {
             onClick={() => void fetchBrokerList({ reset: true })}
             disabled={loading}
           >
-            {loading ? 'Loading…' : 'Refresh'}
+            {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
 
@@ -288,11 +289,13 @@ export default function BrokersPage() {
               Brokers
             </div>
             <div className="text-xs text-ds-gray-500">
-              {loading
-                ? 'Loading…'
-                : searchQuery
-                  ? `${brokers.length} of ${listShownCount} shown`
-                  : `${listShownCount} shown`}
+              {loading && brokers.length === 0 ? (
+                <CrmSkeletonBar className="w-20" />
+              ) : searchQuery ? (
+                `${brokers.length} of ${listShownCount} shown`
+              ) : (
+                `${listShownCount} shown`
+              )}
             </div>
           </div>
           <div className="relative w-full max-w-[260px] sm:w-auto">
