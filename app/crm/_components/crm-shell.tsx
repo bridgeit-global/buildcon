@@ -226,13 +226,14 @@ function CrmAppSidebar({
         )}
       >
         {iconCollapsed ? (
-          <SidebarMenu>
+          <SidebarMenu className="items-center gap-0.5 px-0">
             {flatNav.map((item) => (
               <CrmSidebarNavItem
                 key={item.id}
                 href={item.href}
                 label={item.label}
                 icon={item.icon}
+                iconOnly
                 active={
                   pathname === item.href ||
                   pathname.startsWith(`${item.href}/`)
@@ -352,6 +353,7 @@ function CrmSidebarNavItem({
   label,
   icon: Icon,
   active,
+  iconOnly = false,
   tooltip,
   onNavigate
 }: {
@@ -359,17 +361,21 @@ function CrmSidebarNavItem({
   label: string;
   icon: LucideIcon;
   active: boolean;
+  iconOnly?: boolean;
   tooltip?: string;
   onNavigate?: () => void;
 }) {
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className={iconOnly ? 'w-full' : undefined}>
       <SidebarMenuButton
         asChild
         isActive={active}
         tooltip={tooltip}
         className={cn(
-          'h-auto rounded-lg py-2.5 text-[12px] font-medium text-[#6C757D] hover:bg-slate-200/55 hover:text-slate-900',
+          'text-[12px] font-medium text-[#6C757D] hover:bg-slate-200/55 hover:text-slate-900',
+          iconOnly
+            ? 'mx-auto size-10 justify-center gap-0 rounded-lg p-0 [&>a>span]:sr-only'
+            : 'h-auto gap-2.5 rounded-lg px-2.5 py-2.5',
           active &&
             'bg-(--crm-accent,#0d9488)! font-semibold text-white! shadow-sm hover:bg-(--crm-accent,#0d9488)! hover:text-white! data-[active=true]:bg-(--crm-accent,#0d9488)! data-[active=true]:text-white!'
         )}
@@ -378,10 +384,12 @@ function CrmSidebarNavItem({
           href={href}
           aria-current={active ? 'page' : undefined}
           onClick={onNavigate}
+          className={iconOnly ? 'flex size-full items-center justify-center' : undefined}
         >
           <Icon
             className={cn(
-              'size-4 shrink-0',
+              'shrink-0',
+              iconOnly ? 'size-[18px]' : 'size-4',
               active ? 'text-white' : 'text-[#6C757D] opacity-90'
             )}
             aria-hidden
