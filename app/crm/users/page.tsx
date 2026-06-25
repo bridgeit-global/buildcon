@@ -12,7 +12,6 @@ import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -249,6 +248,16 @@ export default function UsersPage() {
     setInvite((s) => ({
       ...s,
       projectIds: s.projectIds.filter((x) => x !== id)
+    }));
+  };
+
+  const toggleProjectById = (id: string) => {
+    if (!id) return;
+    setInvite((s) => ({
+      ...s,
+      projectIds: s.projectIds.includes(id)
+        ? s.projectIds.filter((x) => x !== id)
+        : [...s.projectIds, id]
     }));
   };
 
@@ -552,59 +561,40 @@ export default function UsersPage() {
                               key={id}
                               type="button"
                               onClick={() => removeProject(id)}
-                              className="rounded-full border bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                              className="rounded-full border border-ds-gray-200 bg-white px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
                               title="Remove"
                             >
                               {projects.find((p) => p.id === id)?.name ?? 'Unknown project'} ×
                             </button>
                           ))}
                           {invite.projectIds.length > 8 ? (
-                            <div className="rounded-full border bg-gray-50 px-3 py-1 text-xs text-gray-500">
+                            <div className="rounded-full border border-ds-gray-200 bg-ds-gray-50 px-3 py-1 text-xs text-ds-gray-500">
                               +{invite.projectIds.length - 8} more
                             </div>
                           ) : null}
                         </div>
                       ) : null}
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 max-h-[240px] overflow-auto rounded-lg border bg-gray-50 p-2">
-                        {filteredProjects.map((p) => {
-                          const checked = invite.projectIds.includes(p.id);
-                          return (
-                            <label
-                              key={p.id}
-                              className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${checked
-                                  ? 'border-blue-200 bg-blue-50'
-                                  : 'border-gray-200 bg-white hover:bg-gray-50'
-                                }`}
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(next) =>
-                                  setInvite((s) => ({
-                                    ...s,
-                                    projectIds:
-                                      next === true
-                                        ? [...s.projectIds, p.id]
-                                        : s.projectIds.filter((x) => x !== p.id)
-                                  }))
-                                }
-                              />
-                              <div className="min-w-0">
-                                <div className="font-semibold text-gray-900 truncate">
-                                  {p.name}
-                                </div>
-                              </div>
-                            </label>
-                          );
-                        })}
+                      <div className="mt-3">
+                        <SearchableSelect
+                          value=""
+                          onValueChange={(name) => {
+                            const project = filteredProjects.find((p) => p.name === name);
+                            toggleProjectById(project?.id ?? '');
+                          }}
+                          options={filteredProjects.map((p) => p.name)}
+                          placeholder={
+                            filteredProjects.length === 0
+                              ? 'No projects match your search.'
+                              : 'Select project…'
+                          }
+                          searchPlaceholder="Search project…"
+                          className="w-full"
+                          disabled={projects.length === 0 || filteredProjects.length === 0}
+                        />
                         {projects.length === 0 ? (
-                          <div className="p-3 text-sm text-gray-500">
+                          <div className="mt-2 text-xs text-ds-gray-500">
                             No projects found.
-                          </div>
-                        ) : null}
-                        {projects.length > 0 && filteredProjects.length === 0 ? (
-                          <div className="p-3 text-sm text-gray-500">
-                            No projects match your search.
                           </div>
                         ) : null}
                       </div>
