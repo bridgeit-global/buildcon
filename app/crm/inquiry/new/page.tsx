@@ -39,10 +39,7 @@ import {
   loadInquiryStageData,
   stageHasMeaningfulData
 } from '../inquiry-stage-store';
-import {
-  parseInquiryWizardUi,
-  saveInquiryWizardUi
-} from '../inquiry-wizard-ui';
+import { parseInquiryWizardUi } from '../inquiry-wizard-ui';
 import BackButton from '@/components/buttons/back-button';
 type InquiryFetchRow = {
   id: string;
@@ -140,29 +137,17 @@ function NewInquiryPageInner() {
         atOrPastNegotiation && !negotiationLocked
           ? inquiryWizardStepForView('Negotiation', fs)
           : inquiryWizardStepForView(uiStage, fs);
-      const restoredViewStage =
-        wizardUi.view_stage &&
-        (wizardUi.view_stage !== 'Negotiation' ||
-          (atOrPastNegotiation && !negotiationLocked))
-          ? wizardUi.view_stage
-          : null;
-      const restoredWizardStep = wizardUi.wizard_step ?? null;
 
       if (atOrPastNegotiation && !negotiationLocked) {
-        if (restoredViewStage === 'Negotiation') {
-          setViewStage('Negotiation');
-        } else {
-          setViewStage(restoredViewStage ?? 'Negotiation');
-        }
-        setWizardStep((prev) =>
-          Math.max(prev, restoredWizardStep ?? nextWizardStep)
-        );
+        setViewStage('Negotiation');
       } else {
-        setViewStage(restoredViewStage ?? uiStage);
-        setWizardStep((prev) =>
-          Math.max(prev, restoredWizardStep ?? nextWizardStep)
-        );
+        setViewStage((prev) => {
+          const prevRank = INQUIRY_PIPELINE_UI_STAGES.indexOf(prev);
+          const newRank = INQUIRY_PIPELINE_UI_STAGES.indexOf(uiStage);
+          return prevRank > newRank ? prev : uiStage;
+        });
       }
+      setWizardStep((prev) => Math.max(prev, nextWizardStep));
 
       setHasUnsavedChanges(
         Boolean(wizardUi.unsaved) ||
@@ -275,10 +260,6 @@ function NewInquiryPageInner() {
           pageError(result.error ?? 'Could not open negotiate stage');
           return;
         }
-        // Persist Negotiation view before reload — loadInquiry restores wizard_ui.view_stage.
-        await saveInquiryWizardUi(supabase, inquiryId, {
-          view_stage: 'Negotiation'
-        });
         setViewStage('Negotiation');
         await loadInquiry(inquiryId);
         return;
@@ -325,7 +306,11 @@ function NewInquiryPageInner() {
     const ui = pipelineUiStage(stage);
     const nextWizardStep = inquiryWizardStepForView(ui, stage);
     setFunnelStage(stage);
-    setViewStage(ui);
+    setViewStage((prev) => {
+      const prevRank = INQUIRY_PIPELINE_UI_STAGES.indexOf(prev);
+      const newRank = INQUIRY_PIPELINE_UI_STAGES.indexOf(ui);
+      return prevRank > newRank ? prev : ui;
+    });
     setWizardStep((prev) => Math.max(prev, nextWizardStep));
   }, []);
 
@@ -335,6 +320,11 @@ function NewInquiryPageInner() {
 
   const handleWizardUnsavedChange = useCallback((unsaved: boolean) => {
     setHasUnsavedChanges(unsaved);
+  }, []);
+
+  const handleWizardStepChange = useCallback((step: number) => {
+    setWizardStep(step);
+    if (step === 2) setViewStage('Qualified');
   }, []);
 
   const handlePipelineStageChange = useCallback(
@@ -381,14 +371,6 @@ function NewInquiryPageInner() {
   const maxReachableIndex = inquiryId
     ? maxReachablePipelineUiIndex(funnelStage, wizardStep)
     : Math.min(wizardStep - 1, INQUIRY_PIPELINE_UI_STAGES.length - 1);
-
-  useEffect(() => {
-    if (!inquiryId || resuming) return;
-    void saveInquiryWizardUi(supabase, inquiryId, {
-      view_stage: viewStage,
-      wizard_step: wizardStep as 1 | 2 | 3
-    });
-  }, [inquiryId, viewStage, wizardStep, resuming, supabase]);
 
   const showPipelinePanel =
     Boolean(inquiryId) && viewStage === 'Negotiation';
@@ -472,7 +454,7 @@ function NewInquiryPageInner() {
                   funnelStage={funnelStage}
                   forcedStep={wizardStep as 1 | 2 | 3}
                   stagesReadOnly={inquiryUnitTokenLocked || inquiryClosed}
-                  onStepChange={setWizardStep}
+                  onStepChange={handleWizardStepChange}
                   onCreated={(id) => void handleInquiryCreated(id)}
                   onFunnelStageChange={handleFunnelStageChange}
                   onStageDataSaved={handleStageDataSaved}
