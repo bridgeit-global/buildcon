@@ -342,7 +342,7 @@ export function CollectionManageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(92dvh,760px)] w-[calc(100vw-1.5rem)] max-w-4xl overflow-hidden border-ds-gray-200 p-0 sm:max-w-4xl">
+      <DialogContent className="flex max-h-[min(92dvh,760px)] w-[calc(100vw-1.5rem)] max-w-4xl flex-col overflow-hidden border-ds-gray-200 p-0 sm:max-w-4xl">
         <div className="flex min-h-0 flex-col">
           <DialogHeader className="shrink-0 border-b border-ds-gray-100 bg-linear-to-br from-ds-primary-50/80 to-white px-4 py-4 sm:px-6">
             <DialogTitle className="text-left text-base font-semibold text-ds-gray-900">
@@ -353,10 +353,10 @@ export function CollectionManageDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6">
             <div className="text-xs font-semibold text-ds-gray-500">Add collection</div>
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
-              <div className="space-y-1.5 sm:col-span-2 lg:col-span-12">
+            <div className="mt-2 flex w-full flex-col gap-3">
+              <div className="w-full min-w-0 space-y-1.5">
                 <Label>Instalment</Label>
                 <SearchableSelect
                   value={selectedInstalmentLabel}
@@ -391,7 +391,7 @@ export function CollectionManageDialog({
                 />
               </div>
 
-              <div className="space-y-1.5 lg:col-span-4">
+              <div className="w-full min-w-0 space-y-1.5">
                 <Label>Amount (₹)</Label>
                 <InrAmountInput
                   value={entryAmount}
@@ -408,9 +408,10 @@ export function CollectionManageDialog({
               </div>
 
               <TextInputField
+                className="w-full min-w-0"
                 label="Date"
                 type="date"
-                inputClassName="min-w-42 pr-10"
+                inputClassName="w-full"
                 value={entryDate}
                 onChange={(e) => {
                   setEntryDate(e.target.value);
@@ -421,7 +422,7 @@ export function CollectionManageDialog({
                 disabled={loading || saving}
               />
 
-              <div className="space-y-1.5 lg:col-span-4">
+              <div className="w-full min-w-0 space-y-1.5">
                 <Label>Mode</Label>
                 <Select
                   value={entryMode}
@@ -446,7 +447,7 @@ export function CollectionManageDialog({
               </div>
 
               <TextInputField
-                className="sm:col-span-2 lg:col-span-9"
+                className="w-full min-w-0"
                 label="Reference"
                 required={entryMode !== 'Cash'}
                 value={entryRef}
@@ -460,15 +461,13 @@ export function CollectionManageDialog({
                 disabled={loading || saving}
               />
 
-              <div className="flex items-end sm:col-span-2 lg:col-span-12 lg:justify-end">
-                <Button
-                  className="w-full whitespace-nowrap sm:w-auto lg:ml-auto"
-                  onClick={() => void addCollection()}
-                  disabled={saving || loading}
-                >
-                  {saving ? 'Saving…' : 'Save collection'}
-                </Button>
-              </div>
+              <Button
+                className="w-full"
+                onClick={() => void addCollection()}
+                disabled={saving || loading}
+              >
+                {saving ? 'Saving…' : 'Save collection'}
+              </Button>
             </div>
 
             <div className="mt-6 border-t border-ds-gray-100 pt-4">

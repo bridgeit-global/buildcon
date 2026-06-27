@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { pageError, toast } from '@/lib/toast';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -122,12 +123,17 @@ export function LoginClient() {
             }
           />
 
-          <Button
-            onClick={submit}
-            disabled={busy}
-            variant={busy ? 'outline' : 'default'}
-          >
-            {busy ? 'Please wait…' : mode === 'sign_in' ? 'Sign in' : 'Sign up'}
+          <Button onClick={submit} disabled={busy} className="min-h-11">
+            {busy ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                {mode === 'sign_in' ? 'Signing in…' : 'Signing up…'}
+              </>
+            ) : mode === 'sign_in' ? (
+              'Sign in'
+            ) : (
+              'Sign up'
+            )}
           </Button>
 
           <p className="text-center text-xs text-gray-500">

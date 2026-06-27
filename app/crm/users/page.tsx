@@ -433,6 +433,7 @@ export default function UsersPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <EmailInputField
+                      required
                         value={invite.email}
                         onChange={(v) => {
                           setInvite((s) => ({ ...s, email: v }));

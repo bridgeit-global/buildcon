@@ -157,8 +157,8 @@ export function DocumentsBookingListTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="min-w-56 flex-1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="w-full sm:max-w-sm">
           <Label className="text-ds-gray-600">Search bookings</Label>
           <div className="relative mt-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ds-gray-400" />

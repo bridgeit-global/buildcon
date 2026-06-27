@@ -783,7 +783,6 @@ export default function ApprovalsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="min-h-11"
                   disabled={deciding}
                   onClick={() => {
                     setActiveRow(null);
@@ -796,7 +795,7 @@ export default function ApprovalsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="min-h-11 gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
+                    className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('reject')}
                   >
@@ -804,7 +803,7 @@ export default function ApprovalsPage() {
                   </Button>
                   <Button
                     type="button"
-                    className="min-h-11 gap-1 bg-teal-600 hover:bg-teal-700"
+                    className="gap-1 bg-teal-600 hover:bg-teal-700"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('approve')}
                   >
