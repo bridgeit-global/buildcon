@@ -9,8 +9,20 @@ const DEFAULT_CHROMIUM_PACK_URL =
 
 let browserPromise: Promise<Browser> | null = null;
 
+/** Serializes PDF renders — Sparticuz Chromium on serverless cannot safely share one browser across concurrent newPage() calls. */
+let renderChain: Promise<unknown> = Promise.resolve();
+
 function resetBrowserCache(): void {
   browserPromise = null;
+}
+
+function enqueuePdfRender<T>(fn: () => Promise<T>): Promise<T> {
+  const run = renderChain.then(fn, fn);
+  renderChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
 }
 
 function isStaleBrowserError(error: unknown): boolean {
@@ -96,15 +108,16 @@ async function getBrowser(): Promise<Browser> {
     resetBrowserCache();
   }
 
-  browserPromise = launchBrowser().catch((error: unknown) => {
-    resetBrowserCache();
-    throw error;
-  });
+  if (!browserPromise) {
+    browserPromise = launchBrowser().catch((error: unknown) => {
+      resetBrowserCache();
+      throw error;
+    });
+  }
   return browserPromise;
 }
 
-/** Renders printable booking HTML to a PDF buffer (A4, print backgrounds). */
-export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
+async function renderHtmlToPdfBufferOnce(html: string): Promise<Buffer> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -138,4 +151,9 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
   }
 
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+/** Renders printable booking HTML to a PDF buffer (A4, print backgrounds). */
+export function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
+  return enqueuePdfRender(() => renderHtmlToPdfBufferOnce(html));
 }
