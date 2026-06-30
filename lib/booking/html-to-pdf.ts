@@ -1,6 +1,8 @@
 import 'server-only';
 import type { Browser } from 'playwright-core';
 
+import { injectPrintFontsIntoHtml } from '@/lib/booking/print-font-face.server';
+
 /** Matches @sparticuz/chromium-min@149.0.0. Prefer setting CHROMIUM_PACK_PATH in Vercel. */
 const DEFAULT_CHROMIUM_PACK_URL =
   'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.x64.tar';
@@ -110,7 +112,12 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
       const browser = await getBrowser();
       const page = await browser.newPage();
       try {
-        await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+        const printableHtml = injectPrintFontsIntoHtml(html);
+        await page.setContent(printableHtml, {
+          waitUntil: 'domcontentloaded',
+          timeout: 15_000
+        });
+        await page.evaluate(() => document.fonts.ready);
         const pdf = await page.pdf({
           format: 'A4',
           printBackground: true,

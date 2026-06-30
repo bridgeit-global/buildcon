@@ -1,5 +1,6 @@
 import type { ApplicationFormApplicantRow } from '@/lib/customer/application-form-data';
 import DOCX_PARAS from '@/lib/booking/application-form-docx-paras.json';
+import { PRINT_FONT_FAMILY } from '@/lib/booking/print-font-family';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type ApplicationFormPrintInput = {
@@ -384,7 +385,7 @@ export function buildApplicationFormHtml(input: ApplicationFormPrintInput): stri
     @page { size: A4; margin: 14mm 16mm; }
     * { box-sizing: border-box; }
     body {
-      font-family: "Times New Roman", Times, serif;
+      font-family: ${PRINT_FONT_FAMILY};
       font-size: 11pt;
       line-height: 1.4;
       color: #000;

@@ -10,7 +10,7 @@ exports[`buildApplicationFormHtml > matches snapshot for fixed fixture 1`] = `
     @page { size: A4; margin: 14mm 16mm; }
     * { box-sizing: border-box; }
     body {
-      font-family: "Times New Roman", Times, serif;
+      font-family: "BuildCon Print", "Times New Roman", Times, serif;
       font-size: 11pt;
       line-height: 1.4;
       color: #000;

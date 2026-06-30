@@ -1,4 +1,5 @@
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
+import { PRINT_FONT_FAMILY } from '@/lib/booking/print-font-family';
 import { formatDisplayDate } from '@/lib/format-display-date';
 
 export type BookingSalesDocPrintBase = {
@@ -109,7 +110,7 @@ export function sharedStyles(): string {
     @page { size: A4; margin: 18mm 16mm; }
     * { box-sizing: border-box; }
     body {
-      font-family: "Times New Roman", Times, serif;
+      font-family: ${PRINT_FONT_FAMILY};
       font-size: 12pt;
       line-height: 1.45;
       color: #000;

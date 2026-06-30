@@ -122,14 +122,16 @@ function InquiryPageContent() {
     ).length;
     let newLeads = 0;
     let qualified = 0;
+    let negotiation = 0;
     let converted = 0;
     for (const inq of inquiries) {
       const s = String(inq.funnel_stage || '').trim();
       if (!s || s === 'Enquiry') newLeads++;
       else if (s === 'Qualified') qualified++;
+      else if (s === 'Negotiation') negotiation++;
       else if (s === 'Token') converted++;
     }
-    return { total, createdToday, newLeads, qualified, converted };
+    return { total, createdToday, newLeads, qualified, negotiation, converted };
   }, [inquiries]);
 
   const leadSourceSlices = useMemo(() => {
@@ -172,9 +174,9 @@ function InquiryPageContent() {
       </div>
 
       {initialLoading ? (
-        <CrmKpiGridSkeleton count={4} cols={2} />
+        <CrmKpiGridSkeleton count={5} cols={2} />
       ) : (
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {(
           [
             {
@@ -197,6 +199,13 @@ function InquiryPageContent() {
               hint: 'In funnel',
               href: '/crm/inquiry/list?stage=Qualified',
               ariaLabel: 'Open list filtered to qualified stage'
+            },
+            {
+              title: 'Negotiation',
+              value: kpiStats.negotiation,
+              hint: 'Price discussion',
+              href: '/crm/inquiry/list?stage=Negotiation',
+              ariaLabel: 'Open list filtered to negotiation stage'
             },
             {
               title: 'Token',
