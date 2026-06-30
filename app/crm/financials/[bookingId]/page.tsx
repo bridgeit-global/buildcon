@@ -652,7 +652,12 @@ export default function FinancialsBookingPage() {
             }}
             actions={(row) => {
               const received = row.received;
-              const canDelete = Boolean(row.id) && received === 0 && schedules.length > 1;
+              const unpaidMergeTargets = breakableSchedules.filter((s) => s.id !== row.id);
+              const canDelete =
+                Boolean(row.id) &&
+                received === 0 &&
+                schedules.length > 1 &&
+                unpaidMergeTargets.length > 0;
               return (
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button
@@ -699,7 +704,9 @@ export default function FinancialsBookingPage() {
                         ? 'Cannot delete — collections exist on this instalment'
                         : schedules.length <= 1
                           ? 'Cannot delete the only instalment'
-                          : 'Delete milestone and return amount to another instalment'
+                          : unpaidMergeTargets.length === 0
+                            ? 'Cannot delete — no unpaid instalment to return amount to'
+                            : 'Delete milestone and return amount to an unpaid instalment'
                     }
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -805,13 +812,9 @@ export default function FinancialsBookingPage() {
         }}
         loading={loading}
         schedule={deleteMilestoneSchedule}
-        mergeTargets={schedules
-          .filter((s) => s.id !== deleteMilestoneSchedule?.id)
-          .map((s) => ({
-            id: s.id,
-            instalment_no: s.instalment_no,
-            milestone: s.milestone
-          }))}
+        mergeTargets={breakableSchedules.filter(
+          (s) => s.id !== deleteMilestoneSchedule?.id
+        )}
         onDeleted={() => loadFinancials()}
       />
 

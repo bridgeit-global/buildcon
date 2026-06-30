@@ -18,8 +18,18 @@ import {
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatInr } from '../inr-format';
 
-function mergeTargetLabel(s: { instalment_no: number; milestone: string }) {
-  return `${s.instalment_no}. ${s.milestone}`;
+function mergeTargetLabel(s: {
+  instalment_no: number;
+  milestone: string;
+  balance?: number;
+}) {
+  let label = `${s.instalment_no}. ${s.milestone}`;
+  if (s.balance != null) {
+    label += ` · ₹ ${formatInr(Math.round(Math.max(0, s.balance)), {
+      maximumFractionDigits: 0
+    })} pending`;
+  }
+  return label;
 }
 
 export type DeleteMilestoneSchedule = {
@@ -34,6 +44,7 @@ type MergeTarget = {
   id: string;
   instalment_no: number;
   milestone: string;
+  balance: number;
 };
 
 type Props = {
@@ -92,7 +103,7 @@ export function DeleteMilestoneDialog({
       pageError(
         received > 0
           ? 'Cannot delete an instalment that already has collections recorded.'
-          : 'Select an instalment to return this amount to.'
+          : 'Select an unpaid instalment to return this amount to.'
       );
       return;
     }
@@ -138,7 +149,7 @@ export function DeleteMilestoneDialog({
           </DialogTitle>
           <DialogDescription className="text-left text-xs text-ds-gray-600">
             {schedule
-              ? `Remove instalment ${schedule.instalment_no}. ${schedule.milestone} and return its demand to another row.`
+              ? `Remove instalment ${schedule.instalment_no}. ${schedule.milestone} and return its demand to an unpaid instalment.`
               : 'Remove this instalment from the payment schedule.'}
           </DialogDescription>
         </DialogHeader>
@@ -150,11 +161,16 @@ export function DeleteMilestoneDialog({
               {formatInr(received, { maximumFractionDigits: 0 })} recorded in collections. Delete
               collections first, or edit the milestone instead.
             </p>
+          ) : mergeTargets.length === 0 ? (
+            <p className="text-sm text-ds-error-700">
+              No other instalment has an unpaid balance. Edit another milestone or collect against
+              this one instead of deleting it.
+            </p>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               <p className="text-sm text-ds-gray-700">
-                ₹ {formatInr(returnAmount, { maximumFractionDigits: 0 })} will be added back to the
-                instalment you select below.
+                ₹ {formatInr(returnAmount, { maximumFractionDigits: 0 })} will be added to the
+                unpaid balance of the instalment you select below.
               </p>
               <div className="space-y-1.5">
                 <FieldLabel required>Return amount to</FieldLabel>
@@ -167,15 +183,15 @@ export function DeleteMilestoneDialog({
                     setMergeToId(row?.id ?? '');
                   }}
                   options={mergeTargetLabels}
-                  placeholder="Select an instalment"
+                  placeholder="Select an unpaid instalment"
                   searchPlaceholder="Search instalment…"
-                  disabled={loading || deleting || mergeTargets.length === 0}
+                  disabled={loading || deleting}
                   className="w-full"
                 />
                 <FormFieldError
                   message={
                     submitAttempted && !mergeToId
-                      ? 'Select an instalment to return this amount to.'
+                      ? 'Select an unpaid instalment to return this amount to.'
                       : undefined
                   }
                 />
