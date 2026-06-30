@@ -261,16 +261,15 @@ export function CollectionManageDialog({
           { notify: false }
         );
         if (receiptRes.ok) {
-          toast.success(
-            'Collection saved. Payment receipt stored in Documents — review and Send to notify the customer.'
-          );
+          toast.success('Collection saved successfully.');
         } else {
           toast.warning(`Collection saved; receipt PDF failed: ${receiptRes.error}`);
         }
+      } else {
+        toast.success('Collection saved successfully.');
       }
-      resetForm(entryScheduleId || null);
       await onSaved();
-      await loadCollections();
+      onOpenChange(false);
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to save collection');
     } finally {
@@ -446,20 +445,22 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryMode')} />
               </div>
 
-              <TextInputField
-                className="w-full min-w-0"
-                label="Reference"
-                required={entryMode !== 'Cash'}
-                value={entryRef}
-                onChange={(e) => {
-                  setEntryRef(e.target.value);
-                  touchCollectionField('entryRef');
-                }}
-                onBlur={() => touchCollectionField('entryRef')}
-                error={collectionFieldError('entryRef')}
-                placeholder="UTR / Cheque No."
-                disabled={loading || saving}
-              />
+              {entryMode !== 'Cash' ? (
+                <TextInputField
+                  className="w-full min-w-0"
+                  label="Reference"
+                  required
+                  value={entryRef}
+                  onChange={(e) => {
+                    setEntryRef(e.target.value);
+                    touchCollectionField('entryRef');
+                  }}
+                  onBlur={() => touchCollectionField('entryRef')}
+                  error={collectionFieldError('entryRef')}
+                  placeholder="UTR / Cheque No."
+                  disabled={loading || saving}
+                />
+              ) : null}
 
               <Button
                 className="w-full"
