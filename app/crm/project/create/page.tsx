@@ -178,9 +178,7 @@ export default function CreateProjectPage() {
             type: draft.type,
             status: draft.status,
             fy: draft.fy || null,
-            rera_no: isReadyProjectType(draft.type)
-              ? draft.rera_no.trim() || null
-              : null,
+            rera_no: draft.rera_no.trim() || null,
             floors_per_wing: metaFloors,
             units_per_floor: metaUnits,
             base_rate: Number(draft.base_rate || 0) || null,
@@ -421,8 +419,7 @@ export default function CreateProjectPage() {
                     setDraft((d) => ({
                       ...d,
                       type: v as CreateProjectDraft['type'],
-                      fy: coerceProjectFy(v, d.fy),
-                      rera_no: isReadyProjectType(v) ? d.rera_no : ''
+                      fy: coerceProjectFy(v, d.fy)
                     }))
                   }
                 >
@@ -465,17 +462,14 @@ export default function CreateProjectPage() {
                 value={draft.fy}
                 onValueChange={(fy) => setDraft((d) => ({ ...d, fy }))}
               />
-              {isReadyProjectType(draft.type) ? (
-                <TextInputField
-                  label="RERA No."
-                  required
-                  value={draft.rera_no}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, rera_no: e.target.value }))
-                  }
-                  placeholder="e.g. P52100012345"
-                />
-              ) : null}
+              <TextInputField
+                label="RERA No."
+                value={draft.rera_no}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, rera_no: e.target.value }))
+                }
+                placeholder="e.g. P52100012345"
+              />
             </div>
           ) : null}
 
@@ -713,9 +707,7 @@ export default function CreateProjectPage() {
                   ['Type', draft.type],
                   ['Status', draft.status],
                   ['FY', draft.fy || '—'],
-                  ...(isReadyProjectType(draft.type)
-                    ? ([['RERA', draft.rera_no || '—']] as const)
-                    : []),
+                  ['RERA', draft.rera_no || '—'],
                   [
                     'Structure paths',
                     wingsFromDraft(draft).join(' · ') || '—'

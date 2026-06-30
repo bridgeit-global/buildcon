@@ -43,14 +43,14 @@ describe('projectDetailsSchema', () => {
     ).toBe(true);
   });
 
-  it('requires RERA for Ready projects', () => {
+  it('allows empty RERA for Ready projects', () => {
     expect(
       projectDetailsSchema.safeParse({
         ...valid,
         type: 'Ready',
         rera_no: ''
       }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

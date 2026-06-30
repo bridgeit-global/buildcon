@@ -271,7 +271,7 @@ export function ProjectManageDialog({
           type,
           status,
           fy: fy.trim() || null,
-          rera_no: isReadyProjectType(type) ? reraNo.trim() || null : null,
+          rera_no: reraNo.trim() || null,
           base_rate: baseRate.trim() ? Number(baseRate) || null : null
         })
         .eq('id', project.id);
@@ -407,7 +407,6 @@ export function ProjectManageDialog({
                   onValueChange={(v) => {
                     setType(v);
                     setFy((prev) => coerceProjectFy(v, prev));
-                    if (!isReadyProjectType(v)) setReraNo('');
                   }}
                   disabled={!canEditDetails}
                 >
@@ -445,19 +444,14 @@ export function ProjectManageDialog({
                   disabled={!canEditDetails}
                 />
               </Field>
-              {isReadyProjectType(type) ? (
-                <Field label="RERA number">
-                  <Input
-                    value={reraNo}
-                    onChange={(e) => setReraNo(e.target.value)}
-                    disabled={!canEditDetails}
-                    required
-                  />
-                  <FormFieldError
-                    message={detailsValidation.fieldError('rera_no')}
-                  />
-                </Field>
-              ) : null}
+              <Field label="RERA number">
+                <Input
+                  value={reraNo}
+                  onChange={(e) => setReraNo(e.target.value)}
+                  disabled={!canEditDetails}
+                />
+                <FormFieldError message={detailsValidation.fieldError('rera_no')} />
+              </Field>
               <Field label="Base rate (₹/sq.ft)">
                 <Input
                   type="number"

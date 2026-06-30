@@ -36,8 +36,8 @@ type BookingPickRow = {
   | { full_name: string }[]
   | null;
   units:
-  | { unit_code: string }
-  | { unit_code: string }[]
+  | { unit_code: string; status?: string | null }
+  | { unit_code: string; status?: string | null }[]
   | null;
 };
 
@@ -103,7 +103,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
 
     let query = supabase
       .from('bookings')
-      .select('id,workflow_stage,customers(full_name),units(unit_code),projects(name)')
+      .select('id,workflow_stage,customers(full_name),units(unit_code,status),projects(name)')
       .in('project_id', projectIds)
       .eq('workflow_stage', 'confirmation')
       .neq('status', 'cancelled')

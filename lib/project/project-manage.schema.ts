@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { nonNegativeNumberString } from '@/lib/form/common-fields';
-import { isReadyProjectType } from '@/lib/project/project-fy';
 import {
   isProjectNameTaken,
   PROJECT_NAME_DUPLICATE_ERROR,
@@ -16,15 +15,6 @@ export const projectDetailsSchema = z
     fy: z.string(),
     rera_no: z.string(),
     base_rate: nonNegativeNumberString
-  })
-  .superRefine((data, ctx) => {
-    if (isReadyProjectType(data.type) && !data.rera_no.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'RERA number is required for Ready projects.',
-        path: ['rera_no']
-      });
-    }
   });
 
 export function projectDetailsSchemaWithExisting(

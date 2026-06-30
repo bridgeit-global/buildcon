@@ -20,6 +20,7 @@ import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { UnitStatusChip } from '@/components/ui/status-chip';
 import {
   Select,
   SelectContent,
@@ -29,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
+import { statusLabelForUnit } from '../inventory/unit-status';
 
 export type DocumentsBookingListRow = {
   id: string;
@@ -39,8 +41,8 @@ export type DocumentsBookingListRow = {
   | { full_name: string }[]
   | null;
   units:
-  | { unit_code: string }
-  | { unit_code: string }[]
+  | { unit_code: string; status?: string | null }
+  | { unit_code: string; status?: string | null }[]
   | null;
 };
 
@@ -66,7 +68,15 @@ const globalDocumentsBookingFilter: FilterFn<DocumentsBookingListRow> = (
   const b = row.original;
   const u = unwrapJoin(b.units);
   const c = unwrapJoin(b.customers);
-  const hay = [projectName(b.projects), u?.unit_code, c?.full_name, b.id]
+  const unitStatusLabel = u?.status ? statusLabelForUnit(u.status) : null;
+  const hay = [
+    projectName(b.projects),
+    u?.unit_code,
+    unitStatusLabel,
+    u?.status,
+    c?.full_name,
+    b.id
+  ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
@@ -107,6 +117,18 @@ export function DocumentsBookingListTable({
           return (
             <span className="font-semibold text-ds-gray-900">{u?.unit_code ?? '—'}</span>
           );
+        }
+      },
+      {
+        id: 'unit_status',
+        header: 'Unit status',
+        accessorFn: (row) => {
+          const u = unwrapJoin(row.units);
+          return u?.status ? statusLabelForUnit(u.status) ?? '' : '';
+        },
+        cell: ({ row }) => {
+          const u = unwrapJoin(row.original.units);
+          return u?.status ? <UnitStatusChip status={u.status} size="sm" /> : '—';
         }
       },
       {
@@ -192,7 +214,7 @@ export function DocumentsBookingListTable({
 
       <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
         <table
-          className="w-full min-w-[52rem] caption-bottom text-sm"
+          className="w-full min-w-208 caption-bottom text-sm"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>

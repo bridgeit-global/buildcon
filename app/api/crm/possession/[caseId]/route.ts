@@ -30,11 +30,18 @@ export async function PATCH(
 
   const { data: caseRow, error: cErr } = await admin
     .from('possession_cases')
-    .select('id, project_id')
+    .select('id, project_id, keys_handed_over_at')
     .eq('id', caseId)
     .maybeSingle();
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
   if (!caseRow) return NextResponse.json({ error: 'Case not found' }, { status: 404 });
+
+  if (body.snagList !== undefined && caseRow.keys_handed_over_at) {
+    return NextResponse.json(
+      { error: 'Snag list cannot be changed after keys are handed over.' },
+      { status: 409 }
+    );
+  }
 
   const projectId = caseRow.project_id as string;
   const gate = await requireProjectAccess(projectId);

@@ -50,6 +50,7 @@ export function PossessionCaseDialog({
   const [snags, setSnags] = useState<PossessionSnagItem[]>([]);
   const [notes, setNotes] = useState('');
   const [newSnag, setNewSnag] = useState('');
+  const [keysHandedOverAt, setKeysHandedOverAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [handingKeys, setHandingKeys] = useState(false);
 
@@ -60,13 +61,14 @@ export function PossessionCaseDialog({
   useEffect(() => {
     if (!row || !open) return;
     setChecklist(mergePossessionChecklist(row.checklist));
+    setKeysHandedOverAt(row.keysHandedOverAt);
     setNewSnag('');
     void (async () => {
       const { createSupabaseBrowserClient } = await import('@/lib/supabase/client');
       const supabase = createSupabaseBrowserClient();
       const { data, error: loadErr } = await supabase
         .from('possession_cases')
-        .select('checklist, snag_list, notes')
+        .select('checklist, snag_list, notes, keys_handed_over_at')
         .eq('id', row.caseId)
         .maybeSingle();
       if (loadErr) {
@@ -77,6 +79,9 @@ export function PossessionCaseDialog({
         setChecklist(mergePossessionChecklist(data.checklist));
         setSnags(parsePossessionSnagList(data.snag_list));
         setNotes(typeof data.notes === 'string' ? data.notes : '');
+        setKeysHandedOverAt(
+          typeof data.keys_handed_over_at === 'string' ? data.keys_handed_over_at : null
+        );
       }
     })();
   }, [row, open]);
@@ -131,6 +136,11 @@ export function PossessionCaseDialog({
   const possessed =
     row != null && normalizeUnitStatusCode(row.unitStatus) === 'POSSESSED';
 
+  const keysHandedOver =
+    possessed ||
+    Boolean(keysHandedOverAt) ||
+    Boolean(checklist.find((c) => c.id === 'key_handover')?.done);
+
   const onToggleTracker = async (id: PossessionTrackerId, checked: boolean) => {
     const next = toggleChecklistItem(checklist, id, checked);
     setChecklist(next);
@@ -146,6 +156,10 @@ export function PossessionCaseDialog({
   };
 
   const onAddSnag = async () => {
+    if (keysHandedOver) {
+      pageError('Snag list is locked after keys are handed over.');
+      return;
+    }
     const parsed = snagValidation.validate();
     if (!parsed.success) {
       pageError('Enter a snag description.');
@@ -168,6 +182,10 @@ export function PossessionCaseDialog({
   };
 
   const onRemoveSnag = async (id: string) => {
+    if (keysHandedOver) {
+      pageError('Snag list is locked after keys are handed over.');
+      return;
+    }
     const next = snags.filter((s) => s.id !== id);
     setSnags(next);
     const ok = await persist({ checklist, snagList: next, notes });
@@ -258,53 +276,61 @@ export function PossessionCaseDialog({
                     >
                       {s.description}
                     </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 shrink-0 text-ds-gray-500"
-                      disabled={saving}
-                      onClick={() => void onRemoveSnag(s.id)}
-                      aria-label="Remove snag"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    {!keysHandedOver ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0 text-ds-gray-500"
+                        disabled={saving}
+                        onClick={() => void onRemoveSnag(s.id)}
+                        aria-label="Remove snag"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    ) : null}
                   </li>
                 ))
               )}
             </ul>
-            <div className="flex gap-2">
-              <div className="min-w-0 flex-1">
-                <TextInputField
-                  value={newSnag}
-                  onChange={(e) => {
-                    setNewSnag(e.target.value);
-                    snagValidation.touch('description');
-                  }}
-                  onBlur={() => snagValidation.touch('description')}
-                  error={snagValidation.fieldError('description')}
-                  placeholder="Add snag item…"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void onAddSnag();
-                    }
-                  }}
-                  disabled={saving}
-                />
+            {keysHandedOver ? (
+              <p className="text-sm text-ds-gray-500">
+                Snag list is locked after keys are handed over.
+              </p>
+            ) : (
+              <div className="flex gap-2">
+                <div className="min-w-0 flex-1">
+                  <TextInputField
+                    value={newSnag}
+                    onChange={(e) => {
+                      setNewSnag(e.target.value);
+                      snagValidation.touch('description');
+                    }}
+                    onBlur={() => snagValidation.touch('description')}
+                    error={snagValidation.fieldError('description')}
+                    placeholder="Add snag item…"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void onAddSnag();
+                      }
+                    }}
+                    disabled={saving}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={saving || !newSnag.trim()}
+                  onClick={() => void onAddSnag()}
+                  aria-label="Add snag"
+                >
+                  <Plus className="size-4" />
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                disabled={saving || !newSnag.trim()}
-                onClick={() => void onAddSnag()}
-                aria-label="Add snag"
-              >
-                <Plus className="size-4" />
-              </Button>
-            </div>
+            )}
           </section>
 
           <TextareaField
