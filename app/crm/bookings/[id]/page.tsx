@@ -1519,6 +1519,33 @@ export default function BookingDetailPage() {
                 </p>
               </div>
 
+              {!kycComplete ? (
+                <div className="rounded-lg border border-ds-warning-200 bg-ds-warning-50/60 p-3 text-sm text-ds-warning-900">
+                  <p className="font-medium">KYC incomplete</p>
+                  <p className="mt-1 text-ds-warning-800">
+                    Complete PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads for every
+                    applicant before generating the application form.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {buyersNeedingKyc.map((b) => (
+                      <Button
+                        key={b.customerId}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        asChild
+                      >
+                        <Link
+                          href={`/crm/customers/${encodeURIComponent(b.customerId)}?tab=kyc`}
+                        >
+                          KYC — {b.label}
+                        </Link>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {/* --- A. APPLICANT DETAILS --- */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-ds-gray-800 uppercase tracking-wide">
@@ -2040,8 +2067,16 @@ export default function BookingDetailPage() {
                 <Button
                   type="button"
                   className="gap-1"
-                  disabled={generatingApplicationForm || saving || !allBuyerAppFormsValid}
+                  disabled={
+                    generatingApplicationForm || saving || !kycComplete || !allBuyerAppFormsValid
+                  }
                   onClick={() => {
+                    if (!kycComplete) {
+                      pageError(
+                        'Complete KYC for all applicants (PAN, 12-digit Aadhaar, and PAN, Aadhaar, and photo uploads) before generating the application form.'
+                      );
+                      return;
+                    }
                     if (!validateAllBuyerAppForms()) {
                       pageError('Complete all required applicant details before generating.');
                       return;
