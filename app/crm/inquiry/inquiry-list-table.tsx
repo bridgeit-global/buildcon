@@ -32,15 +32,14 @@ import {
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { funnelStageTone, StatusChip } from '@/components/ui/status-chip';
+import { cn } from '@/lib/utils';
 import {
   INQUIRY_CLOSED_FUNNEL_STAGE,
   INQUIRY_LIST_FUNNEL_STAGES
 } from './inquiry-funnel-stages';
 import {
-  selectValueToStageFilter,
   STAGE_FILTER_NEW_LEADS,
-  STAGE_FILTER_TOKEN,
-  stageFilterToSelectValue
+  STAGE_FILTER_TOKEN
 } from './inquiry-list-filters';
 import { getInquiryClosedStatus, isInquiryClosed } from './inquiry-stage-transitions';
 import {
@@ -97,26 +96,45 @@ const equalsOrAll: FilterFn<InquiryRowDb> = (row, columnId, raw) => {
   return String(row.getValue(columnId) ?? '').trim() === v;
 };
 
-const funnelStageFilterFn: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
-  const v = String(raw ?? '').trim();
-  if (!v || v === '__all__') return true;
-  const inq = row.original;
-  const stage = String(inq.funnel_stage || '').trim();
-  if (v === STAGE_FILTER_TOKEN) {
-    return stage === 'Token';
+type StageTabId = 'all' | 'new' | (typeof INQUIRY_LIST_FUNNEL_STAGES)[number];
+
+const STAGE_TABS: Array<{ id: StageTabId; label: string }> = [
+  { id: 'all', label: 'All stages' },
+  { id: 'new', label: 'New leads' },
+  ...INQUIRY_LIST_FUNNEL_STAGES.filter((s) => s !== 'Enquiry').map((s) => ({
+    id: s,
+    label: s
+  }))
+];
+
+function columnFilterToStageTab(
+  filters: ColumnFiltersState
+): StageTabId | null {
+  const raw = filters.find((f) => f.id === 'funnelStage')?.value;
+  if (raw === undefined || raw === null) return null;
+  const v = String(raw).trim();
+  if (v === STAGE_FILTER_NEW_LEADS) return 'new';
+  if (v === STAGE_FILTER_TOKEN) return 'Token';
+  if ((INQUIRY_LIST_FUNNEL_STAGES as readonly string[]).includes(v)) {
+    return v as StageTabId;
   }
-  if (v === STAGE_FILTER_NEW_LEADS) {
+  return null;
+}
+
+function inquiryMatchesStageTab(inq: InquiryRowDb, tabId: StageTabId): boolean {
+  if (tabId === 'all') return true;
+  const stage = String(inq.funnel_stage || '').trim();
+  if (tabId === 'new') {
     return !stage || stage === 'Enquiry';
   }
-  if (v === INQUIRY_CLOSED_FUNNEL_STAGE) {
+  if (tabId === INQUIRY_CLOSED_FUNNEL_STAGE) {
     return (
       stage === INQUIRY_CLOSED_FUNNEL_STAGE ||
-      isInquiryClosed(inq.stage_data, stage)
+      isInquiryClosed(inq.stage_data, inq.funnel_stage)
     );
   }
-  const display = stage || '—';
-  return display === v;
-};
+  return stage === tabId;
+}
 
 type InquiryListTableProps = ServerSortedTableProps & {
   inquiries: InquiryRowDb[];
@@ -139,13 +157,35 @@ export function InquiryListTable({
 }: InquiryListTableProps) {
   const router = useRouter();
   const [globalFilter, setGlobalFilter] = useState('');
+  const [stageTab, setStageTab] = useState<StageTabId>(
+    () => columnFilterToStageTab(urlColumnFilters) ?? 'new'
+  );
 
-  const [columnFilters, setColumnFilters] =
-    useState<ColumnFiltersState>(urlColumnFilters);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
+    urlColumnFilters.filter((f) => f.id !== 'funnelStage')
+  );
 
   useEffect(() => {
-    setColumnFilters(urlColumnFilters);
+    const fromUrl = columnFilterToStageTab(urlColumnFilters);
+    if (fromUrl) setStageTab(fromUrl);
+    setColumnFilters(urlColumnFilters.filter((f) => f.id !== 'funnelStage'));
   }, [urlColumnFilters]);
+
+  const filteredRows = useMemo(
+    () => inquiries.filter((inq) => inquiryMatchesStageTab(inq, stageTab)),
+    [inquiries, stageTab]
+  );
+
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: inquiries.length };
+    for (const t of STAGE_TABS) {
+      if (t.id === 'all') continue;
+      counts[t.id] = inquiries.filter((inq) =>
+        inquiryMatchesStageTab(inq, t.id)
+      ).length;
+    }
+    return counts;
+  }, [inquiries]);
 
   const unitNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -155,35 +195,6 @@ export function InquiryListTable({
     }
     return map;
   }, [units]);
-
-  const stageOptions = useMemo(() => {
-    const fromData = new Set<string>();
-    for (const inq of inquiries) {
-      const s = String(
-        inq.funnel_stage || ''
-      ).trim();
-      if (s) fromData.add(s);
-    }
-    const ordered: string[] = [...INQUIRY_LIST_FUNNEL_STAGES].filter((s) =>
-      fromData.has(s)
-    );
-    for (const inq of inquiries) {
-      if (isInquiryClosed(inq.stage_data, inq.funnel_stage)) {
-        fromData.add(INQUIRY_CLOSED_FUNNEL_STAGE);
-      }
-    }
-    for (const s of fromData) {
-      if (!ordered.includes(s)) {
-        ordered.push(s);
-      }
-    }
-    return ordered;
-  }, [inquiries]);
-
-  const stageSelectOptions = useMemo(
-    () => ['All stages', 'New', ...stageOptions],
-    [stageOptions]
-  );
 
   const leadSourceOptions = useMemo(() => {
     const set = new Set<string>();
@@ -259,7 +270,6 @@ export function InquiryListTable({
           }
           return String(row.funnel_stage || '').trim() || '—';
         },
-        filterFn: funnelStageFilterFn,
         cell: ({ row, getValue }) => {
           const closed = isInquiryClosed(
             row.original.stage_data,
@@ -381,7 +391,7 @@ export function InquiryListTable({
   });
 
   const table = useReactTable({
-    data: inquiries,
+    data: filteredRows,
     columns,
     state: { globalFilter, columnFilters, sorting, columnSizing },
     onGlobalFilterChange: setGlobalFilter,
@@ -398,13 +408,7 @@ export function InquiryListTable({
     ...tableFeatures
   });
 
-  const stageCol = table.getColumn('funnelStage');
   const sourceCol = table.getColumn('leadSource');
-  const stageFilterVal = stageCol?.getFilterValue();
-  const stageFilter =
-    stageFilterVal === undefined || stageFilterVal === null
-      ? ''
-      : String(stageFilterVal);
   const sourceFilterVal = sourceCol?.getFilterValue();
   const sourceFilter =
     sourceFilterVal === undefined || sourceFilterVal === null
@@ -439,6 +443,31 @@ export function InquiryListTable({
         </Button>
       </div>
 
+      <div className="mt-4 flex flex-wrap gap-1 border-b border-ds-gray-200">
+        {STAGE_TABS.map((t) => {
+          const active = stageTab === t.id;
+          const count = stageCounts[t.id] ?? 0;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={cn(
+                'px-3 py-2 text-xs font-medium',
+                active
+                  ? 'border-b-2 border-ds-primary-500 text-ds-primary-700'
+                  : 'text-ds-gray-600 hover:text-ds-gray-900'
+              )}
+              onClick={() => setStageTab(t.id)}
+            >
+              {t.label}{' '}
+              <span className="ml-1 rounded-full bg-ds-gray-100 px-1.5 py-0.5 text-[10px] text-ds-gray-600">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="min-w-[12rem] flex-1">
           <Label htmlFor="inquiry-search" className="text-xs text-ds-gray-500">
@@ -453,19 +482,6 @@ export function InquiryListTable({
           />
         </div>
         <div className="flex flex-wrap gap-3">
-          <div className="min-w-[10rem]">
-            <Label className="text-xs text-ds-gray-500">Stage</Label>
-            <SearchableSelect
-              value={stageFilterToSelectValue(stageFilter)}
-              onValueChange={(v) =>
-                stageCol?.setFilterValue(selectValueToStageFilter(v))
-              }
-              options={stageSelectOptions}
-              placeholder="All stages"
-              searchPlaceholder="Search stage…"
-              className="mt-1 w-full min-w-[10rem]"
-            />
-          </div>
           <div className="min-w-[10rem]">
             <Label className="text-xs text-ds-gray-500">Lead source</Label>
             <SearchableSelect
