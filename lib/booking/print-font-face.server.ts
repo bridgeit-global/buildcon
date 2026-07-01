@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const FONT_FILES = [
   ['400', 'noto-sans-latin-400-normal.woff2'],
@@ -8,14 +9,15 @@ const FONT_FILES = [
   ['700', 'noto-sans-latin-ext-700-normal.woff2']
 ] as const;
 
+const FONT_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'fonts'
+);
+
 let cachedCss: string | null = null;
 
 function notoSansFontPath(fileName: string): string {
-  return path.join(
-    process.cwd(),
-    'node_modules/@fontsource/noto-sans/files',
-    fileName
-  );
+  return path.join(FONT_DIR, fileName);
 }
 
 function woff2DataUri(fileName: string): string {

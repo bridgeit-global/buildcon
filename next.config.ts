@@ -6,7 +6,13 @@ const nextConfig: NextConfig = {
   // trace it unless we include it explicitly. Use hoisted node_modules (.npmrc) so
   // this path is a real file, not a pnpm symlink (symlinks break Vercel deploy).
   outputFileTracingIncludes: {
-    "/api/crm/**": ["./node_modules/playwright-core/browsers.json"],
+    "/api/crm/**": [
+      "./node_modules/playwright-core/browsers.json",
+      "./lib/booking/fonts/noto-sans-latin-400-normal.woff2",
+      "./lib/booking/fonts/noto-sans-latin-ext-400-normal.woff2",
+      "./lib/booking/fonts/noto-sans-latin-700-normal.woff2",
+      "./lib/booking/fonts/noto-sans-latin-ext-700-normal.woff2",
+    ],
   },
   turbopack: {
     root: import.meta.dirname,

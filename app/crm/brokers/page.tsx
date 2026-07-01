@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
@@ -23,7 +23,6 @@ import { TextInputField } from '@/components/ui/text-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
-import { ChevronDown, Search } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -31,9 +30,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BrokerListTable, type BrokerTableRow } from './broker-list-table';
 
-const LIST_PAGE_SIZE = 40;
+const DEFAULT_PAGE_SIZE = 10;
 
 const DEFAULT_SORTING: SortingState = [{ id: 'created_at', desc: true }];
 
@@ -46,11 +46,9 @@ export default function BrokersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [listTotal, setListTotal] = useState<number | null>(null);
-  const [listHasMore, setListHasMore] = useState(false);
-  const [listNextOffset, setListNextOffset] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
 
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,78 +68,58 @@ export default function BrokersPage() {
   } = form;
   const status = watch('status');
 
-  const fetchBrokerList = useCallback(
-    async (opts: { reset: boolean }) => {
-      const offset = opts.reset ? 0 : listNextOffset;
-      if (opts.reset) {
-        setLoading(true);
-        setListHasMore(false);
-        setListNextOffset(0);
-      } else {
-        if (!listHasMore || loadingMore) return;
-        setLoadingMore(true);
-      }
-      try {
-        const params = new URLSearchParams({
-          limit: String(LIST_PAGE_SIZE),
-          offset: String(offset)
-        });
-        if (searchQuery) params.set('q', searchQuery);
-        const sortQuery = sortingStateToQuery(sorting);
-        if (sortQuery.sort) params.set('sort', sortQuery.sort);
-        if (sortQuery.sortDir) params.set('sortDir', sortQuery.sortDir);
+  const fetchBrokerList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const offset = pageIndex * pageSize;
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset)
+      });
+      if (searchQuery) params.set('q', searchQuery);
+      const sortQuery = sortingStateToQuery(sorting);
+      if (sortQuery.sort) params.set('sort', sortQuery.sort);
+      if (sortQuery.sortDir) params.set('sortDir', sortQuery.sortDir);
 
-        const res = await fetch(`/api/crm/brokers?${params.toString()}`);
-        const body = (await res.json()) as {
-          error?: string;
-          items?: BrokerTableRow[];
-          hasMore?: boolean;
-          nextOffset?: number;
-          total?: number | null;
-        };
-        if (!res.ok) throw new Error(body.error || 'Failed to load brokers');
-        const rows = body.items ?? [];
-        setBrokers((prev) => (opts.reset ? rows : [...prev, ...rows]));
-        setListHasMore(Boolean(body.hasMore));
-        setListNextOffset(body.nextOffset ?? offset + rows.length);
-        if (opts.reset && body.total != null) setListTotal(body.total);
-      } catch (e) {
-        pageError(e instanceof Error ? e.message : 'Failed to load brokers');
-        if (opts.reset) {
-          setBrokers([]);
-          setListTotal(null);
-        }
-      } finally {
-        if (opts.reset) setLoading(false);
-        else setLoadingMore(false);
-      }
-    },
-    [listHasMore, listNextOffset, loadingMore, searchQuery, sorting]
-  );
+      const res = await fetch(`/api/crm/brokers?${params.toString()}`);
+      const body = (await res.json()) as {
+        error?: string;
+        items?: BrokerTableRow[];
+        total?: number | null;
+      };
+      if (!res.ok) throw new Error(body.error || 'Failed to load brokers');
+      setBrokers(body.items ?? []);
+      if (body.total != null) setListTotal(body.total);
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Failed to load brokers');
+      setBrokers([]);
+      setListTotal(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [pageIndex, pageSize, searchQuery, sorting]);
+
+  const listCount = listTotal ?? brokers.length;
+  const pageCount = Math.max(1, Math.ceil(listCount / pageSize));
+  const canPreviousPage = pageIndex > 0;
+  const canNextPage = pageIndex < pageCount - 1;
 
   useEffect(() => {
-    const t = window.setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    const t = window.setTimeout(() => {
+      setPageIndex(0);
+      setSearchQuery(searchInput.trim());
+    }, 300);
     return () => window.clearTimeout(t);
   }, [searchInput]);
 
   useEffect(() => {
-    void fetchBrokerList({ reset: true });
-  }, [searchQuery, sorting]); // eslint-disable-line react-hooks/exhaustive-deps
+    void fetchBrokerList();
+  }, [fetchBrokerList]);
 
   useEffect(() => {
-    const target = loadMoreSentinelRef.current;
-    if (!target) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          void fetchBrokerList({ reset: false });
-        }
-      },
-      { rootMargin: '120px', threshold: 0 }
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [fetchBrokerList]);
+    const maxPage = Math.max(0, pageCount - 1);
+    if (pageIndex > maxPage) setPageIndex(maxPage);
+  }, [pageCount, pageIndex]);
 
   const createBroker = handleSubmit(
     async (values) => {
@@ -167,8 +145,6 @@ export default function BrokersPage() {
     },
     () => pageError('Fix the highlighted fields before saving.')
   );
-
-  const listShownCount = listTotal ?? brokers.length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -198,7 +174,7 @@ export default function BrokersPage() {
           <Button
             variant="outline"
             className="shrink-0"
-            onClick={() => void fetchBrokerList({ reset: true })}
+            onClick={() => void fetchBrokerList()}
             disabled={loading}
           >
             {loading ? 'Refreshing…' : 'Refresh'}
@@ -283,29 +259,49 @@ export default function BrokersPage() {
       </Card>
 
       <Card className="p-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-ds-gray-900">
-              Brokers
-            </div>
-            <div className="text-xs text-ds-gray-500">
-              {loading && brokers.length === 0 ? (
-                <CrmSkeletonBar className="w-20" />
-              ) : searchQuery ? (
-                `${brokers.length} of ${listShownCount} shown`
-              ) : (
-                `${listShownCount} shown`
-              )}
-            </div>
+        <div className="mb-4">
+          <div className="text-sm font-semibold text-ds-gray-900">
+            Brokers
           </div>
-          <div className="relative w-full max-w-[260px] sm:w-auto">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-ds-gray-400" />
-            <Input
-              className="pl-8"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by name, phone…"
-            />
+          <p className="text-xs text-ds-gray-500">
+            {loading && brokers.length === 0 ? (
+              <CrmSkeletonBar className="inline-block w-16" />
+            ) : (
+              <>
+                {listCount} broker{listCount !== 1 ? 's' : ''}
+                {searchQuery.trim() ? ' (filtered)' : ''}
+              </>
+            )}
+          </p>
+        </div>
+
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Input
+            placeholder="Search by name, phone…"
+            className="max-w-sm"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+          <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPageIndex(0);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[72px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 15, 25, 50].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>per page</span>
           </div>
         </div>
 
@@ -313,15 +309,39 @@ export default function BrokersPage() {
           rows={brokers}
           loading={loading}
           sorting={sorting}
-          onSortingChange={setSorting}
+          onSortingChange={(updater) => {
+            setSorting(updater);
+            setPageIndex(0);
+          }}
         />
 
-        <div ref={loadMoreSentinelRef} className="h-1" aria-hidden />
-        {loadingMore ? (
-          <div className="py-3 text-center text-xs text-ds-gray-500">
-            Loading more…
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+          <span className="tabular-nums">
+            Page {pageIndex + 1} of {pageCount}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              className="size-8 p-0"
+              disabled={!canPreviousPage || loading}
+              onClick={() => setPageIndex((p) => p - 1)}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="size-8 p-0"
+              disabled={!canNextPage || loading}
+              onClick={() => setPageIndex((p) => p + 1)}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
           </div>
-        ) : null}
+        </div>
       </Card>
     </div>
   );
