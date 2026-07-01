@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
       "./lib/booking/fonts/noto-sans-latin-ext-400-normal.woff2",
       "./lib/booking/fonts/noto-sans-latin-700-normal.woff2",
       "./lib/booking/fonts/noto-sans-latin-ext-700-normal.woff2",
+      "./node_modules/@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff2",
+      "./node_modules/@fontsource/noto-sans/files/noto-sans-latin-ext-400-normal.woff2",
+      "./node_modules/@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff2",
+      "./node_modules/@fontsource/noto-sans/files/noto-sans-latin-ext-700-normal.woff2",
     ],
   },
   turbopack: {

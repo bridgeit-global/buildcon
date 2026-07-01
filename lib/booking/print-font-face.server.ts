@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const FONT_FILES = [
   ['400', 'noto-sans-latin-400-normal.woff2'],
@@ -9,15 +8,28 @@ const FONT_FILES = [
   ['700', 'noto-sans-latin-ext-700-normal.woff2']
 ] as const;
 
-const FONT_DIR = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  'fonts'
-);
-
 let cachedCss: string | null = null;
 
+/**
+ * Resolve bundled print fonts at runtime. Webpack inlines `import.meta.url` as the
+ * build-machine path (e.g. `/vercel/path0/...`), which does not exist in serverless
+ * runtimes — traced assets land under `process.cwd()` instead.
+ */
 function notoSansFontPath(fileName: string): string {
-  return path.join(FONT_DIR, fileName);
+  const candidates = [
+    path.join(process.cwd(), 'lib/booking/fonts', fileName),
+    path.join(
+      process.cwd(),
+      'node_modules/@fontsource/noto-sans/files',
+      fileName
+    )
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  throw new Error(`Print font not found: ${fileName}`);
 }
 
 function woff2DataUri(fileName: string): string {
