@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -86,6 +87,7 @@ import type { UnitRow } from './inquiry-types';
 import {
   buildProjectFilterOptions,
   DEFAULT_UNIT_PICK_FILTERS,
+  ensureDefaultProjectOnFilters,
   InquiryUnitPicker,
   isUnitSelectableForQualifyPick,
   type UnitPickFilters,
@@ -403,7 +405,7 @@ export const NewInquiryWizard = forwardRef<
         setSellerForm((s) => ({
           ...s,
           selectedUnitId: s2.selectedUnitId,
-          projectId: s2.projectId
+          projectId: String(s2.projectId || '').trim() || s.projectId
         }));
         return;
       }
@@ -461,18 +463,21 @@ export const NewInquiryWizard = forwardRef<
   }, [unitPickFilters.minBudget, unitPickFilters.maxBudget]);
 
   useEffect(() => {
-    if (accessibleProjects.length !== 1) return;
-    const onlyId = accessibleProjects[0].id;
-    setSellerForm((s) => (s.projectId ? s : { ...s, projectId: onlyId }));
+    if (accessibleProjects.length === 0) return;
+    const sorted = [...accessibleProjects].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+    const defaultId = sorted[0].id;
+    setSellerForm((s) =>
+      String(s.projectId || '').trim() ? s : { ...s, projectId: defaultId }
+    );
   }, [accessibleProjects]);
 
   useEffect(() => {
     const pid = String(sellerForm.projectId || '').trim();
     if (!pid) return;
     setUnitPickFilters((f) =>
-      f.projectId === pid
-        ? f
-        : { ...f, projectId: pid, unitType: '', floor: '', structure: '', unitNo: '' }
+      f.projectId === pid ? f : { ...f, projectId: pid }
     );
   }, [sellerForm.projectId]);
 
@@ -817,10 +822,14 @@ export const NewInquiryWizard = forwardRef<
       accessibleProjects
     );
     const explicitProject = String(sellerForm.projectId || '').trim();
-    const next: UnitPickFilters = {
-      ...fromPrefs,
-      projectId: explicitProject || fromPrefs.projectId
-    };
+    const next: UnitPickFilters = ensureDefaultProjectOnFilters(
+      {
+        ...fromPrefs,
+        projectId: explicitProject || fromPrefs.projectId
+      },
+      units,
+      accessibleProjects
+    );
     setUnitPickFilters(next);
     const pid = String(next.projectId || '').trim();
     if (pid) {
@@ -840,9 +849,22 @@ export const NewInquiryWizard = forwardRef<
 
   useEffect(() => {
     if (step !== 2) return;
-    if (String(unitPickFilters.projectId || '').trim()) return;
     applySellerPrefsToUnitFilters();
-  }, [step, unitPickFilters.projectId, applySellerPrefsToUnitFilters]);
+  }, [step, applySellerPrefsToUnitFilters]);
+
+  useLayoutEffect(() => {
+    if (step !== 2) return;
+    if (accessibleProjects.length === 0 && units.length === 0) return;
+    setUnitPickFilters((current) => {
+      const next = ensureDefaultProjectOnFilters(
+        current,
+        units,
+        accessibleProjects
+      );
+      if (next.projectId === current.projectId) return current;
+      return next;
+    });
+  }, [step, units, accessibleProjects]);
 
   const selectedUnit = useMemo(() => {
     const id = String(sellerForm.selectedUnitId || '').trim();

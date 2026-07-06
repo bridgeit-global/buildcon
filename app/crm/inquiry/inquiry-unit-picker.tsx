@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import {
   ArrowRight,
@@ -203,6 +203,81 @@ function findProjectIdByPreferredLocation(
   return match?.id ?? '';
 }
 
+function resolveDefaultProjectId(
+  units: UnitRow[],
+  accessibleProjects?: InquiryProjectPickOption[]
+): string {
+  const sortedAccessible = [...(accessibleProjects ?? [])].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+  const fromAccessible = String(sortedAccessible[0]?.id || '').trim();
+  if (fromAccessible) return fromAccessible;
+
+  const unitProjects = buildProjectFilterOptions(units);
+  return unitProjects[0]?.[0] ?? '';
+}
+
+/** Ensure a project is selected whenever the CRM exposes at least one project. */
+export function ensureDefaultProjectOnFilters(
+  filters: UnitPickFilters,
+  units: UnitRow[],
+  accessibleProjects?: InquiryProjectPickOption[]
+): UnitPickFilters {
+  const current = String(filters.projectId || '').trim();
+  if (current) return filters;
+  const defaultId = resolveDefaultProjectId(units, accessibleProjects);
+  if (!defaultId) return filters;
+  return { ...filters, projectId: defaultId };
+}
+
+function countMatchingUnitsByProject(
+  units: UnitRow[],
+  filters: UnitPickFilters
+): Map<string, number> {
+  const withoutProject: UnitPickFilters = { ...filters, projectId: '' };
+  const counts = new Map<string, number>();
+  for (const u of units) {
+    if (!unitMatchesPickFilters(u, withoutProject)) continue;
+    const pid = String(u.project_id || '').trim();
+    if (!pid) continue;
+    counts.set(pid, (counts.get(pid) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function pickBestProjectFromCounts(
+  counts: Map<string, number>,
+  hintProjectId?: string,
+  projectPickMeta?: InquiryProjectPickOption[]
+): string {
+  if (counts.size === 0) return '';
+
+  const hint = String(hintProjectId || '').trim();
+  if (hint && counts.has(hint)) return hint;
+
+  const nameById = new Map(
+    (projectPickMeta ?? []).map((p) => [p.id, p.name] as const)
+  );
+
+  let bestId = '';
+  let bestCount = -1;
+  for (const [pid, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestId = pid;
+      continue;
+    }
+    if (count === bestCount) {
+      const a = nameById.get(bestId) ?? bestId;
+      const b = nameById.get(pid) ?? pid;
+      if (b.localeCompare(a, undefined, { sensitivity: 'base' }) < 0) {
+        bestId = pid;
+      }
+    }
+  }
+  return bestId;
+}
+
 /** Map step-1 “What are they looking for?” fields onto unit-picker filters. */
 export function unitPickFiltersFromSellerPreferences(
   units: UnitRow[],
@@ -262,30 +337,31 @@ export function unitPickFiltersFromSellerPreferences(
   }
 
   const loc = String(prefs.preferredLocation || '').trim();
+  let locationProjectHint = '';
   if (loc) {
-    const matchedProjectId = findProjectIdByPreferredLocation(
-      loc,
-      projectPickMeta
-    );
-    if (matchedProjectId) {
-      filters.projectId = matchedProjectId;
-    } else if (!filters.search) {
-      filters.search = loc;
-    } else if (!filters.search.toLowerCase().includes(loc.toLowerCase())) {
-      filters.search = `${filters.search} ${loc}`;
+    locationProjectHint = findProjectIdByPreferredLocation(loc, projectPickMeta);
+    if (!locationProjectHint) {
+      if (!filters.search) {
+        filters.search = loc;
+      } else if (!filters.search.toLowerCase().includes(loc.toLowerCase())) {
+        filters.search = `${filters.search} ${loc}`;
+      }
     }
   }
 
-  if (!filters.projectId && accessibleProjects?.length === 1) {
-    filters.projectId = accessibleProjects[0].id;
-  } else if (!filters.projectId) {
-    const unitProjects = buildProjectFilterOptions(units);
-    if (unitProjects.length === 1) {
-      filters.projectId = unitProjects[0][0];
-    }
+  const matchingProject = pickBestProjectFromCounts(
+    countMatchingUnitsByProject(units, filters),
+    locationProjectHint,
+    projectPickMeta
+  );
+  if (matchingProject) {
+    filters.projectId = matchingProject;
+  } else {
+    filters.projectId =
+      locationProjectHint || resolveDefaultProjectId(units, accessibleProjects);
   }
 
-  return filters;
+  return ensureDefaultProjectOnFilters(filters, units, accessibleProjects);
 }
 
 /** Best-effort project id from enquiry preferences (location name, single project, etc.). */
@@ -561,12 +637,6 @@ export function InquiryUnitPicker({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const unitsAfterProject = useMemo(() => {
-    const pid = String(filters.projectId || '').trim();
-    if (!pid) return units;
-    return units.filter((u) => u.project_id === pid);
-  }, [units, filters.projectId]);
-
   const projectFilterOptions = useMemo((): [string, string][] => {
     if (projectsProp && projectsProp.length > 0) {
       return projectsProp
@@ -584,14 +654,37 @@ export function InquiryUnitPicker({
     return buildProjectFilterOptions(units);
   }, [projectsProp, units]);
 
+  const resolvedFilters = useMemo(
+    () =>
+      ensureDefaultProjectOnFilters(
+        filters,
+        units,
+        projectsProp && projectsProp.length > 0 ? projectsProp : undefined
+      ),
+    [filters, units, projectsProp]
+  );
+
+  useLayoutEffect(() => {
+    const resolvedId = String(resolvedFilters.projectId || '').trim();
+    const currentId = String(filters.projectId || '').trim();
+    if (!resolvedId || resolvedId === currentId) return;
+    setFilters((f) => ({ ...f, projectId: resolvedId }));
+  }, [resolvedFilters.projectId, filters.projectId, setFilters]);
+
+  const unitsAfterProject = useMemo(() => {
+    const pid = String(resolvedFilters.projectId || '').trim();
+    if (!pid) return units;
+    return units.filter((u) => u.project_id === pid);
+  }, [units, resolvedFilters.projectId]);
+
   const filterOptions = useMemo(
     () => buildUnitPickFilterOptions(unitsAfterProject),
     [unitsAfterProject]
   );
 
   const filteredUnits = useMemo(
-    () => filterAndSortUnits(units, filters),
-    [units, filters]
+    () => filterAndSortUnits(units, resolvedFilters),
+    [units, resolvedFilters]
   );
 
   const selectableFilteredCount = useMemo(
@@ -602,15 +695,10 @@ export function InquiryUnitPicker({
     [filteredUnits, inquiryHeldUnitId]
   );
 
-  const activeFilterCount = countActiveUnitFilters(filters);
+  const activeFilterCount = countActiveUnitFilters(resolvedFilters);
   const hasActivePickFilters = activeFilterCount > 0;
 
-  const gridProjectId = useMemo(() => {
-    const fromFilter = String(filters.projectId || '').trim();
-    if (fromFilter) return fromFilter;
-    if (projectFilterOptions.length === 1) return projectFilterOptions[0][0];
-    return '';
-  }, [filters.projectId, projectFilterOptions]);
+  const gridProjectId = String(resolvedFilters.projectId || '').trim();
 
   const gridUnits = useMemo(() => {
     if (!gridProjectId) return [];
@@ -623,7 +711,11 @@ export function InquiryUnitPicker({
   );
 
   function clearAllFilters() {
-    setFilters(DEFAULT_UNIT_PICK_FILTERS);
+    const defaultProject = projectFilterOptions[0]?.[0] ?? '';
+    setFilters({
+      ...DEFAULT_UNIT_PICK_FILTERS,
+      projectId: defaultProject
+    });
     setAdvancedOpen(false);
   }
 
@@ -789,13 +881,12 @@ export function InquiryUnitPicker({
           {viewMode === 'list' || projectFilterOptions.length <= 1 ? (
             <FilterSelect
               label="Project"
-              value={
-                filters.projectId === '' ? UNIT_FILTER_ALL : filters.projectId
-              }
+              hideAll
+              value={gridProjectId}
               onValueChange={(v) =>
                 setFilters((f) => ({
                   ...f,
-                  projectId: v === UNIT_FILTER_ALL ? '' : v,
+                  projectId: v,
                   unitType: '',
                   floor: '',
                   structure: '',
@@ -811,7 +902,11 @@ export function InquiryUnitPicker({
           ) : null}
           <FilterSelect
             label="Type"
-            value={filters.unitType === '' ? UNIT_FILTER_ALL : filters.unitType}
+            value={
+              resolvedFilters.unitType === ''
+                ? UNIT_FILTER_ALL
+                : resolvedFilters.unitType
+            }
             onValueChange={(v) =>
               setFilters((f) => ({
                 ...f,
@@ -826,7 +921,9 @@ export function InquiryUnitPicker({
           />
           <FilterSelect
             label="Floor"
-            value={filters.floor === '' ? UNIT_FILTER_ALL : filters.floor}
+            value={
+              resolvedFilters.floor === '' ? UNIT_FILTER_ALL : resolvedFilters.floor
+            }
             onValueChange={(v) =>
               setFilters((f) => ({
                 ...f,
@@ -842,7 +939,9 @@ export function InquiryUnitPicker({
           <FilterSelect
             label="Wing"
             value={
-              filters.structure === '' ? UNIT_FILTER_ALL : filters.structure
+              resolvedFilters.structure === ''
+                ? UNIT_FILTER_ALL
+                : resolvedFilters.structure
             }
             onValueChange={(v) =>
               setFilters((f) => ({
@@ -949,11 +1048,12 @@ export function InquiryUnitPicker({
           <div className="mb-3 max-w-md">
             <FilterSelect
               label="Project"
-              value={gridProjectId || UNIT_FILTER_ALL}
+              hideAll
+              value={gridProjectId}
               onValueChange={(v) =>
                 setFilters((f) => ({
                   ...f,
-                  projectId: v === UNIT_FILTER_ALL ? '' : v,
+                  projectId: v,
                   unitType: '',
                   floor: '',
                   structure: '',
@@ -971,7 +1071,7 @@ export function InquiryUnitPicker({
         <p className="mb-2 text-[11px] text-ds-gray-500">
           {viewMode === 'grid'
             ? !gridProjectId
-              ? 'Choose a project, then pick a unit from the inventory grid.'
+              ? 'Loading projects…'
               : hasActivePickFilters
                 ? 'Inventory grid — only available units can be selected; others stay visible but disabled. Units that do not match filters are dimmed.'
                 : 'Inventory grid by wing and floor. Available units can be selected; all other statuses are shown disabled with full details.'
@@ -983,9 +1083,7 @@ export function InquiryUnitPicker({
               <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-4 text-xs text-ds-gray-600">
                 {projectFilterOptions.length === 0
                   ? 'No projects available — check project access or inventory setup.'
-                  : projectFilterOptions.length === 1
-                    ? 'Loading project inventory…'
-                    : 'Select a project above to load the wing and floor grid.'}
+                  : 'Loading project inventory…'}
               </div>
             ) : gridUnits.length === 0 ? (
               <div className="rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-4 text-xs text-ds-warning-900">
