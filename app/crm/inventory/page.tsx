@@ -10,8 +10,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useCrmProjectsContext } from '../_components/active-project-context';
-import { CrmInventoryPageSkeleton } from '../_components/crm-skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import {
+  CrmInventoryGridMatrixSkeleton,
+  CrmInventoryKvRowSkeleton,
+  CrmInventoryPageSkeleton
+} from '../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -1452,10 +1455,10 @@ function InventoryPageContent() {
                   ))}
                 </>
               ) : (
-                <div className="space-y-2">
+                <div>
                   {loading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <Skeleton key={i} className="h-4 w-full" />
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <CrmInventoryKvRowSkeleton key={i} />
                     ))
                   ) : (
                     <p className="text-sm text-slate-500">Could not load project.</p>
@@ -1605,7 +1608,11 @@ function InventoryPageContent() {
                 tabCardClass()
               )}
             >
-              {uniqueWingsGrid.map((wing) => {
+              {loading && filteredGrid.length === 0 ? (
+                <CrmInventoryGridMatrixSkeleton floors={6} unitsPerFloor={5} />
+              ) : null}
+              {!loading || filteredGrid.length > 0
+                ? uniqueWingsGrid.map((wing) => {
                 const wingUnits = filteredGrid.filter(
                   (u) => u.wing_name === wing
                 );
@@ -1690,7 +1697,8 @@ function InventoryPageContent() {
                     </table>
                   </div>
                 );
-              })}
+              })
+                : null}
               {!loading && uniqueWingsGrid.length === 0 ? (
                 <p className="text-sm text-slate-400">No units in this view.</p>
               ) : null}
@@ -2250,13 +2258,7 @@ function InventoryPageContent() {
 
 export default function InventoryPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-muted-foreground">
-          Loading inventory…
-        </div>
-      }
-    >
+    <Suspense fallback={<CrmInventoryPageSkeleton />}>
       <InventoryPageContent />
     </Suspense>
   );
