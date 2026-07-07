@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Select,
   SelectContent,
@@ -27,8 +28,6 @@ import {
   totalStructureLeafArea,
   type UnitConfigDraft
 } from './project-structure-utils';
-
-const UNIT_TYPE_UNSET_VALUE = '__unit_type_unset__';
 
 type StructureTreeFieldsProps = {
   nodes: StructureNode[];
@@ -756,37 +755,23 @@ function UnitConfigBlock({
           <FieldLabel className="text-[10px] text-muted-foreground" required>
             Unit {uCfg.unitNo} type
           </FieldLabel>
-          <Select
-            value={uCfg.type ? uCfg.type : UNIT_TYPE_UNSET_VALUE}
+          <SearchableSelect
+            value={uCfg.type || ''}
             onValueChange={(v) => {
-              if (v === UNIT_TYPE_UNSET_VALUE) return;
               syncUnitConfigs((list) =>
                 list.map((x) =>
                   x.unitNo === uCfg.unitNo ? { ...x, type: v } : x
                 )
               );
             }}
-          >
-            <SelectTrigger
-              size="sm"
-              className={cn(
-                'mt-1 h-8 w-full px-2 text-[11px] shadow-none',
-                !uCfg.type?.trim() && 'border-ds-error-200'
-              )}
-            >
-              <SelectValue placeholder="Select type…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={UNIT_TYPE_UNSET_VALUE} disabled>
-                Select type…
-              </SelectItem>
-              {unitTypes.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={unitTypes}
+            placeholder="Select type…"
+            searchPlaceholder="Search type…"
+            className={cn(
+              'mt-1 h-8 w-full px-2 text-[11px] shadow-none',
+              !uCfg.type?.trim() && 'border-ds-error-200'
+            )}
+          />
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground">

@@ -447,12 +447,14 @@ function UnitEditDialog({
   unit,
   open,
   onOpenChange,
-  onSaved
+  onSaved,
+  typeOptions
 }: {
   unit: UnitRow | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onSaved: () => void;
+  typeOptions: string[];
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [saving, setSaving] = useState(false);
@@ -581,15 +583,19 @@ function UnitEditDialog({
             error={editValidation.fieldError('unit_code')}
             inputClassName="h-9 text-xs"
           />
-          <TextInputField
-            label="Type"
-            labelClassName="text-[10px] text-slate-500"
-            value={form.unit_type}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, unit_type: e.target.value }))
-            }
-            inputClassName="h-9 text-xs"
-          />
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Type</Label>
+            <SearchableSelect
+              value={form.unit_type}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, unit_type: v }))
+              }
+              options={typeOptions}
+              placeholder="Select type…"
+              searchPlaceholder="Search type…"
+              className="h-9 text-xs"
+            />
+          </div>
           <div className="flex flex-col gap-1">
             <Label className="text-[10px] text-slate-500">Status</Label>
             <Select
@@ -2236,6 +2242,7 @@ function InventoryPageContent() {
           if (!o) setEditUnit(null);
         }}
         onSaved={() => void load()}
+        typeOptions={typeOptions}
       />
     </div>
   );

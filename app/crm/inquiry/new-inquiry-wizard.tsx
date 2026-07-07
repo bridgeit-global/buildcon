@@ -279,6 +279,7 @@ export const NewInquiryWizard = forwardRef<
   });
 
   const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>([]);
+  const [unitTypeNames, setUnitTypeNames] = useState<string[]>([]);
   const [accessibleProjects, setAccessibleProjects] = useState<
     InquiryProjectPickOption[]
   >([]);
@@ -772,6 +773,29 @@ export const NewInquiryWizard = forwardRef<
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const { data } = await supabase
+        .from('project_unit_types')
+        .select('name')
+        .order('sort_order', { ascending: true });
+      if (!cancelled) {
+        const names = [
+          ...new Set(
+            ((data ?? []) as { name: string }[])
+              .map((t) => String(t.name || '').trim())
+              .filter(Boolean)
+          )
+        ].sort((a, b) => a.localeCompare(b));
+        setUnitTypeNames(names);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
       setLoadingUnits(true);
       const unitsRes = await supabase
         .from('units')
@@ -795,6 +819,19 @@ export const NewInquiryWizard = forwardRef<
       cancelled = true;
     };
   }, [supabase]);
+
+  const unitTypeOptions = useMemo(() => {
+    const fromUnits = [
+      ...new Set(
+        units
+          .map((u) => String(u.unit_type || '').trim())
+          .filter(Boolean)
+      )
+    ];
+    return [...new Set([...unitTypeNames, ...fromUnits])].sort((a, b) =>
+      a.localeCompare(b)
+    );
+  }, [units, unitTypeNames]);
 
   const canQualifyUnit = useMemo(() => {
     const brokerOk =
@@ -1956,6 +1993,7 @@ export const NewInquiryWizard = forwardRef<
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
           brokers={brokers}
+          unitTypeOptions={unitTypeOptions}
           signedIn={Boolean(userLabel.id)}
           fieldError={step1Validation.fieldError}
           touch={step1Validation.touch}
@@ -2243,6 +2281,7 @@ function StepEnquiry({
   sellerForm,
   setSellerForm,
   brokers,
+  unitTypeOptions,
   signedIn,
   fieldError,
   touch,
@@ -2253,6 +2292,7 @@ function StepEnquiry({
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   brokers: { id: string; full_name: string }[];
+  unitTypeOptions: string[];
   signedIn: boolean;
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
   touch: (field: keyof InquiryWizardStep1Values) => void;
@@ -2406,16 +2446,24 @@ function StepEnquiry({
           the next step.
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <TextInputField
-            label="Unit type / layout"
-            labelClassName={wizardLabelClass}
-            inputClassName={wizardFieldClass}
-            placeholder="e.g. 2 BHK, corner, higher floor"
-            value={sellerForm.interestedIn}
-            onChange={(e) =>
-              setSellerForm((s) => ({ ...s, interestedIn: e.target.value }))
-            }
-          />
+          <div>
+            <Label className={wizardLabelClass}>Unit type / layout</Label>
+            <SearchableSelect
+              value={sellerForm.interestedIn}
+              onValueChange={(v) =>
+                setSellerForm((s) => ({ ...s, interestedIn: v }))
+              }
+              options={unitTypeOptions}
+              placeholder="Select unit type…"
+              searchPlaceholder="Search unit type…"
+              className={wizardSelectTriggerClass}
+            />
+            {unitTypeOptions.length === 0 ? (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                No unit types in catalog — add types under project settings.
+              </p>
+            ) : null}
+          </div>
           <TextInputField
             label="Preferred area / locality"
             labelClassName={wizardLabelClass}
