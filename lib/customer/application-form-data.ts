@@ -4,6 +4,8 @@ import { formatDisplayDate } from '@/lib/format-display-date';
 export type CustomerAddressSnippet = {
   kind: string;
   address_line1: string | null;
+  address_line2: string | null;
+  address_line3: string | null;
   city: string | null;
   state: string | null;
   pin: string | null;
@@ -13,6 +15,7 @@ export type CustomerApplicationProfile = {
   id: string;
   full_name: string;
   phone: string | null;
+  phone_secondary: string | null;
   email: string | null;
   dob: string | null;
   occupation: string | null;
@@ -20,19 +23,31 @@ export type CustomerApplicationProfile = {
   pan_number: string | null;
   aadhaar_last4: string | null;
   guardian_name: string | null;
+  guardian_relation: string | null;
   residential_status: string | null;
   passport_number: string | null;
+  id_proof_type: string | null;
   office_name_address: string | null;
 };
 
 export function formatCustomerAddress(
   addr:
-    | Pick<CustomerAddressSnippet, 'address_line1' | 'city' | 'state' | 'pin'>
+    | Pick<
+        CustomerAddressSnippet,
+        'address_line1' | 'address_line2' | 'address_line3' | 'city' | 'state' | 'pin'
+      >
     | null
     | undefined
 ): string {
   if (!addr) return '';
-  return [addr.address_line1, addr.city, addr.state, addr.pin]
+  return [
+    addr.address_line1,
+    addr.address_line2,
+    addr.address_line3,
+    addr.city,
+    addr.state,
+    addr.pin
+  ]
     .filter(Boolean)
     .join(', ');
 }
@@ -63,6 +78,7 @@ export type ApplicationFormApplicantRow = {
   customerId: string;
   fullName: string;
   guardianName: string;
+  guardianRelation: string;
   dob: string;
   pan: string;
   aadhaar: string;
@@ -70,8 +86,10 @@ export type ApplicationFormApplicantRow = {
   residentialStatus: string;
   profession: string;
   passportNo: string;
+  idProofType: string;
   permanentAddress: string;
   mobile: string;
+  mobileSecondary: string;
   email: string;
   communicationAddress: string;
   officeNameAddress: string;
@@ -99,6 +117,7 @@ export function buildApplicantRows(
       customerId: b.id,
       fullName: p?.full_name ?? b.label,
       guardianName: p?.guardian_name?.trim() || '—',
+      guardianRelation: p?.guardian_relation?.trim() || '—',
       dob: formatDobForForm(p?.dob ?? null),
       pan: p?.pan_number?.trim() || '—',
       aadhaar: maskAadhaarLast4(p?.aadhaar_last4),
@@ -106,8 +125,10 @@ export function buildApplicantRows(
       residentialStatus: p?.residential_status?.trim() || '—',
       profession: p?.occupation?.trim() || '—',
       passportNo: p?.passport_number?.trim() || '—',
+      idProofType: p?.id_proof_type?.trim() || '—',
       permanentAddress: formatCustomerAddress(permanent) || '—',
       mobile: p?.phone?.trim() || '—',
+      mobileSecondary: p?.phone_secondary?.trim() || '—',
       email: p?.email?.trim() || '—',
       communicationAddress:
         formatCustomerAddress(current) || formatCustomerAddress(permanent) || '—',

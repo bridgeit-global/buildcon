@@ -54,9 +54,9 @@ export default function MastersPage() {
       <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-ds-gray-900">Master data</h2>
         <p className="mt-1 text-xs text-ds-gray-500">
-          Manage lead sources, unit types, and unit categories used in leads,
-          inventory, and project setup. Inactive items stay on old records but
-          disappear from dropdowns.
+          Manage lead sources, unit types, unit categories, and customer relations
+          used in leads, inventory, project setup, and application forms. Inactive
+          items stay on old records but disappear from dropdowns.
         </p>
         <div
           className="mt-4 flex flex-wrap gap-2"

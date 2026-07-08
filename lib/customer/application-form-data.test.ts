@@ -13,6 +13,8 @@ describe('formatCustomerAddress', () => {
     expect(
       formatCustomerAddress({
         address_line1: '12 Main St',
+        address_line2: null,
+        address_line3: null,
         city: 'Mumbai',
         state: 'MH',
         pin: '400001'
@@ -30,6 +32,8 @@ describe('pickCustomerAddress', () => {
     {
       kind: 'current',
       address_line1: 'Flat 2',
+      address_line2: null,
+      address_line3: null,
       city: 'Pune',
       state: 'MH',
       pin: '411001'
@@ -37,6 +41,8 @@ describe('pickCustomerAddress', () => {
     {
       kind: 'permanent',
       address_line1: 'Village Rd',
+      address_line2: null,
+      address_line3: null,
       city: 'Nashik',
       state: 'MH',
       pin: '422001'
@@ -83,8 +89,11 @@ describe('buildApplicantRows', () => {
         pan_number: 'ABCDE1234F',
         aadhaar_last4: '123456789012',
         guardian_name: 'Father',
+        guardian_relation: 'Father',
         residential_status: 'Resident Indian',
         passport_number: '',
+        id_proof_type: 'Aadhaar Card',
+        phone_secondary: '',
         office_name_address: 'Tech Park'
       }
     ]
@@ -97,6 +106,8 @@ describe('buildApplicantRows', () => {
         {
           kind: 'current',
           address_line1: '12 Main St',
+          address_line2: null,
+          address_line3: null,
           city: 'Mumbai',
           state: 'MH',
           pin: '400001'

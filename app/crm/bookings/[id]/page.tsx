@@ -32,7 +32,6 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { isIsoDateNotAfterToday, todayIsoDate } from '@/lib/date-input-value';
 import {
   BOOKING_WORKFLOW_LABEL,
   BOOKING_WORKFLOW_STAGES,
@@ -91,7 +90,22 @@ import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
 } from '@/app/crm/documents/generated-documents-table';
-import { BookingAddressFields } from '../booking-address-fields';
+import {
+  ApplicationAddressFields,
+  applicationAddressFromRow,
+  applicationAddressToPayload
+} from '../application-address-fields';
+import { DobInputField } from '@/components/ui/dob-input-field';
+import { useMasterLookup } from '@/lib/master/use-master-lookup';
+import { mergeLookupOptions } from '@/lib/master/master-lookup';
+import { idProofOptionsForResidentialStatus } from '@/lib/customer/id-proof-options';
+import {
+  effectivePermanentAddress,
+  inferPermanentSameAsCorrespondence,
+  residentialStatusPatch,
+  validateApplicationFormBuyer,
+  type ApplicationFormAddress
+} from '@/lib/booking/application-form-buyer.schema';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
 import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import { isUnitPossessedStatus } from '@/app/crm/inventory/unit-status';
@@ -116,6 +130,8 @@ type BuyerAddress = {
   id: string;
   kind: string;
   address_line1: string | null;
+  address_line2: string | null;
+  address_line3: string | null;
   city: string | null;
   state: string | null;
   pin: string | null;
@@ -126,13 +142,16 @@ type BuyerKyc = {
   label: string;
   fullName: string;
   phone: string | null;
+  phone_secondary: string | null;
   email: string | null;
   occupation: string | null;
   dob: string | null;
   nationality: string | null;
   guardian_name: string | null;
+  guardian_relation: string | null;
   residential_status: string | null;
   passport_number: string | null;
+  id_proof_type: string | null;
   office_name_address: string | null;
   pan: string;
   aadhaarLast4: string;
@@ -142,9 +161,73 @@ type BuyerKyc = {
   panDocPath: string | null;
   aadhaarDocPath: string | null;
   photoDocPath: string | null;
+  residentialAddress: BuyerAddress | null;
   permanentAddress: BuyerAddress | null;
-  communicationAddress: BuyerAddress | null;
+  permanentSameAsCorrespondence: 'same' | 'different';
 };
+
+function emptyBuyerAddress(kind: string): BuyerAddress {
+  return {
+    id: '',
+    kind,
+    address_line1: null,
+    address_line2: null,
+    address_line3: null,
+    city: null,
+    state: null,
+    pin: null
+  };
+}
+
+function patchBuyerAddress(
+  current: BuyerAddress | null,
+  kind: string,
+  patch: Partial<ReturnType<typeof applicationAddressFromRow>>
+): BuyerAddress {
+  const merged = { ...applicationAddressFromRow(current), ...patch };
+  return {
+    ...(current ?? emptyBuyerAddress(kind)),
+    address_line1: merged.address_line1 || null,
+    address_line2: merged.address_line2 || null,
+    address_line3: merged.address_line3 || null,
+    state: merged.state || null,
+    pin: merged.pin || null
+  };
+}
+
+function buyerAddressToFormAddress(
+  addr: BuyerAddress | null | undefined
+): ApplicationFormAddress | null {
+  if (!addr) return null;
+  return {
+    address_line1: addr.address_line1,
+    address_line2: addr.address_line2,
+    address_line3: addr.address_line3,
+    city: addr.city,
+    state: addr.state,
+    pin: addr.pin
+  };
+}
+
+function buyerToApplicationFormInput(b: BuyerKyc) {
+  return {
+    fullName: b.fullName,
+    phone: b.phone,
+    phone_secondary: b.phone_secondary,
+    email: b.email,
+    guardian_name: b.guardian_name,
+    guardian_relation: b.guardian_relation,
+    dob: b.dob,
+    nationality: b.nationality,
+    residential_status: b.residential_status,
+    id_proof_type: b.id_proof_type,
+    pan: b.pan,
+    aadhaarLast4: b.aadhaarLast4,
+    residentialAddress: buyerAddressToFormAddress(b.residentialAddress),
+    permanentAddress: buyerAddressToFormAddress(b.permanentAddress),
+    permanentSameAsCorrespondence: b.permanentSameAsCorrespondence
+  };
+}
 
 export default function BookingDetailPage() {
   const params = useParams();
@@ -235,6 +318,7 @@ export default function BookingDetailPage() {
   const [kycPreviewTitle, setKycPreviewTitle] = useState('');
   const [kycPreviewIsImage, setKycPreviewIsImage] = useState(false);
   const [kycPreviewLoading, setKycPreviewLoading] = useState(false);
+  const { activeNames: masterCustomerRelations } = useMasterLookup('customer_relation');
 
   const load = useCallback(async () => {
     if (!bookingId) return;
@@ -327,12 +411,12 @@ export default function BookingDetailPage() {
       supabase
         .from('customers')
         .select(
-          'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address'
+          'id,full_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address'
         )
         .in('id', buyerIdList),
       supabase
         .from('customer_addresses')
-        .select('id,customer_id,kind,address_line1,city,state,pin')
+        .select('id,customer_id,kind,address_line1,address_line2,address_line3,city,state,pin')
         .in('customer_id', buyerIdList)
         .order('created_at', { ascending: true })
     ]);
@@ -363,19 +447,46 @@ export default function BookingDetailPage() {
       const paths = docPathsByCustomer.get(b.id) ?? {};
       const addrs = addrByCustomer.get(b.id) ?? [];
       const permAddr = addrs.find((a) => a.kind === 'permanent') ?? null;
-      const commAddr = addrs.find((a) => a.kind === 'current') ?? addrs[0] ?? null;
+      const resAddr = addrs.find((a) => a.kind === 'current') ?? addrs[0] ?? null;
+      const residentialAddress = resAddr
+        ? {
+            id: resAddr.id,
+            kind: resAddr.kind,
+            address_line1: resAddr.address_line1,
+            address_line2: resAddr.address_line2,
+            address_line3: resAddr.address_line3,
+            city: resAddr.city,
+            state: resAddr.state,
+            pin: resAddr.pin
+          }
+        : null;
+      const permanentAddress = permAddr
+        ? {
+            id: permAddr.id,
+            kind: permAddr.kind,
+            address_line1: permAddr.address_line1,
+            address_line2: permAddr.address_line2,
+            address_line3: permAddr.address_line3,
+            city: permAddr.city,
+            state: permAddr.state,
+            pin: permAddr.pin
+          }
+        : null;
       return {
         customerId: b.id,
         label: b.label,
         fullName: String(c?.full_name ?? b.label),
         phone: (c?.phone as string | null) ?? null,
+        phone_secondary: (c?.phone_secondary as string | null) ?? null,
         email: (c?.email as string | null) ?? null,
         occupation: (c?.occupation as string | null) ?? null,
         dob: (c?.dob as string | null) ?? null,
         nationality: (c?.nationality as string | null) ?? null,
         guardian_name: (c?.guardian_name as string | null) ?? null,
+        guardian_relation: (c?.guardian_relation as string | null) ?? null,
         residential_status: (c?.residential_status as string | null) ?? null,
         passport_number: (c?.passport_number as string | null) ?? null,
+        id_proof_type: (c?.id_proof_type as string | null) ?? null,
         office_name_address: (c?.office_name_address as string | null) ?? null,
         pan: String(c?.pan_number ?? ''),
         aadhaarLast4: String(c?.aadhaar_last4 ?? ''),
@@ -385,8 +496,12 @@ export default function BookingDetailPage() {
         panDocPath: paths['pan'] ?? null,
         aadhaarDocPath: paths['aadhaar'] ?? null,
         photoDocPath: paths['photo'] ?? null,
-        permanentAddress: permAddr ? { id: permAddr.id, kind: permAddr.kind, address_line1: permAddr.address_line1, city: permAddr.city, state: permAddr.state, pin: permAddr.pin } : null,
-        communicationAddress: commAddr ? { id: commAddr.id, kind: commAddr.kind, address_line1: commAddr.address_line1, city: commAddr.city, state: commAddr.state, pin: commAddr.pin } : null
+        residentialAddress,
+        permanentAddress,
+        permanentSameAsCorrespondence: inferPermanentSameAsCorrespondence(
+          buyerAddressToFormAddress(residentialAddress),
+          buyerAddressToFormAddress(permanentAddress)
+        )
       };
     });
     const prefilled: Record<string, Set<string>> = {};
@@ -394,17 +509,20 @@ export default function BookingDetailPage() {
       const fields = new Set<string>();
       if (nb.fullName) fields.add('fullName');
       if (nb.guardian_name) fields.add('guardian_name');
+      if (nb.guardian_relation) fields.add('guardian_relation');
       if (nb.dob) fields.add('dob');
       if (nb.pan) fields.add('pan');
       if (nb.aadhaarLast4) fields.add('aadhaarLast4');
       if (nb.nationality) fields.add('nationality');
       if (nb.residential_status) fields.add('residential_status');
+      if (nb.id_proof_type) fields.add('id_proof_type');
       if (nb.occupation) fields.add('occupation');
       if (nb.passport_number) fields.add('passport_number');
       if (nb.phone) fields.add('phone');
+      if (nb.phone_secondary) fields.add('phone_secondary');
       if (nb.email) fields.add('email');
+      if (nb.residentialAddress?.address_line1) fields.add('residentialAddress');
       if (nb.permanentAddress?.address_line1) fields.add('permanentAddress');
-      if (nb.communicationAddress?.address_line1) fields.add('communicationAddress');
       if (nb.office_name_address) fields.add('office_name_address');
       prefilled[nb.customerId] = fields;
     }
@@ -1091,24 +1209,7 @@ export default function BookingDetailPage() {
   }
 
   function validateBuyerAppFormFields(b: BuyerKyc): Record<string, string> {
-    const errors: Record<string, string> = {};
-    if (!b.fullName.trim()) errors.fullName = 'Full name is required.';
-    if (!b.phone || b.phone.replace(/\D/g, '').length !== 10)
-      errors.phone = 'Enter a 10-digit phone number.';
-    if (b.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email.trim()))
-      errors.email = 'Enter a valid email address.';
-    if (!b.guardian_name?.trim())
-      errors.guardian_name = "Father's/Mother's/Spouse's name is required.";
-    if (!b.dob) errors.dob = 'Date of birth is required.';
-    else if (!isIsoDateNotAfterToday(b.dob))
-      errors.dob = 'Date of birth cannot be in the future.';
-    if (!b.pan.trim()) errors.pan = 'PAN is required.';
-    if (!b.aadhaarLast4.trim()) errors.aadhaar = 'Aadhaar number is required.';
-    if (!b.nationality?.trim()) errors.nationality = 'Nationality is required.';
-    if (!b.residential_status?.trim()) errors.residential_status = 'Residential status is required.';
-    if (!b.communicationAddress?.address_line1?.trim())
-      errors.comm_address = 'Communication address is required.';
-    return errors;
+    return validateApplicationFormBuyer(buyerToApplicationFormInput(b));
   }
 
   function validateAllBuyerAppForms(): boolean {
@@ -1140,6 +1241,7 @@ export default function BookingDetailPage() {
     });
     setSavingBuyerAppForm(b.customerId);
     try {
+      const permanent = effectivePermanentAddress(buyerToApplicationFormInput(b));
       const res = await fetch(`/api/crm/bookings/${booking.id}/application-details`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -1147,31 +1249,25 @@ export default function BookingDetailPage() {
           customerId: b.customerId,
           full_name: b.fullName.trim(),
           phone: b.phone?.replace(/\D/g, '') || null,
+          phone_secondary: b.phone_secondary?.replace(/\D/g, '') || null,
           email: b.email?.trim() || null,
           dob: b.dob || null,
           occupation: b.occupation?.trim() || null,
           nationality: b.nationality?.trim() || null,
           guardian_name: b.guardian_name?.trim() || null,
+          guardian_relation: b.guardian_relation?.trim() || null,
           residential_status: b.residential_status?.trim() || null,
           passport_number: b.passport_number?.trim() || null,
+          id_proof_type: b.id_proof_type?.trim() || null,
           office_name_address: b.office_name_address?.trim() || null,
           pan_number: normalizePan(b.pan) || null,
           aadhaar_last4: normalizeAadhaar(b.aadhaarLast4) || null,
-          permanent_address: b.permanentAddress
-            ? {
-              address_line1: b.permanentAddress.address_line1?.trim() || null,
-              city: b.permanentAddress.city?.trim() || null,
-              state: b.permanentAddress.state?.trim() || null,
-              pin: b.permanentAddress.pin?.trim() || null
-            }
+          permanent_same_as_correspondence: b.permanentSameAsCorrespondence === 'same',
+          communication_address: b.residentialAddress
+            ? applicationAddressToPayload(applicationAddressFromRow(b.residentialAddress))
             : null,
-          communication_address: b.communicationAddress
-            ? {
-              address_line1: b.communicationAddress.address_line1?.trim() || null,
-              city: b.communicationAddress.city?.trim() || null,
-              state: b.communicationAddress.state?.trim() || null,
-              pin: b.communicationAddress.pin?.trim() || null
-            }
+          permanent_address: permanent
+            ? applicationAddressToPayload(applicationAddressFromRow(permanent))
             : null
         })
       });
@@ -1555,6 +1651,49 @@ export default function BookingDetailPage() {
                   const errs = appFormFieldErrors[b.customerId] ?? {};
                   const isSavingThis = savingBuyerAppForm === b.customerId;
                   const pre = prefilledBuyerFields.current[b.customerId];
+                  const customerRelationOptions = mergeLookupOptions(
+                    masterCustomerRelations,
+                    buyerKyc.map((row) => row.guardian_relation)
+                  );
+                  const idProofOptions = idProofOptionsForResidentialStatus(
+                    b.residential_status
+                  );
+                  const residentialValues = applicationAddressFromRow(b.residentialAddress);
+                  const permanentValues = applicationAddressFromRow(b.permanentAddress);
+                  const patchResidential = (
+                    patch: Partial<ReturnType<typeof applicationAddressFromRow>>
+                  ) =>
+                    setBuyerKyc((rows) =>
+                      rows.map((r) =>
+                        r.customerId === b.customerId
+                          ? {
+                              ...r,
+                              residentialAddress: patchBuyerAddress(
+                                r.residentialAddress,
+                                'current',
+                                patch
+                              )
+                            }
+                          : r
+                      )
+                    );
+                  const patchPermanent = (
+                    patch: Partial<ReturnType<typeof applicationAddressFromRow>>
+                  ) =>
+                    setBuyerKyc((rows) =>
+                      rows.map((r) =>
+                        r.customerId === b.customerId
+                          ? {
+                              ...r,
+                              permanentAddress: patchBuyerAddress(
+                                r.permanentAddress,
+                                'permanent',
+                                patch
+                              )
+                            }
+                          : r
+                      )
+                    );
                   return (
                     <div
                       key={b.customerId}
@@ -1595,6 +1734,34 @@ export default function BookingDetailPage() {
                           error={errs.fullName}
                         />
 
+                        <div className="space-y-1">
+                          <FieldLabel required>Customer Relation</FieldLabel>
+                          <Select
+                            value={b.guardian_relation ?? ''}
+                            onValueChange={(v) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId
+                                    ? { ...r, guardian_relation: v }
+                                    : r
+                                )
+                              )
+                            }
+                          >
+                            <SelectTrigger aria-invalid={!!errs.guardian_relation}>
+                              <SelectValue placeholder="Select relation" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {customerRelationOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormFieldError message={errs.guardian_relation} />
+                        </div>
+
                         <TextInputField
                           label="Father's/Mother's/Spouse's Name"
                           required
@@ -1610,16 +1777,13 @@ export default function BookingDetailPage() {
                           error={errs.guardian_name}
                         />
 
-                        <TextInputField
-                          label="Date of Birth"
+                        <DobInputField
                           required
-                          type="date"
-                          max={todayIsoDate()}
                           value={b.dob ?? ''}
-                          onChange={(e) =>
+                          onChange={(dob) =>
                             setBuyerKyc((rows) =>
                               rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, dob: e.target.value } : r
+                                r.customerId === b.customerId ? { ...r, dob } : r
                               )
                             )
                           }
@@ -1685,16 +1849,25 @@ export default function BookingDetailPage() {
                           error={errs.nationality}
                         />
 
-                        {/* Residential Status */}
                         <div className="space-y-1">
                           <FieldLabel required>Residential Status</FieldLabel>
                           <Select
                             value={b.residential_status ?? ''}
                             onValueChange={(v) =>
                               setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId ? { ...r, residential_status: v } : r
-                                )
+                                rows.map((r) => {
+                                  if (r.customerId !== b.customerId) return r;
+                                  const patch = residentialStatusPatch(
+                                    r.residential_status,
+                                    v,
+                                    r.id_proof_type
+                                  );
+                                  return {
+                                    ...r,
+                                    residential_status: patch.residential_status,
+                                    id_proof_type: patch.id_proof_type
+                                  };
+                                })
                               )
                             }
                           >
@@ -1708,6 +1881,34 @@ export default function BookingDetailPage() {
                             </SelectContent>
                           </Select>
                           <FormFieldError message={errs.residential_status} />
+                        </div>
+
+                        <div className="space-y-1">
+                          <FieldLabel required>ID Proof</FieldLabel>
+                          <Select
+                            value={b.id_proof_type ?? ''}
+                            onValueChange={(v) =>
+                              setBuyerKyc((rows) =>
+                                rows.map((r) =>
+                                  r.customerId === b.customerId
+                                    ? { ...r, id_proof_type: v }
+                                    : r
+                                )
+                              )
+                            }
+                          >
+                            <SelectTrigger aria-invalid={!!errs.id_proof_type}>
+                              <SelectValue placeholder="Select ID proof" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {idProofOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormFieldError message={errs.id_proof_type} />
                         </div>
 
                         <TextInputField
@@ -1740,9 +1941,9 @@ export default function BookingDetailPage() {
                       </div>
 
                       {/* Contact Details */}
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <PhoneInputField
-                          label="Mobile No."
+                          label="Primary Mobile Number"
                           required
                           value={b.phone ?? ''}
                           placeholder="10-digit mobile"
@@ -1754,6 +1955,21 @@ export default function BookingDetailPage() {
                             )
                           }
                           error={errs.phone}
+                        />
+                        <PhoneInputField
+                          label="Secondary Mobile Number"
+                          value={b.phone_secondary ?? ''}
+                          placeholder="10-digit mobile (optional)"
+                          onChange={(v) =>
+                            setBuyerKyc((rows) =>
+                              rows.map((r) =>
+                                r.customerId === b.customerId
+                                  ? { ...r, phone_secondary: v }
+                                  : r
+                              )
+                            )
+                          }
+                          error={errs.phone_secondary}
                         />
                         <EmailInputField
                           label="Email Id"
@@ -1770,99 +1986,78 @@ export default function BookingDetailPage() {
                         />
                       </div>
 
-                      {/* Permanent Address */}
+                      {/* Residential Address */}
                       <div className="space-y-2">
-                        <Label className="text-xs text-ds-gray-600 font-semibold">Permanent Address</Label>
-                        <BookingAddressFields
-                          addressLine={b.permanentAddress?.address_line1 ?? ''}
-                          city={b.permanentAddress?.city ?? ''}
-                          state={b.permanentAddress?.state ?? ''}
-                          pin={b.permanentAddress?.pin ?? ''}
-                          onAddressLineChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), address_line1: val } }
-                                  : r
-                              )
-                            )
-                          }
-                          onCityChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), city: val } }
-                                  : r
-                              )
-                            )
-                          }
-                          onStateChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), state: val } }
-                                  : r
-                              )
-                            )
-                          }
-                          onPinChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, permanentAddress: { ...(r.permanentAddress ?? { id: '', kind: 'permanent', address_line1: null, city: null, state: null, pin: null }), pin: val } }
-                                  : r
-                              )
-                            )
-                          }
+                        <FieldLabel required>Residential Address</FieldLabel>
+                        <ApplicationAddressFields
+                          values={residentialValues}
+                          onChange={(patch) => patchResidential(patch)}
+                          errors={{
+                            line1: errs.res_address_line1,
+                            line2: errs.res_address_line2,
+                            line3: errs.res_address_line3,
+                            pin: errs.res_address_pin,
+                            state: errs.res_address_state
+                          }}
                         />
                       </div>
 
-                      {/* Communication Address */}
-                      <div className="space-y-2">
-                        <FieldLabel required>Address for Communication</FieldLabel>
-                        <BookingAddressFields
-                          addressLine={b.communicationAddress?.address_line1 ?? ''}
-                          city={b.communicationAddress?.city ?? ''}
-                          state={b.communicationAddress?.state ?? ''}
-                          pin={b.communicationAddress?.pin ?? ''}
-                          addressLineError={errs.comm_address}
-                          onAddressLineChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), address_line1: val } }
-                                  : r
-                              )
-                            )
-                          }
-                          onCityChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), city: val } }
-                                  : r
-                              )
-                            )
-                          }
-                          onStateChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), state: val } }
-                                  : r
-                              )
-                            )
-                          }
-                          onPinChange={(val) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, communicationAddress: { ...(r.communicationAddress ?? { id: '', kind: 'current', address_line1: null, city: null, state: null, pin: null }), pin: val } }
-                                  : r
-                              )
-                            )
-                          }
-                        />
+                      {/* Permanent vs Correspondence */}
+                      <div className="space-y-3">
+                        <FieldLabel required>
+                          Permanent Address same as Correspondence Address?
+                        </FieldLabel>
+                        <div className="flex flex-wrap gap-2">
+                          {(
+                            [
+                              ['same', 'Same'],
+                              ['different', 'Different']
+                            ] as const
+                          ).map(([value, label]) => (
+                            <Button
+                              key={value}
+                              type="button"
+                              size="sm"
+                              variant={
+                                b.permanentSameAsCorrespondence === value
+                                  ? 'default'
+                                  : 'outline'
+                              }
+                              onClick={() =>
+                                setBuyerKyc((rows) =>
+                                  rows.map((r) =>
+                                    r.customerId === b.customerId
+                                      ? {
+                                          ...r,
+                                          permanentSameAsCorrespondence: value
+                                        }
+                                      : r
+                                  )
+                                )
+                              }
+                            >
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                        {b.permanentSameAsCorrespondence === 'different' ? (
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-ds-gray-600">
+                              Permanent Address
+                            </Label>
+                            <ApplicationAddressFields
+                              values={permanentValues}
+                              onChange={(patch) => patchPermanent(patch)}
+                              errors={{
+                                line1: errs.perm_address_line1,
+                                line2: errs.perm_address_line2,
+                                line3: errs.perm_address_line3,
+                                pin: errs.perm_address_pin,
+                                state: errs.perm_address_state
+                              }}
+                            />
+                          </div>
+                        ) : null}
                       </div>
 
                       <TextareaField

@@ -12,6 +12,7 @@ const applicant: ApplicationFormApplicantRow = {
   customerId: 'cust-001',
   fullName: 'Ravi Kumar',
   guardianName: 'Suresh Kumar',
+  guardianRelation: 'Father',
   dob: '15-05-1985',
   pan: 'ABCDE1234F',
   aadhaar: '1234 5678 9012',
@@ -19,8 +20,10 @@ const applicant: ApplicationFormApplicantRow = {
   residentialStatus: 'Resident Indian',
   profession: 'Engineer',
   passportNo: '',
+  idProofType: 'Aadhaar Card',
   permanentAddress: 'Village Road, Nashik, Maharashtra',
   mobile: '9876543210',
+  mobileSecondary: '9123456780',
   email: 'ravi@example.com',
   communicationAddress: '12 MG Road, Pune, Maharashtra 411001',
   officeNameAddress: 'Tech Park, Pune'

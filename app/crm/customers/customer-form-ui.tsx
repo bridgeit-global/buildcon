@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import type { Control, FieldPath, FieldValues } from 'react-hook-form';
-import { Controller } from 'react-hook-form';
+import { Controller, useController, useWatch } from 'react-hook-form';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
@@ -10,6 +11,7 @@ import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { PanInputField } from '@/components/ui/pan-input-field';
 import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
+import { DobInputField } from '@/components/ui/dob-input-field';
 import {
   Select,
   SelectContent,
@@ -18,7 +20,12 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
-import { todayIsoDate } from '@/lib/date-input-value';
+import {
+  idProofOptionsForResidentialStatus,
+  isNriResidentialStatus
+} from '@/lib/customer/id-proof-options';
+import { useMasterLookup } from '@/lib/master/use-master-lookup';
+import { mergeLookupOptions } from '@/lib/master/master-lookup';
 import { cn } from '@/lib/utils';
 
 export const CUSTOMER_FORM_DIALOG_CLASS =
@@ -183,6 +190,86 @@ export function RhfTextarea<T extends FieldValues>({
   );
 }
 
+function RhfCustomerRelationSelect<T extends FieldValues>({
+  control
+}: {
+  control: Control<T>;
+}) {
+  const { activeNames } = useMasterLookup('customer_relation');
+  const { field } = useController({
+    control,
+    name: 'guardian_relation' as FieldPath<T>
+  });
+  const options = useMemo(
+    () => mergeLookupOptions(activeNames, [String(field.value ?? '')]),
+    [activeNames, field.value]
+  );
+  return (
+    <div>
+      <Label>Customer relation</Label>
+      <Select value={field.value || undefined} onValueChange={field.onChange}>
+        <SelectTrigger className="mt-1 w-full">
+          <SelectValue placeholder="Select relation" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function RhfIdProofSelect<T extends FieldValues>({
+  control
+}: {
+  control: Control<T>;
+}) {
+  const residential = useWatch({
+    control,
+    name: 'residential_status' as FieldPath<T>
+  }) as string | undefined;
+  const { field, fieldState } = useController({
+    control,
+    name: 'id_proof_type' as FieldPath<T>
+  });
+  const nri = isNriResidentialStatus(residential);
+  const options = idProofOptionsForResidentialStatus(residential);
+
+  useEffect(() => {
+    if (nri && field.value !== 'Passport') {
+      field.onChange('Passport');
+    }
+    // Only re-run when the NRI constraint toggles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nri]);
+
+  return (
+    <div>
+      <Label>ID proof</Label>
+      <Select value={field.value || undefined} onValueChange={field.onChange}>
+        <SelectTrigger
+          className="mt-1 w-full"
+          aria-invalid={fieldState.error ? true : undefined}
+        >
+          <SelectValue placeholder="Select ID proof" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FormFieldError message={fieldState.error?.message} />
+    </div>
+  );
+}
+
 export function CustomerProfileFields<T extends FieldValues>({
   control,
   showKyc = false
@@ -203,8 +290,13 @@ export function CustomerProfileFields<T extends FieldValues>({
       <RhfPhoneInput
         control={control}
         name={'phone' as FieldPath<T>}
-        label="Phone"
+        label="Primary mobile number"
         required
+      />
+      <RhfPhoneInput
+        control={control}
+        name={'phone_secondary' as FieldPath<T>}
+        label="Secondary mobile number"
       />
       <RhfEmailInput
         control={control}
@@ -216,12 +308,10 @@ export function CustomerProfileFields<T extends FieldValues>({
         control={control}
         name={'dob' as FieldPath<T>}
         render={({ field, fieldState }) => (
-          <TextInputField
-            {...field}
-            value={field.value ?? ''}
+          <DobInputField
             label="Date of birth"
-            type="date"
-            max={todayIsoDate()}
+            value={field.value ?? ''}
+            onChange={field.onChange}
             error={fieldState.error?.message}
           />
         )}
@@ -251,18 +341,18 @@ export function CustomerProfileFields<T extends FieldValues>({
           </div>
         )}
       />
+      <RhfCustomerRelationSelect control={control} />
       <RhfTextInput
         control={control}
         name={'guardian_name' as FieldPath<T>}
         label={"Father's / mother's / spouse's name"}
         placeholder="As on PAN / Aadhaar"
-        className="sm:col-span-2"
       />
       <Controller
         control={control}
         name={'residential_status' as FieldPath<T>}
         render={({ field }) => (
-          <div className="sm:col-span-2">
+          <div>
             <Label>Residential status</Label>
             <Select value={field.value} onValueChange={field.onChange}>
               <SelectTrigger className="mt-1 w-full">
@@ -279,6 +369,7 @@ export function CustomerProfileFields<T extends FieldValues>({
           </div>
         )}
       />
+      <RhfIdProofSelect control={control} />
       <RhfTextInput
         control={control}
         name={'passport_number' as FieldPath<T>}

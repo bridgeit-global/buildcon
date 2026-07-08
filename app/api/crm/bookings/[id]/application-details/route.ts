@@ -3,33 +3,72 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { normalizeAadhaar, normalizePan } from '@/lib/customer/kyc-identifiers';
 
+type AddressPayload = {
+  address_line1: string | null;
+  address_line2: string | null;
+  address_line3: string | null;
+  city: string | null;
+  state: string | null;
+  pin: string | null;
+};
+
 type ApplicationDetailsBody = {
   customerId: string;
   full_name: string;
   phone: string | null;
+  phone_secondary: string | null;
   email: string | null;
   dob: string | null;
   occupation: string | null;
   nationality: string | null;
   guardian_name: string | null;
+  guardian_relation: string | null;
   residential_status: string | null;
   passport_number: string | null;
+  id_proof_type: string | null;
   office_name_address: string | null;
   pan_number: string | null;
   aadhaar_last4: string | null;
-  permanent_address: {
-    address_line1: string | null;
-    city: string | null;
-    state: string | null;
-    pin: string | null;
-  } | null;
-  communication_address: {
-    address_line1: string | null;
-    city: string | null;
-    state: string | null;
-    pin: string | null;
-  } | null;
+  permanent_same_as_correspondence: boolean;
+  permanent_address: AddressPayload | null;
+  communication_address: AddressPayload | null;
 };
+
+async function upsertCustomerAddress(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  custId: string,
+  kind: 'current' | 'permanent',
+  address: AddressPayload | null | undefined
+) {
+  if (!address?.address_line1?.trim()) return;
+
+  const { data: existing } = await admin
+    .from('customer_addresses')
+    .select('id')
+    .eq('customer_id', custId)
+    .eq('kind', kind)
+    .maybeSingle();
+
+  const addrPayload = {
+    customer_id: custId,
+    kind,
+    address_line1: address.address_line1,
+    address_line2: address.address_line2,
+    address_line3: address.address_line3,
+    city: address.city,
+    state: address.state,
+    pin: address.pin
+  };
+
+  if (existing) {
+    await admin
+      .from('customer_addresses')
+      .update(addrPayload)
+      .eq('id', existing.id as string);
+  } else {
+    await admin.from('customer_addresses').insert(addrPayload);
+  }
+}
 
 export async function POST(
   request: Request,
@@ -78,13 +117,18 @@ export async function POST(
     full_name: body.full_name.trim()
   };
   if (body.phone) customerPatch.phone = body.phone.replace(/\D/g, '');
+  customerPatch.phone_secondary = body.phone_secondary
+    ? body.phone_secondary.replace(/\D/g, '')
+    : null;
   if (body.email) customerPatch.email = body.email.trim();
   if (body.dob) customerPatch.dob = body.dob;
   if (body.occupation) customerPatch.occupation = body.occupation;
   if (body.nationality) customerPatch.nationality = body.nationality;
   if (body.guardian_name) customerPatch.guardian_name = body.guardian_name;
+  if (body.guardian_relation) customerPatch.guardian_relation = body.guardian_relation;
   if (body.residential_status) customerPatch.residential_status = body.residential_status;
   if (body.passport_number) customerPatch.passport_number = body.passport_number;
+  if (body.id_proof_type) customerPatch.id_proof_type = body.id_proof_type;
   if (body.office_name_address) customerPatch.office_name_address = body.office_name_address;
   if (body.pan_number) customerPatch.pan_number = normalizePan(body.pan_number);
   if (body.aadhaar_last4) customerPatch.aadhaar_last4 = normalizeAadhaar(body.aadhaar_last4);
@@ -95,59 +139,13 @@ export async function POST(
     .eq('id', custId);
   if (custErr) return NextResponse.json({ error: custErr.message }, { status: 500 });
 
-  if (body.permanent_address?.address_line1) {
-    const { data: existing } = await admin
-      .from('customer_addresses')
-      .select('id')
-      .eq('customer_id', custId)
-      .eq('kind', 'permanent')
-      .maybeSingle();
+  const correspondence = body.communication_address;
+  const permanent = body.permanent_same_as_correspondence
+    ? correspondence
+    : body.permanent_address;
 
-    const addrPayload = {
-      customer_id: custId,
-      kind: 'permanent',
-      address_line1: body.permanent_address.address_line1,
-      city: body.permanent_address.city,
-      state: body.permanent_address.state,
-      pin: body.permanent_address.pin
-    };
-
-    if (existing) {
-      await admin
-        .from('customer_addresses')
-        .update(addrPayload)
-        .eq('id', existing.id as string);
-    } else {
-      await admin.from('customer_addresses').insert(addrPayload);
-    }
-  }
-
-  if (body.communication_address?.address_line1) {
-    const { data: existing } = await admin
-      .from('customer_addresses')
-      .select('id')
-      .eq('customer_id', custId)
-      .eq('kind', 'current')
-      .maybeSingle();
-
-    const addrPayload = {
-      customer_id: custId,
-      kind: 'current',
-      address_line1: body.communication_address.address_line1,
-      city: body.communication_address.city,
-      state: body.communication_address.state,
-      pin: body.communication_address.pin
-    };
-
-    if (existing) {
-      await admin
-        .from('customer_addresses')
-        .update(addrPayload)
-        .eq('id', existing.id as string);
-    } else {
-      await admin.from('customer_addresses').insert(addrPayload);
-    }
-  }
+  await upsertCustomerAddress(admin, custId, 'current', correspondence);
+  await upsertCustomerAddress(admin, custId, 'permanent', permanent);
 
   return NextResponse.json({ ok: true });
 }

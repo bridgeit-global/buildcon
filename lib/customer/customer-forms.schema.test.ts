@@ -15,13 +15,16 @@ describe('customerCreateSchema', () => {
   const valid = {
     full_name: 'Ravi Kumar',
     phone: '9876543210',
+    phone_secondary: '',
     email: '',
     dob: '',
     occupation: '',
     nationality: 'Indian',
     guardian_name: '',
+    guardian_relation: '',
     residential_status: 'Resident Indian',
     passport_number: '',
+    id_proof_type: '',
     office_name_address: ''
   };
 
@@ -49,19 +52,48 @@ describe('customerCreateSchema', () => {
     ).toBe(false);
     vi.useRealTimers();
   });
+
+  it('rejects secondary mobile equal to primary', () => {
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        phone_secondary: '9876543210'
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects non-passport ID proof for NRI', () => {
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'NRI',
+        id_proof_type: 'Aadhaar Card'
+      }).success
+    ).toBe(false);
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'NRI',
+        id_proof_type: 'Passport'
+      }).success
+    ).toBe(true);
+  });
 });
 
 describe('customerEditSchema', () => {
   const valid = {
     full_name: 'Ravi Kumar',
     phone: '9876543210',
+    phone_secondary: '',
     email: '',
     dob: '',
     occupation: '',
     nationality: 'Indian',
     guardian_name: '',
+    guardian_relation: '',
     residential_status: 'Resident Indian',
     passport_number: '',
+    id_proof_type: '',
     office_name_address: '',
     pan_number: 'ABCDE1234F',
     aadhaar_last4: '123456789012'
@@ -99,23 +131,44 @@ describe('kycIdentitySchema', () => {
 });
 
 describe('addressFormSchema', () => {
-  it('accepts valid address', () => {
+  it('accepts a fully filled address', () => {
     expect(
       addressFormSchema.safeParse({
         kind: 'current',
+        same_as_correspondence: false,
         address_line1: '12 Main St',
+        address_line2: 'Near Park',
+        address_line3: 'Andheri West',
         city: 'Mumbai',
-        state: 'MH',
+        state: 'Maharashtra',
         pin: '400001'
       }).success
     ).toBe(true);
   });
 
-  it('rejects invalid PIN when provided', () => {
+  it('rejects missing address lines', () => {
+    expect(
+      addressFormSchema.safeParse({
+        kind: 'current',
+        same_as_correspondence: false,
+        address_line1: '12 Main St',
+        address_line2: '',
+        address_line3: '',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pin: '400001'
+      }).success
+    ).toBe(false);
+  });
+
+  it('requires state and valid PIN', () => {
     expect(
       addressFormSchema.safeParse({
         kind: 'permanent',
+        same_as_correspondence: false,
         address_line1: '12 Main St',
+        address_line2: 'Near Park',
+        address_line3: 'Andheri West',
         city: '',
         state: '',
         pin: '12'
@@ -223,13 +276,16 @@ describe('customer payload helpers', () => {
     const payload = customerCreatePayload({
       full_name: 'Test User',
       phone: '+91 98765 43210',
+      phone_secondary: '',
       email: '',
       dob: '',
       occupation: '',
       nationality: 'Indian',
       guardian_name: '',
+      guardian_relation: '',
       residential_status: 'Resident Indian',
       passport_number: '',
+      id_proof_type: '',
       office_name_address: ''
     });
     expect(payload.phone).toBe('919876543210');
@@ -239,13 +295,16 @@ describe('customer payload helpers', () => {
     const payload = customerEditPayload({
       full_name: 'Test User',
       phone: '9876543210',
+      phone_secondary: '',
       email: '',
       dob: '',
       occupation: '',
       nationality: 'Indian',
       guardian_name: '',
+      guardian_relation: '',
       residential_status: 'Resident Indian',
       passport_number: '',
+      id_proof_type: '',
       office_name_address: '',
       pan_number: 'abcde1234f',
       aadhaar_last4: '1234-5678-9012'

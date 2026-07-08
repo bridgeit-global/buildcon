@@ -7,8 +7,9 @@ import { Loader2 } from 'lucide-react';
 import { pageError } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
-import { TextareaField } from '@/components/ui/textarea-field';
 import {
   Dialog,
   DialogContent,
@@ -25,12 +26,20 @@ import {
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   addressFormSchema,
-  EMPTY_ADDRESS,
   type AddressFormValues
 } from '@/lib/customer/customer-forms.schema';
 import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
 import { INDIAN_STATES } from '@/lib/address/pincode-lookup';
 import { getCitiesForState } from '@/lib/address/indian-state-cities';
+
+export type CorrespondenceAddress = {
+  address_line1: string | null;
+  address_line2: string | null;
+  address_line3: string | null;
+  city: string | null;
+  state: string | null;
+  pin: string | null;
+};
 
 type Props = {
   open: boolean;
@@ -39,6 +48,8 @@ type Props = {
   editing: boolean;
   defaultValues: AddressFormValues;
   onSubmit: (values: AddressFormValues) => void | Promise<void>;
+  /** Current/correspondence address used for the "same as" copy option. */
+  correspondenceAddress?: CorrespondenceAddress | null;
 };
 
 export function CustomerAddressDialog({
@@ -47,7 +58,8 @@ export function CustomerAddressDialog({
   saving,
   editing,
   defaultValues,
-  onSubmit
+  onSubmit,
+  correspondenceAddress
 }: Props) {
   const form = useForm<AddressFormValues>({
     resolver: zodResolver(addressFormSchema),
@@ -63,7 +75,7 @@ export function CustomerAddressDialog({
 
   const onPincodeResult = useCallback(
     (result: { city: string; state: string }) => {
-      setValue('state', result.state, { shouldDirty: true });
+      setValue('state', result.state, { shouldDirty: true, shouldValidate: true });
       setValue('city', result.city, { shouldDirty: true });
     },
     [setValue]
@@ -72,8 +84,40 @@ export function CustomerAddressDialog({
   const { loading: pincodeLoading, handlePinChange } =
     usePincodeLookup(onPincodeResult);
 
+  const watchedKind = watch('kind');
   const watchedState = watch('state');
   const watchedCity = watch('city');
+  const sameAsCorrespondence = watch('same_as_correspondence');
+
+  const canCopyCorrespondence =
+    watchedKind === 'permanent' &&
+    Boolean(correspondenceAddress?.address_line1?.trim());
+
+  const applyCorrespondence = useCallback(() => {
+    if (!correspondenceAddress) return;
+    setValue('address_line1', correspondenceAddress.address_line1 ?? '', {
+      shouldValidate: true
+    });
+    setValue('address_line2', correspondenceAddress.address_line2 ?? '', {
+      shouldValidate: true
+    });
+    setValue('address_line3', correspondenceAddress.address_line3 ?? '', {
+      shouldValidate: true
+    });
+    setValue('city', correspondenceAddress.city ?? '');
+    setValue('state', correspondenceAddress.state ?? '', { shouldValidate: true });
+    setValue('pin', correspondenceAddress.pin ?? '', { shouldValidate: true });
+  }, [correspondenceAddress, setValue]);
+
+  useEffect(() => {
+    if (canCopyCorrespondence && sameAsCorrespondence) {
+      applyCorrespondence();
+    }
+    // Re-copy whenever the toggle is enabled.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameAsCorrespondence, canCopyCorrespondence]);
+
+  const lockedToCorrespondence = canCopyCorrespondence && sameAsCorrespondence;
 
   const stateOptions = useMemo(() => [...INDIAN_STATES], []);
 
@@ -95,9 +139,7 @@ export function CustomerAddressDialog({
           )}
         >
           <DialogHeader>
-            <DialogTitle>
-              {editing ? 'Edit address' : 'Add address'}
-            </DialogTitle>
+            <DialogTitle>{editing ? 'Edit address' : 'Add address'}</DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4">
@@ -107,30 +149,94 @@ export function CustomerAddressDialog({
                 control={control}
                 name="kind"
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value}
+                    onValueChange={(val) => {
+                      field.onChange(val);
+                      if (val !== 'permanent') {
+                        setValue('same_as_correspondence', false);
+                      }
+                    }}
+                  >
                     <SelectTrigger className="mt-1 w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="current">Current</SelectItem>
+                      <SelectItem value="current">Current / Correspondence</SelectItem>
                       <SelectItem value="permanent">Permanent</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
               />
             </div>
+
+            {canCopyCorrespondence ? (
+              <div className="col-span-2">
+                <Controller
+                  control={control}
+                  name="same_as_correspondence"
+                  render={({ field }) => (
+                    <label className="flex items-center gap-2 text-sm text-ds-gray-700">
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked === true)
+                        }
+                      />
+                      Permanent address same as correspondence (current) address
+                    </label>
+                  )}
+                />
+              </div>
+            ) : null}
+
             <Controller
               control={control}
               name="address_line1"
               render={({ field, fieldState }) => (
-                <TextareaField
+                <TextInputField
                   className="col-span-2"
-                  label="Address line"
-                  rows={2}
-                  placeholder="Street, building, landmark…"
+                  label="Address line 1"
+                  required
+                  placeholder="Flat / house no., building"
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
+                  disabled={lockedToCorrespondence}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="address_line2"
+              render={({ field, fieldState }) => (
+                <TextInputField
+                  className="col-span-2"
+                  label="Address line 2"
+                  required
+                  placeholder="Street, area, landmark"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={lockedToCorrespondence}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="address_line3"
+              render={({ field, fieldState }) => (
+                <TextInputField
+                  className="col-span-2"
+                  label="Address line 3"
+                  required
+                  placeholder="Locality, city district"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={lockedToCorrespondence}
                   error={fieldState.error?.message}
                 />
               )}
@@ -143,6 +249,7 @@ export function CustomerAddressDialog({
                   <div className="relative">
                     <TextInputField
                       label="PIN Code"
+                      required
                       value={field.value}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -153,6 +260,7 @@ export function CustomerAddressDialog({
                       placeholder="e.g. 400001"
                       inputMode="numeric"
                       maxLength={6}
+                      disabled={lockedToCorrespondence}
                       error={fieldState.error?.message}
                     />
                     {pincodeLoading && (
@@ -167,18 +275,23 @@ export function CustomerAddressDialog({
               <Controller
                 control={control}
                 name="state"
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value}
-                    onValueChange={(val) => {
-                      field.onChange(val);
-                      if (val !== watchedState) setValue('city', '', { shouldDirty: true });
-                    }}
-                    options={stateOptions}
-                    placeholder="Select state"
-                    searchPlaceholder="Search state…"
-                    className="mt-1"
-                  />
+                render={({ field, fieldState }) => (
+                  <>
+                    <SearchableSelect
+                      value={field.value}
+                      onValueChange={(val) => {
+                        field.onChange(val);
+                        if (val !== watchedState)
+                          setValue('city', '', { shouldDirty: true });
+                      }}
+                      options={stateOptions}
+                      placeholder="Select state"
+                      searchPlaceholder="Search state…"
+                      className="mt-1"
+                      disabled={lockedToCorrespondence}
+                    />
+                    <FormFieldError message={fieldState.error?.message} />
+                  </>
                 )}
               />
             </div>
@@ -195,6 +308,7 @@ export function CustomerAddressDialog({
                     placeholder="Select city"
                     searchPlaceholder="Search city…"
                     className="mt-1"
+                    disabled={lockedToCorrespondence}
                   />
                 )}
               />

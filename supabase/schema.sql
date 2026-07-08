@@ -310,8 +310,11 @@ create table if not exists public.customers (
   pan_number text,
   aadhaar_last4 text,
   guardian_name text,
+  guardian_relation text,
   residential_status text,
   passport_number text,
+  id_proof_type text,
+  phone_secondary text,
   office_name_address text,
   created_at timestamptz not null default now(),
   phone_normalized text generated always as (
@@ -328,6 +331,8 @@ create table if not exists public.customer_addresses (
   customer_id uuid not null references public.customers (id) on delete cascade,
   kind text not null default 'current', -- current | permanent
   address_line1 text,
+  address_line2 text,
+  address_line3 text,
   city text,
   state text,
   pin text,
@@ -438,7 +443,7 @@ create table if not exists public.master_lookup_items (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   constraint master_lookup_kind_chk check (
-    kind in ('lead_source', 'unit_type', 'unit_category')
+    kind in ('lead_source', 'unit_type', 'unit_category', 'customer_relation')
   ),
   constraint master_lookup_name_nonempty check (length(trim(name)) > 0)
 );

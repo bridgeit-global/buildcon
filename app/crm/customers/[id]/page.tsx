@@ -54,7 +54,7 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import BackButton from '@/components/buttons/back-button';
 
 const CUSTOMER_SELECT =
-  'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address,created_at';
+  'id,full_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address,created_at';
 
 const KYC_BUCKET = 'kyc';
 
@@ -62,6 +62,7 @@ type CustomerRow = {
   id: string;
   full_name: string;
   phone: string | null;
+  phone_secondary: string | null;
   email: string | null;
   dob: string | null;
   occupation: string | null;
@@ -69,8 +70,10 @@ type CustomerRow = {
   pan_number: string | null;
   aadhaar_last4: string | null;
   guardian_name: string | null;
+  guardian_relation: string | null;
   residential_status: string | null;
   passport_number: string | null;
+  id_proof_type: string | null;
   office_name_address: string | null;
   created_at: string;
 };
@@ -93,6 +96,8 @@ type AddressRow = {
   id: string;
   kind: string;
   address_line1: string | null;
+  address_line2: string | null;
+  address_line3: string | null;
   city: string | null;
   state: string | null;
   pin: string | null;
@@ -200,6 +205,18 @@ export default function CustomerDetailPage() {
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [addressDefaults, setAddressDefaults] = useState<AddressFormValues>(EMPTY_ADDRESS);
+  const correspondenceAddress = useMemo(() => {
+    const current = addresses.find((a) => a.kind === 'current') ?? null;
+    if (!current) return null;
+    return {
+      address_line1: current.address_line1,
+      address_line2: current.address_line2,
+      address_line3: current.address_line3,
+      city: current.city,
+      state: current.state,
+      pin: current.pin
+    };
+  }, [addresses]);
 
   const [nomineeFormOpen, setNomineeFormOpen] = useState(false);
   const [editingNomineeId, setEditingNomineeId] = useState<string | null>(null);
@@ -221,6 +238,7 @@ export default function CustomerDetailPage() {
     defaultValues: customerEditValuesFromCustomer({
       full_name: '',
       phone: null,
+      phone_secondary: null,
       email: null,
       dob: null,
       occupation: null,
@@ -228,8 +246,10 @@ export default function CustomerDetailPage() {
       pan_number: null,
       aadhaar_last4: null,
       guardian_name: null,
+      guardian_relation: null,
       residential_status: null,
       passport_number: null,
+      id_proof_type: null,
       office_name_address: null
     }),
     mode: 'onChange'
@@ -297,7 +317,7 @@ export default function CustomerDetailPage() {
     setLoadingExtras(true);
     (async () => {
       const [a, n, b, k] = await Promise.all([
-        supabase.from('customer_addresses').select('id,kind,address_line1,city,state,pin').eq('customer_id', customerId).order('created_at', { ascending: true }),
+        supabase.from('customer_addresses').select('id,kind,address_line1,address_line2,address_line3,city,state,pin').eq('customer_id', customerId).order('created_at', { ascending: true }),
         supabase.from('customer_nominees').select('id,nominee_name,relationship,nominee_dob').eq('customer_id', customerId).order('created_at', { ascending: false }),
         supabase.from('customer_bank_details').select('id,bank_name,account_no,ifsc,branch').eq('customer_id', customerId).order('created_at', { ascending: false }),
         supabase.from('customer_kyc_documents').select('id,doc_type,verified_status,uploaded_at,storage_path').eq('customer_id', customerId).order('uploaded_at', { ascending: false })
@@ -360,6 +380,8 @@ export default function CustomerDetailPage() {
       const payload = {
         kind: values.kind,
         address_line1: values.address_line1.trim(),
+        address_line2: values.address_line2.trim() || null,
+        address_line3: values.address_line3.trim() || null,
         city: values.city.trim() || null,
         state: values.state.trim() || null,
         pin: values.pin.trim() || null
@@ -370,7 +392,7 @@ export default function CustomerDetailPage() {
           .update(payload)
           .eq('id', editingAddressId)
           .eq('customer_id', customerId)
-          .select('id,kind,address_line1,city,state,pin')
+          .select('id,kind,address_line1,address_line2,address_line3,city,state,pin')
           .single();
         if (error) throw error;
         setAddresses((prev) => prev.map((a) => (a.id === data.id ? (data as AddressRow) : a)));
@@ -378,7 +400,7 @@ export default function CustomerDetailPage() {
         const { data, error } = await supabase
           .from('customer_addresses')
           .insert({ customer_id: customerId, ...payload })
-          .select('id,kind,address_line1,city,state,pin')
+          .select('id,kind,address_line1,address_line2,address_line3,city,state,pin')
           .single();
         if (error) throw error;
         setAddresses((prev) => [...prev, data as AddressRow]);
@@ -756,13 +778,16 @@ export default function CustomerDetailPage() {
                     Contact &amp; identity
                   </div>
                   <div className="px-4 py-1">
-                    <InfoRow label="Phone" value={customer.phone ?? '—'} />
+                    <InfoRow label="Primary mobile" value={customer.phone ?? '—'} />
+                    <InfoRow label="Secondary mobile" value={customer.phone_secondary ?? '—'} />
                     <InfoRow label="Email" value={customer.email ?? '—'} />
                     <InfoRow label="Date of birth" value={formatDisplayDate(customer.dob)} />
                     <InfoRow label="Occupation" value={customer.occupation ?? '—'} />
                     <InfoRow label="Nationality" value={customer.nationality ?? '—'} />
+                    <InfoRow label="Customer relation" value={customer.guardian_relation ?? '—'} />
                     <InfoRow label="Father / mother / spouse" value={customer.guardian_name ?? '—'} />
                     <InfoRow label="Residential status" value={customer.residential_status ?? '—'} />
+                    <InfoRow label="ID proof" value={customer.id_proof_type ?? '—'} />
                     <InfoRow label="Passport no." value={customer.passport_number ?? '—'} />
                     <InfoRow label="Office name & address" value={customer.office_name_address ?? '—'} />
                     <InfoRow label="PAN" value={customer.pan_number ?? '—'} />
@@ -937,7 +962,7 @@ export default function CustomerDetailPage() {
                         </div>
                       </div>
                       <div className="mt-2 space-y-1 text-sm text-gray-900">
-                        <div>{a.address_line1 ?? '—'}</div>
+                        <div>{[a.address_line1, a.address_line2, a.address_line3].filter(Boolean).join(', ') || '—'}</div>
                         <div className="text-gray-600">{[a.city, a.state, a.pin].filter(Boolean).join(', ') || '—'}</div>
                       </div>
                     </div>
@@ -951,6 +976,7 @@ export default function CustomerDetailPage() {
                   editing={Boolean(editingAddressId)}
                   defaultValues={addressDefaults}
                   onSubmit={saveAddress}
+                  correspondenceAddress={correspondenceAddress}
                 />
               </div>
             ) : null}

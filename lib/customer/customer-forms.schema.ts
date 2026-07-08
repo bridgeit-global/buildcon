@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { isIsoDateNotAfterToday } from '@/lib/date-input-value';
+import { isIsoDateNotAfterToday, isValidDobIso } from '@/lib/date-input-value';
+import {
+  idProofOptionsForResidentialStatus,
+  isNriResidentialStatus
+} from '@/lib/customer/id-proof-options';
 import {
   isAadhaarValid,
   isPanValid,
@@ -16,6 +20,23 @@ const phone10 = z
   .refine((v) => normalizePhoneDigits(v).length === 10, {
     message: 'Enter a 10-digit phone number.'
   });
+
+const optionalPhone10 = z.string().refine(
+  (v) => {
+    const d = normalizePhoneDigits(v);
+    return d.length === 0 || d.length === 10;
+  },
+  { message: 'Enter a 10-digit mobile number.' }
+);
+
+const optionalDobField = z.string().refine(
+  (v) => {
+    const t = v.trim();
+    if (!t) return true;
+    return isValidDobIso(t);
+  },
+  { message: 'Enter a valid date of birth.' }
+);
 
 const optionalEmail = z.string().refine(
   (v) => {
@@ -42,15 +63,6 @@ const optionalAadhaar = z.string().refine(
   { message: 'Aadhaar must be 12 digits.' }
 );
 
-const pinOptional = z.string().refine(
-  (v) => {
-    const t = v.trim();
-    if (!t) return true;
-    return /^\d{6}$/.test(t);
-  },
-  { message: 'Enter a 6-digit PIN code.' }
-);
-
 const ifscOptional = z.string().refine(
   (v) => {
     const t = v.trim().toUpperCase();
@@ -66,25 +78,59 @@ const optionalPastDate = z.string().refine(isIsoDateNotAfterToday, {
   message: 'Date of birth cannot be in the future.'
 });
 
-/** Add-customer dialog */
-export const customerCreateSchema = z.object({
+const customerProfileObject = z.object({
   full_name: z.string().trim().min(1, 'Customer name is required.'),
   phone: phone10,
+  phone_secondary: optionalPhone10,
   email: optionalEmail,
-  dob: optionalPastDate,
+  dob: optionalDobField,
   occupation: z.string(),
   nationality: z.string(),
   guardian_name: z.string(),
+  guardian_relation: z.string(),
   residential_status: z.string(),
   passport_number: z.string(),
+  id_proof_type: z.string(),
   office_name_address: z.string()
 });
 
+function refineCustomerProfile(
+  data: z.infer<typeof customerProfileObject>,
+  ctx: z.RefinementCtx
+) {
+  const primary = normalizePhoneDigits(data.phone);
+  const secondary = normalizePhoneDigits(data.phone_secondary);
+  if (secondary && primary && secondary === primary) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['phone_secondary'],
+      message: 'Secondary mobile must differ from primary.'
+    });
+  }
+  const proof = String(data.id_proof_type ?? '').trim();
+  if (proof && isNriResidentialStatus(data.residential_status)) {
+    const allowed = idProofOptionsForResidentialStatus(data.residential_status);
+    if (!allowed.includes(proof)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['id_proof_type'],
+        message: 'NRI / foreign applicants must use Passport as ID proof.'
+      });
+    }
+  }
+}
+
+/** Add-customer dialog */
+export const customerCreateSchema =
+  customerProfileObject.superRefine(refineCustomerProfile);
+
 /** Edit-customer dialog (includes KYC identifiers on profile) */
-export const customerEditSchema = customerCreateSchema.extend({
-  pan_number: optionalPan,
-  aadhaar_last4: optionalAadhaar
-});
+export const customerEditSchema = customerProfileObject
+  .extend({
+    pan_number: optionalPan,
+    aadhaar_last4: optionalAadhaar
+  })
+  .superRefine(refineCustomerProfile);
 
 const requiredPan = z.string().superRefine((v, ctx) => {
   const panNorm = normalizePan(v);
@@ -119,10 +165,15 @@ export const kycIdentitySchema = z.object({
 /** Address dialog */
 export const addressFormSchema = z.object({
   kind: addressKind,
-  address_line1: z.string().trim().min(1, 'Address line is required.'),
+  same_as_correspondence: z.boolean(),
+  address_line1: z.string().trim().min(1, 'Address line 1 is required.'),
+  address_line2: z.string().trim().min(1, 'Address line 2 is required.'),
+  address_line3: z.string().trim().min(1, 'Address line 3 is required.'),
   city: z.string(),
-  state: z.string(),
-  pin: pinOptional
+  state: z.string().trim().min(1, 'State is required.'),
+  pin: z.string().trim().refine((v) => /^\d{6}$/.test(v), {
+    message: 'Enter a 6-digit PIN code.'
+  })
 });
 
 /** Nominee dialog */
@@ -192,19 +243,23 @@ export type KycUploadFormValues = z.infer<typeof kycUploadSchema>;
 export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
   full_name: '',
   phone: '',
+  phone_secondary: '',
   email: '',
   dob: '',
   occupation: '',
   nationality: 'Indian',
   guardian_name: '',
+  guardian_relation: '',
   residential_status: 'Resident Indian',
   passport_number: '',
+  id_proof_type: '',
   office_name_address: ''
 };
 
 export function customerEditValuesFromCustomer(row: {
   full_name: string;
   phone: string | null;
+  phone_secondary?: string | null;
   email: string | null;
   dob: string | null;
   occupation: string | null;
@@ -212,13 +267,16 @@ export function customerEditValuesFromCustomer(row: {
   pan_number: string | null;
   aadhaar_last4: string | null;
   guardian_name: string | null;
+  guardian_relation?: string | null;
   residential_status: string | null;
   passport_number: string | null;
+  id_proof_type?: string | null;
   office_name_address: string | null;
 }): CustomerEditFormValues {
   return {
     full_name: row.full_name,
     phone: row.phone ?? '',
+    phone_secondary: row.phone_secondary ?? '',
     email: row.email ?? '',
     dob: row.dob ? String(row.dob).slice(0, 10) : '',
     occupation: row.occupation ?? '',
@@ -226,15 +284,20 @@ export function customerEditValuesFromCustomer(row: {
     pan_number: row.pan_number ?? '',
     aadhaar_last4: row.aadhaar_last4 ?? '',
     guardian_name: row.guardian_name ?? '',
+    guardian_relation: row.guardian_relation ?? '',
     residential_status: row.residential_status || 'Resident Indian',
     passport_number: row.passport_number ?? '',
+    id_proof_type: row.id_proof_type ?? '',
     office_name_address: row.office_name_address ?? ''
   };
 }
 
 export const EMPTY_ADDRESS: AddressFormValues = {
   kind: 'current',
+  same_as_correspondence: false,
   address_line1: '',
+  address_line2: '',
+  address_line3: '',
   city: '',
   state: '',
   pin: ''
@@ -243,13 +306,18 @@ export const EMPTY_ADDRESS: AddressFormValues = {
 export function addressValuesFromRow(row: {
   kind: string;
   address_line1: string | null;
+  address_line2?: string | null;
+  address_line3?: string | null;
   city: string | null;
   state: string | null;
   pin: string | null;
 }): AddressFormValues {
   return {
     kind: row.kind === 'permanent' ? 'permanent' : 'current',
+    same_as_correspondence: false,
     address_line1: row.address_line1 ?? '',
+    address_line2: row.address_line2 ?? '',
+    address_line3: row.address_line3 ?? '',
     city: row.city ?? '',
     state: row.state ?? '',
     pin: row.pin ?? ''
@@ -310,13 +378,16 @@ export function customerCreatePayload(values: CustomerCreateFormValues) {
   return {
     full_name: values.full_name.trim(),
     phone: normalizePhoneDigits(values.phone),
+    phone_secondary: normalizePhoneDigits(values.phone_secondary) || null,
     email: values.email.trim() || null,
     dob: values.dob || null,
     occupation: values.occupation || null,
     nationality: values.nationality || null,
     guardian_name: values.guardian_name.trim() || null,
+    guardian_relation: values.guardian_relation.trim() || null,
     residential_status: values.residential_status || null,
     passport_number: values.passport_number.trim() || null,
+    id_proof_type: values.id_proof_type.trim() || null,
     office_name_address: values.office_name_address.trim() || null
   };
 }

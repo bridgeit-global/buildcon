@@ -133,12 +133,12 @@ export async function loadBookingPrintPack(
     supabase
       .from('customers')
       .select(
-        'id,full_name,phone,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,residential_status,passport_number,office_name_address'
+        'id,full_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address'
       )
       .in('id', buyerIdList),
     supabase
       .from('customer_addresses')
-      .select('customer_id,kind,address_line1,city,state,pin')
+      .select('customer_id,kind,address_line1,address_line2,address_line3,city,state,pin')
       .in('customer_id', buyerIdList)
   ]);
 
@@ -155,6 +155,8 @@ export async function loadBookingPrintPack(
     addrByCustomer.get(cid)!.push({
       kind: String(ar.kind),
       address_line1: ar.address_line1 as string | null,
+      address_line2: ar.address_line2 as string | null,
+      address_line3: ar.address_line3 as string | null,
       city: ar.city as string | null,
       state: ar.state as string | null,
       pin: ar.pin as string | null
