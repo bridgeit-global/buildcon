@@ -6,7 +6,7 @@ import {
 export default function DashboardLoading() {
   return (
     <div className="flex flex-col gap-4">
-      <CrmKpiGridSkeleton count={4} cols={4} />
+      <CrmKpiGridSkeleton count={6} cols={3} />
       <CrmKpiGridSkeleton count={4} cols={4} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
         <div className="flex min-w-0 flex-col gap-4">

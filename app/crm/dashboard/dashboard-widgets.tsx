@@ -5,7 +5,9 @@ import type { LucideIcon } from 'lucide-react';
 import {
   AlertCircle,
   ArrowRight,
+  Ban,
   BookmarkCheck,
+  Building2,
   CheckCircle2,
   Home,
   Layers,
@@ -292,7 +294,9 @@ export function DashboardWorkflowNav() {
 
 export const STAT_CARD_ICONS = {
   inventory: Layers,
+  projects: Building2,
   booked: BookmarkCheck,
   sold: CheckCircle2,
-  available: Home
+  available: Home,
+  blocked: Ban
 } as const;

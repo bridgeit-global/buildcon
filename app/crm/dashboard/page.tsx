@@ -77,6 +77,7 @@ export default function DashboardPage() {
   });
   const [statusBreakdown, setStatusBreakdown] = useState<UnitStatusSlice[]>([]);
   const [totalInventory, setTotalInventory] = useState(0);
+  const [totalProjects, setTotalProjects] = useState(0);
   const [totalSalesInr, setTotalSalesInr] = useState(0);
   const [totalCollectionsInr, setTotalCollectionsInr] = useState(0);
   const [overdueInr, setOverdueInr] = useState(0);
@@ -90,7 +91,7 @@ export default function DashboardPage() {
     try {
       const monthKeys = recentMonthKeys(12);
 
-      const [unitsRes, bookingsRes, recentRes, overdueRes] = await Promise.all([
+      const [unitsRes, bookingsRes, recentRes, overdueRes, projectsRes] = await Promise.all([
         supabase.from('units').select('status'),
         supabase.from('bookings').select('id'),
         supabase
@@ -109,19 +110,22 @@ export default function DashboardPage() {
         supabase
           .from('v_payment_schedule_outstanding')
           .select('outstanding_amount')
-          .eq('is_overdue', true)
+          .eq('is_overdue', true),
+        supabase.from('projects').select('id', { count: 'exact', head: true })
       ]);
 
       if (unitsRes.error) throw unitsRes.error;
       if (bookingsRes.error) throw bookingsRes.error;
       if (recentRes.error) throw recentRes.error;
       if (overdueRes.error) throw overdueRes.error;
+      if (projectsRes.error) throw projectsRes.error;
 
       const statuses = (unitsRes.data ?? []).map((r: { status: string }) => r.status);
       const inv = countInventoryBuckets(statuses);
       setBuckets(inv);
       setStatusBreakdown(countUnitStatusBreakdown(statuses));
       setTotalInventory(statuses.length);
+      setTotalProjects(projectsRes.count ?? 0);
 
       const overdueSum = (overdueRes.data ?? []).reduce(
         (s, r: { outstanding_amount: number }) => s + (Number(r.outstanding_amount) || 0),
@@ -201,19 +205,28 @@ export default function DashboardPage() {
 
       {initialLoading ? (
         <>
-          <CrmKpiGridSkeleton count={4} cols={4} />
+          <CrmKpiGridSkeleton count={6} cols={3} />
           <CrmKpiGridSkeleton count={4} cols={4} />
         </>
       ) : (
         <>
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard
+          label="Total Projects"
+          value={loading ? '…' : totalProjects}
+          unit="Projects"
+          sub="Active portfolio"
+          accent="primary"
+          variant="filled"
+          icon={STAT_CARD_ICONS.projects}
+          href="/crm/project"
+        />
         <StatCard
           label="Total Inventory"
           value={loading ? '…' : totalInventory}
           unit="Units"
           sub="All accessible units"
           accent="primary"
-          variant="filled"
           icon={STAT_CARD_ICONS.inventory}
           href="/crm/inventory"
         />
@@ -242,6 +255,15 @@ export default function DashboardPage() {
           sub="Open inventory"
           accent="accent"
           icon={STAT_CARD_ICONS.available}
+          href="/crm/inventory"
+        />
+        <StatCard
+          label="Blocked Units"
+          value={loading ? '…' : buckets.blocked}
+          unit="Units"
+          sub="Held for leads"
+          accent="warning"
+          icon={STAT_CARD_ICONS.blocked}
           href="/crm/inventory"
         />
       </section>

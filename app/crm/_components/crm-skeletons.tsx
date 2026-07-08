@@ -36,12 +36,14 @@ export function CrmKpiGridSkeleton({
   cols = 4
 }: {
   count?: number;
-  cols?: 2 | 4;
+  cols?: 2 | 3 | 4;
 }) {
   const gridClass =
     cols === 2
       ? 'grid grid-cols-2 gap-3'
-      : 'grid grid-cols-2 gap-3 sm:grid-cols-4';
+      : cols === 3
+        ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6'
+        : 'grid grid-cols-2 gap-3 sm:grid-cols-4';
 
   return (
     <section className={gridClass} aria-busy="true" aria-label="Loading metrics">
