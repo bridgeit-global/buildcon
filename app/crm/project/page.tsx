@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ProjectListTable } from './project-list-table';
 import { ProjectManageDialog } from './project-manage-dialog';
+import { canCreateProject as userCanCreateProject, isOrgAdmin, inviteProfileRoles } from '@/lib/profile-roles';
 import { pageError } from '@/lib/toast';
 
 type ProfileRow = { id: string; name: string | null; role: string };
@@ -27,7 +28,8 @@ export default function ProjectPage() {
   const [manageProject, setManageProject] = useState<CrmProjectListItem | null>(null);
   const { sorting, onSortingChange } = useServerListSorting();
 
-  const canCreateProject = myProfile?.role === 'Super Admin';
+  const canCreateProject = userCanCreateProject(myProfile?.role);
+  const isSuperAdmin = isOrgAdmin(myProfile?.role);
 
   const loadProjectsList = useCallback(async () => {
     setListLoading(true);
@@ -120,7 +122,7 @@ export default function ProjectPage() {
         onOpenChange={setManageOpen}
         project={manageProject}
         supabase={supabase}
-        isSuperAdmin={canCreateProject}
+        isSuperAdmin={isSuperAdmin}
         onUpdated={() => void loadProjectsList()}
       />
     </div>

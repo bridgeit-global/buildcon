@@ -84,18 +84,21 @@ export async function notifyCrmUser(
   };
 }
 
-export async function listSuperAdminUserIds(
+export async function listOrgAdminUserIds(
   admin: SupabaseClient
 ): Promise<string[]> {
   const { data, error } = await admin
     .from('profiles')
     .select('id')
-    .eq('role', 'Super Admin');
+    .in('role', ['Super Admin', 'Admin']);
   if (error) return [];
   return (data ?? [])
     .map((r) => String((r as { id?: string }).id ?? '').trim())
     .filter(Boolean);
 }
+
+/** @deprecated Use listOrgAdminUserIds */
+export const listSuperAdminUserIds = listOrgAdminUserIds;
 
 export async function listActiveProjectMemberUserIds(
   admin: SupabaseClient,

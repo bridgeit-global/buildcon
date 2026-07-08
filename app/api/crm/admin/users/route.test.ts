@@ -2,13 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-const { requireSuperAdmin, createSupabaseAdminClient } = vi.hoisted(() => ({
-  requireSuperAdmin: vi.fn(),
-  createSupabaseAdminClient: vi.fn()
-}));
+const { requireOrgAdmin, createSupabaseAdminClient, getProfileRole, isSuperAdminOnly } =
+  vi.hoisted(() => ({
+    requireOrgAdmin: vi.fn(),
+    createSupabaseAdminClient: vi.fn(),
+    getProfileRole: vi.fn(),
+    isSuperAdminOnly: vi.fn()
+  }));
 
 vi.mock('@/lib/authz', () => ({
-  requireSuperAdmin
+  requireOrgAdmin,
+  getProfileRole,
+  isSuperAdminOnly
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -22,15 +27,18 @@ import { postJson, readJson } from '@/test/mocks/route-helpers';
 describe('POST /api/crm/admin/users', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireSuperAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
+    requireOrgAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
+    getProfileRole.mockResolvedValue({ ok: true, role: 'Super Admin' });
+    isSuperAdminOnly.mockReturnValue(true);
   });
 
   it('returns auth error when caller is not super admin', async () => {
-    requireSuperAdmin.mockResolvedValue({ ok: false, status: 403, error: 'Forbidden' });
+    requireOrgAdmin.mockResolvedValue({ ok: false, status: 403, error: 'Forbidden' });
 
     const res = await POST(
       postJson({
         email: 'new@example.com',
+        name: 'New User',
         profileRole: 'CRM Executive',
         projectIds: []
       })
@@ -68,12 +76,52 @@ describe('POST /api/crm/admin/users', () => {
     const res = await POST(
       postJson({
         email: 'new@example.com',
+        name: 'New User',
         profileRole: 'CRM Executive',
         projectIds: []
       })
     );
     expect(res.status).toBe(500);
     expect(await readJson(res)).toEqual({ error: 'Invite failed' });
+  });
+
+  it('returns 409 when inviting a second Super Admin', async () => {
+    createSupabaseAdminClient.mockReturnValue(
+      createMockSupabaseClient({
+        tables: {
+          profiles: { data: [{ id: 'existing-super' }], error: null, count: 1 }
+        }
+      })
+    );
+
+    const res = await POST(
+      postJson({
+        email: 'owner2@example.com',
+        name: 'Owner 2',
+        profileRole: 'Super Admin',
+        projectIds: []
+      })
+    );
+    expect(res.status).toBe(409);
+    expect(await readJson(res)).toEqual({ error: 'Only one Super Admin is allowed' });
+  });
+
+  it('returns 403 when Admin tries to invite Super Admin', async () => {
+    getProfileRole.mockResolvedValue({ ok: true, role: 'Admin' });
+    isSuperAdminOnly.mockReturnValue(false);
+
+    const res = await POST(
+      postJson({
+        email: 'owner2@example.com',
+        name: 'Owner 2',
+        profileRole: 'Super Admin',
+        projectIds: []
+      })
+    );
+    expect(res.status).toBe(403);
+    expect(await readJson(res)).toEqual({
+      error: 'Only the Super Admin can assign the Super Admin role'
+    });
   });
 
   it('returns userId on successful invite', async () => {
@@ -97,6 +145,7 @@ describe('POST /api/crm/admin/users', () => {
     const res = await POST(
       postJson({
         email: 'new@example.com',
+        name: 'New User',
         profileRole: 'CRM Executive',
         projectIds: ['proj-1']
       })

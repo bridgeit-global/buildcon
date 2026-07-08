@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { getProfileRole, isSuperAdmin, requireSuperAdmin } from '@/lib/authz';
+import { getProfileRole, canCreateProject, requireOrgAdmin } from '@/lib/authz';
 import { resolveDbSort, sortRowsByState } from '@/lib/crm/list-sort';
 import {
   assertProjectNameAvailable,
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
   );
 
   const roleRes = await getProfileRole(user.id);
-  const canCreateProject = roleRes.ok && isSuperAdmin(roleRes.role);
+  const canCreate = roleRes.ok && canCreateProject(roleRes.role);
 
   let projectsQuery = supabase
     .from('projects')
@@ -253,11 +253,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ projects: enriched, canCreateProject });
+  return NextResponse.json({ projects: enriched, canCreateProject: canCreate });
 }
 
 export async function POST(request: Request) {
-  const gate = await requireSuperAdmin();
+  const gate = await requireOrgAdmin();
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const body = (await request.json()) as CreateProjectBody;

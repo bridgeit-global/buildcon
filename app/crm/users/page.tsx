@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { inviteProfileRoles, isOrgAdmin } from '@/lib/profile-roles';
 import { pageError } from '@/lib/toast';
 import {
   portalLinksSchema,
@@ -67,6 +68,7 @@ export default function UsersPage() {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>(
     []
   );
+  const [superAdminExists, setSuperAdminExists] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [openInvite, setOpenInvite] = useState(false);
@@ -145,16 +147,26 @@ export default function UsersPage() {
     if (projErr) pageError(projErr.message);
     setProjects((projData ?? []) as Array<{ id: string; name: string }>);
 
-    if (myProfileRole === 'Super Admin') {
-      const { data: dir, error: dirErr } = await supabase
-        .from('profiles')
-        .select('id,name,role,linked_customer_id,linked_broker_id')
-        .order('name', { ascending: true })
-        .limit(500);
+    if (isOrgAdmin(myProfileRole)) {
+      const [{ data: dir, error: dirErr }, { count: superAdminCount, error: superAdminErr }] =
+        await Promise.all([
+          supabase
+            .from('profiles')
+            .select('id,name,role,linked_customer_id,linked_broker_id')
+            .order('name', { ascending: true })
+            .limit(500),
+          supabase
+            .from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .eq('role', 'Super Admin')
+        ]);
       if (dirErr) pageError(dirErr.message);
+      if (superAdminErr) pageError(superAdminErr.message);
       setPortalDirectory((dir ?? []) as ProfileRow[]);
+      setSuperAdminExists((superAdminCount ?? 0) > 0);
     } else {
       setPortalDirectory([]);
+      setSuperAdminExists(false);
     }
 
     const { data: memberData, error } = await supabase
@@ -175,7 +187,7 @@ export default function UsersPage() {
       setMyProjectRole(null);
     }
 
-    if (myProfileRole === 'Super Admin' || isManagerOnAnyProject) {
+    if (isOrgAdmin(myProfileRole) || isManagerOnAnyProject) {
       const { data: staffData, error: staffErr } = await supabase
         .from('profiles')
         .select('id,name,role,linked_customer_id,linked_broker_id')
@@ -300,6 +312,15 @@ export default function UsersPage() {
     }
   }
 
+  const inviteRoleOptions = useMemo(
+    () =>
+      inviteProfileRoles({
+        inviterRole: profile?.role,
+        superAdminExists
+      }),
+    [profile?.role, superAdminExists]
+  );
+
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
@@ -315,11 +336,11 @@ export default function UsersPage() {
   }, [members, profile]);
 
   function canManageProject(projectId: string) {
-    return profile?.role === 'Super Admin' || managerProjectIds.has(projectId);
+    return isOrgAdmin(profile?.role) || managerProjectIds.has(projectId);
   }
 
   const canManageAnyMembers =
-    profile?.role === 'Super Admin' || managerProjectIds.size > 0;
+    isOrgAdmin(profile?.role) || managerProjectIds.size > 0;
 
   const manageableProjects = useMemo(
     () => projects.filter((p) => canManageProject(p.id)),
@@ -413,7 +434,7 @@ export default function UsersPage() {
             </div>
           </div>
 
-          {profile?.role === 'Super Admin' ? (
+          {isOrgAdmin(profile?.role) ? (
             <div className="mt-4">
               <Dialog
                 open={openInvite}
@@ -473,13 +494,7 @@ export default function UsersPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {[
-                            'Super Admin',
-                            'Sales Manager',
-                            'Collection Agent',
-                            'CRM Executive',
-                            'Read Only'
-                          ].map((r) => (
+                          {inviteRoleOptions.map((r) => (
                             <SelectItem key={r} value={r}>
                               {r}
                             </SelectItem>
@@ -638,7 +653,7 @@ export default function UsersPage() {
             </div>
           ) : (
             <div className="mt-4 text-xs text-gray-500">
-              Only Super Admin can invite users and assign project access.
+              Only Admins can invite users and assign project access.
             </div>
           )}
         </Card>
@@ -797,7 +812,7 @@ export default function UsersPage() {
                   className="mt-1 min-w-[320px] w-[min(320px,100%)]"
                 />
                 <div className="text-xs text-gray-500">
-                  Tip: only Super Admin can invite new users.
+                  Tip: Admins can invite new users. Super Admin role is limited to one account.
                 </div>
               </div>
             </div>

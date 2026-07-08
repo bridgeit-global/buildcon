@@ -1,7 +1,13 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  canCreateProject as profileCanCreateProject,
+  isOrgAdmin as profileIsOrgAdmin,
+  isSuperAdminOnly as profileIsSuperAdminOnly
+} from '@/lib/profile-roles';
 
 export type ProfileRole =
   | 'Super Admin'
+  | 'Admin'
   | 'Sales Manager'
   | 'Collection Agent'
   | 'CRM Executive'
@@ -49,23 +55,43 @@ export async function getProfileRole(
   return { ok: true, role: (data?.role ?? null) as ProfileRole | null };
 }
 
-export function isSuperAdmin(role: ProfileRole | null | undefined): boolean {
-  return role === 'Super Admin';
+export function isOrgAdmin(role: ProfileRole | null | undefined): boolean {
+  return profileIsOrgAdmin(role);
 }
 
-export async function requireSuperAdmin(): Promise<AuthzResult<{ userId: string }>> {
+/** True only for the singleton Super Admin role (not Admin). */
+export function isSuperAdminOnly(role: ProfileRole | null | undefined): boolean {
+  return profileIsSuperAdminOnly(role);
+}
+
+/** @deprecated Use isOrgAdmin — Admin shares Super Admin privileges. */
+export function isSuperAdmin(role: ProfileRole | null | undefined): boolean {
+  return isOrgAdmin(role);
+}
+
+export function canCreateProject(role: ProfileRole | null | undefined): boolean {
+  return profileCanCreateProject(role);
+}
+
+export async function requireOrgAdmin(): Promise<AuthzResult<{ userId: string }>> {
   const gate = await requireUser();
   if (!gate.ok) return gate;
 
   const roleRes = await getProfileRole(gate.userId);
   if (!roleRes.ok) return roleRes;
 
-  if (!isSuperAdmin(roleRes.role)) {
+  if (!isOrgAdmin(roleRes.role)) {
     return { ok: false, status: 403, error: 'Forbidden' };
   }
 
   return { ok: true, userId: gate.userId };
 }
+
+/** @deprecated Use requireOrgAdmin */
+export const requireSuperAdmin = requireOrgAdmin;
+
+/** @deprecated Use requireOrgAdmin */
+export const requireProjectCreator = requireOrgAdmin;
 
 export async function requireProjectAccess(
   projectId: string
@@ -75,8 +101,8 @@ export async function requireProjectAccess(
 
   const roleRes = await getProfileRole(gate.userId);
   if (!roleRes.ok) return roleRes;
-  const superAdmin = isSuperAdmin(roleRes.role);
-  if (superAdmin) return { ok: true, userId: gate.userId, isSuperAdmin: true };
+  const orgAdmin = isOrgAdmin(roleRes.role);
+  if (orgAdmin) return { ok: true, userId: gate.userId, isSuperAdmin: true };
 
   const supabase = await createSupabaseServerClient();
   // #region agent log
@@ -129,4 +155,3 @@ export async function isReadOnlyUser(userId: string): Promise<AuthzResult<{ read
   if (!roleRes.ok) return roleRes;
   return { ok: true, readOnly: roleRes.role === 'Read Only' };
 }
-

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { requireSuperAdmin } from '@/lib/authz';
+import { requireOrgAdmin } from '@/lib/authz';
 import { inquiryReference } from '@/app/crm/inquiry/inquiry-helpers';
 import {
   isNegotiationApprovalDecided,
@@ -20,7 +20,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: approvalId } = await params;
-  const gate = await requireSuperAdmin();
+  const gate = await requireOrgAdmin();
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }

@@ -117,6 +117,44 @@ as $$
   );
 $$;
 
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'Admin'
+  );
+$$;
+
+create or replace function public.can_create_project()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select public.is_org_admin();
+$$;
+
+create or replace function public.is_org_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+  select public.is_super_admin() or public.is_admin();
+$$;
+
 create or replace function public.has_project_access(p_project_id uuid)
 returns boolean
 language sql
@@ -125,7 +163,7 @@ security definer
 set search_path = public
 set row_security = off
 as $$
-  select public.is_super_admin()
+  select public.is_org_admin()
   or exists (
     select 1
     from public.project_members pm
@@ -143,16 +181,16 @@ on public.projects
 for select
 using (public.has_project_access(id));
 
-create policy "projects_insert_super_admin"
+create policy "projects_insert_creator"
 on public.projects
 for insert
-with check (public.is_super_admin());
+with check (public.can_create_project());
 
-create policy "projects_update_super_admin"
+create policy "projects_update_org_admin"
 on public.projects
 for update
-using (public.is_super_admin())
-with check (public.is_super_admin());
+using (public.is_org_admin())
+with check (public.is_org_admin());
 
 create policy "project_members_select_project"
 on public.project_members
@@ -223,22 +261,22 @@ on public.project_wings
 for select
 using (public.has_project_access(project_id));
 
-create policy "wings_mutate_super_admin"
+create policy "wings_mutate_org_admin"
 on public.project_wings
 for all
-using (public.is_super_admin())
-with check (public.is_super_admin());
+using (public.is_org_admin())
+with check (public.is_org_admin());
 
 create policy "unit_types_select_project"
 on public.project_unit_types
 for select
 using (public.has_project_access(project_id));
 
-create policy "unit_types_mutate_super_admin"
+create policy "unit_types_mutate_org_admin"
 on public.project_unit_types
 for all
-using (public.is_super_admin())
-with check (public.is_super_admin());
+using (public.is_org_admin())
+with check (public.is_org_admin());
 
 create policy "units_select_project"
 on public.units

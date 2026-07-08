@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-const { createSupabaseServerClient, createSupabaseAdminClient, requireSuperAdmin } =
+const { createSupabaseServerClient, createSupabaseAdminClient, requireOrgAdmin } =
   vi.hoisted(() => ({
     createSupabaseServerClient: vi.fn(),
     createSupabaseAdminClient: vi.fn(),
-    requireSuperAdmin: vi.fn()
+    requireOrgAdmin: vi.fn()
   }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -21,7 +21,7 @@ vi.mock('@/lib/authz', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/authz')>();
   return {
     ...actual,
-    requireSuperAdmin
+    requireOrgAdmin
   };
 });
 
@@ -97,6 +97,28 @@ describe('GET /api/crm/projects', () => {
     expect(json.projects).toHaveLength(1);
     expect(json.canCreateProject).toBe(true);
   });
+
+  it('returns canCreateProject true for Admin role', async () => {
+    createSupabaseServerClient.mockResolvedValue(
+      createMockSupabaseClient({
+        auth: {
+          getUser: async () => ({
+            data: { user: { id: 'user-1', email: 'a@example.com' } },
+            error: null
+          })
+        },
+        tables: {
+          profiles: { data: { role: 'Admin' }, error: null },
+          projects: { data: [], error: null }
+        }
+      })
+    );
+
+    const res = await GET(projectsGetRequest());
+    expect(res.status).toBe(200);
+    const json = await readJson<{ canCreateProject: boolean }>(res);
+    expect(json.canCreateProject).toBe(true);
+  });
 });
 
 describe('POST /api/crm/projects', () => {
@@ -104,8 +126,8 @@ describe('POST /api/crm/projects', () => {
     vi.clearAllMocks();
   });
 
-  it('returns auth error when caller is not super admin', async () => {
-    requireSuperAdmin.mockResolvedValue({ ok: false, status: 403, error: 'Forbidden' });
+  it('returns auth error when caller cannot create projects', async () => {
+    requireOrgAdmin.mockResolvedValue({ ok: false, status: 403, error: 'Forbidden' });
 
     const res = await POST(postJson({ project: { name: 'New Project' } }));
     expect(res.status).toBe(403);
@@ -113,7 +135,7 @@ describe('POST /api/crm/projects', () => {
   });
 
   it('returns 400 when project name is missing', async () => {
-    requireSuperAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
+    requireOrgAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
 
     const res = await POST(postJson({ project: {} }));
     expect(res.status).toBe(400);
@@ -121,7 +143,7 @@ describe('POST /api/crm/projects', () => {
   });
 
   it('returns 409 when project name already exists', async () => {
-    requireSuperAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
+    requireOrgAdmin.mockResolvedValue({ ok: true, userId: 'admin-1' });
     createSupabaseAdminClient.mockReturnValue(
       createMockSupabaseClient({
         tables: {

@@ -13,8 +13,11 @@ vi.mock('@/lib/supabase/server', () => ({
 import {
   getProfileRole,
   isSuperAdmin,
+  isOrgAdmin,
+  isSuperAdminOnly,
+  canCreateProject,
   requireProjectAccess,
-  requireSuperAdmin,
+  requireOrgAdmin,
   requireUser
 } from './authz';
 import { createMockSupabaseClient } from '@/test/mocks/supabase';
@@ -94,20 +97,47 @@ describe('getProfileRole', () => {
   });
 });
 
-describe('isSuperAdmin', () => {
+describe('isOrgAdmin', () => {
+  it('includes Super Admin and Admin', () => {
+    expect(isOrgAdmin('Super Admin')).toBe(true);
+    expect(isOrgAdmin('Admin')).toBe(true);
+    expect(isOrgAdmin('Sales Manager')).toBe(false);
+    expect(isOrgAdmin(null)).toBe(false);
+  });
+});
+
+describe('isSuperAdminOnly', () => {
   it('matches Super Admin role only', () => {
+    expect(isSuperAdminOnly('Super Admin')).toBe(true);
+    expect(isSuperAdminOnly('Admin')).toBe(false);
+    expect(isSuperAdminOnly(null)).toBe(false);
+  });
+});
+
+describe('isSuperAdmin', () => {
+  it('is an alias for isOrgAdmin', () => {
     expect(isSuperAdmin('Super Admin')).toBe(true);
+    expect(isSuperAdmin('Admin')).toBe(true);
     expect(isSuperAdmin('Sales Manager')).toBe(false);
     expect(isSuperAdmin(null)).toBe(false);
   });
 });
 
-describe('requireSuperAdmin', () => {
+describe('canCreateProject', () => {
+  it('allows Super Admin and Admin', () => {
+    expect(canCreateProject('Super Admin')).toBe(true);
+    expect(canCreateProject('Admin')).toBe(true);
+    expect(canCreateProject('CRM Executive')).toBe(false);
+    expect(canCreateProject(null)).toBe(false);
+  });
+});
+
+describe('requireOrgAdmin', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns 403 for non-super-admin roles', async () => {
+  it('returns 403 for non-admin roles', async () => {
     const client = createMockSupabaseClient({
       auth: {
         getUser: async () => ({
@@ -121,11 +151,11 @@ describe('requireSuperAdmin', () => {
     });
     createSupabaseServerClient.mockResolvedValue(client);
 
-    const result = await requireSuperAdmin();
+    const result = await requireOrgAdmin();
     expect(result).toEqual({ ok: false, status: 403, error: 'Forbidden' });
   });
 
-  it('returns userId for super admin', async () => {
+  it('returns userId for Super Admin', async () => {
     const client = createMockSupabaseClient({
       auth: {
         getUser: async () => ({
@@ -139,8 +169,26 @@ describe('requireSuperAdmin', () => {
     });
     createSupabaseServerClient.mockResolvedValue(client);
 
-    const result = await requireSuperAdmin();
+    const result = await requireOrgAdmin();
     expect(result).toEqual({ ok: true, userId: 'admin-1' });
+  });
+
+  it('returns userId for Admin', async () => {
+    const client = createMockSupabaseClient({
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: 'admin-user' } },
+          error: null
+        })
+      },
+      tables: {
+        profiles: { data: { role: 'Admin' }, error: null }
+      }
+    });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const result = await requireOrgAdmin();
+    expect(result).toEqual({ ok: true, userId: 'admin-user' });
   });
 });
 
@@ -168,7 +216,7 @@ describe('requireProjectAccess', () => {
     expect(result).toEqual({ ok: false, status: 403, error: 'Forbidden' });
   });
 
-  it('allows super admin without membership row', async () => {
+  it('allows org admin without membership row', async () => {
     const client = createMockSupabaseClient({
       auth: {
         getUser: async () => ({
@@ -184,6 +232,24 @@ describe('requireProjectAccess', () => {
 
     const result = await requireProjectAccess('proj-1');
     expect(result).toEqual({ ok: true, userId: 'admin-1', isSuperAdmin: true });
+  });
+
+  it('allows Admin without membership row', async () => {
+    const client = createMockSupabaseClient({
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: 'admin-2' } },
+          error: null
+        })
+      },
+      tables: {
+        profiles: { data: { role: 'Admin' }, error: null }
+      }
+    });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const result = await requireProjectAccess('proj-1');
+    expect(result).toEqual({ ok: true, userId: 'admin-2', isSuperAdmin: true });
   });
 
   it('allows active project member', async () => {

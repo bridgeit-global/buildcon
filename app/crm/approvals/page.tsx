@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { isOrgAdmin } from '@/lib/profile-roles';
 import { pageError } from '@/lib/toast';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
@@ -172,7 +173,7 @@ export default function ApprovalsPage() {
       const role = String(
         (data as { role?: string } | null)?.role || ''
       ).trim();
-      setIsSuperAdmin(role === 'Super Admin');
+      setIsSuperAdmin(isOrgAdmin(role));
     })();
     return () => {
       cancelled = true;
@@ -529,7 +530,7 @@ export default function ApprovalsPage() {
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           <span>
-            You can view requests, but only Super Admins can approve or reject.
+            You can view requests, but only Admins can approve or reject.
           </span>
         </div>
       ) : null}

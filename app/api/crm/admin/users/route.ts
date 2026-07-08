@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { requireSuperAdmin } from '@/lib/authz';
+import {
+  getProfileRole,
+  isSuperAdminOnly,
+  requireOrgAdmin
+} from '@/lib/authz';
 
 type InviteUserBody = {
   email: string;
   name: string;
   profileRole:
     | 'Super Admin'
+    | 'Admin'
     | 'Sales Manager'
     | 'Collection Agent'
     | 'CRM Executive'
@@ -16,7 +21,7 @@ type InviteUserBody = {
 };
 
 export async function POST(request: Request) {
-  const gate = await requireSuperAdmin();
+  const gate = await requireOrgAdmin();
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const body = (await request.json()) as InviteUserBody;
@@ -27,6 +32,30 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
   const admin = createSupabaseAdminClient();
+
+  if (body.profileRole === 'Super Admin') {
+    const inviterRole = await getProfileRole(gate.userId);
+    if (!inviterRole.ok || !isSuperAdminOnly(inviterRole.role)) {
+      return NextResponse.json(
+        { error: 'Only the Super Admin can assign the Super Admin role' },
+        { status: 403 }
+      );
+    }
+
+    const { count, error: countErr } = await admin
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'Super Admin');
+    if (countErr) {
+      return NextResponse.json({ error: countErr.message }, { status: 500 });
+    }
+    if ((count ?? 0) > 0) {
+      return NextResponse.json(
+        { error: 'Only one Super Admin is allowed' },
+        { status: 409 }
+      );
+    }
+  }
 
   // Invite user by email (creates auth user if missing).
   const { data: invited, error: inviteErr } =
@@ -68,4 +97,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ userId: invitedUserId });
 }
-

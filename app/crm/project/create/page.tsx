@@ -52,6 +52,7 @@ import {
   resetDraft
 } from '../project-create-shared';
 import BackButton from '@/components/buttons/back-button';
+import { canCreateProject as userCanCreateProject } from '@/lib/profile-roles';
 import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import { ProjectFySelect } from '../project-fy-select';
 
@@ -77,7 +78,7 @@ export default function CreateProjectPage() {
     createInitialDraft()
   );
 
-  const canCreateProject = myProfile?.role === 'Super Admin';
+  const canCreateProject = userCanCreateProject(myProfile?.role);
   const lastWizardStep = WIZARD_STEPS.length - 1;
   const projectWizardSteps = useMemo(
     () =>
@@ -106,7 +107,7 @@ export default function CreateProjectPage() {
       if (cancelled) return;
       const row = (data ?? null) as ProfileRow | null;
       setMyProfile(row);
-      if (row?.role !== 'Super Admin') {
+      if (!userCanCreateProject(row?.role)) {
         router.replace('/crm/project');
         return;
       }
