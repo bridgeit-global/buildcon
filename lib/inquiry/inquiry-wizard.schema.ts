@@ -11,6 +11,7 @@ export const inquiryWizardStep1Schema = z
     phone: phone10,
     email: optionalEmail,
     leadSource: z.string().trim().min(1, 'Select a lead source.'),
+    leadSourceOther: z.string(),
     brokerId: z.string()
   })
   .superRefine((data, ctx) => {
@@ -19,6 +20,13 @@ export const inquiryWizardStep1Schema = z
         code: 'custom',
         path: ['brokerId'],
         message: 'Select a broker for broker-sourced leads.'
+      });
+    }
+    if (data.leadSource === 'Other' && !data.leadSourceOther.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['leadSourceOther'],
+        message: 'Enter the lead source.'
       });
     }
   });

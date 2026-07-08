@@ -48,6 +48,7 @@ export type UnitRow = {
   floor: number;
   unit_no: number;
   unit_type: string | null;
+  unit_category: string | null;
   area: number | null;
   carpet_area: number | null;
   bua_area: number | null;

@@ -233,6 +233,7 @@ create table if not exists public.units (
   unit_no int not null,
   unit_code text not null, -- e.g. A-1032 or T1-1201
   unit_type text,
+  unit_category text,
   area numeric,
   carpet_area numeric,
   bua_area numeric,
@@ -424,6 +425,42 @@ on public.brokers
 for all
 using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
+
+-- -----------------------------------------------------------------------------
+-- Master lookup items (org-wide: lead sources, unit types, categories)
+-- -----------------------------------------------------------------------------
+
+create table if not exists public.master_lookup_items (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null,
+  name text not null,
+  sort_order int not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  constraint master_lookup_kind_chk check (
+    kind in ('lead_source', 'unit_type', 'unit_category')
+  ),
+  constraint master_lookup_name_nonempty check (length(trim(name)) > 0)
+);
+
+create unique index if not exists master_lookup_kind_name_unique
+  on public.master_lookup_items (kind, lower(trim(name)));
+
+create index if not exists master_lookup_kind_active_sort_idx
+  on public.master_lookup_items (kind, is_active, sort_order);
+
+alter table public.master_lookup_items enable row level security;
+
+create policy "master_lookup_read_authenticated"
+on public.master_lookup_items
+for select
+using (auth.role() = 'authenticated');
+
+create policy "master_lookup_mutate_org_admin"
+on public.master_lookup_items
+for all
+using (public.is_org_admin())
+with check (public.is_org_admin());
 
 -- -----------------------------------------------------------------------------
 -- Bookings + financials

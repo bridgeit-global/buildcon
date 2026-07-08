@@ -104,7 +104,9 @@ import { FormFieldError } from '@/components/ui/form-field-error';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { InquiryFollowUpBanner } from './inquiry-follow-up-banner';
 import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
-import { normalizeLeadSource } from '@/lib/inquiry/lead-source';
+import { normalizeLeadSource, persistedLeadSourceValue, resolveLeadSourceFormState } from '@/lib/inquiry/lead-source';
+import { mergeLookupOptions } from '@/lib/master/master-lookup';
+import { useMasterLookup } from '@/lib/master/use-master-lookup';
 import {
   buildWizardUiDraftPayload,
   parseInquiryWizardUi,
@@ -122,14 +124,6 @@ import {
   type WizardStep3Snapshot,
   type WizardStepId
 } from './inquiry-wizard-snapshots';
-
-const LEAD_SOURCES = [
-  'Direct',
-  'Broker',
-  'Referral',
-  'Social Media',
-  'Website'
-] as const;
 
 function normalizePhone(p: string) {
   return String(p || '').replace(/\D/g, '');
@@ -160,6 +154,7 @@ function buildStep1SnapshotFromForm(form: {
   phone: string;
   email: string;
   leadSource: string;
+  leadSourceOther: string;
   brokerId: string;
   interestedIn: string;
   preferredLocation: string;
@@ -176,6 +171,7 @@ function buildStep1SnapshotFromForm(form: {
     phone: form.phone,
     email: form.email,
     leadSource: form.leadSource,
+    leadSourceOther: form.leadSourceOther,
     brokerId: form.brokerId,
     interestedIn: form.interestedIn,
     preferredLocation: form.preferredLocation,
@@ -278,6 +274,12 @@ export const NewInquiryWizard = forwardRef<
     name: 'Logged-in user'
   });
 
+  const { activeNames: masterLeadSources } = useMasterLookup('lead_source');
+  const { activeNames: masterUnitTypes } = useMasterLookup('unit_type');
+  const leadSourceOptions = useMemo(
+    () => masterLeadSources,
+    [masterLeadSources]
+  );
   const [brokers, setBrokers] = useState<{ id: string; full_name: string }[]>([]);
   const [unitTypeNames, setUnitTypeNames] = useState<string[]>([]);
   const [accessibleProjects, setAccessibleProjects] = useState<
@@ -305,7 +307,8 @@ export const NewInquiryWizard = forwardRef<
     customerName: '',
     phone: '',
     email: '',
-    leadSource: 'Direct' as (typeof LEAD_SOURCES)[number],
+    leadSource: 'Direct',
+    leadSourceOther: '',
     brokerId: '',
     projectId: '',
     interestedIn: '',
@@ -387,7 +390,8 @@ export const NewInquiryWizard = forwardRef<
           customerName: s1.customerName,
           phone: s1.phone,
           email: s1.email,
-          leadSource: s1.leadSource as SellerForm['leadSource'],
+          leadSource: s1.leadSource,
+          leadSourceOther: s1.leadSourceOther ?? '',
           brokerId: s1.brokerId,
           interestedIn: s1.interestedIn,
           preferredLocation: s1.preferredLocation,
@@ -530,6 +534,10 @@ export const NewInquiryWizard = forwardRef<
       setInquiryAssignedTo(String(row.assigned_to ?? '').trim() || null);
       const cust = row.customers;
       const normalizedLeadSource = normalizeLeadSource(String(row.lead_source || ''));
+      const leadSourceState = resolveLeadSourceFormState(
+        normalizedLeadSource,
+        leadSourceOptions
+      );
       if (unitId) setInquiryHeldUnitId(unitId);
       if (unitId || cust) {
         setSellerForm((s) => ({
@@ -543,9 +551,8 @@ export const NewInquiryWizard = forwardRef<
               email: String(cust.email ?? '').trim()
             }
             : {}),
-          leadSource: (LEAD_SOURCES as readonly string[]).includes(normalizedLeadSource)
-            ? (normalizedLeadSource as (typeof LEAD_SOURCES)[number])
-            : s.leadSource,
+          leadSource: leadSourceState.leadSource,
+          leadSourceOther: leadSourceState.leadSourceOther,
           brokerId: String(row.broker_id ?? '').trim(),
           interestedIn: String(row.interested_in ?? '').trim(),
           notes: String(row.notes ?? '').trim()
@@ -639,11 +646,6 @@ export const NewInquiryWizard = forwardRef<
       const custName = String(cust?.full_name ?? '').trim();
       const custPhone = String(cust?.phone ?? '').trim();
       const custEmail = String(cust?.email ?? '').trim();
-      const leadSourceValue = (LEAD_SOURCES as readonly string[]).includes(
-        normalizedLeadSource
-      )
-        ? normalizedLeadSource
-        : 'Direct';
       const projectIdValue = String(row.project_id ?? '').trim();
       const notesValue = String(row.notes ?? '').trim();
       const visitOutcome =
@@ -660,7 +662,8 @@ export const NewInquiryWizard = forwardRef<
           customerName: custName,
           phone: custPhone,
           email: custEmail,
-          leadSource: leadSourceValue,
+          leadSource: leadSourceState.leadSource,
+          leadSourceOther: leadSourceState.leadSourceOther,
           brokerId: String(row.broker_id ?? '').trim(),
           interestedIn: String(row.interested_in ?? '').trim(),
           preferredLocation: '',
@@ -821,17 +824,9 @@ export const NewInquiryWizard = forwardRef<
   }, [supabase]);
 
   const unitTypeOptions = useMemo(() => {
-    const fromUnits = [
-      ...new Set(
-        units
-          .map((u) => String(u.unit_type || '').trim())
-          .filter(Boolean)
-      )
-    ];
-    return [...new Set([...unitTypeNames, ...fromUnits])].sort((a, b) =>
-      a.localeCompare(b)
-    );
-  }, [units, unitTypeNames]);
+    const fromUnits = units.map((u) => u.unit_type);
+    return mergeLookupOptions(masterUnitTypes, [...unitTypeNames, ...fromUnits]);
+  }, [units, unitTypeNames, masterUnitTypes]);
 
   const canQualifyUnit = useMemo(() => {
     const brokerOk =
@@ -1004,6 +999,7 @@ export const NewInquiryWizard = forwardRef<
       phone: sellerForm.phone,
       email: sellerForm.email,
       leadSource: sellerForm.leadSource,
+      leadSourceOther: sellerForm.leadSourceOther,
       brokerId: sellerForm.brokerId
     }),
     [
@@ -1011,6 +1007,7 @@ export const NewInquiryWizard = forwardRef<
       sellerForm.phone,
       sellerForm.email,
       sellerForm.leadSource,
+      sellerForm.leadSourceOther,
       sellerForm.brokerId
     ]
   );
@@ -1451,6 +1448,7 @@ export const NewInquiryWizard = forwardRef<
       phone: '',
       email: '',
       leadSource: 'Direct',
+      leadSourceOther: '',
       brokerId: '',
       projectId: accessibleProjects.length === 1 ? accessibleProjects[0].id : '',
       interestedIn: '',
@@ -1524,7 +1522,10 @@ export const NewInquiryWizard = forwardRef<
     const inquiryFields = {
       project_id: inquiryProjectId,
       customer_id: customerId,
-      lead_source: sellerForm.leadSource,
+      lead_source: persistedLeadSourceValue(
+        sellerForm.leadSource,
+        sellerForm.leadSourceOther
+      ),
       broker_id: brokerId,
       interested_in: sellerForm.interestedIn.trim() || null,
       notes: sellerForm.notes.trim() || null
@@ -1642,7 +1643,10 @@ export const NewInquiryWizard = forwardRef<
         project_id: inquiryProjectId,
         customer_id: customerId,
         unit_id: unitId || null,
-        lead_source: sellerForm.leadSource,
+        lead_source: persistedLeadSourceValue(
+        sellerForm.leadSource,
+        sellerForm.leadSourceOther
+      ),
         broker_id: brokerId,
         interested_in: sellerForm.interestedIn.trim() || null,
         notes: sellerForm.notes.trim() || null
@@ -1993,6 +1997,7 @@ export const NewInquiryWizard = forwardRef<
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
           brokers={brokers}
+          leadSourceOptions={leadSourceOptions}
           unitTypeOptions={unitTypeOptions}
           signedIn={Boolean(userLabel.id)}
           fieldError={step1Validation.fieldError}
@@ -2193,7 +2198,8 @@ type SellerForm = {
   customerName: string;
   phone: string;
   email: string;
-  leadSource: (typeof LEAD_SOURCES)[number];
+  leadSource: string;
+  leadSourceOther: string;
   brokerId: string;
   projectId: string;
   interestedIn: string;
@@ -2281,6 +2287,7 @@ function StepEnquiry({
   sellerForm,
   setSellerForm,
   brokers,
+  leadSourceOptions,
   unitTypeOptions,
   signedIn,
   fieldError,
@@ -2292,6 +2299,7 @@ function StepEnquiry({
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   brokers: { id: string; full_name: string }[];
+  leadSourceOptions: string[];
   unitTypeOptions: string[];
   signedIn: boolean;
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
@@ -2381,11 +2389,11 @@ function StepEnquiry({
           <Select
             value={sellerForm.leadSource}
             onValueChange={(v) => {
-              const nv = v as (typeof LEAD_SOURCES)[number];
               setSellerForm((s) => ({
                 ...s,
-                leadSource: nv,
-                brokerId: nv === 'Broker' ? s.brokerId : ''
+                leadSource: v,
+                leadSourceOther: v === 'Other' ? s.leadSourceOther : '',
+                brokerId: v === 'Broker' ? s.brokerId : ''
               }));
               touch('leadSource');
             }}
@@ -2394,10 +2402,10 @@ function StepEnquiry({
               className={wizardSelectTriggerClass}
               aria-invalid={fieldError('leadSource') ? true : undefined}
             >
-              <SelectValue />
+              <SelectValue placeholder="Select source…" />
             </SelectTrigger>
             <SelectContent>
-              {LEAD_SOURCES.map((src) => (
+              {leadSourceOptions.map((src) => (
                 <SelectItem key={src} value={src}>
                   {src}
                 </SelectItem>
@@ -2406,6 +2414,25 @@ function StepEnquiry({
           </Select>
           <FormFieldError message={fieldError('leadSource')} />
         </div>
+
+        {sellerForm.leadSource === 'Other' ? (
+          <div>
+            <FieldLabel className={wizardLabelClass} required>
+              Other source
+            </FieldLabel>
+            <Input
+              className={wizardInputClass}
+              value={sellerForm.leadSourceOther}
+              onChange={(e) => {
+                setSellerForm((s) => ({ ...s, leadSourceOther: e.target.value }));
+                touch('leadSourceOther');
+              }}
+              placeholder="Describe lead source…"
+              aria-invalid={fieldError('leadSourceOther') ? true : undefined}
+            />
+            <FormFieldError message={fieldError('leadSourceOther')} />
+          </div>
+        ) : null}
 
         {sellerForm.leadSource === 'Broker' ? (
           <div>

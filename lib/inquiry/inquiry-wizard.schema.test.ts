@@ -11,6 +11,7 @@ describe('inquiryWizardStep1Schema', () => {
     phone: '9876543210',
     email: '',
     leadSource: 'Walk-in',
+    leadSourceOther: '',
     brokerId: ''
   };
 
@@ -56,6 +57,24 @@ describe('inquiryWizardStep1Schema', () => {
       ...valid,
       leadSource: 'Broker',
       brokerId: 'broker-1'
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('requires custom text when lead source is Other', () => {
+    const result = inquiryWizardStep1Schema.safeParse({
+      ...valid,
+      leadSource: 'Other',
+      leadSourceOther: ''
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts Other lead with custom text', () => {
+    const result = inquiryWizardStep1Schema.safeParse({
+      ...valid,
+      leadSource: 'Other',
+      leadSourceOther: 'Exhibition'
     });
     expect(result.success).toBe(true);
   });

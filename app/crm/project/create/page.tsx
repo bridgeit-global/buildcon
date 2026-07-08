@@ -55,6 +55,7 @@ import BackButton from '@/components/buttons/back-button';
 import { canCreateProject as userCanCreateProject } from '@/lib/profile-roles';
 import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
 import { ProjectFySelect } from '../project-fy-select';
+import { useMasterLookup } from '@/lib/master/use-master-lookup';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectNameRow = { id: string; name: string };
@@ -79,6 +80,7 @@ export default function CreateProjectPage() {
   );
 
   const canCreateProject = userCanCreateProject(myProfile?.role);
+  const { activeNames: masterUnitTypes } = useMasterLookup('unit_type');
   const lastWizardStep = WIZARD_STEPS.length - 1;
   const projectWizardSteps = useMemo(
     () =>
@@ -506,6 +508,39 @@ export default function CreateProjectPage() {
                 error={step1FieldsValidation.fieldError('unitTypesCsv')}
                 placeholder="1BHK,2BHK,3BHK"
               />
+              {masterUnitTypes.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {masterUnitTypes.map((typeName) => {
+                    const selected = parseUnitTypesCsv(draft.unitTypesCsv).includes(
+                      typeName
+                    );
+                    return (
+                      <button
+                        key={typeName}
+                        type="button"
+                        className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                          selected
+                            ? 'border-ds-primary-500 bg-ds-primary-500 text-white'
+                            : 'border-ds-gray-200 bg-white text-ds-gray-700 hover:border-ds-primary-300'
+                        }`}
+                        onClick={() => {
+                          const current = parseUnitTypesCsv(draft.unitTypesCsv);
+                          const next = selected
+                            ? current.filter((t) => t !== typeName)
+                            : [...current, typeName];
+                          setDraft((d) => ({
+                            ...d,
+                            unitTypesCsv: next.join(',')
+                          }));
+                          step1FieldsValidation.touch('unitTypesCsv');
+                        }}
+                      >
+                        {typeName}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               <p className="text-[10px] text-muted-foreground">
                 Required. Used as dropdown options when configuring each unit
                 on the floor step.

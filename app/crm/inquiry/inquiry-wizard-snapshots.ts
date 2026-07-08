@@ -5,6 +5,7 @@ export type WizardStep1Snapshot = {
   phone: string;
   email: string;
   leadSource: string;
+  leadSourceOther: string;
   brokerId: string;
   interestedIn: string;
   preferredLocation: string;
@@ -42,6 +43,7 @@ export function emptyWizardStep1Snapshot(): WizardStep1Snapshot {
     phone: '',
     email: '',
     leadSource: 'Direct',
+    leadSourceOther: '',
     brokerId: '',
     interestedIn: '',
     preferredLocation: '',

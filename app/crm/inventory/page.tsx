@@ -62,6 +62,8 @@ import {
   csvRowToUnitUpsert,
   parseCsvRows
 } from '@/lib/inventory/inventory-csv';
+import { mergeLookupOptions } from '@/lib/master/master-lookup';
+import { useMasterLookup } from '@/lib/master/use-master-lookup';
 
 import { UnitStatusChip } from '@/components/ui/status-chip';
 import { InventoryListTable, type UnitRow } from './inventory-list-table';
@@ -69,7 +71,7 @@ import { useServerListSorting } from '@/components/data-table/crm-table-features
 import { resolveSortFromState } from '@/lib/crm/list-sort';
 
 const UNIT_SELECT =
-  'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
+  'id,project_id,unit_code,wing_name,floor,unit_no,unit_type,unit_category,area,carpet_area,bua_area,rera_area,terrace_sqft,deck_sqft,loading_sqft,floor_rise_charge,plc_charge,parking_slots_included,rate,status,blocked_reason,blocked_on';
 
 type ProjectRow = {
   name: string;
@@ -451,19 +453,22 @@ function UnitEditDialog({
   open,
   onOpenChange,
   onSaved,
-  typeOptions
+  typeOptions,
+  categoryOptions
 }: {
   unit: UnitRow | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onSaved: () => void;
   typeOptions: string[];
+  categoryOptions: string[];
 }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     unit_code: '',
     unit_type: '',
+    unit_category: '',
     area: 0,
     carpet_area: 0,
     bua_area: 0,
@@ -486,6 +491,7 @@ function UnitEditDialog({
     setForm({
       unit_code: unit.unit_code,
       unit_type: unit.unit_type ?? '',
+      unit_category: unit.unit_category ?? '',
       area: Number(unit.area) || 0,
       carpet_area: Number(unit.carpet_area) || 0,
       bua_area: Number(unit.bua_area) || 0,
@@ -523,6 +529,7 @@ function UnitEditDialog({
     const payload: Record<string, unknown> = {
       unit_code: form.unit_code.trim() || unit.unit_code,
       unit_type: form.unit_type || null,
+      unit_category: form.unit_category || null,
       area: Math.max(1, Number(form.area) || 1),
       carpet_area:
         Number(form.carpet_area) > 0 ? Number(form.carpet_area) : null,
@@ -596,6 +603,19 @@ function UnitEditDialog({
               options={typeOptions}
               placeholder="Select type…"
               searchPlaceholder="Search type…"
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-slate-500">Category</Label>
+            <SearchableSelect
+              value={form.unit_category}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, unit_category: v }))
+              }
+              options={categoryOptions}
+              placeholder="Select category…"
+              searchPlaceholder="Search category…"
               className="h-9 text-xs"
             />
           </div>
@@ -894,6 +914,8 @@ function UnitCell({
 
 function InventoryPageContent() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const { activeNames: masterUnitTypes } = useMasterLookup('unit_type');
+  const { activeNames: masterUnitCategories } = useMasterLookup('unit_category');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { projects } = useCrmProjectsContext();
@@ -1153,10 +1175,14 @@ function InventoryPageContent() {
   }, [units, wingNames]);
 
   const typeOptions = useMemo(() => {
-    const fromUnits = [...new Set(units.map((u) => u.unit_type).filter(Boolean))] as string[];
-    const merged = [...new Set([...unitTypeNames, ...fromUnits])];
-    return merged.sort();
-  }, [units, unitTypeNames]);
+    const fromUnits = units.map((u) => u.unit_type);
+    return mergeLookupOptions(masterUnitTypes, [...unitTypeNames, ...fromUnits]);
+  }, [units, unitTypeNames, masterUnitTypes]);
+
+  const categoryOptions = useMemo(() => {
+    const fromUnits = units.map((u) => u.unit_category);
+    return mergeLookupOptions(masterUnitCategories, fromUnits);
+  }, [units, masterUnitCategories]);
 
   const availableUnitsForBlock = useMemo(
     () => units.filter((u) => isUnitAvailableForBooking(u.status)),
@@ -2251,6 +2277,7 @@ function InventoryPageContent() {
         }}
         onSaved={() => void load()}
         typeOptions={typeOptions}
+        categoryOptions={categoryOptions}
       />
     </div>
   );

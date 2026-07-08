@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   ListTodo,
   MessageCircle,
+  Settings2,
   Shield,
   ShieldCheck,
   Users
@@ -33,7 +34,8 @@ export type CrmNavItemId =
   | 'possession'
   | 'reports'
   | 'approvals'
-  | 'users';
+  | 'users'
+  | 'masters';
 
 export type CrmNavItem = {
   id: CrmNavItemId;
@@ -175,6 +177,13 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
         label: 'Users & access',
         href: '/crm/users',
         icon: Shield
+      },
+      {
+        id: 'masters',
+        pageTitle: 'Master data (Admin)',
+        label: 'Master data',
+        href: '/crm/masters',
+        icon: Settings2
       }
     ]
   }
