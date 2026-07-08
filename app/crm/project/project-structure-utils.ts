@@ -1,12 +1,31 @@
-/** Inventory structure tree + floor provisioning (aligned with legacy POS wizard). */
+/** Inventory structure tree + floor provisioning (Building → Wing → Floor → Unit). */
 
-export const STRUCTURE_KINDS = [
+export const STRUCTURE_HIERARCHY = [
   'building',
-  'tower',
   'wing',
-  'block',
-  'phase'
+  'floor',
+  'unit'
 ] as const;
+
+export type StructureHierarchyKind = (typeof STRUCTURE_HIERARCHY)[number];
+
+/** @deprecated Use STRUCTURE_HIERARCHY — fixed four-level hierarchy. */
+export const STRUCTURE_KINDS = STRUCTURE_HIERARCHY;
+
+export function structureDepthKind(depth: number): StructureHierarchyKind {
+  return STRUCTURE_HIERARCHY[
+    Math.min(Math.max(0, depth), STRUCTURE_HIERARCHY.length - 1)
+  ];
+}
+
+export function structureAddLabel(depth: number): string {
+  const labels = ['Add Building', 'Add Wing', 'Add Floor', 'Add Unit'];
+  return labels[Math.min(Math.max(0, depth), labels.length - 1)] ?? 'Add';
+}
+
+export function isStructureLeafKind(kind: string): boolean {
+  return kind === 'unit';
+}
 
 export const DEFAULT_UNIT_TYPES = [
   '1RK',
@@ -32,23 +51,29 @@ export type StructureNode = {
   area: number;
   floorsPerStructure: number;
   unitsPerFloor: number;
+  /** Set on floor nodes (0 = ground). */
+  floorNumber?: number;
   parkingCount: number;
-  /** ₹ per parking slot (leaf-level; total value = count × rate). */
+  /** ₹ per parking slot (unit-level; total value = count × rate). */
   parkingRate: number;
   children: StructureNode[];
 };
 
 export type StructureLeafRow = {
   path: StructureNode[];
+  /** Floor node (Building → Wing → Floor). */
   leaf: StructureNode;
-  floorsPerStructure: number;
+  floorNumber: number;
   unitsPerFloor: number;
+  /** @deprecated Same as floorNumber — kept for older callers. */
+  floorsPerStructure: number;
 };
 
 export type UnitConfigDraft = {
   unitNo: number;
   name?: string;
   type?: string;
+  category?: string;
   /** Legacy / primary saleable sq.ft when carpet & BUA are unset */
   area: number;
   rate: number;
@@ -92,6 +117,37 @@ export function structurePathDisplay(path: StructureNode[]): string {
   return path.map((n) => n.name).join(' › ');
 }
 
+function unitChildrenOf(node: StructureNode): StructureNode[] {
+  return (node.children || []).filter(
+    (c) => c.kind === 'unit' || isStructureLeafKind(c.kind)
+  );
+}
+
+function floorRowFromNode(
+  path: StructureNode[],
+  floorNode: StructureNode
+): StructureLeafRow {
+  const units = unitChildrenOf(floorNode);
+  const unitsPerFloor = Math.max(
+    1,
+    units.length || Number(floorNode.unitsPerFloor) || 1
+  );
+  const floorNumber = Math.max(
+    0,
+    Number(floorNode.floorNumber) ||
+      Number(floorNode.floorsPerStructure) ||
+      0
+  );
+  return {
+    path,
+    leaf: floorNode,
+    floorNumber,
+    unitsPerFloor,
+    floorsPerStructure: floorNumber
+  };
+}
+
+/** Returns one row per floor node in the Building → Wing → Floor → Unit tree. */
 export function getStructureLeaves(
   nodes: StructureNode[],
   pathPrefix: StructureNode[] = []
@@ -99,37 +155,48 @@ export function getStructureLeaves(
   const out: StructureLeafRow[] = [];
   for (const node of nodes) {
     const path = [...pathPrefix, node];
+    if (node.kind === 'floor') {
+      out.push(floorRowFromNode(path, node));
+      continue;
+    }
     if (node.children?.length) {
       out.push(...getStructureLeaves(node.children, path));
-    } else {
-      out.push({
-        path,
-        leaf: node,
-        floorsPerStructure: Math.max(
-          1,
-          Number(node.floorsPerStructure) || 1
-        ),
-        unitsPerFloor: Math.max(1, Number(node.unitsPerFloor) || 1)
-      });
     }
   }
   return out;
 }
 
+export function countStructureUnits(nodes: StructureNode[]): number {
+  let total = 0;
+  for (const node of nodes) {
+    if (node.kind === 'unit') {
+      total += 1;
+    } else if (node.children?.length) {
+      total += countStructureUnits(node.children);
+    }
+  }
+  return total;
+}
+
 export function projectParkingTotal(
   structures: StructureNode[] | undefined | null
 ): number {
-  const leaves = getStructureLeaves(normalizeStructures(structures));
-  let hasLeafParking = false;
-  const leafTotal = leaves.reduce((sum, L) => {
-    const p = L.leaf.parkingCount;
-    if (p != null) {
-      hasLeafParking = true;
-      return sum + Math.max(0, Number(p) || 0);
+  let total = 0;
+  let hasUnitParking = false;
+  function walk(nodes: StructureNode[]) {
+    for (const node of nodes) {
+      if (node.kind === 'unit') {
+        if (node.parkingCount != null) {
+          hasUnitParking = true;
+          total += Math.max(0, Number(node.parkingCount) || 0);
+        }
+      } else if (node.children?.length) {
+        walk(node.children);
+      }
     }
-    return sum;
-  }, 0);
-  if (hasLeafParking) return leafTotal;
+  }
+  walk(normalizeStructures(structures));
+  if (hasUnitParking) return total;
   return 0;
 }
 
@@ -137,19 +204,24 @@ export function projectParkingTotal(
 export function projectParkingValueTotal(
   structures: StructureNode[] | undefined | null
 ): number {
-  const leaves = getStructureLeaves(normalizeStructures(structures));
-  let hasLeafParking = false;
-  const total = leaves.reduce((sum, L) => {
-    const p = L.leaf.parkingCount;
-    if (p != null) {
-      hasLeafParking = true;
-      const count = Math.max(0, Number(p) || 0);
-      const rate = Math.max(0, Number(L.leaf.parkingRate) || 0);
-      return sum + count * rate;
+  let total = 0;
+  let hasUnitParking = false;
+  function walk(nodes: StructureNode[]) {
+    for (const node of nodes) {
+      if (node.kind === 'unit') {
+        if (node.parkingCount != null) {
+          hasUnitParking = true;
+          const count = Math.max(0, Number(node.parkingCount) || 0);
+          const rate = Math.max(0, Number(node.parkingRate) || 0);
+          total += count * rate;
+        }
+      } else if (node.children?.length) {
+        walk(node.children);
+      }
     }
-    return sum;
-  }, 0);
-  if (!hasLeafParking) return 0;
+  }
+  walk(normalizeStructures(structures));
+  if (!hasUnitParking) return 0;
   return total;
 }
 
@@ -166,21 +238,31 @@ export function projectParkingAvgRatePerSlot(
 export function totalStructureLeafArea(
   structures: StructureNode[] | undefined | null
 ): number {
-  return getStructureLeaves(normalizeStructures(structures)).reduce(
-    (sum, L) => sum + Math.max(0, Number(L.leaf.area) || 0),
-    0
-  );
+  let total = 0;
+  function walk(nodes: StructureNode[]) {
+    for (const node of nodes) {
+      if (node.kind === 'unit') {
+        total += Math.max(0, Number(node.area) || 0);
+      } else if (node.children?.length) {
+        walk(node.children);
+      }
+    }
+  }
+  walk(normalizeStructures(structures));
+  return total;
 }
 
-/** Total residential units: each leaf contributes (floors+1) × units/floor (floors 0..N inclusive). */
-export function countProjectUnits(structures: StructureNode[] | undefined | null): number {
-  let total = 0;
-  for (const L of getStructureLeaves(normalizeStructures(structures))) {
-    const floors = L.floorsPerStructure;
-    const per = L.unitsPerFloor;
-    total += (floors + 1) * per;
-  }
-  return total;
+/** Total residential units across all floor nodes. */
+export function countProjectUnits(
+  structures: StructureNode[] | undefined | null
+): number {
+  const normalized = normalizeStructures(structures);
+  const fromUnits = countStructureUnits(normalized);
+  if (fromUnits > 0) return fromUnits;
+  return getStructureLeaves(normalized).reduce(
+    (sum, L) => sum + L.unitsPerFloor,
+    0
+  );
 }
 
 export function deriveLegacyWingsFromStructures(
@@ -190,7 +272,8 @@ export function deriveLegacyWingsFromStructures(
   const seen = new Set<string>();
   const out: string[] = [];
   for (const L of leaves) {
-    const label = structurePathDisplay(L.path);
+    const wingPath = L.path.slice(0, -1);
+    const label = structurePathDisplay(wingPath);
     if (!seen.has(label)) {
       seen.add(label);
       out.push(label);
@@ -205,8 +288,17 @@ export function computeAreaPerUnitFromInventory(
   leaves: StructureLeafRow[]
 ): number {
   const units = Math.max(1, Number(unitsPerFloor) || 1);
-  const leaf = leaves.find((L) => L.leaf.id === structureLeafId);
-  const floorArea = leaf ? Math.max(0, Number(leaf.leaf.area) || 0) : 0;
+  const floorRow = leaves.find((L) => L.leaf.id === structureLeafId);
+  if (!floorRow) return 750;
+  const unitNodes = unitChildrenOf(floorRow.leaf);
+  if (unitNodes.length) {
+    const sum = unitNodes.reduce(
+      (s, u) => s + Math.max(0, Number(u.area) || 0),
+      0
+    );
+    if (sum > 0) return Math.max(1, Math.round(sum / unitNodes.length));
+  }
+  const floorArea = Math.max(0, Number(floorRow.leaf.area) || 0);
   if (floorArea <= 0) return 750;
   return Math.max(1, Math.round(floorArea / units));
 }
@@ -217,9 +309,11 @@ export function buildUnitConfigs(
   prevConfigs: UnitConfigDraft[] | undefined,
   defaultRate: number,
   leaves: StructureLeafRow[],
-  defaultUnitType?: string
+  defaultUnitType?: string,
+  defaultUnitCategory?: string
 ): UnitConfigDraft[] {
   const fallbackType = (defaultUnitType || '').trim();
+  const fallbackCategory = (defaultUnitCategory || '').trim();
   const count = Math.max(1, Number(unitsPerFloor) || 1);
   const baseArea = computeAreaPerUnitFromInventory(
     structureLeafId,
@@ -235,6 +329,7 @@ export function buildUnitConfigs(
       unitNo: i,
       name: typeof old?.name === 'string' ? old.name : '',
       type: (old?.type || '').trim() || fallbackType,
+      category: (old?.category || '').trim() || fallbackCategory || undefined,
       area: Math.max(1, Number(old?.area) || baseArea),
       rate: Math.max(1, Number(old?.rate) || baseRate),
       ...(old
@@ -262,62 +357,124 @@ export function buildDefaultFloorProvisions(params: {
   baseRate: number;
   /** First unit type from step 2 (comma-separated list). */
   defaultUnitType?: string;
+  /** First unit category from step 2 (comma-separated list). */
+  defaultUnitCategory?: string;
 }): FloorProvisionDraft[] {
   const defaultUnitType = (params.defaultUnitType || '').trim();
+  const defaultUnitCategory = (params.defaultUnitCategory || '').trim();
   const structures = normalizeStructures(params.structures);
   const leaves = getStructureLeaves(structures);
   const defaults: FloorProvisionDraft[] = [];
   for (const L of leaves) {
-    const floors = Math.max(1, Number(L.floorsPerStructure) || 1);
+    const floorNum = L.floorNumber;
     const leafId = L.leaf?.id || '';
-    const leafName = L.leaf?.name || '';
-    const pathLabel = structurePathDisplay(L.path);
-    const defaultUnits = Math.max(
-      1,
-      Number(L.unitsPerFloor) || Number(params.unitsPerFloorDefault) || 1
-    );
+    const wingPath = L.path.slice(0, -1);
+    const pathLabel = structurePathDisplay(wingPath);
+    const wingName =
+      wingPath[wingPath.length - 1]?.name || L.leaf?.name || '';
+    const defaultUnits = Math.max(1, Number(L.unitsPerFloor) || 1);
     const rate = Math.max(1, Number(params.baseRate) || 10000);
-    for (let floor = floors; floor >= 0; floor--) {
-      defaults.push({
-        structureLeafId: leafId,
-        structurePath: pathLabel,
-        structureName: leafName,
-        floor,
-        unitsPerFloor: defaultUnits,
-        unitType: '',
-        area: computeAreaPerUnitFromInventory(
-          leafId,
-          defaultUnits,
-          leaves
-        ),
-        unitConfigs: buildUnitConfigs(
-          leafId,
-          defaultUnits,
-          [],
-          rate,
-          leaves,
-          defaultUnitType
-        ),
-        rate
-      });
-    }
+    const unitNodes = unitChildrenOf(L.leaf);
+    const prevConfigs: UnitConfigDraft[] = unitNodes.map((u, idx) => ({
+      unitNo: idx + 1,
+      name: u.name || '',
+      type: '',
+      area: Math.max(1, Number(u.area) || 750),
+      rate,
+      parking_slots_included:
+        u.parkingCount != null && u.parkingCount > 0
+          ? u.parkingCount
+          : undefined
+    }));
+    defaults.push({
+      structureLeafId: leafId,
+      structurePath: pathLabel,
+      structureName: wingName,
+      floor: floorNum,
+      unitsPerFloor: defaultUnits,
+      unitType: '',
+      area: computeAreaPerUnitFromInventory(leafId, defaultUnits, leaves),
+      unitConfigs: buildUnitConfigs(
+        leafId,
+        defaultUnits,
+        prevConfigs.length ? prevConfigs : [],
+        rate,
+        leaves,
+        defaultUnitType,
+        defaultUnitCategory
+      ),
+      rate
+    });
   }
   return defaults;
 }
 
-export function defaultRootStructures(
-  floorsPerWing: number,
-  unitsPerFloor: number
-): StructureNode[] {
-  return ['A', 'B', 'C'].map((name) => ({
+function newStructureNodeBase(
+  kind: StructureHierarchyKind,
+  name: string,
+  overrides: Partial<StructureNode> = {}
+): StructureNode {
+  return {
     id: newStructureId(),
     name,
-    kind: 'wing',
+    kind,
     area: 0,
-    floorsPerStructure: floorsPerWing,
-    unitsPerFloor,
+    floorsPerStructure: 1,
+    unitsPerFloor: 1,
     parkingCount: 0,
     parkingRate: 0,
-    children: []
-  }));
+    children: [],
+    ...overrides
+  };
+}
+
+export function newBuildingNode(index: number): StructureNode {
+  return newStructureNodeBase('building', `Building ${index}`);
+}
+
+export function newWingNode(index: number): StructureNode {
+  const label = String.fromCharCode(64 + Math.max(1, index));
+  return newStructureNodeBase('wing', `Wing ${label}`);
+}
+
+export function newFloorNode(
+  floorNumber: number,
+  unitsPerFloorDefault: number
+): StructureNode {
+  const label =
+    floorNumber === 0 ? 'Ground Floor' : `Floor ${floorNumber}`;
+  return newStructureNodeBase('floor', label, {
+    floorNumber,
+    floorsPerStructure: floorNumber,
+    unitsPerFloor: unitsPerFloorDefault,
+    children: Array.from({ length: unitsPerFloorDefault }, (_, i) =>
+      newUnitNode(i + 1)
+    )
+  });
+}
+
+export function newUnitNode(index: number): StructureNode {
+  return newStructureNodeBase('unit', `Unit ${index}`, {
+    area: 750,
+    unitsPerFloor: 1,
+    floorsPerStructure: 0
+  });
+}
+
+export function defaultRootStructures(
+  _floorsPerWing: number,
+  unitsPerFloor: number
+): StructureNode[] {
+  return [
+    {
+      ...newBuildingNode(1),
+      children: ['A', 'B', 'C'].map((name) => ({
+        ...newStructureNodeBase('wing', `Wing ${name}`, {
+          unitsPerFloor,
+          floorsPerStructure: _floorsPerWing
+        }),
+        children: [newFloorNode(0, unitsPerFloor)]
+      }))
+    }
+  ];
 }

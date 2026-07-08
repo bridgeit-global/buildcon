@@ -5,6 +5,10 @@ import {
   countProjectUnits,
   deriveLegacyWingsFromStructures,
   getStructureLeaves,
+  newBuildingNode,
+  newFloorNode,
+  newUnitNode,
+  newWingNode,
   normalizeStructures,
   projectParkingTotal,
   projectParkingValueTotal,
@@ -12,19 +16,30 @@ import {
   type StructureNode
 } from './project-structure-utils';
 
-function leafNode(overrides: Partial<StructureNode> = {}): StructureNode {
-  return {
-    id: 'leaf-1',
-    name: 'Wing A',
-    kind: 'wing',
-    area: 3000,
-    floorsPerStructure: 2,
-    unitsPerFloor: 2,
-    parkingCount: 4,
-    parkingRate: 500000,
-    children: [],
-    ...overrides
-  };
+function sampleHierarchy(): StructureNode[] {
+  const unit1 = newUnitNode(1);
+  unit1.id = 'unit-1';
+  unit1.area = 800;
+  unit1.parkingCount = 2;
+  unit1.parkingRate = 100000;
+
+  const unit2 = newUnitNode(2);
+  unit2.id = 'unit-2';
+  unit2.area = 900;
+
+  const floor = newFloorNode(1, 2);
+  floor.id = 'floor-1';
+  floor.children = [unit1, unit2];
+
+  const wing = newWingNode(1);
+  wing.id = 'wing-1';
+  wing.children = [floor];
+
+  const building = newBuildingNode(1);
+  building.id = 'building-1';
+  building.children = [wing];
+
+  return [building];
 }
 
 describe('normalizeStructures', () => {
@@ -36,80 +51,69 @@ describe('normalizeStructures', () => {
 describe('structurePathDisplay', () => {
   it('joins node names with separator', () => {
     const path = [
-      { ...leafNode(), name: 'Tower 1' },
-      { ...leafNode(), name: 'Wing A' }
+      { ...newBuildingNode(1), name: 'Building 1' },
+      { ...newWingNode(1), name: 'Wing A' }
     ];
-    expect(structurePathDisplay(path)).toBe('Tower 1 › Wing A');
+    expect(structurePathDisplay(path)).toBe('Building 1 › Wing A');
   });
 });
 
 describe('getStructureLeaves', () => {
-  it('returns leaf rows for nested structures', () => {
-    const structures: StructureNode[] = [
-      {
-        id: 'root',
-        name: 'Phase 1',
-        kind: 'phase',
-        area: 0,
-        floorsPerStructure: 1,
-        unitsPerFloor: 1,
-        parkingCount: 0,
-        parkingRate: 0,
-        children: [leafNode()]
-      }
-    ];
-    const leaves = getStructureLeaves(structures);
+  it('returns floor rows for Building → Wing → Floor → Unit tree', () => {
+    const leaves = getStructureLeaves(sampleHierarchy());
     expect(leaves).toHaveLength(1);
-    expect(leaves[0]?.leaf.name).toBe('Wing A');
+    expect(leaves[0]?.leaf.id).toBe('floor-1');
+    expect(leaves[0]?.floorNumber).toBe(1);
+    expect(leaves[0]?.unitsPerFloor).toBe(2);
   });
 });
 
 describe('countProjectUnits', () => {
-  it('counts units across floors inclusive of ground', () => {
-    const structures = [leafNode({ floorsPerStructure: 2, unitsPerFloor: 2 })];
-    expect(countProjectUnits(structures)).toBe((2 + 1) * 2);
+  it('counts unit nodes in the hierarchy', () => {
+    expect(countProjectUnits(sampleHierarchy())).toBe(2);
   });
 });
 
 describe('projectParkingTotal', () => {
-  it('sums parking slots on leaves', () => {
-    expect(projectParkingTotal([leafNode({ parkingCount: 4 })])).toBe(4);
+  it('sums parking slots on unit nodes', () => {
+    expect(projectParkingTotal(sampleHierarchy())).toBe(2);
   });
 });
 
 describe('projectParkingValueTotal', () => {
-  it('sums slot count times rate', () => {
-    expect(
-      projectParkingValueTotal([
-        leafNode({ parkingCount: 2, parkingRate: 100000 })
-      ])
-    ).toBe(200000);
+  it('sums slot count times rate on units', () => {
+    expect(projectParkingValueTotal(sampleHierarchy())).toBe(200000);
   });
 });
 
 describe('deriveLegacyWingsFromStructures', () => {
-  it('returns unique path labels', () => {
-    const structures = [leafNode({ name: 'A' }), leafNode({ id: 'leaf-2', name: 'B' })];
-    expect(deriveLegacyWingsFromStructures(structures)).toEqual(['A', 'B']);
+  it('returns unique wing path labels without floor', () => {
+    expect(deriveLegacyWingsFromStructures(sampleHierarchy())).toEqual([
+      'Building 1 › Wing A'
+    ]);
   });
 });
 
 describe('computeAreaPerUnitFromInventory', () => {
-  it('divides leaf area by units per floor', () => {
-    const leaves = getStructureLeaves([leafNode({ area: 1000, unitsPerFloor: 4 })]);
-    expect(computeAreaPerUnitFromInventory('leaf-1', 4, leaves)).toBe(250);
+  it('averages unit areas on a floor', () => {
+    const leaves = getStructureLeaves(sampleHierarchy());
+    expect(computeAreaPerUnitFromInventory('floor-1', 2, leaves)).toBe(850);
   });
 
   it('falls back to 750 when area is zero', () => {
-    const leaves = getStructureLeaves([leafNode({ area: 0 })]);
-    expect(computeAreaPerUnitFromInventory('leaf-1', 2, leaves)).toBe(750);
+    const structures = sampleHierarchy();
+    structures[0]!.children![0]!.children![0]!.children = [
+      newUnitNode(1)
+    ];
+    const leaves = getStructureLeaves(structures);
+    expect(computeAreaPerUnitFromInventory('floor-1', 1, leaves)).toBe(750);
   });
 });
 
 describe('buildUnitConfigs', () => {
   it('creates one config per unit with defaults', () => {
-    const leaves = getStructureLeaves([leafNode()]);
-    const configs = buildUnitConfigs('leaf-1', 2, [], 12000, leaves, '2BHK');
+    const leaves = getStructureLeaves(sampleHierarchy());
+    const configs = buildUnitConfigs('floor-1', 2, [], 12000, leaves, '2BHK');
     expect(configs).toHaveLength(2);
     expect(configs[0]?.type).toBe('2BHK');
     expect(configs[0]?.rate).toBe(12000);

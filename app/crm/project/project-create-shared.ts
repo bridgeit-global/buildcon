@@ -10,6 +10,7 @@ import {
   countProjectUnits,
   deriveLegacyWingsFromStructures,
   defaultRootStructures,
+  getStructureLeaves,
   normalizeStructures
 } from './project-structure-utils';
 
@@ -33,6 +34,7 @@ export type CreateProjectDraft = {
   units_per_floor: number;
   base_rate: number;
   unitTypesCsv: string;
+  unitCategoriesCsv: string;
   memberIds: string[];
   structures: StructureNode[];
   floorProvisions: FloorProvisionDraft[];
@@ -42,8 +44,7 @@ export function wingsFromDraft(d: CreateProjectDraft) {
   return deriveLegacyWingsFromStructures(d.structures);
 }
 
-/** Comma-separated unit types from the inventory step (deduped, trimmed). */
-export function parseUnitTypesCsv(csv: string): string[] {
+function parseCommaSeparatedCsv(csv: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const part of csv.split(',')) {
@@ -53,6 +54,16 @@ export function parseUnitTypesCsv(csv: string): string[] {
     out.push(t);
   }
   return out;
+}
+
+/** Comma-separated unit types from the inventory step (deduped, trimmed). */
+export function parseUnitTypesCsv(csv: string): string[] {
+  return parseCommaSeparatedCsv(csv);
+}
+
+/** Comma-separated unit categories from the inventory step (deduped, trimmed). */
+export function parseUnitCategoriesCsv(csv: string): string[] {
+  return parseCommaSeparatedCsv(csv);
 }
 
 export const createProjectStep0Schema = z.object({
@@ -107,6 +118,11 @@ export function firstUnitTypeFromCsv(csv: string): string {
   return parseUnitTypesCsv(csv)[0] ?? '';
 }
 
+/** First unit category from step 2 CSV (default for floor unit rows). */
+export function firstUnitCategoryFromCsv(csv: string): string {
+  return parseUnitCategoriesCsv(csv)[0] ?? '';
+}
+
 function unitTypesFromFloorProvisions(draft: CreateProjectDraft): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -148,6 +164,22 @@ export function applyDefaultUnitTypeToFloorProvisions(
     unitConfigs: (row.unitConfigs || []).map((u) => ({
       ...u,
       type: (u.type || '').trim() || fallback
+    }))
+  }));
+}
+
+/** Fill empty unit categories on floor rows with the first category from step 2. */
+export function applyDefaultUnitCategoryToFloorProvisions(
+  provisions: FloorProvisionDraft[],
+  defaultUnitCategory: string
+): FloorProvisionDraft[] {
+  const fallback = defaultUnitCategory.trim();
+  if (!fallback) return provisions;
+  return provisions.map((row) => ({
+    ...row,
+    unitConfigs: (row.unitConfigs || []).map((u) => ({
+      ...u,
+      category: (u.category || '').trim() || fallback
     }))
   }));
 }
@@ -196,10 +228,13 @@ export function validateCreateStep(
       return 'Add at least one unit type (comma-separated, e.g. 1BHK, 2BHK).';
     }
     if (normalizeStructures(draft.structures).length < 1) {
-      return 'Add at least one structure (root).';
+      return 'Add at least one building.';
+    }
+    if (getStructureLeaves(normalizeStructures(draft.structures)).length < 1) {
+      return 'Each wing needs at least one floor (Building → Wing → Floor → Unit).';
     }
     if (countProjectUnits(draft.structures) < 1) {
-      return 'Each structure needs at least one leaf with floors and units.';
+      return 'Each floor needs at least one unit.';
     }
     if (draft.floors_per_wing < 1) return 'Default floors must be at least 1.';
     if (draft.units_per_floor < 1) return 'Default units per floor must be at least 1.';
@@ -232,6 +267,7 @@ export function createInitialDraft(): CreateProjectDraft {
     units_per_floor: 4,
     base_rate: 10500,
     unitTypesCsv: '1BHK,2BHK,3BHK',
+    unitCategoriesCsv: 'Residential',
     memberIds: [],
     structures: defaultRootStructures(7, 4),
     floorProvisions: []

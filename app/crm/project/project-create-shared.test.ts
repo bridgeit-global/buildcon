@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyDefaultUnitCategoryToFloorProvisions,
   applyDefaultUnitTypeToFloorProvisions,
   createInitialDraft,
   createProjectStep0Schema,
   createProjectStep0SchemaWithExisting,
   createProjectStep1FieldsSchema,
   createProjectStep3Schema,
+  firstUnitCategoryFromCsv,
   firstUnitTypeFromCsv,
+  parseUnitCategoriesCsv,
   parseUnitTypesCsv,
   unitTypesFromDraft,
   validateCreateStep,
@@ -92,6 +95,39 @@ describe('createProjectStep3Schema', () => {
         base_rate: -1
       }).success
     ).toBe(false);
+  });
+});
+
+describe('parseUnitCategoriesCsv', () => {
+  it('parses and dedupes comma-separated categories', () => {
+    expect(parseUnitCategoriesCsv('Residential, Commercial, Residential')).toEqual(
+      ['Residential', 'Commercial']
+    );
+  });
+});
+
+describe('firstUnitCategoryFromCsv', () => {
+  it('returns first parsed category', () => {
+    expect(firstUnitCategoryFromCsv('Commercial, Residential')).toBe('Commercial');
+  });
+});
+
+describe('applyDefaultUnitCategoryToFloorProvisions', () => {
+  it('fills empty unit categories', () => {
+    const next = applyDefaultUnitCategoryToFloorProvisions(
+      [
+        {
+          structureLeafId: 'leaf-1',
+          structurePath: 'A',
+          structureName: 'A',
+          floor: 1,
+          unitsPerFloor: 1,
+          unitConfigs: [{ unitNo: 1, area: 750, rate: 10000, type: '2BHK' }]
+        }
+      ],
+      'Residential'
+    );
+    expect(next[0]?.unitConfigs[0]?.category).toBe('Residential');
   });
 });
 

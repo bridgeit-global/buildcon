@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { CrmFormSkeleton } from '../../_components/crm-skeletons';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { MultiSearchableSelect } from '@/components/ui/multi-searchable-select';
+import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { ProjectLocationField } from '../project-location-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
@@ -45,8 +47,11 @@ import {
   validateCreateStep,
   validateCreateDraft,
   parseUnitTypesCsv,
+  parseUnitCategoriesCsv,
   firstUnitTypeFromCsv,
+  firstUnitCategoryFromCsv,
   applyDefaultUnitTypeToFloorProvisions,
+  applyDefaultUnitCategoryToFloorProvisions,
   unitTypesFromDraft,
   createInitialDraft,
   resetDraft
@@ -81,6 +86,7 @@ export default function CreateProjectPage() {
 
   const canCreateProject = userCanCreateProject(myProfile?.role);
   const { activeNames: masterUnitTypes } = useMasterLookup('unit_type');
+  const { activeNames: masterUnitCategories } = useMasterLookup('unit_category');
   const lastWizardStep = WIZARD_STEPS.length - 1;
   const projectWizardSteps = useMemo(
     () =>
@@ -246,6 +252,7 @@ export default function CreateProjectPage() {
         if (createStep === 1) {
       setDraft((d) => {
         const defaultUnitType = firstUnitTypeFromCsv(d.unitTypesCsv);
+        const defaultUnitCategory = firstUnitCategoryFromCsv(d.unitCategoriesCsv);
         const provisions =
           d.floorProvisions.length > 0
             ? d.floorProvisions
@@ -254,13 +261,18 @@ export default function CreateProjectPage() {
                 floorsPerWingDefault: d.floors_per_wing,
                 unitsPerFloorDefault: d.units_per_floor,
                 baseRate: d.base_rate,
-                defaultUnitType
+                defaultUnitType,
+                defaultUnitCategory
               });
+        const withTypes = applyDefaultUnitTypeToFloorProvisions(
+          provisions,
+          defaultUnitType
+        );
         return {
           ...d,
-          floorProvisions: applyDefaultUnitTypeToFloorProvisions(
-            provisions,
-            defaultUnitType
+          floorProvisions: applyDefaultUnitCategoryToFloorProvisions(
+            withTypes,
+            defaultUnitCategory
           )
         };
       });
@@ -275,6 +287,11 @@ export default function CreateProjectPage() {
   const mergedUnitTypes = useMemo(
     () => parseUnitTypesCsv(draft.unitTypesCsv),
     [draft.unitTypesCsv]
+  );
+
+  const mergedUnitCategories = useMemo(
+    () => parseUnitCategoriesCsv(draft.unitCategoriesCsv),
+    [draft.unitCategoriesCsv]
   );
 
   const createBlockedReason = useMemo(
@@ -479,73 +496,61 @@ export default function CreateProjectPage() {
           {createStep === 1 ? (
             <div className="flex flex-col gap-4">
               <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-800">
-                Set structure names, kinds, area, and floors here. Unit counts,
-                types, carpet/BUA/RERA, outdoor areas, rates, floor-rise, PLC,
-                and parking per unit are set floor-wise on the next step.
+                Build inventory as <strong>Building → Wing → Floor → Unit</strong>.
+                Unit types and categories, carpet/BUA/RERA, rates, floor-rise, PLC,
+                and parking per unit are configured on the next step.
               </div>
               <InventoryConfigSummary
                 draftName={draft.name}
                 projectType={draft.type}
                 structures={draft.structures}
-                floorsPerWing={draft.floors_per_wing}
-                unitsPerFloor={draft.units_per_floor}
-                onFloorsPerWingChange={(n) =>
-                  setDraft((d) => ({ ...d, floors_per_wing: n }))
-                }
-                onUnitsPerFloorChange={(n) =>
-                  setDraft((d) => ({ ...d, units_per_floor: n }))
-                }
               />
-              <TextInputField
-                label="Unit types (comma-separated)"
-                required
-                value={draft.unitTypesCsv}
-                onChange={(e) => {
-                  setDraft((d) => ({ ...d, unitTypesCsv: e.target.value }));
-                  step1FieldsValidation.touch('unitTypesCsv');
-                }}
-                onBlur={() => step1FieldsValidation.touch('unitTypesCsv')}
-                error={step1FieldsValidation.fieldError('unitTypesCsv')}
-                placeholder="1BHK,2BHK,3BHK"
-              />
-              {masterUnitTypes.length ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {masterUnitTypes.map((typeName) => {
-                    const selected = parseUnitTypesCsv(draft.unitTypesCsv).includes(
-                      typeName
-                    );
-                    return (
-                      <button
-                        key={typeName}
-                        type="button"
-                        className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                          selected
-                            ? 'border-ds-primary-500 bg-ds-primary-500 text-white'
-                            : 'border-ds-gray-200 bg-white text-ds-gray-700 hover:border-ds-primary-300'
-                        }`}
-                        onClick={() => {
-                          const current = parseUnitTypesCsv(draft.unitTypesCsv);
-                          const next = selected
-                            ? current.filter((t) => t !== typeName)
-                            : [...current, typeName];
-                          setDraft((d) => ({
-                            ...d,
-                            unitTypesCsv: next.join(',')
-                          }));
-                          step1FieldsValidation.touch('unitTypesCsv');
-                        }}
-                      >
-                        {typeName}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <div className={formControlFieldGapClass}>
+                <Label>
+                  Unit types <span className="text-ds-error-600">*</span>
+                </Label>
+                <MultiSearchableSelect
+                  values={mergedUnitTypes}
+                  onValuesChange={(next) => {
+                    setDraft((d) => ({ ...d, unitTypesCsv: next.join(',') }));
+                    step1FieldsValidation.touch('unitTypesCsv');
+                  }}
+                  options={masterUnitTypes}
+                  allowCustom
+                  placeholder="Select or add unit types…"
+                  searchPlaceholder="Search or type to add (e.g. 1BHK)…"
+                />
+                <FormFieldError
+                  message={step1FieldsValidation.fieldError('unitTypesCsv')}
+                />
+              </div>
               <p className="text-[10px] text-muted-foreground">
                 Required. Used as dropdown options when configuring each unit
                 on the floor step.
               </p>
-              <div className="font-semibold text-slate-900">Structure tree</div>
+              <div className={formControlFieldGapClass}>
+                <Label>Unit categories</Label>
+                <MultiSearchableSelect
+                  values={mergedUnitCategories}
+                  onValuesChange={(next) => {
+                    setDraft((d) => ({
+                      ...d,
+                      unitCategoriesCsv: next.join(',')
+                    }));
+                  }}
+                  options={masterUnitCategories}
+                  allowCustom
+                  placeholder="Select or add unit categories…"
+                  searchPlaceholder="Search or type to add (e.g. Residential)…"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Optional. Used as dropdown options for unit category on the floor
+                step. The first selected category is the default for new units.
+              </p>
+              <div className="font-semibold text-slate-900">
+                Building → Wing → Floor → Unit
+              </div>
               <StructureTreeFields
                 nodes={draft.structures}
                 onNodesChange={(structures) =>
@@ -557,13 +562,21 @@ export default function CreateProjectPage() {
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[11px] text-emerald-900">
                 <span className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
                   <span>
-                    <span className="text-emerald-700">Structure leaves</span>{' '}
+                    <span className="text-emerald-700">Floors</span>{' '}
                     <strong>
                       {
                         getStructureLeaves(normalizeStructures(draft.structures))
                           .length
                       }
                     </strong>
+                  </span>
+                  <span>
+                    <span className="text-emerald-700">Units</span>{' '}
+                    <strong>{countProjectUnits(draft.structures)}</strong>
+                  </span>
+                  <span>
+                    <span className="text-emerald-700">Wings</span>{' '}
+                    <strong>{wingsFromDraft(draft).length}</strong>
                   </span>
                   <span>
                     <span className="text-emerald-700">Parking</span>{' '}
@@ -581,14 +594,6 @@ export default function CreateProjectPage() {
                         total
                       </>
                     ) : null}
-                  </span>
-                  <span>
-                    <span className="text-emerald-700">Total units</span>{' '}
-                    <strong>{countProjectUnits(draft.structures)}</strong>
-                  </span>
-                  <span>
-                    <span className="text-emerald-700">Default floors</span>{' '}
-                    <strong>{draft.floors_per_wing}</strong>
                   </span>
                 </span>
               </div>
@@ -610,10 +615,14 @@ export default function CreateProjectPage() {
                 setDraft((d) => ({ ...d, floorProvisions }))
               }
               unitTypes={mergedUnitTypes}
+              unitCategories={mergedUnitCategories}
               baseRate={draft.base_rate}
               onAutoFill={() =>
                 setDraft((d) => {
                   const defaultUnitType = firstUnitTypeFromCsv(d.unitTypesCsv);
+                  const defaultUnitCategory = firstUnitCategoryFromCsv(
+                    d.unitCategoriesCsv
+                  );
                   return {
                     ...d,
                     floorProvisions: buildDefaultFloorProvisions({
@@ -621,7 +630,8 @@ export default function CreateProjectPage() {
                       floorsPerWingDefault: d.floors_per_wing,
                       unitsPerFloorDefault: d.units_per_floor,
                       baseRate: d.base_rate,
-                      defaultUnitType
+                      defaultUnitType,
+                      defaultUnitCategory
                     })
                   };
                 })
@@ -760,6 +770,7 @@ export default function CreateProjectPage() {
                   ],
                   ['Base rate (₹/sq.ft)', String(draft.base_rate)],
                   ['Unit types', mergedUnitTypes.join(', ') || '—'],
+                  ['Unit categories', mergedUnitCategories.join(', ') || '—'],
                   ['Members', `${draft.memberIds.length} selected`]
                 ].map(([k, v]) => (
                   <div key={String(k)} className="bg-slate-50 px-3 py-2">

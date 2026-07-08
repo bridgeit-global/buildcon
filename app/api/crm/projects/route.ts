@@ -21,6 +21,7 @@ type FloorProvisionInput = {
     unitNo: number;
     name?: string;
     type?: string;
+    category?: string;
     area: number;
     rate: number;
     carpet_area?: number | null;
@@ -418,6 +419,7 @@ export async function POST(request: Request) {
             1
         );
         const unitType = (uc.type || '').trim() || null;
+        const unitCategory = (uc.category || '').trim() || null;
         unitRows.push({
           project_id: projectId,
           wing_name: wingName,
@@ -425,6 +427,7 @@ export async function POST(request: Request) {
           unit_no: unitNo,
           unit_code: code,
           unit_type: unitType,
+          unit_category: unitCategory,
           area,
           carpet_area: positiveSqftOrNull(uc.carpet_area),
           bua_area: positiveSqftOrNull(uc.bua_area),
