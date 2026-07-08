@@ -114,7 +114,7 @@ export function UnitCostSheet({
   return (
     <div
       className={cn(
-        'rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm',
+        'flex flex-col rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm',
         className
       )}
     >
@@ -131,44 +131,17 @@ export function UnitCostSheet({
             {unit.wing_name || '—'}
           </p>
         </div>
-        <div className="flex flex-col items-stretch gap-2 sm:items-end">
-          {breakdown.grandTotalInr > 0 ? (
-            <div className="rounded-lg bg-ds-primary-50 px-3 py-2 text-right ring-1 ring-ds-primary-100">
-              <p className="text-[10px] font-semibold uppercase text-ds-primary-700">
-                Est. total
-              </p>
-              <p className="text-sm font-bold text-ds-primary-800">
-                {formatInrCompactLacCr(breakdown.grandTotalInr)}
-              </p>
-            </div>
-          ) : null}
-          {sendContext ? (
-            <Button
-              type="button"
-              size="sm"
-              className="min-h-10 gap-1.5"
-              disabled={Boolean(sendDisabledReason) || sending}
-              title={sendDisabledReason ?? undefined}
-              onClick={() => void handleSendCostSheet()}
-            >
-              {sending ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <Send className="size-4" aria-hidden />
-              )}
-              {sending ? 'Sending…' : 'Send cost sheet'}
-            </Button>
-          ) : null}
-        </div>
+        {breakdown.grandTotalInr > 0 ? (
+          <div className="rounded-lg bg-ds-primary-50 px-3 py-2 text-right ring-1 ring-ds-primary-100">
+            <p className="text-[10px] font-semibold uppercase text-ds-primary-700">
+              Est. total
+            </p>
+            <p className="text-sm font-bold text-ds-primary-800">
+              {formatInrCompactLacCr(breakdown.grandTotalInr)}
+            </p>
+          </div>
+        ) : null}
       </div>
-
-      {sendContext && sendDisabledReason ? (
-        <p className="mt-2 text-[11px] text-ds-gray-500">{sendDisabledReason}</p>
-      ) : sendContext ? (
-        <p className="mt-2 text-[11px] text-ds-gray-500">
-          Sends the PDF to the customer via email, SMS, and WhatsApp (when configured).
-        </p>
-      ) : null}
 
       <section className="mt-4">
         <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-ds-gray-500">
@@ -197,6 +170,30 @@ export function UnitCostSheet({
         follow project settings where configured. Confirm final numbers on the
         formal quotation or agreement.
       </p>
+
+      {sendContext ? (
+        <div className="mt-auto flex flex-col items-stretch gap-2 border-t border-ds-gray-100 pt-4">
+          <Button
+            type="button"
+            size="sm"
+            className="min-h-10 w-full gap-1.5"
+            disabled={Boolean(sendDisabledReason) || sending}
+            title={sendDisabledReason ?? undefined}
+            onClick={() => void handleSendCostSheet()}
+          >
+            {sending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Send className="size-4" aria-hidden />
+            )}
+            {sending ? 'Sending…' : 'Send cost sheet'}
+          </Button>
+          <p className="text-[11px] text-ds-gray-500">
+            {sendDisabledReason ??
+              'Sends the PDF to the customer via email, SMS, and WhatsApp (when configured).'}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
