@@ -93,7 +93,13 @@ export function LoginClient() {
           ))}
         </div>
 
-        <div className="flex flex-col gap-3">
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
           <EmailInputField
             value={email}
             onChange={(v) => {
@@ -123,7 +129,7 @@ export function LoginClient() {
             }
           />
 
-          <Button onClick={submit} disabled={busy} className="min-h-11">
+          <Button type="submit" disabled={busy} className="min-h-11">
             {busy ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -153,7 +159,7 @@ export function LoginClient() {
             </Link>
             .
           </p>
-        </div>
+        </form>
       </div>
     </div>
   );
