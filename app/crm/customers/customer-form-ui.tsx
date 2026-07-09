@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller, useController, useWatch } from 'react-hook-form';
-import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { Label } from '@/components/ui/label';
@@ -20,10 +19,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
-import {
-  idProofOptionsForResidentialStatus,
-  isNriResidentialStatus
-} from '@/lib/customer/id-proof-options';
+import { guardianNameFieldLabel } from '@/lib/customer/customer-forms.schema';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
 import { mergeLookupOptions } from '@/lib/master/master-lookup';
 import { cn } from '@/lib/utils';
@@ -190,6 +186,44 @@ export function RhfTextarea<T extends FieldValues>({
   );
 }
 
+function RhfPassportInput<T extends FieldValues>({
+  control
+}: {
+  control: Control<T>;
+}) {
+  const residentialStatus = useWatch({
+    control,
+    name: 'residential_status' as FieldPath<T>
+  }) as string | undefined;
+  if (residentialStatus === 'Resident Indian') return null;
+  return (
+    <RhfTextInput
+      control={control}
+      name={'passport_number' as FieldPath<T>}
+      label="Passport no. (NRI / foreign)"
+    />
+  );
+}
+
+function RhfGuardianNameInput<T extends FieldValues>({
+  control
+}: {
+  control: Control<T>;
+}) {
+  const relation = useWatch({
+    control,
+    name: 'guardian_relation' as FieldPath<T>
+  }) as string | undefined;
+  return (
+    <RhfTextInput
+      control={control}
+      name={'guardian_name' as FieldPath<T>}
+      label={guardianNameFieldLabel(relation)}
+      placeholder="As on PAN / Aadhaar"
+    />
+  );
+}
+
 function RhfCustomerRelationSelect<T extends FieldValues>({
   control
 }: {
@@ -219,53 +253,6 @@ function RhfCustomerRelationSelect<T extends FieldValues>({
           ))}
         </SelectContent>
       </Select>
-    </div>
-  );
-}
-
-function RhfIdProofSelect<T extends FieldValues>({
-  control
-}: {
-  control: Control<T>;
-}) {
-  const residential = useWatch({
-    control,
-    name: 'residential_status' as FieldPath<T>
-  }) as string | undefined;
-  const { field, fieldState } = useController({
-    control,
-    name: 'id_proof_type' as FieldPath<T>
-  });
-  const nri = isNriResidentialStatus(residential);
-  const options = idProofOptionsForResidentialStatus(residential);
-
-  useEffect(() => {
-    if (nri && field.value !== 'Passport') {
-      field.onChange('Passport');
-    }
-    // Only re-run when the NRI constraint toggles.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nri]);
-
-  return (
-    <div>
-      <Label>ID proof</Label>
-      <Select value={field.value || undefined} onValueChange={field.onChange}>
-        <SelectTrigger
-          className="mt-1 w-full"
-          aria-invalid={fieldState.error ? true : undefined}
-        >
-          <SelectValue placeholder="Select ID proof" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((o) => (
-            <SelectItem key={o} value={o}>
-              {o}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <FormFieldError message={fieldState.error?.message} />
     </div>
   );
 }
@@ -342,12 +329,7 @@ export function CustomerProfileFields<T extends FieldValues>({
         )}
       />
       <RhfCustomerRelationSelect control={control} />
-      <RhfTextInput
-        control={control}
-        name={'guardian_name' as FieldPath<T>}
-        label={"Father's / mother's / spouse's name"}
-        placeholder="As on PAN / Aadhaar"
-      />
+      <RhfGuardianNameInput control={control} />
       <Controller
         control={control}
         name={'residential_status' as FieldPath<T>}
@@ -369,12 +351,7 @@ export function CustomerProfileFields<T extends FieldValues>({
           </div>
         )}
       />
-      <RhfIdProofSelect control={control} />
-      <RhfTextInput
-        control={control}
-        name={'passport_number' as FieldPath<T>}
-        label="Passport no. (NRI / foreign)"
-      />
+      <RhfPassportInput control={control} />
       <RhfTextarea
         control={control}
         name={'office_name_address' as FieldPath<T>}

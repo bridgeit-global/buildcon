@@ -240,6 +240,16 @@ export type NomineeFormValues = z.infer<typeof nomineeFormSchema>;
 export type BankFormValues = z.infer<typeof bankFormSchema>;
 export type KycUploadFormValues = z.infer<typeof kycUploadSchema>;
 
+export const DEFAULT_GUARDIAN_RELATION = 'Father';
+
+export function guardianNameFieldLabel(
+  relation: string | null | undefined
+): string {
+  const r = String(relation ?? '').trim() || DEFAULT_GUARDIAN_RELATION;
+  if (r.toLowerCase() === 'other') return 'Guardian name';
+  return `${r}'s name`;
+}
+
 export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
   full_name: '',
   phone: '',
@@ -249,7 +259,7 @@ export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
   occupation: '',
   nationality: 'Indian',
   guardian_name: '',
-  guardian_relation: '',
+  guardian_relation: DEFAULT_GUARDIAN_RELATION,
   residential_status: 'Resident Indian',
   passport_number: '',
   id_proof_type: '',
@@ -284,7 +294,7 @@ export function customerEditValuesFromCustomer(row: {
     pan_number: row.pan_number ?? '',
     aadhaar_last4: row.aadhaar_last4 ?? '',
     guardian_name: row.guardian_name ?? '',
-    guardian_relation: row.guardian_relation ?? '',
+    guardian_relation: row.guardian_relation?.trim() || DEFAULT_GUARDIAN_RELATION,
     residential_status: row.residential_status || 'Resident Indian',
     passport_number: row.passport_number ?? '',
     id_proof_type: row.id_proof_type ?? '',

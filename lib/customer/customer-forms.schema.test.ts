@@ -6,6 +6,8 @@ import {
   customerCreateSchema,
   customerEditPayload,
   customerEditSchema,
+  DEFAULT_GUARDIAN_RELATION,
+  guardianNameFieldLabel,
   kycIdentitySchema,
   kycUploadSchema,
   nomineeFormSchema
@@ -21,7 +23,7 @@ describe('customerCreateSchema', () => {
     occupation: '',
     nationality: 'Indian',
     guardian_name: '',
-    guardian_relation: '',
+    guardian_relation: DEFAULT_GUARDIAN_RELATION,
     residential_status: 'Resident Indian',
     passport_number: '',
     id_proof_type: '',
@@ -90,7 +92,7 @@ describe('customerEditSchema', () => {
     occupation: '',
     nationality: 'Indian',
     guardian_name: '',
-    guardian_relation: '',
+    guardian_relation: DEFAULT_GUARDIAN_RELATION,
     residential_status: 'Resident Indian',
     passport_number: '',
     id_proof_type: '',
@@ -271,6 +273,20 @@ describe('kycUploadSchema', () => {
   });
 });
 
+describe('guardianNameFieldLabel', () => {
+  it('uses relation-specific possessive labels', () => {
+    expect(guardianNameFieldLabel('Father')).toBe("Father's name");
+    expect(guardianNameFieldLabel('Mother')).toBe("Mother's name");
+    expect(guardianNameFieldLabel('Spouse')).toBe("Spouse's name");
+    expect(guardianNameFieldLabel('Other')).toBe('Guardian name');
+  });
+
+  it('defaults to Father when relation is empty', () => {
+    expect(guardianNameFieldLabel('')).toBe("Father's name");
+    expect(guardianNameFieldLabel(null)).toBe("Father's name");
+  });
+});
+
 describe('customer payload helpers', () => {
   it('customerCreatePayload normalizes phone', () => {
     const payload = customerCreatePayload({
@@ -282,7 +298,7 @@ describe('customer payload helpers', () => {
       occupation: '',
       nationality: 'Indian',
       guardian_name: '',
-      guardian_relation: '',
+      guardian_relation: DEFAULT_GUARDIAN_RELATION,
       residential_status: 'Resident Indian',
       passport_number: '',
       id_proof_type: '',
@@ -301,7 +317,7 @@ describe('customer payload helpers', () => {
       occupation: '',
       nationality: 'Indian',
       guardian_name: '',
-      guardian_relation: '',
+      guardian_relation: DEFAULT_GUARDIAN_RELATION,
       residential_status: 'Resident Indian',
       passport_number: '',
       id_proof_type: '',
