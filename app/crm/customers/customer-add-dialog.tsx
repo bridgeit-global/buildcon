@@ -65,7 +65,7 @@ export function CustomerAddDialog({
           </DialogHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <CustomerProfileFields control={control} />
+            <CustomerProfileFields control={control} showAddress />
           </div>
 
           <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">

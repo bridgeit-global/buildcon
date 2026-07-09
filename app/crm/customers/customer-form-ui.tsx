@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Control, FieldPath, FieldValues } from 'react-hook-form';
+import type { Control, FieldErrors, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller, useController, useWatch } from 'react-hook-form';
 import { TextInputField } from '@/components/ui/text-input-field';
-import { TextareaField } from '@/components/ui/textarea-field';
 import { Label } from '@/components/ui/label';
+import { FieldLabel } from '@/components/ui/field-label';
+import { Button } from '@/components/ui/button';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { PanInputField } from '@/components/ui/pan-input-field';
@@ -19,10 +20,17 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
-import { guardianNameFieldLabel } from '@/lib/customer/customer-forms.schema';
+import {
+  EMPTY_APPLICATION_ADDRESS,
+  guardianNameFieldLabel
+} from '@/lib/customer/customer-forms.schema';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
 import { mergeLookupOptions } from '@/lib/master/master-lookup';
 import { cn } from '@/lib/utils';
+import {
+  ApplicationAddressFields,
+  type ApplicationAddressValues
+} from '@/app/crm/bookings/application-address-fields';
 
 export const CUSTOMER_FORM_DIALOG_CLASS =
   'flex max-h-[min(90vh,720px)] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
@@ -161,31 +169,6 @@ export function RhfAadhaarInput<T extends FieldValues>({
   );
 }
 
-export function RhfTextarea<T extends FieldValues>({
-  control,
-  name,
-  label,
-  rows = 2,
-  className
-}: BaseProps<T> & { rows?: number }) {
-  return (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field, fieldState }) => (
-        <TextareaField
-          {...field}
-          value={field.value ?? ''}
-          label={label}
-          rows={rows}
-          className={className}
-          error={fieldState.error?.message}
-        />
-      )}
-    />
-  );
-}
-
 function RhfPassportInput<T extends FieldValues>({
   control
 }: {
@@ -257,12 +240,118 @@ function RhfCustomerRelationSelect<T extends FieldValues>({
   );
 }
 
+function addressFieldErrors(
+  errors:
+    | FieldErrors<ApplicationAddressValues>
+    | { message?: string }
+    | undefined
+) {
+  if (!errors || 'message' in errors) return {};
+  return {
+    line1: errors.address_line1?.message,
+    line2: errors.address_line2?.message,
+    line3: errors.address_line3?.message,
+    pin: errors.pin?.message,
+    state: errors.state?.message
+  };
+}
+
+function CustomerCreateAddressSection<T extends FieldValues>({
+  control
+}: {
+  control: Control<T>;
+}) {
+  const permanentSame = useWatch({
+    control,
+    name: 'permanent_same_as_correspondence' as FieldPath<T>
+  }) as 'same' | 'different' | undefined;
+
+  return (
+    <>
+      <div className="space-y-2 sm:col-span-2">
+        <FieldLabel required>Residential Address</FieldLabel>
+        <Controller
+          control={control}
+          name={'residential_address' as FieldPath<T>}
+          render={({ field, formState }) => (
+            <ApplicationAddressFields
+              values={field.value ?? EMPTY_APPLICATION_ADDRESS}
+              onChange={(patch) => field.onChange({ ...field.value, ...patch })}
+              errors={addressFieldErrors(
+                formState.errors.residential_address as
+                  | FieldErrors<ApplicationAddressValues>
+                  | undefined
+              )}
+            />
+          )}
+        />
+      </div>
+
+      <div className="space-y-3 sm:col-span-2">
+        <FieldLabel required>
+          Permanent Address same as Correspondence Address?
+        </FieldLabel>
+        <Controller
+          control={control}
+          name={'permanent_same_as_correspondence' as FieldPath<T>}
+          render={({ field }) => (
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['same', 'Same'],
+                  ['different', 'Different']
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={field.value === value ? 'default' : 'outline'}
+                  onClick={() => field.onChange(value)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          )}
+        />
+        {permanentSame === 'different' ? (
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-ds-gray-600">
+              Permanent Address
+            </Label>
+            <Controller
+              control={control}
+              name={'permanent_address' as FieldPath<T>}
+              render={({ field, formState }) => (
+                <ApplicationAddressFields
+                  values={field.value ?? EMPTY_APPLICATION_ADDRESS}
+                  onChange={(patch) =>
+                    field.onChange({ ...field.value, ...patch })
+                  }
+                  errors={addressFieldErrors(
+                    formState.errors.permanent_address as
+                      | FieldErrors<ApplicationAddressValues>
+                      | undefined
+                  )}
+                />
+              )}
+            />
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export function CustomerProfileFields<T extends FieldValues>({
   control,
-  showKyc = false
+  showKyc = false,
+  showAddress = false
 }: {
   control: Control<T>;
   showKyc?: boolean;
+  showAddress?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -352,12 +441,7 @@ export function CustomerProfileFields<T extends FieldValues>({
         )}
       />
       <RhfPassportInput control={control} />
-      <RhfTextarea
-        control={control}
-        name={'office_name_address' as FieldPath<T>}
-        label="Office name & address"
-        className="sm:col-span-2"
-      />
+      {showAddress ? <CustomerCreateAddressSection control={control} /> : null}
       {showKyc ? (
         <>
           <RhfPanInput

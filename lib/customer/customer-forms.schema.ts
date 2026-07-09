@@ -74,6 +74,35 @@ const ifscOptional = z.string().refine(
 
 const addressKind = z.enum(['current', 'permanent']);
 
+/** Address lines + PIN + state (no city) — used on customer create and application forms */
+export const applicationAddressFieldsSchema = z.object({
+  address_line1: z.string().trim().min(1, 'Address line 1 is required.'),
+  address_line2: z.string().trim().min(1, 'Address line 2 is required.'),
+  address_line3: z.string().trim().min(1, 'Address line 3 is required.'),
+  state: z.string().trim().min(1, 'State is required.'),
+  pin: z.string().trim().refine((v) => /^\d{6}$/.test(v), {
+    message: 'Enter a 6-digit PIN code.'
+  })
+});
+
+const optionalApplicationAddressFields = z.object({
+  address_line1: z.string(),
+  address_line2: z.string(),
+  address_line3: z.string(),
+  state: z.string(),
+  pin: z.string()
+});
+
+export const EMPTY_APPLICATION_ADDRESS: z.infer<
+  typeof applicationAddressFieldsSchema
+> = {
+  address_line1: '',
+  address_line2: '',
+  address_line3: '',
+  state: '',
+  pin: ''
+};
+
 const optionalPastDate = z.string().refine(isIsoDateNotAfterToday, {
   message: 'Date of birth cannot be in the future.'
 });
@@ -120,9 +149,36 @@ function refineCustomerProfile(
   }
 }
 
+function refineCustomerCreateAddresses(
+  data: z.infer<typeof customerProfileObject> & {
+    residential_address: z.infer<typeof applicationAddressFieldsSchema>;
+    permanent_same_as_correspondence: 'same' | 'different';
+    permanent_address: z.infer<typeof optionalApplicationAddressFields>;
+  },
+  ctx: z.RefinementCtx
+) {
+  refineCustomerProfile(data, ctx);
+  if (data.permanent_same_as_correspondence === 'different') {
+    const result = applicationAddressFieldsSchema.safeParse(data.permanent_address);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({
+          ...issue,
+          path: ['permanent_address', ...issue.path]
+        });
+      }
+    }
+  }
+}
+
 /** Add-customer dialog */
-export const customerCreateSchema =
-  customerProfileObject.superRefine(refineCustomerProfile);
+export const customerCreateSchema = customerProfileObject
+  .extend({
+    residential_address: applicationAddressFieldsSchema,
+    permanent_same_as_correspondence: z.enum(['same', 'different']),
+    permanent_address: optionalApplicationAddressFields
+  })
+  .superRefine(refineCustomerCreateAddresses);
 
 /** Edit-customer dialog (includes KYC identifiers on profile) */
 export const customerEditSchema = customerProfileObject
@@ -263,7 +319,10 @@ export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
   residential_status: 'Resident Indian',
   passport_number: '',
   id_proof_type: '',
-  office_name_address: ''
+  office_name_address: '',
+  residential_address: { ...EMPTY_APPLICATION_ADDRESS },
+  permanent_same_as_correspondence: 'same',
+  permanent_address: { ...EMPTY_APPLICATION_ADDRESS }
 };
 
 export function customerEditValuesFromCustomer(row: {
@@ -400,6 +459,29 @@ export function customerCreatePayload(values: CustomerCreateFormValues) {
     id_proof_type: values.id_proof_type.trim() || null,
     office_name_address: values.office_name_address.trim() || null
   };
+}
+
+function applicationAddressToDbRow(
+  addr: z.infer<typeof applicationAddressFieldsSchema>
+) {
+  return {
+    address_line1: addr.address_line1.trim(),
+    address_line2: addr.address_line2.trim() || null,
+    address_line3: addr.address_line3.trim() || null,
+    state: addr.state.trim() || null,
+    pin: addr.pin.trim() || null,
+    city: null as string | null
+  };
+}
+
+/** Correspondence (current) + permanent rows for customer_addresses after create */
+export function customerCreateAddressesPayload(values: CustomerCreateFormValues) {
+  const correspondence = applicationAddressToDbRow(values.residential_address);
+  const permanent =
+    values.permanent_same_as_correspondence === 'same'
+      ? correspondence
+      : applicationAddressToDbRow(values.permanent_address);
+  return { correspondence, permanent };
 }
 
 export function customerEditPayload(values: CustomerEditFormValues) {

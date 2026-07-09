@@ -24,6 +24,7 @@ import {
 import { CustomerProfileFields } from '@/app/crm/customers/customer-form-ui';
 import { CustomerListTable } from '@/app/crm/customers/customer-list-table';
 import {
+  customerCreateAddressesPayload,
   customerCreatePayload,
   customerCreateSchema,
   EMPTY_CUSTOMER_CREATE,
@@ -130,6 +131,15 @@ export default function CustomersPage() {
 
       if (insErr) throw insErr;
       const row = data as CustomerRow;
+
+      const { correspondence, permanent } =
+        customerCreateAddressesPayload(values);
+      const { error: addrErr } = await supabase.from('customer_addresses').insert([
+        { customer_id: row.id, kind: 'current', ...correspondence },
+        { customer_id: row.id, kind: 'permanent', ...permanent }
+      ]);
+      if (addrErr) throw addrErr;
+
       setCustomers((cs) => [row, ...cs]);
       setListTotal((t) => (t != null ? t + 1 : t));
       createForm.reset(EMPTY_CUSTOMER_CREATE);
@@ -163,8 +173,8 @@ export default function CustomersPage() {
                 Add customer
               </div>
               <div className="text-xs text-ds-gray-500">
-                Create a new customer record — fill in name, phone and optional
-                contact details.
+                Create a new customer record — name, phone, residential address and
+                optional contact details.
               </div>
             </div>
           </button>
@@ -187,7 +197,7 @@ export default function CustomersPage() {
             )}
             className="mt-4 flex flex-col gap-4"
           >
-            <CustomerProfileFields control={createForm.control} />
+            <CustomerProfileFields control={createForm.control} showAddress />
             <div className="flex justify-end gap-2 border-t border-ds-gray-100 pt-4">
               <Button
                 type="button"

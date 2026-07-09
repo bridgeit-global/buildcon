@@ -2,16 +2,26 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   addressFormSchema,
   bankFormSchema,
+  customerCreateAddressesPayload,
   customerCreatePayload,
   customerCreateSchema,
   customerEditPayload,
   customerEditSchema,
   DEFAULT_GUARDIAN_RELATION,
+  EMPTY_APPLICATION_ADDRESS,
   guardianNameFieldLabel,
   kycIdentitySchema,
   kycUploadSchema,
   nomineeFormSchema
 } from './customer-forms.schema';
+
+const validResidentialAddress = {
+  address_line1: '12 Main St',
+  address_line2: 'Near Park',
+  address_line3: 'Andheri West',
+  state: 'Maharashtra',
+  pin: '400001'
+};
 
 describe('customerCreateSchema', () => {
   const valid = {
@@ -27,7 +37,10 @@ describe('customerCreateSchema', () => {
     residential_status: 'Resident Indian',
     passport_number: '',
     id_proof_type: '',
-    office_name_address: ''
+    office_name_address: '',
+    residential_address: validResidentialAddress,
+    permanent_same_as_correspondence: 'same' as const,
+    permanent_address: { ...EMPTY_APPLICATION_ADDRESS }
   };
 
   it('accepts minimal valid payload', () => {
@@ -77,6 +90,32 @@ describe('customerCreateSchema', () => {
         ...valid,
         residential_status: 'NRI',
         id_proof_type: 'Passport'
+      }).success
+    ).toBe(true);
+  });
+
+  it('requires residential address fields', () => {
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_address: { ...EMPTY_APPLICATION_ADDRESS }
+      }).success
+    ).toBe(false);
+  });
+
+  it('requires permanent address when different from correspondence', () => {
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        permanent_same_as_correspondence: 'different',
+        permanent_address: { ...EMPTY_APPLICATION_ADDRESS }
+      }).success
+    ).toBe(false);
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        permanent_same_as_correspondence: 'different',
+        permanent_address: validResidentialAddress
       }).success
     ).toBe(true);
   });
@@ -302,9 +341,35 @@ describe('customer payload helpers', () => {
       residential_status: 'Resident Indian',
       passport_number: '',
       id_proof_type: '',
-      office_name_address: ''
+      office_name_address: '',
+      residential_address: validResidentialAddress,
+      permanent_same_as_correspondence: 'same',
+      permanent_address: { ...EMPTY_APPLICATION_ADDRESS }
     });
     expect(payload.phone).toBe('919876543210');
+  });
+
+  it('customerCreateAddressesPayload copies correspondence when same', () => {
+    const payload = customerCreateAddressesPayload({
+      full_name: 'Test User',
+      phone: '9876543210',
+      phone_secondary: '',
+      email: '',
+      dob: '',
+      occupation: '',
+      nationality: 'Indian',
+      guardian_name: '',
+      guardian_relation: DEFAULT_GUARDIAN_RELATION,
+      residential_status: 'Resident Indian',
+      passport_number: '',
+      id_proof_type: '',
+      office_name_address: '',
+      residential_address: validResidentialAddress,
+      permanent_same_as_correspondence: 'same',
+      permanent_address: { ...EMPTY_APPLICATION_ADDRESS }
+    });
+    expect(payload.correspondence.address_line1).toBe('12 Main St');
+    expect(payload.permanent).toEqual(payload.correspondence);
   });
 
   it('customerEditPayload includes normalized KYC', () => {
