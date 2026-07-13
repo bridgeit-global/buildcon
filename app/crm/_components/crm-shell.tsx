@@ -484,41 +484,6 @@ function CrmAppSidebar({
           })
         )}
       </SidebarContent>
-
-      <SidebarFooter
-        className={cn(
-          'border-t border-sidebar-border pb-3.5 pt-2.5',
-          iconCollapsed ? 'px-1.5' : 'px-3.5'
-        )}
-      >
-        {iconCollapsed ? (
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-[11px] font-bold text-sidebar-primary-foreground shadow-sm"
-              title={userEmail ?? 'Signed out'}
-            >
-              {initialsFromEmail(userEmail)}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-[11px] font-bold text-sidebar-primary-foreground shadow-sm"
-              aria-hidden="true"
-            >
-              {initialsFromEmail(userEmail)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] font-semibold text-sidebar-foreground">
-                {userEmail ?? 'Signed out'}
-              </div>
-              <p className="mt-0.5 text-[10px] text-sidebar-foreground/50">
-                Use account menu to sign out
-              </p>
-            </div>
-          </div>
-        )}
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
