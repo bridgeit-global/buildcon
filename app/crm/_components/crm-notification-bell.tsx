@@ -63,7 +63,7 @@ export function CrmNotificationBell() {
         type="button"
         variant="ghost"
         size="icon"
-        className="relative size-9 shrink-0"
+        className="relative size-9 shrink-0 rounded-xl"
         aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ''}`}
         onClick={() => {
           setOpen((v) => !v);
@@ -72,7 +72,7 @@ export function CrmNotificationBell() {
       >
         <Bell className="size-4" />
         {unread > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-teal-600 text-[9px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
             {unread > 9 ? '9+' : unread}
           </span>
         ) : null}

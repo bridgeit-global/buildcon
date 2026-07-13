@@ -10,7 +10,7 @@ import {
 } from './dashboard-theme';
 
 describe('CHART_SEGMENT_VAR_NAMES', () => {
-  it('lists teal design-token variables only', () => {
+  it('lists primary design-token variables only', () => {
     expect(CHART_SEGMENT_VAR_NAMES.length).toBeGreaterThan(0);
     expect(CHART_SEGMENT_VAR_NAMES.every((n) => n.startsWith('--ds-primary-'))).toBe(true);
   });

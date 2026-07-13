@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { ChartOptions } from 'chart.js';
+import { useTheme } from '@/components/theme-provider';
 import type { MonthPoint, SalesVsCollPoint, UnitStatusSlice } from './dashboard-utils';
 import {
   CHART_DEFAULTS,
@@ -74,6 +75,7 @@ function segmentColorsForBreakdown(
 export function InventoryDonutChart({ breakdown }: { breakdown: UnitStatusSlice[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<import('chart.js').Chart | null>(null);
+  const { brand, mode } = useTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -155,7 +157,7 @@ export function InventoryDonutChart({ breakdown }: { breakdown: UnitStatusSlice[
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [breakdown]);
+  }, [breakdown, brand, mode]);
 
   return (
     <div
@@ -170,6 +172,7 @@ export function InventoryDonutChart({ breakdown }: { breakdown: UnitStatusSlice[
 export function MonthlyCollectionsBarChart({ points }: { points: MonthPoint[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<import('chart.js').Chart | null>(null);
+  const { brand, mode } = useTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -212,7 +215,7 @@ export function MonthlyCollectionsBarChart({ points }: { points: MonthPoint[] })
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [points]);
+  }, [points, brand, mode]);
 
   return (
     <div className="h-[220px] w-full">
@@ -228,6 +231,7 @@ export function SalesVsCollectionsLineChart({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<import('chart.js').Chart | null>(null);
+  const { brand, mode } = useTheme();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -287,7 +291,7 @@ export function SalesVsCollectionsLineChart({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [points]);
+  }, [points, brand, mode]);
 
   return (
     <div className="h-[220px] w-full">

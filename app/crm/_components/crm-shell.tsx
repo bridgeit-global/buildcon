@@ -1,15 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Building2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  Search,
+  UserRound
 } from 'lucide-react';
 import {
   CRM_NAV_GROUPS,
@@ -22,8 +31,18 @@ import {
 import type { CrmProject } from './types';
 import { CrmProjectsProvider } from './active-project-context';
 import { CrmNotificationBell } from './crm-notification-bell';
+import { ThemeSwitcher } from '@/components/theme-switcher';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import {
   Sidebar,
   SidebarContent,
@@ -53,7 +72,7 @@ function initialsFromEmail(email: string | null) {
 }
 
 const sidebarProviderStyle = {
-  background: 'var(--crm-canvas, #f8f9fa)',
+  background: 'var(--crm-canvas)',
   '--sidebar-width': '14.5rem',
   '--sidebar-width-icon': '3.5rem'
 } as React.CSSProperties;
@@ -89,45 +108,210 @@ export function CrmShell({
       <CrmAppSidebar userEmail={userEmail} pathname={pathname} />
       <SidebarInset className="crm-scrollbar min-h-0 overflow-y-auto overscroll-contain">
         <CrmProjectsProvider value={{ projects }}>
-          <div className="p-4">
-            <nav
-              className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-[#667085]"
-              aria-label="Breadcrumb"
-            >
-              <Link
-                href="/crm/dashboard"
-                className="font-medium text-[#475467] underline-offset-2 hover:text-[#101828] hover:underline"
-              >
-                Dashboard
-              </Link>
-              {!isDashboardRoot ? (
-                <>
-                  <span className="text-[#98A2B3]" aria-hidden>
-                    /
-                  </span>
-                  <span className="max-w-[220px] truncate font-medium text-[#101828]">
-                    {breadcrumbModule}
-                  </span>
-                </>
-              ) : null}
-            </nav>
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+          <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-card/80">
+            <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <SidebarTrigger
-                  className="size-9 shrink-0 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 md:hidden"
+                  className="size-9 shrink-0 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
                   aria-label="Open navigation menu"
                 />
-                <h1 className="min-w-0 flex-1 text-base font-bold leading-snug text-[#101828] sm:text-lg">
-                  {pageHeading}
-                </h1>
+                <nav
+                  className="min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground hidden sm:flex"
+                  aria-label="Breadcrumb"
+                >
+                  <Link
+                    href="/crm/dashboard"
+                    className="font-medium text-ds-gray-600 underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+                  >
+                    Dashboard
+                  </Link>
+                  {!isDashboardRoot ? (
+                    <>
+                      <span className="text-ds-gray-400" aria-hidden>
+                        /
+                      </span>
+                      <span className="max-w-[220px] truncate font-medium text-foreground">
+                        {breadcrumbModule}
+                      </span>
+                    </>
+                  ) : null}
+                </nav>
+                <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+                  <CrmNavSearch navItems={flatNav} />
+                  <CrmNotificationBell />
+                  <ThemeSwitcher compact />
+                  <CrmUserMenu userEmail={userEmail} />
+                </div>
               </div>
-              <CrmNotificationBell />
+              <nav
+                className="min-w-0 truncate text-[11px] text-muted-foreground sm:hidden"
+                aria-label="Breadcrumb"
+              >
+                <Link
+                  href="/crm/dashboard"
+                  className="font-medium text-ds-gray-600"
+                >
+                  Dashboard
+                </Link>
+                {!isDashboardRoot ? (
+                  <span className="text-foreground">
+                    {' '}
+                    / {breadcrumbModule}
+                  </span>
+                ) : null}
+              </nav>
+              <h1 className="min-w-0 text-base font-bold leading-snug text-foreground sm:text-lg">
+                {pageHeading}
+              </h1>
             </div>
-            {children}
-          </div>
+          </header>
+          <div className="p-4 sm:p-5">{children}</div>
         </CrmProjectsProvider>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+function CrmNavSearch({
+  navItems
+}: {
+  navItems: ReturnType<typeof flattenCrmNav>;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return navItems.slice(0, 8);
+    return navItems
+      .filter(
+        (item) =>
+          item.label.toLowerCase().includes(q) ||
+          (item.pageTitle?.toLowerCase().includes(q) ?? false)
+      )
+      .slice(0, 8);
+  }, [navItems, query]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
+
+  const goTo = (href: string) => {
+    setOpen(false);
+    setQuery('');
+    router.push(href);
+  };
+
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    if (results[0]) goTo(results[0].href);
+  };
+
+  return (
+    <div ref={rootRef} className="relative hidden md:block">
+      <form onSubmit={onSubmit} className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search pages…"
+          className="h-9 w-44 rounded-xl border-border bg-background pl-8 text-xs shadow-sm transition-[width,box-shadow] duration-150 focus-visible:w-56 lg:w-52 lg:focus-visible:w-64"
+          aria-label="Search CRM pages"
+          aria-expanded={open}
+          aria-controls="crm-nav-search-results"
+          autoComplete="off"
+        />
+      </form>
+      {open ? (
+        <ul
+          id="crm-nav-search-results"
+          role="listbox"
+          className="absolute top-[calc(100%+6px)] right-0 z-30 w-64 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-md"
+        >
+          {results.length === 0 ? (
+            <li className="px-3 py-2 text-xs text-muted-foreground">
+              No matching pages
+            </li>
+          ) : (
+            results.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.id} role="option">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors duration-150 hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => goTo(item.href)}
+                  >
+                    <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 truncate font-medium">
+                      {item.label}
+                    </span>
+                  </button>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function CrmUserMenu({ userEmail }: { userEmail: string | null }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 gap-2 rounded-xl border-border bg-card px-2 shadow-sm transition-colors duration-150"
+          aria-label="User menu"
+        >
+          <span className="flex size-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+            {initialsFromEmail(userEmail)}
+          </span>
+          <span className="hidden max-w-[120px] truncate text-xs font-medium lg:inline">
+            {userEmail ?? 'Account'}
+          </span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex items-center gap-2">
+            <UserRound className="size-4 text-muted-foreground" aria-hidden />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-foreground">
+                {userEmail ?? 'Signed out'}
+              </p>
+              <p className="text-[11px] text-muted-foreground">CRM account</p>
+            </div>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild variant="destructive">
+          <Link href="/logout" className="cursor-pointer">
+            <LogOut className="size-4" aria-hidden />
+            Sign out
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -169,24 +353,27 @@ function CrmAppSidebar({
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-slate-200/90 shadow-[1px_0_0_0_rgba(15,23,42,0.04)]">
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border shadow-[1px_0_0_0_rgba(0,0,0,0.12)]"
+    >
       <SidebarHeader
         className={cn(
-          'border-b border-slate-200/80 pb-3 pt-4',
+          'border-b border-sidebar-border pb-3 pt-4',
           iconCollapsed ? 'px-1.5' : 'px-4'
         )}
       >
         {iconCollapsed ? (
           <div className="flex flex-col items-center gap-2">
             <Building2
-              className="size-[18px] shrink-0 text-(--crm-accent,#0d9488)"
+              className="size-[18px] shrink-0 text-sidebar-primary"
               aria-hidden
             />
             <Button
               onClick={toggleSidebar}
               variant="ghost"
               size="icon"
-              className="text-slate-600 hover:bg-slate-200/70 hover:text-slate-900"
+              className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               aria-label="Expand sidebar"
             >
               <ChevronRight className="size-4" aria-hidden />
@@ -195,14 +382,14 @@ function CrmAppSidebar({
         ) : (
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-slate-900">
+              <div className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-sidebar-foreground">
                 <Building2
-                  className="size-4 shrink-0 text-(--crm-accent,#0d9488)"
+                  className="size-4 shrink-0 text-sidebar-primary"
                   aria-hidden
                 />
                 BuildCon
               </div>
-              <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-slate-500">
+              <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-sidebar-foreground/55">
                 Redevelopment CRM
               </div>
             </div>
@@ -210,7 +397,7 @@ function CrmAppSidebar({
               onClick={toggleSidebar}
               variant="ghost"
               size="icon"
-              className="hidden shrink-0 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 md:inline-flex"
+              className="hidden shrink-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground md:inline-flex"
               aria-label="Collapse sidebar"
             >
               <ChevronLeft className="size-4" aria-hidden />
@@ -253,7 +440,7 @@ function CrmAppSidebar({
               <Fragment key={group.id}>
                 {isAdmin ? (
                   <div
-                    className="mx-0.5 my-2 border-t border-slate-200/90"
+                    className="mx-0.5 my-2 border-t border-sidebar-border"
                     role="separator"
                     aria-hidden
                   />
@@ -262,13 +449,13 @@ function CrmAppSidebar({
                   <button
                     type="button"
                     onClick={() => toggleSection(group.id)}
-                    className="flex w-full min-h-9 items-center justify-between gap-1 rounded-lg px-1.5 py-2 text-left text-[9px] font-extrabold uppercase tracking-widest text-slate-500 transition-colors hover:bg-slate-200/50 hover:text-slate-700"
+                    className="flex w-full min-h-9 items-center justify-between gap-1 rounded-lg px-1.5 py-2 text-left text-[9px] font-extrabold uppercase tracking-widest text-sidebar-foreground/50 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground/80"
                     aria-expanded={open}
                   >
                     <span className="truncate">{group.label}</span>
                     <ChevronDown
                       className={cn(
-                        'size-3.5 shrink-0 text-slate-400 transition-transform',
+                        'size-3.5 shrink-0 text-sidebar-foreground/40 transition-transform duration-150',
                         open ? 'rotate-0' : '-rotate-90'
                       )}
                       aria-hidden
@@ -300,45 +487,34 @@ function CrmAppSidebar({
 
       <SidebarFooter
         className={cn(
-          'border-t border-slate-200/80 pb-3.5 pt-2.5',
+          'border-t border-sidebar-border pb-3.5 pt-2.5',
           iconCollapsed ? 'px-1.5' : 'px-3.5'
         )}
       >
         {iconCollapsed ? (
           <div className="flex flex-col items-center gap-2">
             <div
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-(--crm-accent,#0d9488) text-[11px] font-bold text-white shadow-sm"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-[11px] font-bold text-sidebar-primary-foreground shadow-sm"
               title={userEmail ?? 'Signed out'}
             >
               {initialsFromEmail(userEmail)}
             </div>
-            <Link
-              href="/logout"
-              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-800"
-              title="Sign out"
-            >
-              <LogOut className="size-4" aria-hidden />
-              <span className="sr-only">Sign out</span>
-            </Link>
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
             <div
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-(--crm-accent,#0d9488) text-[11px] font-bold text-white shadow-sm"
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-[11px] font-bold text-sidebar-primary-foreground shadow-sm"
               aria-hidden="true"
             >
               {initialsFromEmail(userEmail)}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] font-semibold text-slate-900">
+              <div className="truncate text-[11px] font-semibold text-sidebar-foreground">
                 {userEmail ?? 'Signed out'}
               </div>
-              <Link
-                href="/logout"
-                className="mt-0.5 inline-block text-[10px] font-medium text-(--crm-accent,#0d9488) underline-offset-2 hover:underline"
-              >
-                Sign out
-              </Link>
+              <p className="mt-0.5 text-[10px] text-sidebar-foreground/50">
+                Use account menu to sign out
+              </p>
             </div>
           </div>
         )}
@@ -372,12 +548,12 @@ function CrmSidebarNavItem({
         isActive={active}
         tooltip={tooltip}
         className={cn(
-          'text-[12px] font-medium text-[#6C757D] hover:bg-slate-200/55 hover:text-slate-900',
+          'text-[12px] font-medium text-sidebar-foreground/65 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
           iconOnly
             ? 'mx-auto size-10 justify-center gap-0 rounded-lg p-0 [&>a>span]:sr-only'
             : 'h-auto gap-2.5 rounded-lg px-2.5 py-2.5',
           active &&
-            'bg-(--crm-accent,#0d9488)! font-semibold text-white! shadow-sm hover:bg-(--crm-accent,#0d9488)! hover:text-white! data-[active=true]:bg-(--crm-accent,#0d9488)! data-[active=true]:text-white!'
+            'bg-sidebar-primary! font-semibold text-sidebar-primary-foreground! shadow-sm hover:bg-sidebar-primary! hover:text-sidebar-primary-foreground! data-[active=true]:bg-sidebar-primary! data-[active=true]:text-sidebar-primary-foreground!'
         )}
       >
         <Link
@@ -390,7 +566,9 @@ function CrmSidebarNavItem({
             className={cn(
               'shrink-0',
               iconOnly ? 'size-[18px]' : 'size-4',
-              active ? 'text-white' : 'text-[#6C757D] opacity-90'
+              active
+                ? 'text-sidebar-primary-foreground'
+                : 'text-sidebar-foreground/65 opacity-90'
             )}
             aria-hidden
           />

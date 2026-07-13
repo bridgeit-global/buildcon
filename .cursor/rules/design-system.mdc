@@ -1,62 +1,77 @@
 ---
-description: Project-wide UI must match the teal dashboard reference — colors, cards, charts, and states.
+description: Multi-theme design system — Executive Blue default, Emerald Estate, Luxury Gold; light/dark; semantic tokens.
 alwaysApply: true
 ---
 
 # Project design system (reference)
 
-Applies to **every** user-facing surface in this repo (CRM, auth, admin, marketing, shared components, dialogs, tables, forms). Match the reference dashboard: white cards on a light canvas, **teal primary** accents, mint secondary accents, neutral gray text, rounded corners, subtle depth.
+Applies to **every** user-facing surface in this repo (CRM, auth, admin, marketing, shared components, dialogs, tables, forms). Premium enterprise UI: clean hierarchy, 12px radius, 150–200ms transitions, Inter typography, dark sidebar on light canvas.
 
-**Source of truth:** `app/globals.css` (`--crm-*`, `--ds-*`, `--primary`). Do not invent parallel palettes.
+**Source of truth:** `app/globals.css` (`data-theme` + `.dark`, `--crm-*`, `--ds-*`, shadcn semantic tokens). Theme brand + mode persist via `localStorage` (`buildcon_brand_theme`, `buildcon_color_mode`). Do not invent parallel palettes.
 
-## Colors
+## Brand themes
+
+| Brand | `data-theme` | Primary | Sidebar | Canvas |
+|-------|--------------|---------|---------|--------|
+| **Executive Blue** (default) | `executive` | `#2563EB` | `#0F172A` | `#F8FAFC` |
+| Emerald Estate | `emerald` | `#059669` | `#052E2B` | `#FAFAF9` |
+| Luxury Gold | `luxury` | `#C08B2D` | `#18181B` | `#FCFCFA` |
+
+Each brand has a **dark** variant (`.dark` on `<html>`). Components must use semantic tokens so they recolor instantly without per-theme branches.
+
+## Colors (semantic usage)
 
 | Role | Use |
 |------|-----|
-| Canvas / page bg | `--crm-canvas` (`#f8f9fa`) or `ds-gray-50` |
-| Nav / sidebar chrome | `--crm-sidebar-bg` (`#eef1f4`) |
-| Primary accent | `--crm-accent`, `--primary`, `ds-primary-500` (`#0d9488`) |
-| Emphasis / dark teal | `ds-primary-600` (`#0f766e`) |
-| Secondary tint | `ds-primary-300` (`#2dd4bf`) |
-| Cards | `bg-white`, shadcn `Card` |
-| Text | headings `ds-gray-800`–`900`, body `ds-gray-600`–`700`, labels `ds-gray-400`–`500` |
-| Borders / grid | `ds-gray-100`–`200` |
+| Canvas / page bg | `--crm-canvas`, `bg-background` |
+| Nav / sidebar chrome | `--sidebar`, `--crm-sidebar-bg`, `bg-sidebar` |
+| Primary accent | `--primary`, `--crm-accent`, `ds-primary-500` |
+| Emphasis | `ds-primary-600` |
+| Soft tint | `ds-primary-100`–`300` |
+| Cards | `bg-card` / white on light; shadcn `Card` |
+| Text | `text-foreground`, `ds-gray-800`–`900` headings; muted `text-muted-foreground` / `ds-gray-400`–`500` |
+| Borders / grid | `border-border`, `ds-gray-100`–`200` |
 
-- No new primary accent hues (blue, purple, brand-orange) unless the user explicitly requests them.
+- Prefer shadcn semantic classes (`bg-primary`, `text-muted-foreground`, `border-border`) and `ds-*` scales over raw hex.
 - Success / warning / error: `ds-success-*`, `ds-warning-*`, `ds-error-*` only for semantic meaning.
-- Prefer `ds-*` Tailwind classes and CSS variables over raw hex in TSX/CSS.
+- Theme switching: `ThemeProvider` + `ThemeSwitcher` — never hard-code a single brand hue in new UI.
 
 ## Surfaces, type, icons
 
-- Cards: white, `rounded-xl`, light border (`ds-gray-200` / `border-slate-200`), `shadow-sm`, padding `p-4`–`p-6`.
-- Active nav / selected tab / highlighted KPI: `bg-ds-primary-500` or `bg-(--crm-accent)` + **white** text/icons; inactive = gray on light background.
-- Titles and metrics: semibold/bold; labels: smaller + `text-ds-gray-500`.
-- Icons: minimal line style; active = white on teal, inactive = gray.
+- Cards: `bg-card`, `rounded-xl` (12px), light border, `shadow-sm`, padding `p-4`–`p-6`.
+- Active nav: `bg-sidebar-primary` + `text-sidebar-primary-foreground`; inactive = muted sidebar foreground.
+- Titles and metrics: semibold/bold; labels: smaller + muted.
+- Icons: minimal line style; Inter via `--font-inter`.
 
 ## Charts and data viz
 
-**Default: teal light shades only** — bars, areas, pie/donut segments, and heatmap cells use the light end of the primary scale unless the user explicitly asks otherwise.
+Use the **current brand’s** primary scale (`ds-primary-*`) — not a fixed teal palette and not library rainbow defaults.
 
 | Use | Token / value |
 |-----|----------------|
-| Default bar/segment fill | `ds-primary-200` (`#5eead4`) or `ds-primary-300` (`#2dd4bf`) |
-| Lighter fill / background band | `ds-primary-100`, `ds-primary-50`, or `rgba(13, 148, 136, 0.12)` |
-| Multi-series (same chart) | Step through **light teal only**: `ds-primary-100` → `200` → `300` → `400` — never blue, purple, orange, or library defaults |
-| Line / emphasis stroke | `ds-primary-500`–`600` on top of light fills |
-| Comparison / muted series | `ds-gray-400`–`500` — not a second hue |
-| Axes, grid, legend text | `ds-gray-100`–`200` grid; `ds-gray-400`–`500` labels |
+| Default bar/segment fill | `ds-primary-200` or `ds-primary-300` |
+| Lighter fill / background band | `ds-primary-100`, `ds-primary-50`, or primary at ~12% alpha |
+| Multi-series (same chart) | Step `ds-primary-100` → `200` → `300` → `400` |
+| Line / emphasis stroke | `ds-primary-500`–`600` |
+| Comparison / muted series | `ds-gray-400`–`500` |
+| Axes, grid, legend | `ds-gray-100`–`200` grid; `ds-gray-400`–`500` labels |
 
-- **Do not** use Recharts/Chart.js/theme rainbow palettes, `#8884d8`, `#82ca9d`, or semantic greens/oranges for generic charts (reserve `ds-success-*` / `ds-warning-*` only when the metric is explicitly success/warning).
-- Reuse or extend `getDashboardChartColors()` / `CHART_SEGMENT_VAR_NAMES` in `app/crm/dashboard/dashboard-theme.ts` — map to `--ds-*` vars from `globals.css`; resolve inside chart `useEffect`, not inline hex in components.
-- Area fills: low-opacity teal/mint only; no saturated multi-color stacks.
+- Reuse `getDashboardChartColors()` / `CHART_SEGMENT_VAR_NAMES` in `app/crm/dashboard/dashboard-theme.ts` (cache clears on theme change).
+- Resolve colors inside chart `useEffect`; depend on theme brand/mode so charts redraw.
 
 ## Actions
 
-- Primary button: teal fill, white text, `rounded-lg`.
-- Secondary: white surface + teal text/border; avoid gray-filled primaries.
+- Primary button: `bg-primary` + `text-primary-foreground`, `rounded-lg` / `rounded-xl`.
+- Secondary: outline / ghost on card surface; avoid gray-filled primaries.
+
+## Shared primitives
+
+- Empty: `components/ui/empty-state.tsx`
+- Error: `components/ui/error-state.tsx` + `app/crm/error.tsx`
+- Slide-over forms: `components/ui/form-drawer.tsx` (Sheet wrapper)
 
 ## Checklist
 
-1. Tokens from `globals.css` — not one-off hex.
-2. Same visual language on mobile/tablet (see `responsive-ui-ux` rule).
-3. Reference: `assets/SCR-20260515-nxii-55c958b3-0414-4feb-8a2a-719566ab9e85.png`.
+1. Tokens from `globals.css` — not one-off hex for brand colors.
+2. Works in all three brands × light/dark.
+3. Same visual language on mobile/tablet (see `responsive-ui-ux` rule).

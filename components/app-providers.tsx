@@ -2,11 +2,12 @@
 
 import type { ReactNode } from 'react';
 import NextTopLoader from 'nextjs-toploader';
+import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <>
+    <ThemeProvider>
       <NextTopLoader
         color="var(--ds-primary-500)"
         height={3}
@@ -15,6 +16,6 @@ export function AppProviders({ children }: { children: ReactNode }) {
       />
       {children}
       <Toaster />
-    </>
+    </ThemeProvider>
   );
 }

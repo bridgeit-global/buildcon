@@ -68,9 +68,30 @@ function withAlpha(hex: string, alpha: number): string {
 }
 
 let chartColorsCache: DashboardChartColors | null = null;
+let themeWatchInstalled = false;
+
+/** Clear cached chart colors when brand theme or color mode changes. */
+export function clearDashboardChartColorsCache(): void {
+  chartColorsCache = null;
+}
+
+function ensureThemeWatch(): void {
+  if (typeof window === 'undefined' || themeWatchInstalled) return;
+  themeWatchInstalled = true;
+  const invalidate = () => {
+    chartColorsCache = null;
+  };
+  window.addEventListener('buildcon:themechange', invalidate);
+  const observer = new MutationObserver(invalidate);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class', 'data-theme']
+  });
+}
 
 /** Resolve chart colors from design tokens (client-only; call inside `useEffect`). */
 export function getDashboardChartColors(): DashboardChartColors {
+  ensureThemeWatch();
   if (chartColorsCache) return chartColorsCache;
 
   const salesBase = readDsVar(CHART_VAR_MAP.salesLine);

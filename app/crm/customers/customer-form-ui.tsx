@@ -240,13 +240,29 @@ function RhfCustomerRelationSelect<T extends FieldValues>({
   );
 }
 
+function isAddressFieldErrors(
+  errors:
+    | FieldErrors<ApplicationAddressValues>
+    | { message?: string }
+    | undefined
+): errors is FieldErrors<ApplicationAddressValues> {
+  return (
+    !!errors &&
+    ('address_line1' in errors ||
+      'address_line2' in errors ||
+      'address_line3' in errors ||
+      'pin' in errors ||
+      'state' in errors)
+  );
+}
+
 function addressFieldErrors(
   errors:
     | FieldErrors<ApplicationAddressValues>
     | { message?: string }
     | undefined
 ) {
-  if (!errors || 'message' in errors) return {};
+  if (!isAddressFieldErrors(errors)) return {};
   return {
     line1: errors.address_line1?.message,
     line2: errors.address_line2?.message,

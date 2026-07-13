@@ -442,8 +442,10 @@ export function kycIdentityValuesFromCustomer(row: {
   };
 }
 
+type CustomerProfileValues = z.infer<typeof customerProfileObject>;
+
 /** Payload helpers after successful parse */
-export function customerCreatePayload(values: CustomerCreateFormValues) {
+export function customerCreatePayload(values: CustomerProfileValues) {
   return {
     full_name: values.full_name.trim(),
     phone: normalizePhoneDigits(values.phone),

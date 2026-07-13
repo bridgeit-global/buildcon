@@ -341,10 +341,7 @@ describe('customer payload helpers', () => {
       residential_status: 'Resident Indian',
       passport_number: '',
       id_proof_type: '',
-      office_name_address: '',
-      residential_address: validResidentialAddress,
-      permanent_same_as_correspondence: 'same',
-      permanent_address: { ...EMPTY_APPLICATION_ADDRESS }
+      office_name_address: ''
     });
     expect(payload.phone).toBe('919876543210');
   });
