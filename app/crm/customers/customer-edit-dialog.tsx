@@ -42,6 +42,9 @@ export function CustomerEditDialog({
     resolver: zodResolver(customerEditSchema),
     defaultValues: customerEditValuesFromCustomer(
       customer ?? {
+        first_name: '',
+        middle_name: '',
+        last_name: '',
         full_name: '',
         phone: null,
         email: null,

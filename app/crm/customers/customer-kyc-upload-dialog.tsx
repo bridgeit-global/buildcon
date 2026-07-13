@@ -188,7 +188,7 @@ export function CustomerKycUploadDialog({
                     />
                   )}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Stored on the customer profile when you upload.
                 </p>
               </div>
@@ -221,14 +221,14 @@ export function CustomerKycUploadDialog({
                       type="file"
                       accept={kycFileAcceptForDocType(docType)}
                       onChange={syncHasFile}
-                      className="mt-1 block h-auto py-1.5 text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                      className="mt-1 block h-auto py-1.5 text-sm text-ds-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
                       aria-invalid={fieldState.error ? true : undefined}
                     />
                     <FormFieldError message={fieldState.error?.message} />
                   </>
                 )}
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {docType === 'photo'
                   ? 'JPEG, PNG, or WebP only.'
                   : 'PDF or image (JPEG, PNG, WebP).'}

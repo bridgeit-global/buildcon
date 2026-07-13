@@ -388,7 +388,7 @@ function NewInquiryPageInner() {
         <BackButton href="/crm/inquiry" label="Leads overview" />
       </div>
 
-      <Card className="overflow-hidden border-slate-200/90 p-0 shadow-sm">
+      <Card className="overflow-hidden border-border/90 p-0 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border bg-muted/20 px-4 py-3 sm:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -400,7 +400,7 @@ function NewInquiryPageInner() {
               </p>
             ) : null}
           </div>
-          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+          <span className="inline-flex items-center rounded-full bg-ds-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ds-gray-700">
             {inquiryId ? 'Pipeline' : 'New enquiry'}
           </span>
         </div>
@@ -439,7 +439,7 @@ function NewInquiryPageInner() {
               {pipelineUnitStageNote ? (
                 <div
                   role="status"
-                  className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-950"
+                  className="mb-4 rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs leading-snug text-ds-warning-900"
                 >
                   {pipelineUnitStageNote}
                 </div>

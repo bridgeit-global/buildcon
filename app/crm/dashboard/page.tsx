@@ -319,7 +319,7 @@ export default function DashboardPage() {
           </ChartPanel>
 
           {recentBookings.length > 0 ? (
-            <Card className="overflow-hidden rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <Card className="overflow-hidden rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm sm:p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-ds-gray-800">Recent bookings</h2>
                 <Link

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { normalizeAadhaar, normalizePan } from '@/lib/customer/kyc-identifiers';
+import { namePartsFromFullName } from '@/lib/person-name';
 
 type AddressPayload = {
   address_line1: string | null;
@@ -114,7 +115,7 @@ export async function POST(
   }
 
   const customerPatch: Record<string, unknown> = {
-    full_name: body.full_name.trim()
+    ...namePartsFromFullName(body.full_name.trim())
   };
   if (body.phone) customerPatch.phone = body.phone.replace(/\D/g, '');
   customerPatch.phone_secondary = body.phone_secondary

@@ -102,6 +102,7 @@ import {
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
 import { zodFieldErrors } from '@/lib/form/zod-field-errors';
 import { FormFieldError } from '@/components/ui/form-field-error';
+import { namePartsFromFullName } from '@/lib/person-name';
 
 type UnitOption = {
   id: string;
@@ -1046,7 +1047,7 @@ export default function BookingsPage() {
       const { data, error: insErr } = await supabase
         .from('customers')
         .insert({
-          full_name,
+          ...namePartsFromFullName(full_name),
           phone: digits,
           email: parsed.data.email.trim() || null
         })
@@ -1385,19 +1386,19 @@ export default function BookingsPage() {
         {createFormOpen ? (
           <div id="create-booking-form" className="mt-4 flex flex-col gap-4">
         {prefillMeta ? (
-          <div className="overflow-hidden rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50 via-white to-slate-50 shadow-sm">
-            <div className="flex items-start justify-between gap-3 border-b border-emerald-100 px-4 py-3">
+          <div className="overflow-hidden rounded-xl border border-ds-success-200/90 bg-linear-to-br from-ds-success-50 via-card to-ds-gray-50 shadow-sm">
+            <div className="flex items-start justify-between gap-3 border-b border-ds-success-100 px-4 py-3">
               <div className="flex gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-ds-success-600 text-white shadow-sm">
                   <Sparkles className="size-5" aria-hidden />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">
+                  <div className="text-sm font-semibold text-foreground">
                     From inquiry
                   </div>
-                  <div className="mt-0.5 text-xs leading-snug text-slate-600">
+                  <div className="mt-0.5 text-xs leading-snug text-ds-gray-600">
                     {prefillMeta.inquiryRef ? (
-                      <span className="font-semibold text-emerald-900">
+                      <span className="font-semibold text-ds-success-900">
                         {prefillMeta.inquiryRef}
                       </span>
                     ) : (
@@ -1413,7 +1414,7 @@ export default function BookingsPage() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="shrink-0 text-slate-500 hover:text-slate-900"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
                 title="Dismiss banner"
                 onClick={() => {
                   setPrefillMeta(null);
@@ -1427,7 +1428,7 @@ export default function BookingsPage() {
               </Button>
             </div>
             {unitFromInquiryUnavailable ? (
-              <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950">
+              <div className="border-b border-ds-warning-200 bg-ds-warning-50 px-4 py-2.5 text-xs leading-relaxed text-ds-warning-900">
                 {inquiryBookingBlockMessage ? (
                   <span>{inquiryBookingBlockMessage}</span>
                 ) : (
@@ -1463,12 +1464,12 @@ export default function BookingsPage() {
               </div>
             ) : null}
             {inquiryBookingBlockMessage ? (
-              <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950">
+              <div className="border-b border-ds-warning-200 bg-ds-warning-50 px-4 py-2.5 text-xs leading-relaxed text-ds-warning-900">
                 {inquiryBookingBlockMessage}
               </div>
             ) : null}
             {linkedCustomerMissing ? (
-              <div className="flex flex-col gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs leading-relaxed text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 border-b border-ds-warning-200 bg-ds-warning-50 px-4 py-2.5 text-xs leading-relaxed text-ds-warning-900 sm:flex-row sm:items-center sm:justify-between">
                 <span>
                   The customer linked to this unit was not found. Create the customer
                   record to continue booking.
@@ -1477,7 +1478,7 @@ export default function BookingsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="shrink-0 border-amber-300 bg-white text-amber-950 hover:bg-amber-100"
+                  className="shrink-0 border-ds-warning-300 bg-card text-ds-warning-900 hover:bg-ds-warning-100"
                   onClick={() => {
                     setNewCustomerDraft({ full_name: '', phone: '', email: '' });
                     setAddCustomerCoSlotKey(null);
@@ -1492,7 +1493,7 @@ export default function BookingsPage() {
         ) : null}
 
         {createdBookingId ? (
-          <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <div className="mt-3 rounded-md border border-ds-success-200 bg-ds-success-50 p-3 text-sm text-ds-success-800">
             Booking created:{' '}
             <strong>{formatBookingDisplayId(createdBookingId)}</strong>
           </div>
@@ -1558,7 +1559,7 @@ export default function BookingsPage() {
                 Loading customer from enquiry…
               </p>
             ) : linkedCustomerMissing ? (
-              <p className="mt-1 text-xs text-amber-800">
+              <p className="mt-1 text-xs text-ds-warning-800">
                 No customer linked to this unit. Use Add customer now above.
               </p>
             ) : selectedCustomer ? (
@@ -1713,7 +1714,7 @@ export default function BookingsPage() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-red-600 hover:text-red-700"
+                          className="text-ds-error-600 hover:text-ds-error-700"
                           onClick={() =>
                             setCoBuyerSlots((prev) =>
                               prev.filter((s) => s.key !== slot.key)
@@ -1845,13 +1846,13 @@ export default function BookingsPage() {
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <Card className="p-4">
-            <div className="text-xs font-semibold text-gray-500">Unit</div>
+            <div className="text-xs font-semibold text-muted-foreground">Unit</div>
             {unitForCostPreview ? (
               <div className="mt-2 text-sm">
-                <div className="font-semibold text-gray-900">
+                <div className="font-semibold text-foreground">
                   {unitForCostPreview.unit_code}
                 </div>
-                <div className="text-gray-600">
+                <div className="text-ds-gray-600">
                   {unitForCostPreview.wing_name} ·{' '}
                   {formatFloorLabel(
                     unitForCostPreview.floor,
@@ -1859,7 +1860,7 @@ export default function BookingsPage() {
                   )}{' '}
                   · {unitForCostPreview.unit_type ?? '—'}
                 </div>
-                <div className="mt-1 text-gray-600">
+                <div className="mt-1 text-ds-gray-600">
                   Billable:{' '}
                   {unitBillableAreaSqft(unitForCostPreview) ||
                     unitForCostPreview.area ||
@@ -1874,7 +1875,7 @@ export default function BookingsPage() {
                     : '—'}
                 </div>
                 {unitFromInquiryUnavailable ? (
-                  <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-950">
+                  <p className="mt-2 rounded-md border border-ds-warning-200 bg-ds-warning-50 px-2 py-1.5 text-xs text-ds-warning-900">
                     {paymentCostOverviewMode != null
                       ? 'Inquiry unit — pick another unit above to book. Full cost breakdown is in Payment & cost overview above.'
                       : 'Inquiry unit — pick another unit above to book; select a unit to see pricing.'}
@@ -1882,34 +1883,34 @@ export default function BookingsPage() {
                 ) : null}
               </div>
             ) : (
-              <div className="mt-2 text-sm text-gray-500">No unit selected.</div>
+              <div className="mt-2 text-sm text-muted-foreground">No unit selected.</div>
             )}
           </Card>
           <Card className="p-4">
-            <div className="text-xs font-semibold text-gray-500">Customer</div>
+            <div className="text-xs font-semibold text-muted-foreground">Customer</div>
             {selectedCustomer ? (
               <div className="mt-2 text-sm">
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Primary
                 </div>
-                <div className="mt-1 font-semibold text-gray-900">
+                <div className="mt-1 font-semibold text-foreground">
                   {selectedCustomer.full_name}
                 </div>
-                <div className="text-gray-600">
+                <div className="text-ds-gray-600">
                   {selectedCustomer.phone ?? '—'} · {selectedCustomer.email ?? '—'}
                 </div>
                 {selectedCoBuyersResolved.length > 0 ? (
-                  <div className="mt-3 border-t border-gray-200 pt-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <div className="mt-3 border-t border-border pt-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Co-buyer(s)
                     </div>
                     <ul className="mt-2 space-y-2">
                       {selectedCoBuyersResolved.map((c) => (
                         <li key={c.id}>
-                          <div className="font-semibold text-gray-900">
+                          <div className="font-semibold text-foreground">
                             {c.full_name}
                           </div>
-                          <div className="text-gray-600">
+                          <div className="text-ds-gray-600">
                             {c.phone ?? '—'} · {c.email ?? '—'}
                           </div>
                         </li>
@@ -1919,7 +1920,7 @@ export default function BookingsPage() {
                 ) : null}
               </div>
             ) : (
-              <div className="mt-2 text-sm text-gray-500">
+              <div className="mt-2 text-sm text-muted-foreground">
                 No customer selected.
               </div>
             )}
@@ -1945,7 +1946,7 @@ export default function BookingsPage() {
             financialTotal={paymentFinancialTotal}
             alert={
               paymentCostOverviewMode === 'inquiry' && inquiryUnitMismatch ? (
-                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                <div className="mt-3 rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs text-ds-warning-900">
                   You selected a different unit than the inquiry. Parking lines
                   below follow the new unit (no inquiry parking until you align with
                   sales).
@@ -1977,10 +1978,10 @@ export default function BookingsPage() {
       <Card className="p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-gray-900">
+            <div className="text-sm font-semibold text-foreground">
               Booking management
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-muted-foreground">
               Token → Application → Allotment → Confirmation ({bookings.length} total).
             </div>
           </div>

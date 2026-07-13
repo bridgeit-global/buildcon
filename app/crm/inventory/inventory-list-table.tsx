@@ -249,7 +249,7 @@ export function InventoryListTable({
             {isUnitAvailableForBooking(row.original.status) ? (
               <button
                 type="button"
-                className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-600 hover:bg-green-100"
+                className="rounded border border-ds-success-200 bg-ds-success-50 px-2 py-0.5 text-[10px] font-semibold text-ds-success-600 hover:bg-ds-success-100"
                 onClick={() => onEdit(row.original)}
               >
                 Edit

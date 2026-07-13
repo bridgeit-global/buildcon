@@ -87,16 +87,16 @@ export function CrmNotificationBell() {
             onClick={() => setOpen(false)}
           />
           <div
-            className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+            className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-border bg-card shadow-lg"
             role="dialog"
             aria-label="Notifications"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
-              <p className="text-xs font-semibold text-slate-800">Notifications</p>
+            <div className="flex items-center justify-between border-b border-ds-gray-100 px-3 py-2">
+              <p className="text-xs font-semibold text-ds-gray-800">Notifications</p>
               {unread > 0 ? (
                 <button
                   type="button"
-                  className="text-[10px] font-medium text-teal-700 hover:underline"
+                  className="text-[10px] font-medium text-ds-primary-700 hover:underline"
                   onClick={() =>
                     void fetch('/api/crm/notifications', {
                       method: 'PATCH',
@@ -119,7 +119,7 @@ export function CrmNotificationBell() {
                   </div>
                 </li>
               ) : rows.length === 0 ? (
-                <li className="px-3 py-4 text-center text-xs text-slate-500">
+                <li className="px-3 py-4 text-center text-xs text-muted-foreground">
                   No notifications yet.
                 </li>
               ) : (
@@ -127,8 +127,8 @@ export function CrmNotificationBell() {
                   <li
                     key={n.id}
                     className={cn(
-                      'border-b border-slate-50 px-3 py-2.5 last:border-0',
-                      !n.read_at && 'bg-teal-50/40'
+                      'border-b border-ds-gray-50 px-3 py-2.5 last:border-0',
+                      !n.read_at && 'bg-ds-primary-50/40'
                     )}
                   >
                     {n.link_path ? (
@@ -159,11 +159,11 @@ export function CrmNotificationBell() {
 function NotificationItem({ row }: { row: NotificationRow }) {
   return (
     <div className="min-w-0">
-      <p className="truncate text-xs font-semibold text-slate-900">{row.title}</p>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-600">
+      <p className="truncate text-xs font-semibold text-foreground">{row.title}</p>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ds-gray-600">
         {row.body}
       </p>
-      <p className="mt-1 text-[10px] text-slate-400">
+      <p className="mt-1 text-[10px] text-ds-gray-400">
         {formatDisplayDateTime(row.created_at)}
       </p>
     </div>

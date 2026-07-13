@@ -200,7 +200,7 @@ export function staffNotificationEmailHtml(params: {
   const href =
     link.startsWith('http://') || link.startsWith('https://') ? link : '';
   const cta = href
-    ? `<p style="margin-top:16px"><a href="${href}" style="color:#0d9488;font-weight:600">Open in BuildCon CRM</a></p>`
+    ? `<p style="margin-top:16px"><a href="${href}" style="color:#2563eb;font-weight:600">Open in BuildCon CRM</a></p>`
     : '';
   return `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#1e293b">
 <p style="font-weight:600;margin:0 0 8px">${params.title}</p>

@@ -13,11 +13,11 @@ export default async function CrmLayout({ children }: { children: ReactNode }) {
         className="flex min-h-screen items-center justify-center p-6"
         style={{ background: 'var(--crm-canvas, #f8f9fa)' }}
       >
-        <div className="max-w-lg rounded-2xl border border-slate-200/90 bg-white p-6 text-sm shadow-sm">
-          <div className="text-base font-semibold text-slate-900">
+        <div className="max-w-lg rounded-2xl border border-border bg-card p-6 text-sm shadow-sm">
+          <div className="text-base font-semibold text-foreground">
             Supabase is not configured
           </div>
-          <div className="mt-2 text-slate-600">
+          <div className="mt-2 text-ds-gray-600">
             Set `NEXT_PUBLIC_SUPABASE_URL` and
             `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local`, then restart
             the dev server.

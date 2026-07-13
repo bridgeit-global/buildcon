@@ -27,25 +27,25 @@ export default function NotFound() {
   }, [pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-ds-primary-25 to-background p-4">
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">
           {subdomain ? (
             <>
-              <span className="text-blue-600">{subdomain}</span>.{rootDomain}{' '}
+              <span className="text-ds-primary-600">{subdomain}</span>.{rootDomain}{' '}
               doesn't exist
             </>
           ) : (
             'Subdomain Not Found'
           )}
         </h1>
-        <p className="mt-3 text-lg text-gray-600">
+        <p className="mt-3 text-lg text-ds-gray-600">
           This subdomain hasn't been created yet.
         </p>
         <div className="mt-6">
           <Link
             href={`${protocol}://${rootDomain}`}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             {subdomain ? `Create ${subdomain}` : `Go to ${rootDomain}`}
           </Link>

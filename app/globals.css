@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -139,8 +139,9 @@
 /*
  * Executive Blue (default) — light
  * Primary #2563EB · Sidebar #0F172A · Canvas #F8FAFC
+ * Prefer [data-theme] over bare :root so brand switches are not fought by :root.
  */
-:root,
+:root[data-theme="executive"],
 [data-theme="executive"] {
   --crm-sidebar-bg: #0f172a;
   --crm-accent: #2563eb;
@@ -303,7 +304,6 @@
 }
 
 /* Executive Blue — dark */
-.dark,
 .dark[data-theme="executive"] {
   --crm-sidebar-bg: #020617;
   --crm-accent: #3b82f6;

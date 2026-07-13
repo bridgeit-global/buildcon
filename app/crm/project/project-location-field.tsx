@@ -129,7 +129,7 @@ export function ProjectLocationField({
           <ul
             id={listId}
             role="listbox"
-            className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-ds-gray-200 bg-white py-1 shadow-md"
+            className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-ds-gray-200 bg-card py-1 shadow-md"
           >
             {loading && results.length === 0 ? (
               <li className="px-3 py-2 text-sm text-ds-gray-500">Searching…</li>

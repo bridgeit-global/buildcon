@@ -7,7 +7,9 @@ import {
 
 describe('brokerFormSchema', () => {
   const valid = {
-    full_name: 'Prime Brokers',
+    first_name: 'Prime',
+    middle_name: '',
+    last_name: 'Brokers',
     phone: '9876543210',
     email: 'broker@example.com',
     license_no: 'BR-001',
@@ -29,9 +31,12 @@ describe('brokerFormSchema', () => {
     ).toBe(true);
   });
 
-  it('rejects empty broker name', () => {
+  it('rejects empty first or last name', () => {
     expect(
-      brokerFormSchema.safeParse({ ...valid, full_name: '' }).success
+      brokerFormSchema.safeParse({ ...valid, first_name: '' }).success
+    ).toBe(false);
+    expect(
+      brokerFormSchema.safeParse({ ...valid, last_name: '' }).success
     ).toBe(false);
   });
 
@@ -49,16 +54,20 @@ describe('brokerFormSchema', () => {
 });
 
 describe('brokerFormPayload', () => {
-  it('normalizes phone digits and trims strings', () => {
+  it('normalizes phone digits and composes full_name', () => {
     const payload = brokerFormPayload({
       ...EMPTY_BROKER_FORM,
-      full_name: '  Broker Co  ',
+      first_name: '  Broker  ',
+      middle_name: '',
+      last_name: '  Co  ',
       phone: '+91 98765 43210',
       email: '  a@b.com  ',
       license_no: ' L-1 ',
       notes: ' note '
     });
     expect(payload.full_name).toBe('Broker Co');
+    expect(payload.first_name).toBe('Broker');
+    expect(payload.last_name).toBe('Co');
     expect(payload.phone).toBe('919876543210');
     expect(payload.email).toBe('a@b.com');
     expect(payload.license_no).toBe('L-1');
@@ -68,7 +77,8 @@ describe('brokerFormPayload', () => {
   it('maps blank optional fields to null', () => {
     const payload = brokerFormPayload({
       ...EMPTY_BROKER_FORM,
-      full_name: 'Solo Broker',
+      first_name: 'Solo',
+      last_name: 'Broker',
       phone: '',
       email: '',
       license_no: '',
@@ -78,5 +88,6 @@ describe('brokerFormPayload', () => {
     expect(payload.email).toBeNull();
     expect(payload.license_no).toBeNull();
     expect(payload.notes).toBeNull();
+    expect(payload.middle_name).toBeNull();
   });
 });

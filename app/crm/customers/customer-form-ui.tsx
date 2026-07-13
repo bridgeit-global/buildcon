@@ -371,14 +371,28 @@ export function CustomerProfileFields<T extends FieldValues>({
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <RhfTextInput
-        control={control}
-        name={'full_name' as FieldPath<T>}
-        label="Full name"
-        required
-        placeholder="e.g. Mr. Amit Deshmukh"
-        className="sm:col-span-2"
-      />
+      <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
+        <RhfTextInput
+          control={control}
+          name={'first_name' as FieldPath<T>}
+          label="First name"
+          required
+          placeholder="e.g. Amit"
+        />
+        <RhfTextInput
+          control={control}
+          name={'middle_name' as FieldPath<T>}
+          label="Middle name"
+          placeholder="Optional"
+        />
+        <RhfTextInput
+          control={control}
+          name={'last_name' as FieldPath<T>}
+          label="Last name"
+          required
+          placeholder="e.g. Deshmukh"
+        />
+      </div>
       <RhfPhoneInput
         control={control}
         name={'phone' as FieldPath<T>}

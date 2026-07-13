@@ -14,7 +14,7 @@ export function LegalPageShell({
 }: LegalPageShellProps) {
   return (
     <div className="min-h-screen bg-ds-gray-50">
-      <header className="border-b border-ds-gray-200 bg-white">
+      <header className="border-b border-ds-gray-200 bg-card">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link
             href="/"
@@ -32,7 +32,7 @@ export function LegalPageShell({
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-        <article className="rounded-xl border border-ds-gray-200 bg-white p-6 shadow-sm sm:p-8">
+        <article className="rounded-xl border border-ds-gray-200 bg-card p-6 shadow-sm sm:p-8">
           <header className="mb-8 border-b border-ds-gray-100 pb-6">
             <h1 className="text-2xl font-bold tracking-tight text-ds-gray-900 sm:text-3xl">
               {title}

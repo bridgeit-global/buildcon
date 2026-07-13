@@ -1,6 +1,6 @@
 /** CRM dashboard chart tokens — resolved from `app/globals.css` (`--ds-*`). */
 
-/** CSS variable names for multi-segment donut/pie (teal scale only). */
+/** CSS variable names for multi-segment donut/pie (brand primary scale). */
 export const CHART_SEGMENT_VAR_NAMES = [
   '--ds-primary-100',
   '--ds-primary-200',

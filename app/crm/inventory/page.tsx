@@ -114,7 +114,7 @@ function inventoryTabLabel(t: InventoryTab) {
 }
 
 function tabCardClass() {
-  return 'rounded-lg border border-ds-gray-200 bg-white shadow-sm';
+  return 'rounded-lg border border-ds-gray-200 bg-card shadow-sm';
 }
 
 const filterLabelClass = 'text-xs text-ds-gray-500';
@@ -204,16 +204,16 @@ function UnitDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-hidden gap-0 p-0 sm:max-w-[520px] [&>button]:hidden">
-        <div className="flex flex-col border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-[18px] py-4">
+        <div className="flex flex-col border-b border-border bg-gradient-to-b from-muted to-background px-[18px] py-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <DialogTitle
                 id="unit-detail-title"
-                className="text-lg font-bold tracking-tight text-slate-900"
+                className="text-lg font-bold tracking-tight text-foreground"
               >
                 {unit.unit_code}
               </DialogTitle>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
                 {unit.wing_name} · {unit.unit_type ?? '—'}
               </p>
             </div>
@@ -223,7 +223,7 @@ function UnitDetailDialog({
                 type="button"
                 aria-label="Close"
                 onClick={() => onOpenChange(false)}
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-slate-100 text-lg leading-none text-slate-500 hover:bg-slate-200"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-ds-gray-100 text-lg leading-none text-muted-foreground hover:bg-ds-gray-200"
               >
                 ×
               </button>
@@ -232,7 +232,7 @@ function UnitDetailDialog({
         </div>
 
         <div className="max-h-[min(60vh,520px)] flex-1 overflow-y-auto px-[18px] py-4">
-          <div className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-ds-gray-400">
             Unit summary
           </div>
           <div className="mb-4 grid grid-cols-2 gap-2.5">
@@ -317,22 +317,22 @@ function UnitDetailDialog({
             ).map(([label, val]) => (
               <div
                 key={label}
-                className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5"
+                className="rounded-lg border border-ds-gray-100 bg-muted px-3 py-2.5"
               >
-                <div className="mb-1 text-[10px] font-semibold text-slate-400">
+                <div className="mb-1 text-[10px] font-semibold text-ds-gray-400">
                   {label}
                 </div>
-                <div className="text-xs font-semibold text-slate-800">{val}</div>
+                <div className="text-xs font-semibold text-ds-gray-800">{val}</div>
               </div>
             ))}
           </div>
 
           {isUnitBlockedStatus(unit.status) && (
-            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3">
-              <div className="mb-2 text-[10px] font-bold uppercase text-amber-800">
+            <div className="mb-4 rounded-lg border border-ds-warning-300 bg-ds-warning-50 px-3 py-3">
+              <div className="mb-2 text-[10px] font-bold uppercase text-ds-warning-800">
                 Blocked
               </div>
-              <div className="text-xs leading-relaxed text-amber-950">
+              <div className="text-xs leading-relaxed text-ds-warning-900">
                 <div>
                   <strong>Reason:</strong> {unit.blocked_reason ?? '—'}
                 </div>
@@ -347,8 +347,8 @@ function UnitDetailDialog({
                 ['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
                   normalizeUnitStatusCode(unit.status)
                 )
-                  ? 'border-violet-300 bg-violet-50'
-                  : 'border-blue-200 bg-blue-50'
+                  ? 'border-ds-primary-300 bg-ds-primary-50'
+                  : 'border-ds-primary-200 bg-ds-primary-50'
               )}
             >
               <div
@@ -357,8 +357,8 @@ function UnitDetailDialog({
                   ['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
                     normalizeUnitStatusCode(unit.status)
                   )
-                    ? 'text-violet-800'
-                    : 'text-blue-800'
+                    ? 'text-ds-primary-800'
+                    : 'text-ds-primary-800'
                 )}
               >
                 {['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
@@ -373,34 +373,34 @@ function UnitDetailDialog({
                   ['REGISTERED', 'PRE_POSSESSION', 'POSSESSED', 'S'].includes(
                     normalizeUnitStatusCode(unit.status)
                   )
-                    ? 'text-violet-950'
-                    : 'text-blue-950'
+                    ? 'text-ds-primary-900'
+                    : 'text-ds-primary-900'
                 )}
               >
                 <div>
-                  <span className="text-slate-500">Booking ref</span>
+                  <span className="text-muted-foreground">Booking ref</span>
                   <br />
                   <strong>
                     {formatBookingDisplayId(booking.id, booking.created_at)}
                   </strong>
                 </div>
                 <div>
-                  <span className="text-slate-500">Booked on</span>
+                  <span className="text-muted-foreground">Booked on</span>
                   <br />
                   <strong>{bookedOn}</strong>
                 </div>
                 <div>
-                  <span className="text-slate-500">Customer</span>
+                  <span className="text-muted-foreground">Customer</span>
                   <br />
                   <strong>{booking.customers?.full_name ?? '—'}</strong>
                 </div>
                 <div>
-                  <span className="text-slate-500">Phone</span>
+                  <span className="text-muted-foreground">Phone</span>
                   <br />
                   <strong>{booking.customers?.phone ?? '—'}</strong>
                 </div>
                 <div>
-                  <span className="text-slate-500">Booking token</span>
+                  <span className="text-muted-foreground">Booking token</span>
                   <br />
                   <strong>
                     {booking?.booking_amount != null
@@ -409,7 +409,7 @@ function UnitDetailDialog({
                   </strong>
                 </div>
                 <div>
-                  <span className="text-slate-500">Payment</span>
+                  <span className="text-muted-foreground">Payment</span>
                   <br />
                   <strong>{booking.payment_mode ?? '—'}</strong>
                 </div>
@@ -417,13 +417,13 @@ function UnitDetailDialog({
             </div>
           )}
 
-          <p className="text-[11px] italic text-slate-400">
+          <p className="text-[11px] italic text-ds-gray-400">
             Carpet and BUA drive list price when set; otherwise legacy{' '}
             <code className="font-mono">area</code> is used.
           </p>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-slate-200 bg-slate-50 px-[18px] py-3 sm:justify-end">
+        <DialogFooter className="gap-2 border-t border-border bg-muted px-[18px] py-3 sm:justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
@@ -571,19 +571,19 @@ function UnitEditDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[520px]">
-        <DialogHeader className="border-b border-slate-200 px-4 py-3.5">
-          <DialogTitle className="text-sm font-bold text-slate-800">
+        <DialogHeader className="border-b border-border px-4 py-3.5">
+          <DialogTitle className="text-sm font-bold text-ds-gray-800">
             Edit Unit Details
           </DialogTitle>
-          <p className="text-[11px] text-slate-500">{unit.unit_code}</p>
+          <p className="text-[11px] text-muted-foreground">{unit.unit_code}</p>
         </DialogHeader>
         <div className="grid max-h-[55vh] grid-cols-2 gap-2.5 overflow-y-auto p-4">
-          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-ds-gray-400">
             Identification
           </div>
           <TextInputField
             label="Unit code"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             value={form.unit_code}
             onChange={(e) => {
               setForm((f) => ({ ...f, unit_code: e.target.value }));
@@ -594,7 +594,7 @@ function UnitEditDialog({
             inputClassName="h-9 text-xs"
           />
           <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Type</Label>
+            <Label className="text-[10px] text-muted-foreground">Type</Label>
             <SearchableSelect
               value={form.unit_type}
               onValueChange={(v) =>
@@ -607,7 +607,7 @@ function UnitEditDialog({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Category</Label>
+            <Label className="text-[10px] text-muted-foreground">Category</Label>
             <SearchableSelect
               value={form.unit_category}
               onValueChange={(v) =>
@@ -620,7 +620,7 @@ function UnitEditDialog({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-[10px] text-slate-500">Status</Label>
+            <Label className="text-[10px] text-muted-foreground">Status</Label>
             <Select
               value={form.status}
               onValueChange={(v) => {
@@ -644,12 +644,12 @@ function UnitEditDialog({
             </Select>
             <FormFieldError message={editValidation.fieldError('status')} />
           </div>
-          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-ds-gray-400">
             Areas (sq.ft)
           </div>
           <TextInputField
             label="Legacy / sale area"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={1}
             value={String(form.area)}
@@ -666,7 +666,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Carpet"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.carpet_area || '')}
@@ -680,7 +680,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="BUA"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.bua_area || '')}
@@ -694,7 +694,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="RERA"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.rera_area || '')}
@@ -708,7 +708,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Terrace"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.terrace_sqft || '')}
@@ -722,7 +722,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Deck"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.deck_sqft || '')}
@@ -736,7 +736,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Loading"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.loading_sqft || '')}
@@ -748,12 +748,12 @@ function UnitEditDialog({
             }
             inputClassName="h-9 text-xs"
           />
-          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-ds-gray-400">
             Pricing (₹)
           </div>
           <TextInputField
             label="Rate (₹/sq.ft)"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={1}
             value={String(form.rate)}
@@ -770,7 +770,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Floor-rise (lump)"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.floor_rise_charge)}
@@ -784,7 +784,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="PLC (lump)"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.plc_charge)}
@@ -798,7 +798,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Parking slots (unit)"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={0}
             value={String(form.parking_slots_included)}
@@ -810,12 +810,12 @@ function UnitEditDialog({
             }
             inputClassName="h-9 text-xs"
           />
-          <div className="col-span-2 text-[10px] font-semibold uppercase text-slate-400">
+          <div className="col-span-2 text-[10px] font-semibold uppercase text-ds-gray-400">
             Position
           </div>
           <TextInputField
             label="Floor"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             value={String(form.floor)}
             onChange={(e) =>
@@ -828,7 +828,7 @@ function UnitEditDialog({
           />
           <TextInputField
             label="Unit slot"
-            labelClassName="text-[10px] text-slate-500"
+            labelClassName="text-[10px] text-muted-foreground"
             type="number"
             min={1}
             value={String(form.unit_no)}
@@ -844,7 +844,7 @@ function UnitEditDialog({
             <TextInputField
               className="col-span-2"
               label="Blocked reason"
-              labelClassName="text-[10px] text-slate-500"
+              labelClassName="text-[10px] text-muted-foreground"
               value={form.blocked_reason}
               onChange={(e) => {
                 setForm((f) => ({ ...f, blocked_reason: e.target.value }));
@@ -857,7 +857,7 @@ function UnitEditDialog({
             />
           ) : null}
         </div>
-        <DialogFooter className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+        <DialogFooter className="border-t border-border bg-muted px-4 py-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -877,7 +877,7 @@ function UnitCell({
   unit: UnitRow;
   onClick: (u: UnitRow) => void;
 }) {
-  const bg = STATUS_COLOR[unit.status] ?? '#94A3B8';
+  const bg = STATUS_COLOR[unit.status] ?? 'var(--ds-gray-400)';
   const total = unitAgreementTotalInr(unit);
   const bill = unitBillableAreaSqft(unit);
   const title = `${unit.unit_code} · ${statusLabelForUnit(unit.status)} · ${formatInrCompactLacCr(total)} · ${bill || Number(unit.area) || 0} sq.ft billable`;
@@ -887,10 +887,10 @@ function UnitCell({
       title={title}
       aria-label={title}
       onClick={() => onClick(unit)}
-      className="flex h-[76px] w-[76px] shrink-0 cursor-pointer flex-col items-stretch justify-between rounded-lg border-2 bg-white px-1 py-1 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="flex h-[76px] w-[76px] shrink-0 cursor-pointer flex-col items-stretch justify-between rounded-lg border-2 bg-card px-1 py-1 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       style={{ borderColor: bg }}
     >
-      <div className="truncate text-[8px] font-bold leading-tight text-slate-800">
+      <div className="truncate text-[8px] font-bold leading-tight text-ds-gray-800">
         {unit.unit_code}
       </div>
       <div
@@ -899,7 +899,7 @@ function UnitCell({
       >
         {unitStatusGridAbbrev(unit.status)}
       </div>
-      <div className="truncate text-[8px] font-semibold leading-tight text-slate-600">
+      <div className="truncate text-[8px] font-semibold leading-tight text-ds-gray-600">
         {formatInrCompactLacCr(total)}
       </div>
       <div
@@ -1361,8 +1361,8 @@ function InventoryPageContent() {
         )}
       >
         <div>
-          <h1 className="text-base font-semibold text-slate-800">Inventory</h1>
-          <p className="text-[11px] text-slate-500">
+          <h1 className="text-base font-semibold text-ds-gray-800">Inventory</h1>
+          <p className="text-[11px] text-muted-foreground">
             {projectName || 'Select a project to view inventory'}
           </p>
         </div>
@@ -1411,14 +1411,14 @@ function InventoryPageContent() {
 
       {tab === 'Inventory Info' && (
         <div className="flex flex-col gap-3.5">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-[11px] text-blue-600">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ds-primary-200 bg-ds-primary-50 px-4 py-2.5 text-[11px] text-ds-primary-600">
             <span>
               Inventory configuration is set during{' '}
               <strong>Project Creation</strong>. To change wings, floors, or
               density,{' '}
               <Link
                 href="/crm/project"
-                className="font-bold text-blue-800 underline"
+                className="font-bold text-ds-primary-800 underline"
               >
                 edit the project
               </Link>
@@ -1427,7 +1427,7 @@ function InventoryPageContent() {
           </div>
           <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
             <div className={cn('p-4', tabCardClass())}>
-              <div className="mb-3 text-[11px] font-semibold text-slate-800">
+              <div className="mb-3 text-[11px] font-semibold text-ds-gray-800">
                 Project Configuration
               </div>
               {project ? (
@@ -1471,10 +1471,10 @@ function InventoryPageContent() {
                   ).map(([k, v]) => (
                     <div
                       key={k}
-                      className="flex justify-between border-b border-slate-100 py-1.5 text-[11px] last:border-0"
+                      className="flex justify-between border-b border-ds-gray-100 py-1.5 text-[11px] last:border-0"
                     >
-                      <span className="text-slate-500">{k}</span>
-                      <span className="max-w-[60%] text-right font-medium text-slate-800">
+                      <span className="text-muted-foreground">{k}</span>
+                      <span className="max-w-[60%] text-right font-medium text-ds-gray-800">
                         {v}
                       </span>
                     </div>
@@ -1487,13 +1487,13 @@ function InventoryPageContent() {
                       <CrmInventoryKvRowSkeleton key={i} />
                     ))
                   ) : (
-                    <p className="text-sm text-slate-500">Could not load project.</p>
+                    <p className="text-sm text-muted-foreground">Could not load project.</p>
                   )}
                 </div>
               )}
             </div>
             <div className={cn('p-4', tabCardClass())}>
-              <div className="mb-3 text-[11px] font-semibold text-slate-800">
+              <div className="mb-3 text-[11px] font-semibold text-ds-gray-800">
                 Live Inventory Summary
               </div>
               {UNIT_STATUS_CODES.map((k) => {
@@ -1501,13 +1501,13 @@ function InventoryPageContent() {
                 return (
                   <div
                     key={k}
-                    className="flex items-center gap-2.5 border-b border-slate-100 py-1.5"
+                    className="flex items-center gap-2.5 border-b border-ds-gray-100 py-1.5"
                   >
                     <div
                       className="h-3 w-3 shrink-0 rounded-sm"
                       style={{ background: STATUS_COLOR[k] }}
                     />
-                    <span className="flex-1 text-[11px] text-slate-500">
+                    <span className="flex-1 text-[11px] text-muted-foreground">
                       {v}
                     </span>
                     <span
@@ -1519,17 +1519,17 @@ function InventoryPageContent() {
                   </div>
                 );
               })}
-              <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-xs font-bold text-slate-800">
+              <div className="mt-2 flex justify-between border-t border-ds-gray-100 pt-2 text-xs font-bold text-ds-gray-800">
                 <span>Total</span>
                 <span>{units.length}</span>
               </div>
             </div>
           </div>
           <div className={cn('p-4', tabCardClass())}>
-            <div className="mb-2 text-[11px] font-semibold text-slate-800">
+            <div className="mb-2 text-[11px] font-semibold text-ds-gray-800">
               Bulk unit import (CSV)
             </div>
-            <p className="mb-2 text-[10px] leading-relaxed text-slate-500">
+            <p className="mb-2 text-[10px] leading-relaxed text-muted-foreground">
               Header row required. Required column:{' '}
               <code className="font-mono">unit_code</code>. Optional: wing_name,
               floor, unit_no, unit_type, area, carpet_area, bua_area, rera_area,
@@ -1560,12 +1560,12 @@ function InventoryPageContent() {
 
       {tab === 'Grid View' && (
         <>
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-[10px] leading-snug text-ds-gray-600">
+            <span className="inline-flex items-center gap-1 rounded-full bg-ds-success-100 px-2 py-0.5 text-[9px] font-bold text-ds-success-800">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ds-success-500" />
               Live
             </span>
-            <span className="font-semibold text-slate-800">Sales matrix: </span>
+            <span className="font-semibold text-ds-gray-800">Sales matrix: </span>
             filter by wing and floor; cells align to unit slots on each floor.
             Colours follow the legend; carpet/BUA and floor-rise + PLC roll into
             the list price shown on each cell.
@@ -1606,7 +1606,7 @@ function InventoryPageContent() {
                 className={filterSelectClass}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] leading-snug text-slate-600">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-[10px] leading-snug text-ds-gray-600">
           {UNIT_STATUS_CODES.map((k) => {
               const v = STATUS_LABEL[k] ?? k;
               return (
@@ -1615,7 +1615,7 @@ function InventoryPageContent() {
                     className="h-3 w-3 rounded-sm"
                     style={{ background: STATUS_COLOR[k] }}
                   />
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[10px] text-muted-foreground">
                     {v} ({counts[k] ?? 0})
                   </span>
                 </div>
@@ -1664,13 +1664,13 @@ function InventoryPageContent() {
                     <table className="border-collapse">
                       <thead>
                         <tr>
-                          <th className="w-16 px-2 py-0.5 text-left text-[9px] font-semibold text-slate-400">
+                          <th className="w-16 px-2 py-0.5 text-left text-[9px] font-semibold text-ds-gray-400">
                             Floor
                           </th>
                           {[...Array(wingMaxUnitsPerFloor)].map((_, i) => (
                             <th
                               key={i}
-                              className="px-2 py-0.5 text-center text-[9px] font-semibold text-slate-400"
+                              className="px-2 py-0.5 text-center text-[9px] font-semibold text-ds-gray-400"
                             >
                               Unit {i + 1}
                             </th>
@@ -1689,7 +1689,7 @@ function InventoryPageContent() {
                             );
                           return (
                             <tr key={String(floor)}>
-                              <td className="px-2 py-1 align-middle text-[10px] font-medium text-slate-500">
+                              <td className="px-2 py-1 align-middle text-[10px] font-medium text-muted-foreground">
                                 {formatFloorChipLabel(floor, undefined)}
                               </td>
                               {Array.from(
@@ -1710,7 +1710,7 @@ function InventoryPageContent() {
                                           onClick={(u) => setSelected(u)}
                                         />
                                       ) : (
-                                        <div className="inline-flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/80" />
+                                        <div className="inline-flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-muted/80" />
                                       )}
                                     </td>
                                   );
@@ -1726,7 +1726,7 @@ function InventoryPageContent() {
               })
                 : null}
               {!loading && uniqueWingsGrid.length === 0 ? (
-                <p className="text-sm text-slate-400">No units in this view.</p>
+                <p className="text-sm text-ds-gray-400">No units in this view.</p>
               ) : null}
             </div>
 
@@ -1739,14 +1739,14 @@ function InventoryPageContent() {
               >
                 <div className="mb-3 flex justify-between">
                   <div>
-                    <div className="text-xs font-bold text-slate-800">
+                    <div className="text-xs font-bold text-ds-gray-800">
                       {selected.unit_code}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSelected(null)}
-                    className="text-slate-400 hover:text-slate-600"
+                    className="text-ds-gray-400 hover:text-ds-gray-600"
                   >
                     ×
                   </button>
@@ -1838,10 +1838,10 @@ function InventoryPageContent() {
                 ).map(([k, v]) => (
                   <div
                     key={k}
-                    className="flex justify-between border-b border-slate-50 py-1 text-[11px]"
+                    className="flex justify-between border-b border-ds-gray-50 py-1 text-[11px]"
                   >
-                    <span className="text-slate-500">{k}</span>
-                    <span className="font-medium text-slate-800">{v}</span>
+                    <span className="text-muted-foreground">{k}</span>
+                    <span className="font-medium text-ds-gray-800">{v}</span>
                   </div>
                 ))}
               </div>
@@ -1881,7 +1881,7 @@ function InventoryPageContent() {
                   'rounded-md border px-4 py-1.5 text-[11px]',
                   effectiveFloorPlanWing === o
                     ? 'border-ds-primary-500 bg-ds-primary-50 font-semibold text-ds-primary-600'
-                    : 'border-ds-gray-200 bg-white text-ds-gray-500'
+                    : 'border-ds-gray-200 bg-card text-ds-gray-500'
                 )}
               >
                 {o}
@@ -1891,7 +1891,7 @@ function InventoryPageContent() {
 
           <div className="flex gap-3">
             <div className="flex w-20 flex-col gap-1">
-              <div className="mb-1 text-center text-[9px] font-semibold text-slate-400">
+              <div className="mb-1 text-center text-[9px] font-semibold text-ds-gray-400">
                 FLOOR
               </div>
               {floorsFp.map((f) => (
@@ -1911,8 +1911,8 @@ function InventoryPageContent() {
               ))}
             </div>
 
-            <div className="min-w-0 flex-1 rounded-[10px] bg-slate-50 p-5">
-              <div className="mb-4 text-center text-xs font-semibold text-slate-800">
+            <div className="min-w-0 flex-1 rounded-[10px] bg-muted p-5">
+              <div className="mb-4 text-center text-xs font-semibold text-ds-gray-800">
                 {effectiveFloorPlanWing} —{' '}
                 {displayFloorFp != null
                   ? formatFloorLabel(displayFloorFp, undefined)
@@ -1923,7 +1923,7 @@ function InventoryPageContent() {
                   {floorUnitsFp
                     .slice(0, Math.ceil(floorUnitsFp.length / 2))
                     .map((u) => {
-                      const c = STATUS_COLOR[u.status] ?? '#94A3B8';
+                      const c = STATUS_COLOR[u.status] ?? 'var(--ds-gray-400)';
                       return (
                         <button
                           key={u.id}
@@ -1941,14 +1941,14 @@ function InventoryPageContent() {
                           >
                             {u.unit_code}
                           </div>
-                          <div className="mt-0.5 text-[10px] text-slate-500">
+                          <div className="mt-0.5 text-[10px] text-muted-foreground">
                             {u.unit_type ?? '—'}
                           </div>
-                          <div className="text-[10px] text-slate-500">
+                          <div className="text-[10px] text-muted-foreground">
                             {unitBillableAreaSqft(u) || u.area || '—'} sq.ft
                             billable
                           </div>
-                          <div className="text-[10px] font-semibold text-slate-700">
+                          <div className="text-[10px] font-semibold text-ds-gray-700">
                             {formatUnitAgreementValueCompact(u)}
                           </div>
                           <div
@@ -1964,9 +1964,9 @@ function InventoryPageContent() {
                       );
                     })}
                 </div>
-                <div className="flex w-9 shrink-0 items-center justify-center rounded bg-slate-200">
+                <div className="flex w-9 shrink-0 items-center justify-center rounded bg-ds-gray-200">
                   <div
-                    className="text-[8px] font-semibold tracking-wide text-slate-400"
+                    className="text-[8px] font-semibold tracking-wide text-ds-gray-400"
                     style={{
                       writingMode: 'vertical-rl',
                       textOrientation: 'mixed'
@@ -1979,7 +1979,7 @@ function InventoryPageContent() {
                   {floorUnitsFp
                     .slice(Math.ceil(floorUnitsFp.length / 2))
                     .map((u) => {
-                      const c = STATUS_COLOR[u.status] ?? '#94A3B8';
+                      const c = STATUS_COLOR[u.status] ?? 'var(--ds-gray-400)';
                       return (
                         <button
                           key={u.id}
@@ -1997,14 +1997,14 @@ function InventoryPageContent() {
                           >
                             {u.unit_code}
                           </div>
-                          <div className="mt-0.5 text-[10px] text-slate-500">
+                          <div className="mt-0.5 text-[10px] text-muted-foreground">
                             {u.unit_type ?? '—'}
                           </div>
-                          <div className="text-[10px] text-slate-500">
+                          <div className="text-[10px] text-muted-foreground">
                             {unitBillableAreaSqft(u) || u.area || '—'} sq.ft
                             billable
                           </div>
-                          <div className="text-[10px] font-semibold text-slate-700">
+                          <div className="text-[10px] font-semibold text-ds-gray-700">
                             {formatUnitAgreementValueCompact(u)}
                           </div>
                           <div
@@ -2030,7 +2030,7 @@ function InventoryPageContent() {
                         className="h-2.5 w-2.5 rounded-sm"
                         style={{ background: STATUS_COLOR[k] }}
                       />
-                      <span className="text-[10px] text-slate-500">{v}</span>
+                      <span className="text-[10px] text-muted-foreground">{v}</span>
                     </div>
                   );
                 })}
@@ -2048,24 +2048,24 @@ function InventoryPageContent() {
               tabCardClass()
             )}
           >
-            <div className="text-xs font-bold text-slate-800">
+            <div className="text-xs font-bold text-ds-gray-800">
               Interactive map (coming soon)
             </div>
-            <p className="text-[10px] leading-relaxed text-slate-500">
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
               Full MapLibre GL + 3D extrusions are not bundled yet. Prefer the{' '}
               <strong>Grid view</strong> tab for sales-ready inventory. To enable
-              this tab, install <code className="text-slate-700">maplibre-gl</code>{' '}
+              this tab, install <code className="text-ds-gray-700">maplibre-gl</code>{' '}
               and wire scene GeoJSON.
             </p>
-            <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50/80 p-2.5 text-[10px] text-amber-900">
+            <div className="rounded-lg border border-dashed border-ds-warning-200 bg-ds-warning-50/80 p-2.5 text-[10px] text-ds-warning-900">
               Placeholder only — no live map layer in this build.
             </div>
-            <div className="max-h-[280px] overflow-y-auto border-t border-slate-100 pt-2">
+            <div className="max-h-[280px] overflow-y-auto border-t border-ds-gray-100 pt-2">
               {[...new Set(units.map((u) => u.wing_name))]
                 .sort()
                 .map((wing) => (
                   <div key={wing} className="mb-2.5">
-                    <div className="mb-1.5 text-[10px] font-bold text-slate-700">
+                    <div className="mb-1.5 text-[10px] font-bold text-ds-gray-700">
                       {wing}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -2081,8 +2081,8 @@ function InventoryPageContent() {
                             className={cn(
                               'cursor-pointer rounded-full border px-2 py-1 text-[9px]',
                               selected?.id === u.id
-                                ? 'border-blue-700 bg-blue-50 text-blue-700'
-                                : 'border-slate-200 bg-white text-slate-600'
+                                ? 'border-ds-primary-700 bg-ds-primary-50 text-ds-primary-700'
+                                : 'border-border bg-card text-ds-gray-600'
                             )}
                           >
                             {u.unit_code}
@@ -2095,11 +2095,11 @@ function InventoryPageContent() {
           </div>
           <div
             className={cn(
-              'flex min-h-[320px] items-center justify-center overflow-hidden border border-slate-200 shadow-sm lg:min-h-full',
+              'flex min-h-[320px] items-center justify-center overflow-hidden border border-border shadow-sm lg:min-h-full',
               tabCardClass()
             )}
           >
-            <div className="text-center text-sm text-slate-400">
+            <div className="text-center text-sm text-ds-gray-400">
               Map viewport (3D)
             </div>
           </div>
@@ -2109,13 +2109,13 @@ function InventoryPageContent() {
       {tab === 'Blocked Units' && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted-foreground">
               {blockedUnits.length} unit(s) currently blocked
             </span>
             <Button
               size="sm"
               variant="secondary"
-              className="bg-slate-600 text-white hover:bg-slate-700"
+              className="bg-ds-gray-600 text-white hover:bg-ds-gray-700"
               onClick={() => setShowBlockForm((v) => !v)}
             >
               + Block Unit

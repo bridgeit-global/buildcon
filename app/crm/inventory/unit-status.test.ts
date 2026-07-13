@@ -60,19 +60,19 @@ describe('STATUS_LABEL', () => {
 
 describe('STATUS_COLOR', () => {
   it.each([
-    ['AVAILABLE', '#22C55E'],
-    ['BLOCKED', '#64748B'],
-    ['TOKEN', '#F97316'],
-    ['BOOKED', '#3B82F6'],
-    ['AGREEMENT', '#8B5CF6'],
-    ['REGISTERED', '#6366F1'],
-    ['PRE_POSSESSION', '#14B8A6'],
-    ['POSSESSED', '#B54708'],
-    ['CANCELLED', '#EF4444'],
-    ['A', '#22C55E'],
-    ['BL', '#64748B'],
-    ['B', '#3B82F6'],
-    ['S', '#6366F1']
+    ['AVAILABLE', 'var(--ds-success-500)'],
+    ['BLOCKED', 'var(--ds-gray-500)'],
+    ['TOKEN', 'var(--ds-warning-600)'],
+    ['BOOKED', 'var(--ds-primary-500)'],
+    ['AGREEMENT', 'var(--ds-primary-700)'],
+    ['REGISTERED', 'var(--ds-primary-400)'],
+    ['PRE_POSSESSION', 'var(--ds-primary-600)'],
+    ['POSSESSED', 'var(--ds-warning-800)'],
+    ['CANCELLED', 'var(--ds-error-600)'],
+    ['A', 'var(--ds-success-500)'],
+    ['BL', 'var(--ds-gray-500)'],
+    ['B', 'var(--ds-primary-500)'],
+    ['S', 'var(--ds-primary-400)']
   ] as const)('maps %s to %s', (code, color) => {
     expect(STATUS_COLOR[code]).toBe(color);
   });

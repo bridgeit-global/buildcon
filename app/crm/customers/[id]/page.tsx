@@ -54,13 +54,16 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import BackButton from '@/components/buttons/back-button';
 
 const CUSTOMER_SELECT =
-  'id,full_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address,created_at';
+  'id,full_name,first_name,middle_name,last_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address,created_at';
 
 const KYC_BUCKET = 'kyc';
 
 type CustomerRow = {
   id: string;
   full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
   phone: string | null;
   phone_secondary: string | null;
   email: string | null;
@@ -157,11 +160,11 @@ function extensionFromFile(file: File): string {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-3 border-b border-gray-100 py-2.5 last:border-b-0">
-      <div className="w-[140px] shrink-0 text-xs font-medium text-gray-500">
+    <div className="flex gap-3 border-b border-ds-gray-100 py-2.5 last:border-b-0">
+      <div className="w-[140px] shrink-0 text-xs font-medium text-muted-foreground">
         {label}
       </div>
-      <div className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
+      <div className="min-w-0 flex-1 text-sm font-semibold text-foreground">
         {value}
       </div>
     </div>
@@ -236,6 +239,9 @@ export default function CustomerDetailPage() {
   const editForm = useForm<CustomerEditFormValues>({
     resolver: zodResolver(customerEditSchema),
     defaultValues: customerEditValuesFromCustomer({
+      first_name: '',
+      middle_name: '',
+      last_name: '',
       full_name: '',
       phone: null,
       phone_secondary: null,
@@ -667,7 +673,7 @@ export default function CustomerDetailPage() {
       {/* Detail Card */}
       <Card className="p-5">
         {/* Header */}
-        <div className="flex flex-wrap items-start gap-4 border-b border-gray-100 pb-4">
+        <div className="flex flex-wrap items-start gap-4 border-b border-ds-gray-100 pb-4">
           <div
             className="flex size-[52px] shrink-0 items-center justify-center rounded-full border-2 border-ds-primary-200 bg-ds-primary-50 text-lg font-bold text-ds-primary-600"
             aria-hidden
@@ -676,11 +682,11 @@ export default function CustomerDetailPage() {
           </div>
           <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="text-lg font-semibold text-gray-900">{customer.full_name}</div>
-              <div className="text-sm text-gray-500">{customer.phone ?? customer.email ?? '—'}</div>
+              <div className="text-lg font-semibold text-foreground">{customer.full_name}</div>
+              <div className="text-sm text-muted-foreground">{customer.phone ?? customer.email ?? '—'}</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {customerKycComplete ? (
-                  <span className="flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-800">
+                  <span className="flex items-center gap-1 rounded-full border border-ds-primary-200 bg-ds-primary-50 px-2.5 py-0.5 text-[11px] font-semibold text-ds-primary-800">
                     <CheckCircle2 className="size-3" />
                     KYC complete
                   </span>
@@ -690,15 +696,15 @@ export default function CustomerDetailPage() {
                     className={cn(
                       'rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
                       String(latestInquiry.lead_source || '').toLowerCase() === 'broker'
-                        ? 'border border-teal-200 bg-teal-50 text-teal-800'
-                        : 'border border-gray-200 bg-gray-50 text-gray-700'
+                        ? 'border border-ds-primary-200 bg-ds-primary-50 text-ds-primary-800'
+                        : 'border border-border bg-muted text-ds-gray-700'
                     )}
                   >
                     Latest source: {latestInquiry.lead_source}
                     {latestBrokerName ? ` · ${latestBrokerName}` : ''}
                   </span>
                 ) : (
-                  <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+                  <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-ds-gray-600">
                     No inquiries yet
                   </span>
                 )}
@@ -752,7 +758,7 @@ export default function CustomerDetailPage() {
         ) : (
           <>
             {/* Tabs */}
-            <div className="mt-4 flex gap-1 overflow-x-auto border-b border-gray-200 pb-px">
+            <div className="mt-4 flex gap-1 overflow-x-auto border-b border-border pb-px">
               {DETAIL_TABS.map((t) => (
                 <button
                   key={t.id}
@@ -761,8 +767,8 @@ export default function CustomerDetailPage() {
                   className={cn(
                     'shrink-0 rounded-t-md px-3 py-2 text-xs font-semibold transition-colors',
                     detailTab === t.id
-                      ? 'border border-b-0 border-gray-200 bg-white text-ds-primary-600'
-                      : 'border border-transparent text-gray-500 hover:text-gray-800'
+                      ? 'border border-b-0 border-border bg-card text-ds-primary-600'
+                      : 'border border-transparent text-muted-foreground hover:text-ds-gray-800'
                   )}
                 >
                   {t.label}
@@ -773,8 +779,8 @@ export default function CustomerDetailPage() {
             {/* Profile tab */}
             {detailTab === 'profile' ? (
               <div className="mt-4 flex flex-col gap-4">
-                <div className="rounded-lg border bg-white">
-                  <div className="border-b border-gray-100 px-4 py-2 text-xs font-semibold text-gray-700">
+                <div className="rounded-lg border bg-card">
+                  <div className="border-b border-ds-gray-100 px-4 py-2 text-xs font-semibold text-ds-gray-700">
                     Contact &amp; identity
                   </div>
                   <div className="px-4 py-1">
@@ -800,8 +806,8 @@ export default function CustomerDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">Sales inquiries</div>
-                  <div className="text-xs text-gray-500">Per-project leads; broker appears when source is Broker.</div>
+                  <div className="text-sm font-semibold text-foreground">Sales inquiries</div>
+                  <div className="text-xs text-muted-foreground">Per-project leads; broker appears when source is Broker.</div>
                   <div className="mt-2 overflow-x-auto rounded-lg border border-ds-gray-200">
                     <table className="w-full min-w-[640px] text-sm">
                       <thead>
@@ -846,16 +852,16 @@ export default function CustomerDetailPage() {
             {/* KYC tab */}
             {detailTab === 'kyc' ? (
               <div className="mt-4 flex flex-col gap-3">
-                <div className="rounded-lg border bg-white p-4">
+                <div className="rounded-lg border bg-card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <div className="text-sm font-semibold text-gray-900">PAN &amp; Aadhaar</div>
-                      <p className="mt-0.5 text-xs text-gray-500">
+                      <div className="text-sm font-semibold text-foreground">PAN &amp; Aadhaar</div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         Saved on the customer record when KYC is complete (12-digit Aadhaar, PAN, and uploaded PAN, Aadhaar, and photo). Used on booking application forms.
                       </p>
                     </div>
                     {customerKycComplete ? (
-                      <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold text-teal-800">
+                      <span className="rounded-full border border-ds-primary-200 bg-ds-primary-50 px-2.5 py-0.5 text-[11px] font-semibold text-ds-primary-800">
                         KYC complete
                       </span>
                     ) : null}
@@ -863,14 +869,14 @@ export default function CustomerDetailPage() {
                   <CustomerKycIdentityForm customer={customer} saving={extrasSaving} onSubmit={saveKycIdentityDetails} />
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
-                  <div className="text-sm font-semibold text-gray-900">KYC documents</div>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
+                  <div className="text-sm font-semibold text-foreground">KYC documents</div>
                   <Button type="button" size="sm" onClick={() => setKycFormOpen(true)} disabled={extrasSaving || loadingExtras}>
                     Upload document
                   </Button>
                 </div>
 
-                <div className="rounded-lg border bg-white">
+                <div className="rounded-lg border bg-card">
                   {loadingExtras ? (
                     <div className="space-y-3 p-6">
                       {Array.from({ length: 3 }).map((_, i) => (
@@ -878,7 +884,7 @@ export default function CustomerDetailPage() {
                       ))}
                     </div>
                   ) : kycDocs.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-gray-500">
+                    <div className="p-6 text-center text-sm text-muted-foreground">
                       No documents yet. Upload a PDF or image (max 50 MB). Files are stored in the private{' '}
                       <code className="text-xs">kyc</code> bucket.
                     </div>
@@ -929,8 +935,8 @@ export default function CustomerDetailPage() {
               <div className="mt-4 flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-semibold text-gray-900">Addresses</div>
-                    <p className="text-xs text-gray-500">
+                    <div className="text-sm font-semibold text-foreground">Addresses</div>
+                    <p className="text-xs text-muted-foreground">
                       Current → communication address; permanent → application form permanent address.
                     </p>
                   </div>
@@ -946,14 +952,14 @@ export default function CustomerDetailPage() {
                     ))}
                   </div>
                 ) : addresses.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
+                  <div className="rounded-lg border border-dashed border-border bg-muted p-6 text-center text-sm text-muted-foreground">
                     No address saved for this customer.
                   </div>
                 ) : (
                   addresses.map((a) => (
-                    <div key={a.id} className="rounded-lg border bg-white p-4">
+                    <div key={a.id} className="rounded-lg border bg-card p-4">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                        <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                           {a.kind === 'permanent' ? 'Permanent' : 'Current'} address
                         </div>
                         <div className="flex shrink-0 gap-1">
@@ -961,9 +967,9 @@ export default function CustomerDetailPage() {
                           <Button type="button" variant="destructive" size="sm" onClick={() => void deleteAddress(a.id)} disabled={extrasSaving}>Delete</Button>
                         </div>
                       </div>
-                      <div className="mt-2 space-y-1 text-sm text-gray-900">
+                      <div className="mt-2 space-y-1 text-sm text-foreground">
                         <div>{[a.address_line1, a.address_line2, a.address_line3].filter(Boolean).join(', ') || '—'}</div>
-                        <div className="text-gray-600">{[a.city, a.state, a.pin].filter(Boolean).join(', ') || '—'}</div>
+                        <div className="text-ds-gray-600">{[a.city, a.state, a.pin].filter(Boolean).join(', ') || '—'}</div>
                       </div>
                     </div>
                   ))
@@ -984,14 +990,14 @@ export default function CustomerDetailPage() {
             {/* Nominee tab */}
             {detailTab === 'nominee' ? (
               <div className="mt-4 flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
-                  <div className="text-sm font-semibold text-gray-900">Nominees</div>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
+                  <div className="text-sm font-semibold text-foreground">Nominees</div>
                   <Button type="button" size="sm" onClick={openNomineeCreate} disabled={extrasSaving || loadingExtras}>
                     Add nominee
                   </Button>
                 </div>
 
-                <div className="rounded-lg border bg-white">
+                <div className="rounded-lg border bg-card">
                   {loadingExtras ? (
                     <div className="space-y-3 p-6">
                       {Array.from({ length: 3 }).map((_, i) => (
@@ -999,14 +1005,14 @@ export default function CustomerDetailPage() {
                       ))}
                     </div>
                   ) : nominees.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-gray-500">No nominee records.</div>
+                    <div className="p-6 text-center text-sm text-muted-foreground">No nominee records.</div>
                   ) : (
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-ds-gray-100">
                       {nominees.map((n) => (
                         <div key={n.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">{n.nominee_name ?? '—'}</div>
-                            <div className="mt-1 text-xs text-gray-600">
+                            <div className="text-sm font-semibold text-foreground">{n.nominee_name ?? '—'}</div>
+                            <div className="mt-1 text-xs text-ds-gray-600">
                               {n.relationship ?? '—'} · DOB {n.nominee_dob ? formatDisplayDate(n.nominee_dob) : '—'}
                             </div>
                           </div>
@@ -1034,14 +1040,14 @@ export default function CustomerDetailPage() {
             {/* Bank tab */}
             {detailTab === 'bank' ? (
               <div className="mt-4 flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white px-4 py-3">
-                  <div className="text-sm font-semibold text-gray-900">Bank accounts</div>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
+                  <div className="text-sm font-semibold text-foreground">Bank accounts</div>
                   <Button type="button" size="sm" onClick={openBankCreate} disabled={extrasSaving || loadingExtras}>
                     Add bank
                   </Button>
                 </div>
 
-                <div className="rounded-lg border bg-white">
+                <div className="rounded-lg border bg-card">
                   {loadingExtras ? (
                     <div className="space-y-3 p-6">
                       {Array.from({ length: 3 }).map((_, i) => (
@@ -1049,14 +1055,14 @@ export default function CustomerDetailPage() {
                       ))}
                     </div>
                   ) : bankRows.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-gray-500">No bank details on file.</div>
+                    <div className="p-6 text-center text-sm text-muted-foreground">No bank details on file.</div>
                   ) : (
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-ds-gray-100">
                       {bankRows.map((b) => (
                         <div key={b.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-gray-900">{b.bank_name ?? '—'}</div>
-                            <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-gray-600 sm:grid-cols-2">
+                            <div className="text-sm font-semibold text-foreground">{b.bank_name ?? '—'}</div>
+                            <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-ds-gray-600 sm:grid-cols-2">
                               <div>Account: {b.account_no ?? '—'}</div>
                               <div>IFSC: {b.ifsc ?? '—'}</div>
                               <div className="sm:col-span-2">Branch: {b.branch ?? '—'}</div>

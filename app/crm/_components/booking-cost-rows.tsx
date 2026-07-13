@@ -28,12 +28,12 @@ export function BookingCostRows({
           className={cn(
             'flex items-baseline justify-between gap-3 rounded-lg border px-3 py-2',
             rowVariant === 'elevated'
-              ? 'border-white bg-white shadow-sm'
-              : 'border-gray-100 bg-gray-50/80'
+              ? 'border-border bg-card shadow-sm'
+              : 'border-ds-gray-100 bg-muted/80'
           )}
         >
-          <dt className="text-[11px] font-semibold text-slate-500">{label}</dt>
-          <dd className="text-right text-xs font-semibold text-slate-900">
+          <dt className="text-[11px] font-semibold text-muted-foreground">{label}</dt>
+          <dd className="text-right text-xs font-semibold text-foreground">
             {value}
           </dd>
         </div>

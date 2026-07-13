@@ -98,7 +98,7 @@ export function StructureTreeFields({
           <div
             key={node.id || idx}
             className={cn(
-              depth > 0 && 'ml-1 border-l-2 border-slate-200 pl-3'
+              depth > 0 && 'ml-1 border-l-2 border-border pl-3'
             )}
           >
             <div
@@ -132,7 +132,7 @@ export function StructureTreeFields({
               </div>
               <div className="w-[88px]">
                 <div className="text-[10px] text-muted-foreground">Level</div>
-                <div className="flex h-8 items-center rounded-md border border-input bg-slate-50 px-2 text-[11px] font-medium capitalize text-slate-700">
+                <div className="flex h-8 items-center rounded-md border border-input bg-muted px-2 text-[11px] font-medium capitalize text-ds-gray-700">
                   {kind}
                 </div>
               </div>
@@ -256,7 +256,7 @@ export function StructureTreeFields({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 border-red-200 bg-red-50 text-[10px] text-red-600 hover:bg-red-100"
+                className="h-8 border-ds-error-200 bg-ds-error-50 text-[10px] text-ds-error-600 hover:bg-ds-error-100"
                 onClick={() => onNodesChange(removeAtPath(nodes, path))}
               >
                 Remove
@@ -406,16 +406,16 @@ export function FloorConfigureStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg bg-blue-50/90 px-3 py-2 text-xs text-blue-800">
+      <div className="rounded-lg bg-ds-primary-50/90 px-3 py-2 text-xs text-ds-primary-800">
         Floor rows come from your <strong>Building → Wing → Floor → Unit</strong>{' '}
         tree. Click <strong>Auto-fill floors</strong> to sync unit rows from the
         tree before editing rates and types.
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted px-3 py-2.5">
           <div>
-            <div className="text-[11px] font-semibold text-slate-900">
+            <div className="text-[11px] font-semibold text-foreground">
               Floor-wise configure
             </div>
             <div className="mt-0.5 text-[10px] text-muted-foreground">
@@ -428,7 +428,7 @@ export function FloorConfigureStep({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 border-blue-200 bg-blue-50 text-[11px] text-blue-700"
+            className="h-8 border-ds-primary-200 bg-ds-primary-50 text-[11px] text-ds-primary-700"
             onClick={onAutoFill}
           >
             Auto-fill floors
@@ -445,9 +445,9 @@ export function FloorConfigureStep({
             {grouped.map(([structureName, structureRows]) => (
               <div
                 key={structureName}
-                className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5"
+                className="flex flex-col gap-2 rounded-lg border border-border bg-muted p-2.5"
               >
-                <div className="border-b border-slate-200 pb-1.5 text-[11px] font-bold text-slate-900">
+                <div className="border-b border-border pb-1.5 text-[11px] font-bold text-foreground">
                   {structureName}
                 </div>
                 {structureRows
@@ -477,10 +477,10 @@ export function FloorConfigureStep({
                     return (
                       <div
                         key={`${cfg.structureLeafId}-${cfg.floor}-${idx}`}
-                        className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-2.5"
+                        className="flex flex-col gap-2 rounded-md border border-border bg-card p-2.5"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="text-[11px] font-bold text-slate-900">
+                          <div className="text-[11px] font-bold text-foreground">
                             Floor{' '}
                             {cfg.floor === 0
                               ? 'Ground (0)'
@@ -490,7 +490,7 @@ export function FloorConfigureStep({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-7 border-red-200 bg-red-50 text-[10px] text-red-600"
+                            className="h-7 border-ds-error-200 bg-ds-error-50 text-[10px] text-ds-error-600"
                             onClick={() => {
                               const next = floorProvisions.filter(
                                 (_, i) => i !== actualIdx
@@ -510,7 +510,7 @@ export function FloorConfigureStep({
                             <div className="flex h-8 items-center overflow-hidden rounded-md border border-input">
                               <button
                                 type="button"
-                                className="h-full w-7 border-r border-input bg-slate-50 text-sm font-bold text-slate-600 hover:bg-slate-100"
+                                className="h-full w-7 border-r border-input bg-muted text-sm font-bold text-ds-gray-600 hover:bg-ds-gray-100"
                                 onClick={() => {
                                   const current = Math.max(
                                     1,
@@ -573,7 +573,7 @@ export function FloorConfigureStep({
                               />
                               <button
                                 type="button"
-                                className="h-full w-7 border-l border-input bg-slate-50 text-sm font-bold text-slate-600 hover:bg-slate-100"
+                                className="h-full w-7 border-l border-input bg-muted text-sm font-bold text-ds-gray-600 hover:bg-ds-gray-100"
                                 onClick={() => {
                                   const current = Math.max(
                                     1,
@@ -625,7 +625,7 @@ export function FloorConfigureStep({
                               onPatchProvision={patchProvision}
                             />
                           ))}
-                          <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-2">
+                          <div className="flex flex-wrap gap-3 border-t border-ds-gray-100 pt-2">
                             <div className="min-w-[140px]">
                               <Label className="text-[10px] text-muted-foreground">
                                 Floor area (sq.ft)
@@ -633,7 +633,7 @@ export function FloorConfigureStep({
                               <Input
                                 readOnly
                                 value={floorArea}
-                                className="h-8 bg-emerald-50 text-[11px] font-bold text-emerald-800"
+                                className="h-8 bg-ds-success-50 text-[11px] font-bold text-ds-success-800"
                               />
                             </div>
                             <div className="min-w-[140px]">
@@ -809,7 +809,7 @@ function UnitConfigBlock({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-slate-100 bg-slate-50/80 p-2">
+    <div className="flex flex-col gap-2 rounded-md border border-ds-gray-100 bg-muted/80 p-2">
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
         <div>
           <Label className="text-[10px] text-muted-foreground">
@@ -909,10 +909,10 @@ function UnitConfigBlock({
           />
         </div>
         <div className="flex flex-col justify-end lg:col-span-2">
-          <div className="text-[10px] font-semibold text-slate-700">
+          <div className="text-[10px] font-semibold text-ds-gray-700">
             List price (preview)
           </div>
-          <div className="text-[11px] font-bold text-blue-600">{listPreview}</div>
+          <div className="text-[11px] font-bold text-ds-primary-600">{listPreview}</div>
           <div className="text-[9px] text-muted-foreground">
             {uCfg.type || 'Auto'}
             {uCfg.category ? ` · ${uCfg.category}` : ''} · carpet/BUA override
@@ -921,7 +921,7 @@ function UnitConfigBlock({
         </div>
       </div>
 
-      <div className="grid gap-2 border-t border-slate-200/80 pt-2 sm:grid-cols-3 lg:grid-cols-9">
+      <div className="grid gap-2 border-t border-border pt-2 sm:grid-cols-3 lg:grid-cols-9">
         {optionalSqft('carpet_area', 'Carpet')}
         {optionalSqft('bua_area', 'BUA')}
         {optionalSqft('rera_area', 'RERA')}
@@ -976,10 +976,10 @@ export function InventoryConfigSummary(props: {
       ].map(([k, v]) => (
         <div
           key={k}
-          className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2"
+          className="rounded-md border border-border bg-muted px-2.5 py-2"
         >
-          <div className="text-[9px] text-slate-400">{k}</div>
-          <div className="text-xs font-bold text-slate-900">{v}</div>
+          <div className="text-[9px] text-ds-gray-400">{k}</div>
+          <div className="text-xs font-bold text-foreground">{v}</div>
         </div>
       ))}
     </div>

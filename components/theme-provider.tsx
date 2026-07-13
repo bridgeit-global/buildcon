@@ -80,16 +80,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [brand, mode, hydrated]);
 
   const setBrand = useCallback((next: BrandTheme) => {
+    applyThemeToDocument(next, mode);
     setBrandState(next);
-  }, []);
+  }, [mode]);
 
   const setMode = useCallback((next: ColorMode) => {
+    applyThemeToDocument(brand, next);
     setModeState(next);
-  }, []);
+  }, [brand]);
 
   const toggleMode = useCallback(() => {
-    setModeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  }, []);
+    setModeState((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      applyThemeToDocument(brand, next);
+      return next;
+    });
+  }, [brand]);
 
   const value = useMemo(
     () => ({ brand, mode, setBrand, setMode, toggleMode }),

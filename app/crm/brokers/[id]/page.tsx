@@ -25,6 +25,7 @@ import {
 import {
   brokerFormPayload,
   brokerFormSchema,
+  brokerFormValuesFromRow,
   EMPTY_BROKER_FORM,
   type BrokerFormValues
 } from '@/lib/broker/broker-forms.schema';
@@ -32,11 +33,14 @@ import { formatDisplayDateTime } from '@/lib/format-display-date';
 import BackButton from '@/components/buttons/back-button';
 
 const BROKER_SELECT =
-  'id,full_name,phone,email,license_no,status,notes,created_at';
+  'id,full_name,first_name,middle_name,last_name,phone,email,license_no,status,notes,created_at';
 
 type BrokerRow = {
   id: string;
   full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
   phone: string | null;
   email: string | null;
   license_no: string | null;
@@ -46,14 +50,7 @@ type BrokerRow = {
 };
 
 function rowToFormValues(b: BrokerRow): BrokerFormValues {
-  return {
-    full_name: b.full_name,
-    phone: b.phone ?? '',
-    email: b.email ?? '',
-    license_no: b.license_no ?? '',
-    status: b.status === 'Inactive' ? 'Inactive' : 'Active',
-    notes: b.notes ?? ''
-  };
+  return brokerFormValuesFromRow(b);
 }
 
 export default function BrokerDetailPage() {
@@ -207,7 +204,7 @@ export default function BrokerDetailPage() {
             ).map(([k, v]) => (
               <div
                 key={k}
-                className={`rounded-lg border border-ds-gray-200 bg-white p-3 ${
+                className={`rounded-lg border border-ds-gray-200 bg-card p-3 ${
                   k === 'Notes' ? 'col-span-2 sm:col-span-3' : ''
                 }`}
               >
@@ -225,14 +222,28 @@ export default function BrokerDetailPage() {
             className="mt-4 flex flex-col gap-4"
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <TextInputField
-                className="sm:col-span-2"
-                label="Full name"
-                required
-                placeholder="Broker / agency name"
-                error={errors.full_name?.message}
-                {...register('full_name')}
-              />
+              <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
+                <TextInputField
+                  label="First name"
+                  required
+                  placeholder="e.g. Amit"
+                  error={errors.first_name?.message}
+                  {...register('first_name')}
+                />
+                <TextInputField
+                  label="Middle name"
+                  placeholder="Optional"
+                  error={errors.middle_name?.message}
+                  {...register('middle_name')}
+                />
+                <TextInputField
+                  label="Last name"
+                  required
+                  placeholder="e.g. Deshmukh"
+                  error={errors.last_name?.message}
+                  {...register('last_name')}
+                />
+              </div>
               <PhoneInputField
                 value={watch('phone')}
                 onChange={(v) => setValue('phone', v, { shouldValidate: true })}

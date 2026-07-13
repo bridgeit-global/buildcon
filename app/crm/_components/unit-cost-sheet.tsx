@@ -114,7 +114,7 @@ export function UnitCostSheet({
   return (
     <div
       className={cn(
-        'flex flex-col rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm',
+        'flex flex-col rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm',
         className
       )}
     >

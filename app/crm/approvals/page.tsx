@@ -414,7 +414,7 @@ export default function ApprovalsPage() {
                 {fmtInr(r.offered_price)}
               </div>
               {r.discount_pct != null ? (
-                <div className="text-[10px] font-semibold text-amber-700">
+                <div className="text-[10px] font-semibold text-ds-warning-700">
                   −{r.discount_pct.toFixed(2)}%
                 </div>
               ) : null}
@@ -527,7 +527,7 @@ export default function ApprovalsPage() {
       </div>
 
       {isSuperAdmin === false ? (
-        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="flex items-start gap-2 rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs text-ds-warning-900">
           <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           <span>
             You can view requests, but only Admins can approve or reject.
@@ -535,7 +535,7 @@ export default function ApprovalsPage() {
         </div>
       ) : null}
 
-      <Card className="border-slate-200/90 p-4 shadow-sm">
+      <Card className="border-border p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-foreground">
@@ -796,7 +796,7 @@ export default function ApprovalsPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="gap-1.5 border-red-300 text-red-700 hover:bg-red-50"
+                    className="gap-1.5 border-ds-error-300 text-ds-error-700 hover:bg-ds-error-50"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('reject')}
                   >
@@ -804,7 +804,7 @@ export default function ApprovalsPage() {
                   </Button>
                   <Button
                     type="button"
-                    className="gap-1 bg-teal-600 hover:bg-teal-700"
+                    className="gap-1 bg-primary hover:bg-primary/90"
                     disabled={!isSuperAdmin || deciding}
                     onClick={() => void decide('approve')}
                   >

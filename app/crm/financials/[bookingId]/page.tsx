@@ -517,7 +517,7 @@ export default function FinancialsBookingPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-ds-gray-200 bg-white">
+            <div className="flex overflow-hidden rounded-lg border border-ds-gray-200 bg-card">
               <button
                 type="button"
                 className={`h-8 px-3 text-xs font-semibold ${

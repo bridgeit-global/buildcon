@@ -143,7 +143,7 @@ export function DeleteMilestoneDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg border-ds-gray-200 p-0">
-        <DialogHeader className="border-b border-ds-gray-100 bg-linear-to-br from-ds-error-50/60 to-white px-4 py-4 sm:px-6">
+        <DialogHeader className="border-b border-ds-gray-100 bg-linear-to-br from-ds-error-50/60 to-card px-4 py-4 sm:px-6">
           <DialogTitle className="text-left text-base font-semibold text-ds-gray-900">
             Delete milestone
           </DialogTitle>
@@ -200,7 +200,7 @@ export function DeleteMilestoneDialog({
           )}
         </div>
 
-        <DialogFooter className="border-t border-ds-gray-100 bg-white px-4 py-3 sm:px-6">
+        <DialogFooter className="border-t border-ds-gray-100 bg-card px-4 py-3 sm:px-6">
           <Button
             type="button"
             variant="outline"

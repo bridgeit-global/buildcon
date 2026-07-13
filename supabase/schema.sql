@@ -302,6 +302,9 @@ with check (public.has_project_access(project_id));
 create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
+  first_name text not null default '',
+  middle_name text,
+  last_name text not null default '',
   phone text,
   email text,
   dob date,
@@ -412,6 +415,9 @@ with check (auth.role() = 'authenticated');
 create table if not exists public.brokers (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
+  first_name text not null default '',
+  middle_name text,
+  last_name text not null default '',
   phone text,
   email text,
   license_no text,

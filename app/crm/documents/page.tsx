@@ -17,7 +17,7 @@ export default function DocumentsPage() {
 
   if (legacyBooking) {
     return (
-      <div className="rounded-lg border border-ds-gray-200 bg-white p-4 text-sm text-ds-gray-600">
+      <div className="rounded-lg border border-ds-gray-200 bg-card p-4 text-sm text-ds-gray-600">
         Opening booking documents…
       </div>
     );

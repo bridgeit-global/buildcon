@@ -422,14 +422,14 @@ export default function UsersPage() {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4">
-          <div className="text-sm font-semibold text-gray-900">My profile</div>
-          <div className="mt-3 text-sm text-gray-700">
+          <div className="text-sm font-semibold text-foreground">My profile</div>
+          <div className="mt-3 text-sm text-ds-gray-700">
             <div>
-              <span className="text-gray-500">Role:</span>{' '}
+              <span className="text-muted-foreground">Role:</span>{' '}
               <strong>{profile?.role ?? '—'}</strong>
             </div>
             <div className="mt-1">
-              <span className="text-gray-500">Name:</span>{' '}
+              <span className="text-muted-foreground">Name:</span>{' '}
               <strong>{profile?.name ?? '—'}</strong>
             </div>
           </div>
@@ -541,10 +541,10 @@ export default function UsersPage() {
                     <div className="col-span-2">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-sm font-semibold text-gray-900">
+                          <div className="text-sm font-semibold text-foreground">
                             Assign projects
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             Selected: {invite.projectIds.length}
                           </div>
                         </div>
@@ -586,7 +586,7 @@ export default function UsersPage() {
                               key={id}
                               type="button"
                               onClick={() => removeProject(id)}
-                              className="rounded-full border border-ds-gray-200 bg-white px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
+                              className="rounded-full border border-ds-gray-200 bg-card px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
                               title="Remove"
                             >
                               {projects.find((p) => p.id === id)?.name ?? 'Unknown project'} ×
@@ -624,7 +624,7 @@ export default function UsersPage() {
                         ) : null}
                       </div>
 
-                      <div className="mt-2 text-xs text-gray-500">
+                      <div className="mt-2 text-xs text-muted-foreground">
                         This sends a Supabase email invite and adds rows to{' '}
                         <span className="font-mono">profiles</span> and{' '}
                         <span className="font-mono">project_members</span>.
@@ -652,22 +652,22 @@ export default function UsersPage() {
               </Dialog>
             </div>
           ) : (
-            <div className="mt-4 text-xs text-gray-500">
+            <div className="mt-4 text-xs text-muted-foreground">
               Only Admins can invite users and assign project access.
             </div>
           )}
         </Card>
 
         <Card className="p-4">
-          <div className="text-sm font-semibold text-gray-900">
+          <div className="text-sm font-semibold text-foreground">
             Project members
           </div>
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-muted-foreground">
             {members.length} member(s) across projects
           </div>
           <div className="mt-3 overflow-auto">
             <table className="min-w-[520px] w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500">
+              <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
                   {['Project', 'User', 'Role', 'Status', 'Actions'].map(
                     (h) => (
@@ -685,14 +685,14 @@ export default function UsersPage() {
                   );
                   return (
                   <tr key={`${m.project_id}-${m.user_id}`} className="border-b">
-                    <td className="max-w-[140px] truncate px-3 py-2 text-xs text-gray-600">
+                    <td className="max-w-[140px] truncate px-3 py-2 text-xs text-ds-gray-600">
                       {projectNameById.get(m.project_id) ?? 'Unknown project'}
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
+                    <td className="px-3 py-2 text-xs text-ds-gray-700">
                       {profiles.find((p) => p.id === m.user_id)?.name ??
                         'Unknown user'}
                     </td>
-                    <td className="px-3 py-2 text-gray-700">
+                    <td className="px-3 py-2 text-ds-gray-700">
                       {canManageProject(m.project_id) ? (
                         <Select
                           value={m.role}
@@ -715,7 +715,7 @@ export default function UsersPage() {
                         m.role
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-700">
+                    <td className="px-3 py-2 text-ds-gray-700">
                       {canManageProject(m.project_id) ? (
                         <Select
                           value={m.status}
@@ -754,7 +754,7 @@ export default function UsersPage() {
                           Remove
                         </Button>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-ds-gray-400">—</span>
                       )}
                     </td>
                   </tr>
@@ -762,7 +762,7 @@ export default function UsersPage() {
                 })}
                 {members.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                    <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
                       No members found (or you don’t have access).
                     </td>
                   </tr>
@@ -773,7 +773,7 @@ export default function UsersPage() {
 
           {canManageAnyMembers ? (
             <div className="mt-4">
-              <div className="text-sm font-semibold text-gray-900">Add member</div>
+              <div className="text-sm font-semibold text-foreground">Add member</div>
               <div className="mt-2 flex flex-wrap items-end gap-3">
                 <div className="min-w-[200px]">
                   <Label className="text-xs">Project</Label>
@@ -811,7 +811,7 @@ export default function UsersPage() {
                   searchPlaceholder="Search user…"
                   className="mt-1 min-w-[320px] w-[min(320px,100%)]"
                 />
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   Tip: Admins can invite new users. Super Admin role is limited to one account.
                 </div>
               </div>

@@ -19,24 +19,35 @@ import type { InquiryRowDb } from './inquiry-types';
 import { CrmKpiGridSkeleton } from '../_components/crm-skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** Light teal shades for donut + legend (Tailwind teal 100–400). */
+/** Theme primary scale for donut + legend (`--ds-primary-*`). */
 const LEAD_SOURCE_COLOR: Record<string, string> = {
-  Website: '#99f6e4',
-  'Social Media': '#5eead4',
-  Direct: '#14b8a6',
-  Broker: '#ccfbf1',
-  Referral: '#b2f5ea'
+  Website: 'var(--ds-primary-200)',
+  'Social Media': 'var(--ds-primary-300)',
+  Direct: 'var(--ds-primary-500)',
+  Broker: 'var(--ds-primary-100)',
+  Referral: 'var(--ds-primary-400)'
 };
+
+const LEAD_SOURCE_PALETTE = [
+  'var(--ds-primary-100)',
+  'var(--ds-primary-200)',
+  'var(--ds-primary-300)',
+  'var(--ds-primary-400)',
+  'var(--ds-primary-500)',
+  'var(--ds-primary-600)',
+  'var(--ds-primary-700)'
+] as const;
 
 function leadSourceColor(label: string, index: number) {
   const trimmed = String(label || '').trim();
   if (LEAD_SOURCE_COLOR[trimmed]) return LEAD_SOURCE_COLOR[trimmed];
   const l = trimmed.toLowerCase();
-  if (l.includes('whatsapp')) return '#5eead4';
-  if (l.includes('facebook') || l.includes('instagram')) return '#2dd4bf';
-  if (l.includes('website')) return '#99f6e4';
-  const palette = ['#ccfbf1', '#99f6e4', '#5eead4', '#2dd4bf', '#14b8a6'];
-  return palette[index % palette.length];
+  if (l.includes('whatsapp')) return 'var(--ds-primary-300)';
+  if (l.includes('facebook') || l.includes('instagram')) {
+    return 'var(--ds-primary-400)';
+  }
+  if (l.includes('website')) return 'var(--ds-primary-200)';
+  return LEAD_SOURCE_PALETTE[index % LEAD_SOURCE_PALETTE.length];
 }
 
 function funnelStageLabel(stage: string) {
@@ -230,7 +241,7 @@ function InquiryPageContent() {
               <div
                 className={cn(
                   'mt-1 text-2xl font-bold tabular-nums',
-                  featured ? 'text-white' : 'text-teal-700'
+                  featured ? 'text-primary-foreground' : 'text-ds-primary-700'
                 )}
               >
                 {loadingInquiries ? '…' : tile.value}
@@ -253,8 +264,8 @@ function InquiryPageContent() {
               className={cn(
                 'block rounded-xl px-3 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 featured
-                  ? 'bg-teal-600 text-white shadow-md hover:bg-teal-700'
-                  : 'border border-slate-200/90 bg-white shadow-sm hover:border-slate-300 hover:bg-slate-50/80'
+                  ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90'
+                  : 'border border-border bg-card shadow-sm hover:border-border hover:bg-muted/80'
               )}
             >
               {body}
@@ -265,7 +276,7 @@ function InquiryPageContent() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="gap-4 border-slate-200/90 p-4 shadow-sm">
+        <Card className="gap-4 border-border p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <div className="text-sm font-semibold text-foreground">
@@ -325,7 +336,7 @@ function InquiryPageContent() {
           </div>
         </Card>
 
-        <Card className="gap-4 border-slate-200/90 p-4 shadow-sm">
+        <Card className="gap-4 border-border p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <div className="text-sm font-semibold text-foreground">
@@ -476,7 +487,7 @@ export default function InquiryPage() {
   return (
     <Suspense
       fallback={
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Loading inquiries…
         </div>
       }

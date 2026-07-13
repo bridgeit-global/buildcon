@@ -495,7 +495,7 @@ export default function CreateProjectPage() {
 
           {createStep === 1 ? (
             <div className="flex flex-col gap-4">
-              <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs text-blue-800">
+              <div className="rounded-lg border border-ds-primary-100 bg-ds-primary-50/80 px-3 py-2 text-xs text-ds-primary-800">
                 Build inventory as <strong>Building → Wing → Floor → Unit</strong>.
                 Unit types and categories, carpet/BUA/RERA, rates, floor-rise, PLC,
                 and parking per unit are configured on the next step.
@@ -548,7 +548,7 @@ export default function CreateProjectPage() {
                 Optional. Used as dropdown options for unit category on the floor
                 step. The first selected category is the default for new units.
               </p>
-              <div className="font-semibold text-slate-900">
+              <div className="font-semibold text-foreground">
                 Building → Wing → Floor → Unit
               </div>
               <StructureTreeFields
@@ -559,10 +559,10 @@ export default function CreateProjectPage() {
                 defaultFloors={draft.floors_per_wing || 7}
                 defaultUnitsPerFloor={draft.units_per_floor || 4}
               />
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-[11px] text-emerald-900">
+              <div className="rounded-lg border border-ds-success-200 bg-ds-success-50/90 px-3 py-2 text-[11px] text-ds-success-900">
                 <span className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
                   <span>
-                    <span className="text-emerald-700">Floors</span>{' '}
+                    <span className="text-ds-success-700">Floors</span>{' '}
                     <strong>
                       {
                         getStructureLeaves(normalizeStructures(draft.structures))
@@ -571,15 +571,15 @@ export default function CreateProjectPage() {
                     </strong>
                   </span>
                   <span>
-                    <span className="text-emerald-700">Units</span>{' '}
+                    <span className="text-ds-success-700">Units</span>{' '}
                     <strong>{countProjectUnits(draft.structures)}</strong>
                   </span>
                   <span>
-                    <span className="text-emerald-700">Wings</span>{' '}
+                    <span className="text-ds-success-700">Wings</span>{' '}
                     <strong>{wingsFromDraft(draft).length}</strong>
                   </span>
                   <span>
-                    <span className="text-emerald-700">Parking</span>{' '}
+                    <span className="text-ds-success-700">Parking</span>{' '}
                     <strong>{parkingSlots}</strong>
                     {parkingSlots > 0 && parkingValueInr > 0 && parkingAvgRate != null ? (
                       <>
@@ -597,7 +597,7 @@ export default function CreateProjectPage() {
                   </span>
                 </span>
               </div>
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/90 px-3 py-2 text-xs text-emerald-900">
+              <div className="rounded-lg border border-ds-success-100 bg-ds-success-50/90 px-3 py-2 text-xs text-ds-success-900">
                 <span className="font-semibold">Preview: </span>
                 {wingsFromDraft(draft).length} structure path
                 {wingsFromDraft(draft).length !== 1 ? 's' : ''} · ≈{' '}
@@ -641,7 +641,7 @@ export default function CreateProjectPage() {
 
           {createStep === 3 ? (
             <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
+              <div className="col-span-2 border border-ds-success-100 bg-ds-success-50/80 px-3 py-2 text-xs text-ds-success-900">
                 Base rate seeds new floor rows and default ₹/sq.ft per unit.
                 Carpet/BUA, floor-rise, PLC, and bundled parking are configured
                 on the Inventory floor step (previous step).
@@ -669,10 +669,10 @@ export default function CreateProjectPage() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">
+                  <div className="text-sm font-semibold text-foreground">
                     Assign members (optional)
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-muted-foreground">
                     Selected: {draft.memberIds.length}
                   </div>
                 </div>
@@ -729,7 +729,7 @@ export default function CreateProjectPage() {
                         key={id}
                         type="button"
                         onClick={() => removeMemberChip(id)}
-                        className="rounded-lg border border-ds-gray-200 bg-white px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
+                        className="rounded-lg border border-ds-gray-200 bg-card px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
                         title="Remove"
                       >
                         {profile ? profileOptionLabel(profile) : 'Unnamed user'} ×
@@ -743,7 +743,7 @@ export default function CreateProjectPage() {
 
           {createStep === 5 ? (
             <div className="space-y-3">
-              <div className="text-sm font-semibold text-gray-900">
+              <div className="text-sm font-semibold text-foreground">
                 Review & confirm
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
@@ -773,9 +773,9 @@ export default function CreateProjectPage() {
                   ['Unit categories', mergedUnitCategories.join(', ') || '—'],
                   ['Members', `${draft.memberIds.length} selected`]
                 ].map(([k, v]) => (
-                  <div key={String(k)} className="bg-slate-50 px-3 py-2">
-                    <div className="text-[10px] text-slate-400">{k}</div>
-                    <div className="font-medium text-slate-900">{v}</div>
+                  <div key={String(k)} className="bg-muted px-3 py-2">
+                    <div className="text-[10px] text-ds-gray-400">{k}</div>
+                    <div className="font-medium text-foreground">{v}</div>
                   </div>
                 ))}
               </div>

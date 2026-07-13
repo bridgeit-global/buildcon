@@ -548,8 +548,8 @@ function SelectedUnitCard({
   const totalInr = unitAgreementTotalInr(unit);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-ds-primary-200 bg-white shadow-sm ring-1 ring-ds-primary-100">
-      <div className="border-b border-ds-primary-100 bg-gradient-to-br from-ds-primary-50 to-white px-4 py-4 sm:px-5">
+    <div className="overflow-hidden rounded-xl border border-ds-primary-200 bg-card shadow-sm ring-1 ring-ds-primary-100">
+      <div className="border-b border-ds-primary-100 bg-gradient-to-br from-ds-primary-50 to-card px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-ds-primary-700">
@@ -575,7 +575,7 @@ function SelectedUnitCard({
             </Button>
           </div>
         </div>
-        <div className="mt-3 inline-flex items-baseline gap-2 rounded-lg bg-white/80 px-3 py-2 ring-1 ring-ds-primary-100">
+        <div className="mt-3 inline-flex items-baseline gap-2 rounded-lg bg-card/80 px-3 py-2 ring-1 ring-ds-primary-100">
           <span className="text-[10px] font-semibold uppercase text-ds-gray-500">
             Est. agreement
           </span>
@@ -745,7 +745,7 @@ export function InquiryUnitPicker({
         <DialogContent className="max-h-[min(92dvh,720px)] w-[calc(100vw-1.5rem)] max-w-2xl gap-0 overflow-hidden border-ds-gray-200 p-0 sm:max-w-2xl">
           {previewUnit ? (
             <>
-              <DialogHeader className="border-b border-ds-gray-100 bg-gradient-to-br from-ds-primary-50/80 to-white px-4 py-4 sm:px-5">
+              <DialogHeader className="border-b border-ds-gray-100 bg-gradient-to-br from-ds-primary-50/80 to-card px-4 py-4 sm:px-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <DialogTitle className="text-lg font-bold text-ds-gray-900">
@@ -794,7 +794,7 @@ export function InquiryUnitPicker({
                   </p>
                 ) : null}
               </div>
-              <DialogFooter className="flex-col-reverse gap-2 border-t border-ds-gray-100 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+              <DialogFooter className="flex-col-reverse gap-2 border-t border-ds-gray-100 bg-card px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
                 <Button
                   type="button"
                   variant="outline"
@@ -824,7 +824,7 @@ export function InquiryUnitPicker({
       </Dialog>
 
       {/* Search + quick filters */}
-      <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
             <Label htmlFor="unit-search" className="text-sm text-ds-gray-600">
@@ -1017,7 +1017,7 @@ export function InquiryUnitPicker({
                 'flex min-h-9 min-w-9 items-center justify-center px-2.5',
                 viewMode === 'grid'
                   ? 'bg-ds-primary-500 text-white'
-                  : 'bg-white text-ds-gray-600 hover:bg-ds-gray-50'
+                  : 'bg-card text-ds-gray-600 hover:bg-ds-gray-50'
               )}
               onClick={() => setViewMode('grid')}
               title="Grid view"
@@ -1031,7 +1031,7 @@ export function InquiryUnitPicker({
                 'flex min-h-9 min-w-9 items-center justify-center px-2.5',
                 viewMode === 'list'
                   ? 'bg-ds-primary-500 text-white'
-                  : 'bg-white text-ds-gray-600 hover:bg-ds-gray-50'
+                  : 'bg-card text-ds-gray-600 hover:bg-ds-gray-50'
               )}
               onClick={() => setViewMode('list')}
               title="List view"
@@ -1080,7 +1080,7 @@ export function InquiryUnitPicker({
         <div className="max-h-[min(400px,52vh)] overflow-y-auto rounded-xl border border-ds-gray-200 bg-ds-gray-50/40 p-2">
           {viewMode === 'grid' ? (
             !gridProjectId ? (
-              <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-4 text-xs text-ds-gray-600">
+              <div className="rounded-lg border border-ds-gray-200 bg-card px-3 py-4 text-xs text-ds-gray-600">
                 {projectFilterOptions.length === 0
                   ? 'No projects available — check project access or inventory setup.'
                   : 'Loading project inventory…'}
@@ -1134,7 +1134,7 @@ export function InquiryUnitPicker({
           <div className="space-y-4">
             <SelectedUnitCard unit={selectedUnit} onChangeUnit={clearSelection} />
             {parkingSection ? (
-              <div className="space-y-3 rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
+              <div className="space-y-3 rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm">
                 <p className="text-xs font-semibold text-ds-gray-800">
                   Parking & requirements
                 </p>
@@ -1421,7 +1421,7 @@ function InquiryUnitGridCell({
 }) {
   const raw = String(unit.status || '').trim();
   const code = normalizeUnitStatusCode(unit.status);
-  const bg = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? '#94A3B8';
+  const bg = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? 'var(--ds-gray-400)';
   const total = unitAgreementTotalInr(unit);
   const bill = unitBillableAreaSqft(unit);
   const statusLabel = statusLabelForUnit(unit.status);
@@ -1437,7 +1437,7 @@ function InquiryUnitGridCell({
       aria-disabled={!selectable}
       onClick={onClick}
       className={cn(
-        'relative flex h-[76px] w-[76px] shrink-0 flex-col items-stretch justify-between rounded-lg border-2 bg-white px-1 py-1 text-left shadow-sm transition',
+        'relative flex h-[76px] w-[76px] shrink-0 flex-col items-stretch justify-between rounded-lg border-2 bg-card px-1 py-1 text-left shadow-sm transition',
         selectable
           ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md'
           : 'cursor-not-allowed',
@@ -1491,7 +1491,7 @@ function UnitResultRow({
         'flex w-full min-h-11 flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-xs transition-colors',
         active && selectable
           ? 'border-ds-primary-500 bg-ds-primary-50'
-          : 'border-ds-gray-200 bg-white',
+          : 'border-ds-gray-200 bg-card',
         selectable ? 'hover:bg-ds-gray-50' : 'cursor-not-allowed opacity-55 saturate-[0.5]'
       )}
     >

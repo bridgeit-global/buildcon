@@ -23,7 +23,7 @@ type PaymentCostOverviewProps = {
 function OverviewDescription({ mode }: { mode: PaymentCostOverviewMode }) {
   if (mode === 'inquiry') {
     return (
-      <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-600">
+      <p className="mt-1 max-w-xl text-xs leading-relaxed text-ds-gray-600">
         Agreement line items, parking from the inquiry where applicable, GST (5%)
         on basic value, and totals. Negotiated price is the final deal value when
         set. The booking token you enter below is collected now and becomes the
@@ -32,7 +32,7 @@ function OverviewDescription({ mode }: { mode: PaymentCostOverviewMode }) {
     );
   }
   return (
-    <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-600">
+    <p className="mt-1 max-w-xl text-xs leading-relaxed text-ds-gray-600">
       Sale area × basic rate, GST (5%) on basic value, and project parking
       availability. The booking token you enter below is collected now and
       becomes the first milestone (&quot;Booking Amount&quot;) in the payment
@@ -103,20 +103,20 @@ export function PaymentCostOverview({
   return (
     <div
       className={cn(
-        'mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm',
+        'mt-4 rounded-xl border border-border bg-muted/90 p-4 shadow-sm',
         className
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+          <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
             Payment &amp; cost overview
           </div>
           <OverviewDescription mode={mode} />
         </div>
       </div>
       {alert}
-      <div className="mt-3 text-sm font-semibold text-slate-900">
+      <div className="mt-3 text-sm font-semibold text-foreground">
         {unitHeadline}
       </div>
       <BookingCostRows
@@ -128,16 +128,16 @@ export function PaymentCostOverview({
       {showFinancial && financialTotal ? (
         <FinancialTotalSummary summary={financialTotal} />
       ) : null}
-      <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-3">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mt-4 rounded-lg border border-dashed border-border bg-card px-3 py-3">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Due at booking (token)
         </div>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-          <p className="max-w-md text-xs leading-relaxed text-slate-600">
+          <p className="max-w-md text-xs leading-relaxed text-ds-gray-600">
             Enter the amount you are collecting at booking confirmation. Edit the
             field below if needed.
           </p>
-          <div className="text-xl font-bold tabular-nums text-emerald-700">
+          <div className="text-xl font-bold tabular-nums text-ds-success-700">
             ₹
             {Number(bookingAmount || 0).toLocaleString('en-IN', {
               maximumFractionDigits: 0

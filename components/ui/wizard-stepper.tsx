@@ -73,7 +73,7 @@ export function WizardStepper({
         />
         {safeCurrent > 0 ? (
           <div
-            className="absolute left-0 top-[15px] h-0.5 bg-teal-400 transition-all"
+            className="absolute left-0 top-[15px] h-0.5 bg-ds-primary-400 transition-all"
             aria-hidden
             style={{
               zIndex: 1,
@@ -105,13 +105,13 @@ export function WizardStepper({
                 className={cn(
                   'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-200',
                   isActive
-                    ? 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-200'
+                    ? 'border-ds-primary-600 bg-ds-primary-600 text-primary-foreground shadow-md shadow-ds-primary-200'
                     : done
-                      ? 'border-teal-500 bg-teal-50 text-teal-700'
+                      ? 'border-ds-primary-500 bg-ds-primary-50 text-ds-primary-700'
                       : hasUnsaved
-                        ? 'border-amber-400 bg-amber-50 text-amber-800'
+                        ? 'border-ds-warning-300 bg-ds-warning-50 text-ds-warning-800'
                         : hasData
-                          ? 'border-teal-300 bg-white text-teal-600'
+                          ? 'border-ds-primary-300 bg-card text-ds-primary-600'
                           : 'border-border bg-background text-muted-foreground'
                 )}
               >
@@ -125,11 +125,11 @@ export function WizardStepper({
                 className={cn(
                   'max-w-22 text-center text-[10px] font-semibold leading-tight sm:max-w-none sm:whitespace-nowrap',
                   isActive
-                    ? 'text-teal-700'
+                    ? 'text-ds-primary-700'
                     : done || hasData
-                      ? 'text-teal-600'
+                      ? 'text-ds-primary-600'
                       : hasUnsaved
-                        ? 'text-amber-800'
+                        ? 'text-ds-warning-800'
                         : 'text-muted-foreground'
                 )}
               >
@@ -230,11 +230,11 @@ export function WizardStepperVertical({
                       className={cn(
                         'flex size-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors',
                         isActive
-                          ? 'border-teal-600 bg-teal-600 text-white shadow-sm'
+                          ? 'border-ds-primary-600 bg-ds-primary-600 text-primary-foreground shadow-sm'
                           : done
-                            ? 'border-teal-500 bg-teal-50 text-teal-700'
+                            ? 'border-ds-primary-500 bg-ds-primary-50 text-ds-primary-700'
                             : hasData
-                              ? 'border-teal-300 bg-white text-teal-600'
+                              ? 'border-ds-primary-300 bg-card text-ds-primary-600'
                               : 'border-border bg-background text-muted-foreground'
                       )}
                     >
@@ -257,9 +257,9 @@ export function WizardStepperVertical({
                   className={cn(
                     'flex flex-1 items-center text-xs font-semibold leading-snug',
                     isActive
-                      ? 'text-teal-700'
+                      ? 'text-ds-primary-700'
                       : done || hasData
-                        ? 'text-teal-600'
+                        ? 'text-ds-primary-600'
                         : 'text-muted-foreground'
                   )}
                 >

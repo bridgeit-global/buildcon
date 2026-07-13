@@ -84,7 +84,7 @@ export function ChartPanel({
   return (
     <Card
       className={cn(
-        'overflow-hidden rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm sm:p-5',
+        'overflow-hidden rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm sm:p-5',
         className
       )}
     >
@@ -124,7 +124,7 @@ export function StatCard({
     'min-w-0 flex-1 rounded-xl px-4 py-3.5 shadow-sm transition-shadow',
     filled
       ? 'bg-ds-primary-500 text-white'
-      : 'border border-ds-gray-200 bg-white',
+      : 'border border-ds-gray-200 bg-card',
     href && !filled && 'cursor-pointer hover:border-ds-primary-200 hover:shadow-md',
     href && filled && 'cursor-pointer hover:bg-ds-primary-600'
   );
@@ -207,7 +207,7 @@ export function FinCard({
   const Icon = FIN_ICONS[tone];
   const { value, icon } = FIN_TONE_CLASS[tone];
   const className = cn(
-    'min-w-0 flex-1 rounded-xl border border-ds-gray-200 bg-white px-4 py-3.5 shadow-sm transition-shadow',
+    'min-w-0 flex-1 rounded-xl border border-ds-gray-200 bg-card px-4 py-3.5 shadow-sm transition-shadow',
     href && 'cursor-pointer hover:border-ds-primary-200 hover:shadow-md'
   );
   const inner = (
@@ -274,7 +274,7 @@ export function DashboardWorkflowNav() {
         <Link
           key={step.id}
           href={step.href}
-          className="min-w-[88px] flex-1 rounded-xl border border-ds-gray-200 bg-white px-2.5 py-2.5 text-left transition-shadow hover:border-ds-primary-200 hover:shadow-md"
+          className="min-w-[88px] flex-1 rounded-xl border border-ds-gray-200 bg-card px-2.5 py-2.5 text-left transition-shadow hover:border-ds-primary-200 hover:shadow-md"
         >
           <div
             className={cn(

@@ -5,7 +5,7 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">
+        <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
           Loading…
         </div>
       }

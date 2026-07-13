@@ -70,11 +70,11 @@ export function LoginClient() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-blue-50 to-white p-4 flex items-center justify-center">
-      <div className="w-full max-w-md rounded-xl border bg-white shadow-sm p-6">
+    <div className="min-h-screen bg-linear-to-b from-ds-primary-25 to-background p-4 flex items-center justify-center">
+      <div className="w-full max-w-md rounded-xl border bg-card shadow-sm p-6">
         <div className="mb-6">
-          <div className="text-lg font-semibold text-gray-900">BuildCon CRM</div>
-          <div className="text-sm text-gray-500">
+          <div className="text-lg font-semibold text-foreground">BuildCon CRM</div>
+          <div className="text-sm text-muted-foreground">
             Sign in with your staff account.
           </div>
         </div>
@@ -112,7 +112,7 @@ export function LoginClient() {
 
           <TextInputField
             label="Password"
-            labelClassName="text-xs font-medium text-gray-600"
+            labelClassName="text-xs font-medium text-ds-gray-600"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
@@ -142,7 +142,7 @@ export function LoginClient() {
             )}
           </Button>
 
-          <p className="text-center text-xs text-gray-500">
+          <p className="text-center text-xs text-muted-foreground">
             By continuing, you agree to our{' '}
             <Link
               href="/terms-of-service"

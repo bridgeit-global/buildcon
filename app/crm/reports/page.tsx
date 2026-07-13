@@ -102,10 +102,10 @@ export default function ReportsPage() {
     <div className="flex flex-col gap-4">
       <Card className="p-4 flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold text-gray-900">
+          <div className="text-sm font-semibold text-foreground">
             Reports & Analytics (MVP)
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-muted-foreground">
             Computed aggregates across all accessible projects.
           </div>
         </div>
@@ -136,28 +136,28 @@ export default function ReportsPage() {
           ['Balance', formatInrCompactLacCr(balance)]
         ].map(([k, v]) => (
           <Card key={String(k)} className="p-4">
-            <div className="text-xs text-gray-500">{k}</div>
-            <div className="mt-1 text-lg font-semibold text-gray-900">{v}</div>
+            <div className="text-xs text-muted-foreground">{k}</div>
+            <div className="mt-1 text-lg font-semibold text-foreground">{v}</div>
           </Card>
         ))}
       </div>
 
       <Card className="p-4">
-        <div className="text-sm font-semibold text-gray-900">
+        <div className="text-sm font-semibold text-foreground">
           Inventory by status
         </div>
         <div className="mt-3 grid grid-cols-3 gap-3">
           {Object.keys(unitCounts).length === 0 ? (
-            <div className="col-span-3 text-xs text-gray-500">No units.</div>
+            <div className="col-span-3 text-xs text-muted-foreground">No units.</div>
           ) : (
             Object.entries(unitCounts)
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([k, n]) => (
-                <div key={k} className="rounded-lg border bg-white p-3">
-                  <div className="text-xs text-gray-500">
+                <div key={k} className="rounded-lg border bg-card p-3">
+                  <div className="text-xs text-muted-foreground">
                     {statusLabelForUnit(k)}
                   </div>
-                  <div className="text-lg font-semibold text-gray-900">{n}</div>
+                  <div className="text-lg font-semibold text-foreground">{n}</div>
                 </div>
               ))
           )}
@@ -166,7 +166,7 @@ export default function ReportsPage() {
         </>
       )}
 
-      <Card className="p-4 text-sm text-gray-600">
+      <Card className="p-4 text-sm text-ds-gray-600">
         Next steps: exportable report views, date filters (FY/month), and SQL
         views for faster aggregations.
       </Card>

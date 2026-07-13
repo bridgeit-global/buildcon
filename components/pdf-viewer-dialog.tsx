@@ -53,7 +53,7 @@ export function PdfViewerDialog({
         <div className="min-h-0 flex-1 p-2">
           {url ? <PdfViewerInner src={url} /> : null}
         </div>
-        <DialogFooter className="shrink-0 border-t border-ds-gray-200 bg-white px-4 py-3 sm:px-5">
+        <DialogFooter className="shrink-0 border-t border-ds-gray-200 bg-card px-4 py-3 sm:px-5">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>

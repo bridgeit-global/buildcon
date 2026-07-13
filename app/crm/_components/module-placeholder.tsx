@@ -10,9 +10,9 @@ export function ModulePlaceholder({
 }) {
   return (
     <Card className="border-0 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-      <div className="text-[13px] font-semibold text-[#1e293b]">{title}</div>
+      <div className="text-[13px] font-semibold text-foreground">{title}</div>
       {description ? (
-        <div className="mt-1 text-[11px] leading-relaxed text-[#64748b]">
+        <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
           {description}
         </div>
       ) : null}

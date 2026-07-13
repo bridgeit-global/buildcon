@@ -75,15 +75,15 @@ exports[`buildCostSheetHtml > matches snapshot for fixed fixture 1`] = `
     .total-banner {
       margin: 16px 0 20px;
       padding: 12px 14px;
-      border: 1px solid #0d9488;
-      background: #f0fdfa;
+      border: 1px solid #2563eb;
+      background: #eff6ff;
       border-radius: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
     }
-    .total-banner strong { font-size: 13pt; color: #0f766e; }
+    .total-banner strong { font-size: 13pt; color: #1e40af; }
     .section-title {
       margin: 18px 0 8px;
       font-size: 10pt;

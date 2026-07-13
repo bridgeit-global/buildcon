@@ -25,7 +25,9 @@ const validResidentialAddress = {
 
 describe('customerCreateSchema', () => {
   const valid = {
-    full_name: 'Ravi Kumar',
+    first_name: 'Ravi',
+    middle_name: '',
+    last_name: 'Kumar',
     phone: '9876543210',
     phone_secondary: '',
     email: '',
@@ -47,10 +49,19 @@ describe('customerCreateSchema', () => {
     expect(customerCreateSchema.safeParse(valid).success).toBe(true);
   });
 
-  it('rejects empty name', () => {
+  it('rejects empty first or last name', () => {
     expect(
-      customerCreateSchema.safeParse({ ...valid, full_name: '' }).success
+      customerCreateSchema.safeParse({ ...valid, first_name: '' }).success
     ).toBe(false);
+    expect(
+      customerCreateSchema.safeParse({ ...valid, last_name: '' }).success
+    ).toBe(false);
+  });
+
+  it('allows empty middle name', () => {
+    expect(
+      customerCreateSchema.safeParse({ ...valid, middle_name: '' }).success
+    ).toBe(true);
   });
 
   it('rejects invalid phone', () => {
@@ -123,7 +134,9 @@ describe('customerCreateSchema', () => {
 
 describe('customerEditSchema', () => {
   const valid = {
-    full_name: 'Ravi Kumar',
+    first_name: 'Ravi',
+    middle_name: '',
+    last_name: 'Kumar',
     phone: '9876543210',
     phone_secondary: '',
     email: '',
@@ -327,9 +340,11 @@ describe('guardianNameFieldLabel', () => {
 });
 
 describe('customer payload helpers', () => {
-  it('customerCreatePayload normalizes phone', () => {
+  it('customerCreatePayload normalizes phone and composes full_name', () => {
     const payload = customerCreatePayload({
-      full_name: 'Test User',
+      first_name: 'Test',
+      middle_name: '',
+      last_name: 'User',
       phone: '+91 98765 43210',
       phone_secondary: '',
       email: '',
@@ -344,11 +359,16 @@ describe('customer payload helpers', () => {
       office_name_address: ''
     });
     expect(payload.phone).toBe('919876543210');
+    expect(payload.full_name).toBe('Test User');
+    expect(payload.first_name).toBe('Test');
+    expect(payload.last_name).toBe('User');
   });
 
   it('customerCreateAddressesPayload copies correspondence when same', () => {
     const payload = customerCreateAddressesPayload({
-      full_name: 'Test User',
+      first_name: 'Test',
+      middle_name: '',
+      last_name: 'User',
       phone: '9876543210',
       phone_secondary: '',
       email: '',
@@ -369,9 +389,11 @@ describe('customer payload helpers', () => {
     expect(payload.permanent).toEqual(payload.correspondence);
   });
 
-  it('customerEditPayload includes normalized KYC', () => {
+  it('customerEditPayload includes KYC identifiers', () => {
     const payload = customerEditPayload({
-      full_name: 'Test User',
+      first_name: 'Test',
+      middle_name: '',
+      last_name: 'User',
       phone: '9876543210',
       phone_secondary: '',
       email: '',

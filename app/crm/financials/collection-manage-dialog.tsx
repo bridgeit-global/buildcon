@@ -343,7 +343,7 @@ export function CollectionManageDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92dvh,760px)] w-[calc(100vw-1.5rem)] max-w-4xl flex-col overflow-hidden border-ds-gray-200 p-0 sm:max-w-4xl">
         <div className="flex min-h-0 flex-col">
-          <DialogHeader className="shrink-0 border-b border-ds-gray-100 bg-linear-to-br from-ds-primary-50/80 to-white px-4 py-4 sm:px-6">
+          <DialogHeader className="shrink-0 border-b border-ds-gray-100 bg-linear-to-br from-ds-primary-50/80 to-card px-4 py-4 sm:px-6">
             <DialogTitle className="text-left text-base font-semibold text-ds-gray-900">
               Manage collections
             </DialogTitle>
@@ -489,7 +489,7 @@ export function CollectionManageDialog({
 
           </div>
 
-          <DialogFooter className="shrink-0 border-t border-ds-gray-100 bg-white px-4 py-3 sm:px-6">
+          <DialogFooter className="shrink-0 border-t border-ds-gray-100 bg-card px-4 py-3 sm:px-6">
             <Button
               type="button"
               variant="outline"

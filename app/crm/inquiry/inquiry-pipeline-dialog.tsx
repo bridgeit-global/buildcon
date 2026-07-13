@@ -476,14 +476,14 @@ function InquiryBookingLockedBanner({
   return (
     <div
       role="status"
-      className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-950"
+      className="rounded-md border border-ds-primary-200 bg-ds-primary-50 px-3 py-2 text-xs text-ds-primary-900"
     >
       <p>{INQUIRY_ACTIVE_BOOKING_MESSAGE}</p>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="mt-2 min-h-9 border-teal-300 text-teal-800"
+        className="mt-2 min-h-9 border-ds-primary-300 text-ds-primary-800"
         asChild
       >
         <Link href={`/crm/bookings/${bookingId}`}>Open booking</Link>
@@ -496,7 +496,7 @@ function InquiryUnitTokenLockedBanner() {
   return (
     <div
       role="status"
-      className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+      className="rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs text-ds-warning-900"
     >
       <p>{INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE}</p>
     </div>
@@ -608,7 +608,7 @@ function SiteVisitForm({
           <p className="mt-1 text-[11px] text-ds-gray-600">Start negotiation if price discussion is needed, or create a booking when they are ready to commit.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Button type="button" variant="outline" className="min-h-11 flex-1 border-ds-primary-300 text-ds-primary-700" disabled={saving || inquiryBookingLocked} onClick={() => onAdvance('Negotiation')}>Negotiation</Button>
-            <Button type="button" className="min-h-11 flex-1 gap-1 bg-teal-600 hover:bg-teal-700" disabled={saving || inquiryBookingLocked} onClick={onCreateBooking}>
+            <Button type="button" className="min-h-11 flex-1 gap-1 bg-primary hover:bg-primary/90" disabled={saving || inquiryBookingLocked} onClick={onCreateBooking}>
               Create booking
               <ArrowRight className="size-3.5 opacity-90" />
             </Button>
@@ -617,10 +617,10 @@ function SiteVisitForm({
       ) : null}
 
       {showDislikedAction ? (
-        <div className="rounded-lg border border-red-200 bg-red-50/60 p-3" role="region" aria-label="Close enquiry">
+        <div className="rounded-lg border border-ds-error-200 bg-ds-error-50/60 p-3" role="region" aria-label="Close enquiry">
           <p className="text-xs font-semibold text-ds-gray-800">Buyer did not like the unit</p>
           <p className="mt-1 text-[11px] text-ds-gray-600">Close this enquiry and release the unit back to available inventory.</p>
-          <Button type="button" variant="outline" className="mt-3 min-h-11 w-full border-red-300 text-red-700 hover:bg-red-50 sm:w-auto" disabled={saving} onClick={onCloseEnquiry}>Close enquiry</Button>
+          <Button type="button" variant="outline" className="mt-3 min-h-11 w-full border-ds-error-300 text-ds-error-700 hover:bg-ds-error-50 sm:w-auto" disabled={saving} onClick={onCloseEnquiry}>Close enquiry</Button>
         </div>
       ) : null}
 
@@ -815,7 +815,7 @@ function NegotiationForm({
   return (
     <div className="grid gap-3">
       {listPrice ? (
-        <div className="rounded-lg border border-ds-gray-200 bg-white px-3 py-3">
+        <div className="rounded-lg border border-ds-gray-200 bg-card px-3 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ds-gray-500">
             Actual unit cost (agreement total)
           </p>
@@ -841,7 +841,7 @@ function NegotiationForm({
           )}
         </div>
       ) : (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
+        <p className="rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-[11px] text-ds-warning-900">
           Unit list price is not set on this inventory row — enter discount
           amount or percentage for approval.
         </p>
@@ -849,14 +849,14 @@ function NegotiationForm({
 
       {fieldsLocked ? (
         approvalStatus === 'approved' ? (
-          <div className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2">
-            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-teal-600" />
-            <p className="text-teal-900">
+          <div className="flex items-start gap-2 rounded-md border border-ds-primary-200 bg-ds-primary-50 px-3 py-2">
+            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-ds-primary-600" />
+            <p className="text-ds-primary-900">
               Budget terms are approved and locked. Create a booking to continue.
             </p>
           </div>
         ) : (
-          <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-800">
+          <p className="rounded-md border border-border bg-muted px-3 py-2 text-[11px] text-ds-gray-800">
             Discount terms are locked while admin approval is pending.
           </p>
         )
@@ -870,7 +870,7 @@ function NegotiationForm({
             variant={discountMode === mode ? 'default' : 'outline'}
             className={cn(
               'min-h-9',
-              discountMode === mode && 'bg-teal-600 hover:bg-teal-700'
+              discountMode === mode && 'bg-primary hover:bg-primary/90'
             )}
             disabled={formDisabled}
             onClick={() => setDiscountMode(mode)}
@@ -962,7 +962,7 @@ function NegotiationForm({
           </p>
           {approvalStatus === 'pending' ? (
             <div className="space-y-2">
-              <p className="text-[11px] text-amber-900">
+              <p className="text-[11px] text-ds-warning-900">
                 Awaiting admin decision — Super Admins review under CRM → Approvals.
               </p>
               <Button
@@ -985,14 +985,14 @@ function NegotiationForm({
             </div>
           ) : null}
           {approvalStatus === 'approved' ? (
-            <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50/60 p-3">
+            <div className="space-y-3 rounded-lg border border-ds-primary-200 bg-ds-primary-50/60 p-3">
               <div className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-teal-600" />
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ds-primary-600" />
                 <div>
-                  <p className="text-xs font-semibold text-teal-900">
+                  <p className="text-xs font-semibold text-ds-primary-900">
                     Budget approved
                   </p>
-                  <p className="mt-0.5 text-[11px] text-teal-800">
+                  <p className="mt-0.5 text-[11px] text-ds-primary-800">
                     The discount has been approved by admin. Create a booking to
                     record the token and continue.
                   </p>
@@ -1001,7 +1001,7 @@ function NegotiationForm({
               {onApprovedCreateBooking ? (
                 <Button
                   type="button"
-                  className="min-h-11 w-full gap-1 bg-teal-600 hover:bg-teal-700 sm:w-auto"
+                  className="min-h-11 w-full gap-1 bg-primary hover:bg-primary/90 sm:w-auto"
                   disabled={submitting || refreshing || formDisabled}
                   onClick={() => void onApprovedCreateBooking()}
                 >
@@ -1012,7 +1012,7 @@ function NegotiationForm({
             </div>
           ) : null}
           {approvalStatus === 'rejected' ? (
-            <p className="text-[11px] text-red-900">
+            <p className="text-[11px] text-ds-error-900">
               Budget rejected — update the offer and send again.
             </p>
           ) : null}
@@ -1495,7 +1495,7 @@ export function InquiryPipelinePanel(props: {
             ) : null}
             <div className="min-w-0 flex-1 space-y-3">
               {pipelineClosed ? (
-                <div role="status" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                <div role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-xs text-ds-gray-800">
                   This enquiry is closed. The unit has been released to available inventory when applicable.
                 </div>
               ) : null}
@@ -1534,7 +1534,7 @@ export function InquiryPipelinePanel(props: {
                 />
               )}
               {activeStage === 'Negotiation' && negotiationBlocksAdvance ? (
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                <p className="rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs text-ds-warning-900">
                   {getNegotiationApprovalStatus(stageData.negotiation) ===
                     'pending'
                     ? 'Admin approval is pending. Refresh status after decision — create a booking once approved.'
@@ -1582,7 +1582,7 @@ export function InquiryPipelinePanel(props: {
         <div className="flex flex-wrap gap-2">
           {macroStep !== 'enquiry' ? (
             <Button
-              className="bg-teal-600 hover:bg-teal-700"
+              className="bg-primary hover:bg-primary/90"
               onClick={() => {
                 if (macroStep === 'customer') setMacroStep('unit');
                 else if (macroStep === 'unit') setMacroStep('enquiry');
@@ -1618,7 +1618,7 @@ export function InquiryPipelinePanel(props: {
                 !(activeStage === 'Negotiation' && negotiationBlocksAdvance) && (
                   <Button
                     disabled={saving}
-                    className="bg-teal-600 hover:bg-teal-700"
+                    className="bg-primary hover:bg-primary/90"
                     onClick={() => advanceStage()}
                   >
                     {saving ? 'Saving…' : 'Save & advance →'}

@@ -10,6 +10,7 @@ import {
   normalizeAadhaar,
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
+import { formatFullName, splitFullName } from '@/lib/person-name';
 
 export function normalizePhoneDigits(p: string | null | undefined) {
   return String(p ?? '').replace(/\D/g, '');
@@ -108,7 +109,9 @@ const optionalPastDate = z.string().refine(isIsoDateNotAfterToday, {
 });
 
 const customerProfileObject = z.object({
-  full_name: z.string().trim().min(1, 'Customer name is required.'),
+  first_name: z.string().trim().min(1, 'First name is required.'),
+  middle_name: z.string(),
+  last_name: z.string().trim().min(1, 'Last name is required.'),
   phone: phone10,
   phone_secondary: optionalPhone10,
   email: optionalEmail,
@@ -307,7 +310,9 @@ export function guardianNameFieldLabel(
 }
 
 export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
-  full_name: '',
+  first_name: '',
+  middle_name: '',
+  last_name: '',
   phone: '',
   phone_secondary: '',
   email: '',
@@ -326,7 +331,10 @@ export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
 };
 
 export function customerEditValuesFromCustomer(row: {
-  full_name: string;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
   phone: string | null;
   phone_secondary?: string | null;
   email: string | null;
@@ -342,8 +350,15 @@ export function customerEditValuesFromCustomer(row: {
   id_proof_type?: string | null;
   office_name_address: string | null;
 }): CustomerEditFormValues {
+  const first = String(row.first_name ?? '').trim();
+  const last = String(row.last_name ?? '').trim();
+  const middle = String(row.middle_name ?? '').trim();
+  // Legacy rows may only have full_name until migration backfill runs.
+  const fromFull = !first && !last ? splitFullName(row.full_name) : null;
   return {
-    full_name: row.full_name,
+    first_name: first || fromFull?.first_name || '',
+    middle_name: middle || fromFull?.middle_name || '',
+    last_name: last || fromFull?.last_name || '',
     phone: row.phone ?? '',
     phone_secondary: row.phone_secondary ?? '',
     email: row.email ?? '',
@@ -446,8 +461,14 @@ type CustomerProfileValues = z.infer<typeof customerProfileObject>;
 
 /** Payload helpers after successful parse */
 export function customerCreatePayload(values: CustomerProfileValues) {
+  const first_name = values.first_name.trim();
+  const middle_name = values.middle_name.trim();
+  const last_name = values.last_name.trim();
   return {
-    full_name: values.full_name.trim(),
+    first_name,
+    middle_name: middle_name || null,
+    last_name,
+    full_name: formatFullName({ first_name, middle_name, last_name }),
     phone: normalizePhoneDigits(values.phone),
     phone_secondary: normalizePhoneDigits(values.phone_secondary) || null,
     email: values.email.trim() || null,

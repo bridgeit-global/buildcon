@@ -188,14 +188,28 @@ export default function BrokersPage() {
             className="mt-4 flex flex-col gap-4"
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <TextInputField
-                className="sm:col-span-2"
-                label="Full name"
-                required
-                placeholder="Broker / agency name"
-                error={errors.full_name?.message}
-                {...register('full_name')}
-              />
+              <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
+                <TextInputField
+                  label="First name"
+                  required
+                  placeholder="e.g. Amit"
+                  error={errors.first_name?.message}
+                  {...register('first_name')}
+                />
+                <TextInputField
+                  label="Middle name"
+                  placeholder="Optional"
+                  error={errors.middle_name?.message}
+                  {...register('middle_name')}
+                />
+                <TextInputField
+                  label="Last name"
+                  required
+                  placeholder="e.g. Deshmukh"
+                  error={errors.last_name?.message}
+                  {...register('last_name')}
+                />
+              </div>
               <PhoneInputField
                 value={watch('phone')}
                 onChange={(v) => setValue('phone', v, { shouldValidate: true })}

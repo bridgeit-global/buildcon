@@ -191,11 +191,11 @@ export function CrmFormSkeleton({ fields = 6 }: { fields?: number }) {
 }
 
 const INVENTORY_SURFACE_CLASS =
-  'rounded-lg border border-ds-gray-200 bg-white shadow-sm';
+  'rounded-lg border border-ds-gray-200 bg-card shadow-sm';
 
 export function CrmInventoryKvRowSkeleton() {
   return (
-    <div className="flex justify-between border-b border-slate-100 py-1.5 last:border-0">
+    <div className="flex justify-between border-b border-ds-gray-100 py-1.5 last:border-0">
       <Skeleton className="h-3 w-24" />
       <Skeleton className="h-3 w-28 max-w-[60%]" />
     </div>
@@ -296,7 +296,7 @@ export function CrmInventoryPageSkeleton() {
           <Skeleton className="h-3 w-10" />
           <Skeleton className="mt-1 h-9 w-full min-w-[10rem]" />
         </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-3 w-[4.5rem]" />
           ))}

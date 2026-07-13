@@ -22,10 +22,10 @@ const TONE_CLASS: Record<StatusChipTone, string> = {
   success: 'border-ds-success-200 bg-ds-success-50 text-ds-success-800',
   warning: 'border-ds-warning-200 bg-ds-warning-50 text-ds-warning-800',
   error: 'border-ds-error-200 bg-ds-error-50 text-ds-error-700',
-  primary: 'border-teal-200 bg-teal-50 text-teal-900',
-  'primary-strong': 'border-teal-300 bg-teal-100 text-teal-950',
+  primary: 'border-ds-primary-200 bg-ds-primary-50 text-ds-primary-900',
+  'primary-strong': 'border-ds-primary-300 bg-ds-primary-100 text-ds-primary-900',
   gray: 'border-ds-gray-300 bg-ds-gray-100 text-ds-gray-800',
-  muted: 'border-slate-200 bg-slate-50 text-slate-800',
+  muted: 'border-ds-gray-200 bg-ds-gray-50 text-ds-gray-800',
   neutral: 'border-ds-gray-200 bg-ds-gray-100 text-ds-gray-600',
   info: 'border-ds-primary-200 bg-ds-primary-50 text-ds-primary-700'
 };
@@ -39,7 +39,7 @@ const SIZE_CLASS = {
 export type StatusChipProps = {
   children: ReactNode;
   tone?: StatusChipTone;
-  /** Hex color for dynamic badges (e.g. unit lifecycle). */
+  /** CSS color for dynamic badges (hex or `var(--ds-*)`). */
   color?: string;
   size?: keyof typeof SIZE_CLASS;
   border?: boolean;
@@ -71,10 +71,14 @@ export function StatusChip({
       style={
         useHex
           ? {
-              background: `${color}22`,
+              background: `color-mix(in oklab, ${color} 13%, transparent)`,
               color,
               ...(border
-                ? { borderWidth: 1, borderStyle: 'solid', borderColor: `${color}44` }
+                ? {
+                    borderWidth: 1,
+                    borderStyle: 'solid',
+                    borderColor: `color-mix(in oklab, ${color} 27%, transparent)`
+                  }
                 : {})
             }
           : undefined
@@ -96,7 +100,7 @@ export function UnitStatusChip({
 }) {
   const raw = String(status || '').trim();
   const code = normalizeUnitStatusCode(status);
-  const color = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? '#94A3B8';
+  const color = STATUS_COLOR[raw] ?? STATUS_COLOR[code] ?? 'var(--ds-gray-400)';
   const label = statusLabelForUnit(status);
 
   return (
@@ -157,8 +161,10 @@ export function bookingWorkflowTone(
 }
 
 export function notificationStatusColor(status: string): string {
-  if (status === 'sent' || status === 'delivered' || status === 'read') return '#0d9488';
-  if (status === 'failed') return '#dc2626';
-  if (status === 'skipped') return '#64748b';
-  return '#f97316';
+  if (status === 'sent' || status === 'delivered' || status === 'read') {
+    return 'var(--ds-success-600)';
+  }
+  if (status === 'failed') return 'var(--ds-error-600)';
+  if (status === 'skipped') return 'var(--ds-gray-500)';
+  return 'var(--ds-warning-600)';
 }

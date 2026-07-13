@@ -263,7 +263,7 @@ export default function WorkQueuePage() {
     <div className="flex flex-col gap-4">
       <div
         className={cn(
-          'flex flex-wrap gap-0 rounded-lg border border-slate-200 bg-white px-1 shadow-sm'
+          'flex flex-wrap gap-0 rounded-lg border border-border bg-card px-1 shadow-sm'
         )}
       >
         {tabs.map((t) => (
@@ -275,11 +275,11 @@ export default function WorkQueuePage() {
               'cursor-pointer whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-[11px]',
               tab === t.id
                 ? 'border-ds-primary-500 font-semibold text-ds-primary-600'
-                : 'text-slate-500 hover:text-slate-700'
+                : 'text-muted-foreground hover:text-ds-gray-700'
             )}
           >
             {t.label}
-            <span className="ml-1 tabular-nums text-slate-400">({t.count})</span>
+            <span className="ml-1 tabular-nums text-ds-gray-400">({t.count})</span>
           </button>
         ))}
         <div className="ml-auto flex items-center pr-1">

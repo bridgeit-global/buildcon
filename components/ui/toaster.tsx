@@ -23,7 +23,7 @@ const SEVERITY_STYLES: Record<
   { container: string; icon: string; Icon: typeof Info }
 > = {
   default: {
-    container: 'border-ds-gray-200 bg-white text-ds-gray-800',
+    container: 'border-ds-gray-200 bg-card text-ds-gray-800',
     icon: 'text-ds-gray-500',
     Icon: Info
   },

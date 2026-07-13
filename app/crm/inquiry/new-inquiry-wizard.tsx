@@ -107,6 +107,7 @@ import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
 import { normalizeLeadSource, persistedLeadSourceValue, resolveLeadSourceFormState } from '@/lib/inquiry/lead-source';
 import { mergeLookupOptions } from '@/lib/master/master-lookup';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
+import { namePartsFromFullName } from '@/lib/person-name';
 import {
   buildWizardUiDraftPayload,
   parseInquiryWizardUi,
@@ -1143,6 +1144,7 @@ export const NewInquiryWizard = forwardRef<
     const digits = normalizePhone(sellerForm.phone);
     const fullName = String(sellerForm.customerName || '').trim();
     const email = String(sellerForm.email || '').trim() || null;
+    const nameFields = namePartsFromFullName(fullName);
 
     try {
       if (selectedCustomerId) {
@@ -1156,7 +1158,7 @@ export const NewInquiryWizard = forwardRef<
           const customerId = selected.id;
           const { error: upErr } = await supabase
             .from('customers')
-            .update({ full_name: fullName, email, phone: digits })
+            .update({ ...nameFields, email, phone: digits })
             .eq('id', customerId);
           if (upErr) throw upErr;
           return customerId;
@@ -1178,13 +1180,13 @@ export const NewInquiryWizard = forwardRef<
         customerId = existing.id;
         const { error: upErr } = await supabase
           .from('customers')
-          .update({ full_name: fullName, email, phone: digits })
+          .update({ ...nameFields, email, phone: digits })
           .eq('id', customerId);
         if (upErr) throw upErr;
       } else {
         const { data: inserted, error: insErr } = await supabase
           .from('customers')
-          .insert({ full_name: fullName, phone: digits, email })
+          .insert({ ...nameFields, phone: digits, email })
           .select('id')
           .single();
         if (insErr) throw insErr;
@@ -1970,7 +1972,7 @@ export const NewInquiryWizard = forwardRef<
       {stagesReadOnly ? (
         <div
           role="status"
-          className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+          className="mb-4 rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs text-ds-warning-900"
         >
           {INQUIRY_UNIT_TOKEN_LOCKED_MESSAGE}
         </div>
@@ -2116,12 +2118,12 @@ export const NewInquiryWizard = forwardRef<
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {isCurrentStepUnsaved() && !stagesReadOnly ? (
-            <span className="text-xs font-medium text-amber-800">
+            <span className="text-xs font-medium text-ds-warning-800">
               Unsaved changes
             </span>
           ) : null}
           {!userLabel.id ? (
-            <span className="text-xs text-amber-700">Sign in required.</span>
+            <span className="text-xs text-ds-warning-700">Sign in required.</span>
           ) : null}
           {step < 3 && !stagesReadOnly ? (
             <Button
@@ -2254,7 +2256,7 @@ function ExistingCustomerPickerDialog({
             <button
               key={customer.id}
               type="button"
-              className="w-full rounded-lg border border-ds-gray-200 bg-white px-3 py-3 text-left transition-colors hover:border-ds-primary-300 hover:bg-ds-primary-50"
+              className="w-full rounded-lg border border-ds-gray-200 bg-card px-3 py-3 text-left transition-colors hover:border-ds-primary-300 hover:bg-ds-primary-50"
               onClick={() => onSelect(customer)}
             >
               <p className="text-sm font-medium text-ds-gray-900">
@@ -2316,7 +2318,7 @@ function StepEnquiry({
       )}
     >
       {!signedIn ? (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <p className="rounded-md border border-ds-warning-200 bg-ds-warning-50 px-3 py-2 text-xs text-ds-warning-900">
           Sign in to save and continue.
         </p>
       ) : null}
@@ -2464,7 +2466,7 @@ function StepEnquiry({
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm">
         <p className="text-xs font-semibold text-ds-gray-800">
           What are they looking for?
         </p>
@@ -2737,7 +2739,7 @@ function StepVisitSite({
   const formDisabled = inquiryClosed || stagesReadOnly;
   if (!selectedUnit) {
     return (
-      <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+      <div className="mt-5 rounded-lg border border-ds-warning-200 bg-ds-warning-50 px-3 py-3 text-xs text-ds-warning-900">
         No unit on this enquiry. Go back to Qualified to pick a unit.
       </div>
     );
@@ -2769,7 +2771,7 @@ function StepVisitSite({
         />
       ) : null}
 
-      <div className="rounded-xl border border-ds-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm">
         <p className="text-xs font-semibold text-ds-gray-800">Site visit</p>
         <p className="mt-0.5 text-[11px] text-ds-gray-500">
           Set a follow-up date for the assigned team member. Choosing{' '}
@@ -2828,7 +2830,7 @@ function StepVisitSite({
             Negotiate stage.
           </p>
           {tokenBlockedByApproval ? (
-            <p className="text-[11px] text-amber-900">
+            <p className="text-[11px] text-ds-warning-900">
               {approvalStatus === 'pending'
                 ? 'Budget approval is pending in the Negotiate stage. Complete or refresh there before creating a booking.'
                 : 'Complete budget approval in the Negotiate stage before creating a booking.'}
@@ -2846,7 +2848,7 @@ function StepVisitSite({
             </Button>
             <Button
               type="button"
-              className="flex-1 gap-1 bg-teal-600 hover:bg-teal-700"
+              className="flex-1 gap-1 bg-primary hover:bg-primary/90"
               disabled={saving || tokenBlockedByApproval}
               onClick={onCreateBooking}
             >
@@ -2909,8 +2911,8 @@ function StepVisitSite({
 
 function SelectedUnitSummaryCard({ unit }: { unit: UnitRow }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-ds-primary-200 bg-white shadow-sm">
-      <div className="border-b border-ds-primary-100 bg-gradient-to-br from-ds-primary-50 to-white px-4 py-4">
+    <div className="overflow-hidden rounded-xl border border-ds-primary-200 bg-card shadow-sm">
+      <div className="border-b border-ds-primary-100 bg-gradient-to-br from-ds-primary-50 to-background px-4 py-4">
         <p className="text-[10px] font-bold uppercase tracking-wider text-ds-primary-700">
           Selected unit
         </p>
