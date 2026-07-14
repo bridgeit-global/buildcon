@@ -1,8 +1,7 @@
 import { isValidDobIso } from '@/lib/date-input-value';
 import {
   defaultIdProofForResidentialStatus,
-  idProofOptionsForResidentialStatus,
-  isNriResidentialStatus
+  idProofOptionsForResidentialStatus
 } from '@/lib/customer/id-proof-options';
 
 export type ApplicationFormAddress = {
@@ -131,16 +130,6 @@ export function validateApplicationFormBuyer(
   if (!b.nationality?.trim()) errors.nationality = 'Nationality is required.';
   if (!b.residential_status?.trim()) {
     errors.residential_status = 'Residential status is required.';
-  }
-
-  const allowedProof = idProofOptionsForResidentialStatus(b.residential_status);
-  const proof = b.id_proof_type?.trim() ?? '';
-  if (!proof) {
-    errors.id_proof_type = 'ID proof type is required.';
-  } else if (!allowedProof.includes(proof)) {
-    errors.id_proof_type = isNriResidentialStatus(b.residential_status)
-      ? 'NRI / foreign applicants must use Passport as ID proof.'
-      : 'Select a valid ID proof type.';
   }
 
   Object.assign(errors, validateAddress(b.residentialAddress, 'res_address'));

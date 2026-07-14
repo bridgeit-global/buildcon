@@ -98,7 +98,6 @@ import {
 import { DobInputField } from '@/components/ui/dob-input-field';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
 import { mergeLookupOptions } from '@/lib/master/master-lookup';
-import { idProofOptionsForResidentialStatus } from '@/lib/customer/id-proof-options';
 import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
 import { formatFullName, splitFullName } from '@/lib/person-name';
 import {
@@ -1683,9 +1682,6 @@ export default function BookingDetailPage() {
                     masterCustomerRelations,
                     buyerKyc.map((row) => row.guardian_relation)
                   );
-                  const idProofOptions = idProofOptionsForResidentialStatus(
-                    b.residential_status
-                  );
                   const residentialValues = applicationAddressFromRow(b.residentialAddress);
                   const permanentValues = applicationAddressFromRow(b.permanentAddress);
                   const patchBuyerField = <K extends keyof BuyerKyc>(
@@ -1918,60 +1914,163 @@ export default function BookingDetailPage() {
 
                       {/* Identity & KYC — application-required */}
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <PanInputField
-                          label="PAN"
-                          required
-                          value={b.pan}
-                          placeholder="ABCDE1234F"
-                          onChange={(pan) => {
-                            patchBuyerField('pan', pan);
-                            setBuyerKycBlurError(
-                              b.customerId,
-                              'pan',
-                              parseBookingBuyerPanInlineError(pan)
-                            );
-                          }}
-                          error={errs.pan || buyerKycFieldErrors[b.customerId]?.pan}
-                        />
+                        <div className="space-y-2">
+                          <PanInputField
+                            label="PAN"
+                            required
+                            value={b.pan}
+                            placeholder="ABCDE1234F"
+                            onChange={(pan) => {
+                              patchBuyerField('pan', pan);
+                              setBuyerKycBlurError(
+                                b.customerId,
+                                'pan',
+                                parseBookingBuyerPanInlineError(pan)
+                              );
+                            }}
+                            error={errs.pan || buyerKycFieldErrors[b.customerId]?.pan}
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            {b.hasPanDoc && b.panDocPath ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled={kycPreviewLoading}
+                                onClick={() =>
+                                  void previewKycDoc(b.panDocPath!, 'pan', b.label)
+                                }
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View PAN
+                              </Button>
+                            ) : uploadingKycKey === `${b.customerId}:pan` ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled
+                              >
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled={!!uploadingKycKey}
+                                onClick={() => openKycFilePicker(b.customerId, 'pan')}
+                              >
+                                <Upload className="h-3.5 w-3.5" /> Upload PAN
+                              </Button>
+                            )}
+                          </div>
+                        </div>
 
-                        <AadhaarInputField
-                          label="Aadhaar number"
-                          required
-                          value={b.aadhaarLast4}
-                          placeholder="123456789012"
-                          onChange={(aadhaarLast4) => {
-                            patchBuyerField('aadhaarLast4', aadhaarLast4);
-                            setBuyerKycBlurError(
-                              b.customerId,
-                              'aadhaar',
-                              parseBookingBuyerAadhaarInlineError(aadhaarLast4)
-                            );
-                          }}
-                          error={
-                            errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar
-                          }
-                        />
-
-                        <div className="space-y-1">
-                          <FieldLabel required>ID proof</FieldLabel>
-                          <Select
-                            value={b.id_proof_type ?? ''}
-                            onValueChange={(v) =>
-                              patchBuyerField('id_proof_type', v)
+                        <div className="space-y-2">
+                          <AadhaarInputField
+                            label="Aadhaar number"
+                            required
+                            value={b.aadhaarLast4}
+                            placeholder="123456789012"
+                            onChange={(aadhaarLast4) => {
+                              patchBuyerField('aadhaarLast4', aadhaarLast4);
+                              setBuyerKycBlurError(
+                                b.customerId,
+                                'aadhaar',
+                                parseBookingBuyerAadhaarInlineError(aadhaarLast4)
+                              );
+                            }}
+                            error={
+                              errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar
                             }
-                          >
-                            <SelectTrigger aria-invalid={!!errs.id_proof_type}>
-                              <SelectValue placeholder="Select ID proof" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {idProofOptions.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormFieldError message={errs.id_proof_type} />
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            {b.hasAadhaarDoc && b.aadhaarDocPath ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled={kycPreviewLoading}
+                                onClick={() =>
+                                  void previewKycDoc(
+                                    b.aadhaarDocPath!,
+                                    'aadhaar',
+                                    b.label
+                                  )
+                                }
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View Aadhaar
+                              </Button>
+                            ) : uploadingKycKey === `${b.customerId}:aadhaar` ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled
+                              >
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled={!!uploadingKycKey}
+                                onClick={() =>
+                                  openKycFilePicker(b.customerId, 'aadhaar')
+                                }
+                              >
+                                <Upload className="h-3.5 w-3.5" /> Upload Aadhaar
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <FieldLabel>Photo</FieldLabel>
+                          <div className="flex flex-wrap gap-2">
+                            {b.hasPhotoDoc && b.photoDocPath ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled={kycPreviewLoading}
+                                onClick={() =>
+                                  void previewKycDoc(b.photoDocPath!, 'photo', b.label)
+                                }
+                              >
+                                <Eye className="h-3.5 w-3.5" /> View photo
+                              </Button>
+                            ) : uploadingKycKey === `${b.customerId}:photo` ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled
+                              >
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 min-h-11 gap-1 text-xs sm:min-h-9"
+                                disabled={!!uploadingKycKey}
+                                onClick={() => openKycFilePicker(b.customerId, 'photo')}
+                              >
+                                <Upload className="h-3.5 w-3.5" /> Upload photo
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -2050,67 +2149,6 @@ export default function BookingDetailPage() {
                           patchBuyerField('office_name_address', e.target.value)
                         }
                       />
-
-                      {/* KYC Documents Status & Upload */}
-                      <div className="flex flex-col gap-2 border-t border-ds-gray-100 pt-3">
-                        <p className="text-xs text-ds-gray-500">
-                          Docs: PAN {b.hasPanDoc ? '✓' : '—'} · Aadhaar{' '}
-                          {b.hasAadhaarDoc ? '✓' : '—'} · Photo {b.hasPhotoDoc ? '✓' : '—'}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {b.hasPanDoc && b.panDocPath ? (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              disabled={kycPreviewLoading}
-                              onClick={() => void previewKycDoc(b.panDocPath!, 'pan', b.label)}>
-                              <Eye className="h-3 w-3" /> PAN
-                            </Button>
-                          ) : uploadingKycKey === `${b.customerId}:pan` ? (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7" disabled>
-                              <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
-                            </Button>
-                          ) : (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              disabled={!!uploadingKycKey}
-                              onClick={() => openKycFilePicker(b.customerId, 'pan')}>
-                              <Upload className="h-3 w-3" /> PAN
-                            </Button>
-                          )}
-                          {b.hasAadhaarDoc && b.aadhaarDocPath ? (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              disabled={kycPreviewLoading}
-                              onClick={() => void previewKycDoc(b.aadhaarDocPath!, 'aadhaar', b.label)}>
-                              <Eye className="h-3 w-3" /> Aadhaar
-                            </Button>
-                          ) : uploadingKycKey === `${b.customerId}:aadhaar` ? (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7" disabled>
-                              <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
-                            </Button>
-                          ) : (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              disabled={!!uploadingKycKey}
-                              onClick={() => openKycFilePicker(b.customerId, 'aadhaar')}>
-                              <Upload className="h-3 w-3" /> Aadhaar
-                            </Button>
-                          )}
-                          {b.hasPhotoDoc && b.photoDocPath ? (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              disabled={kycPreviewLoading}
-                              onClick={() => void previewKycDoc(b.photoDocPath!, 'photo', b.label)}>
-                              <Eye className="h-3 w-3" /> Photo
-                            </Button>
-                          ) : uploadingKycKey === `${b.customerId}:photo` ? (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7" disabled>
-                              <Loader2 className="h-3 w-3 animate-spin" /> Uploading…
-                            </Button>
-                          ) : (
-                            <Button type="button" size="sm" variant="outline" className="gap-1 text-xs h-7"
-                              disabled={!!uploadingKycKey}
-                              onClick={() => openKycFilePicker(b.customerId, 'photo')}>
-                              <Upload className="h-3 w-3" /> Photo
-                            </Button>
-                          )}
-                        </div>
-                      </div>
 
                       {/* Save buyer details */}
                       <div className="flex gap-2 border-t border-ds-gray-100 pt-3">

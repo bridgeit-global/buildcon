@@ -51,15 +51,6 @@ describe('validateApplicationFormBuyer', () => {
     expect(errors.res_address_line2).toBeTruthy();
   });
 
-  it('requires passport ID proof for NRI', () => {
-    const errors = validateApplicationFormBuyer({
-      ...validBuyer,
-      residential_status: 'NRI',
-      id_proof_type: 'Aadhaar Card'
-    });
-    expect(errors.id_proof_type).toMatch(/Passport/i);
-  });
-
   it('validates permanent address when different', () => {
     const errors = validateApplicationFormBuyer({
       ...validBuyer,
