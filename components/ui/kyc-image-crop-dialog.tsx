@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { FormActions } from '@/components/ui/form-actions';
 import { FieldLabel } from '@/components/ui/field-label';
@@ -14,10 +14,14 @@ import {
   croppedBlobToFile,
   getCroppedImageBlob,
   kycCropAspectRatio,
+  rotateImageBlobCw,
   type CroppedAreaPixels
 } from '@/lib/customer/kyc-crop';
 import { normalizeKycDocumentImage } from '@/lib/customer/kyc-document-normalize';
-import { runKycOcr, type KycOcrDocType } from '@/lib/customer/kyc-ocr';
+import {
+  runKycOcrWithAutoOrient,
+  type KycOcrDocType
+} from '@/lib/customer/kyc-ocr';
 import {
   isAadhaarValid,
   isPanValid,
@@ -47,36 +51,6 @@ type Props = {
 
 type Step = 'processing' | 'crop' | 'review';
 
-/** Rotate JPEG blob 180° (flip landscape orientation if OCR failed). */
-async function rotateBlob180(blob: Blob): Promise<Blob> {
-  const url = URL.createObjectURL(blob);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error('Rotate failed'));
-      el.src = url;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas unavailable');
-    ctx.translate(canvas.width, canvas.height);
-    ctx.rotate(Math.PI);
-    ctx.drawImage(img, 0, 0);
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('Encode failed'))),
-        'image/jpeg',
-        0.92
-      );
-    });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 export function KycImageCropDialog({
   open,
   imageUrl,
@@ -97,6 +71,9 @@ export function KycImageCropDialog({
   const [busyLabel, setBusyLabel] = useState('Working…');
   const [croppedFile, setCroppedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  /** Source shown in manual cropper — may be a rotated copy of `imageUrl`. */
+  const [editUrl, setEditUrl] = useState(imageUrl);
+  const ownedEditUrlRef = useRef<string | null>(null);
   const [pan, setPan] = useState(initialPan);
   const [aadhaar, setAadhaar] = useState(initialAadhaar);
   const [fieldError, setFieldError] = useState<string | undefined>();
@@ -104,6 +81,7 @@ export function KycImageCropDialog({
   const pixelsRef = useRef<CroppedAreaPixels | null>(null);
   const autoStartedRef = useRef(false);
   const scanInFlightRef = useRef(false);
+  const scanGenRef = useRef(0);
 
   const aspect = kycCropAspectRatio(docType);
   const needsId = docType === 'pan' || docType === 'aadhaar';
@@ -116,6 +94,7 @@ export function KycImageCropDialog({
 
   useEffect(() => {
     if (!open) return;
+    scanGenRef.current += 1;
     setStep(autoScan ? 'processing' : 'crop');
     setCrop({ x: 0, y: 0 });
     setZoom(1);
@@ -128,11 +107,24 @@ export function KycImageCropDialog({
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
+    if (ownedEditUrlRef.current) {
+      URL.revokeObjectURL(ownedEditUrlRef.current);
+      ownedEditUrlRef.current = null;
+    }
+    setEditUrl(imageUrl);
     setPan(initialPan);
     setAadhaar(initialAadhaar);
     setFieldError(undefined);
     setBusy(false);
-  }, [open, imageUrl, initialPan, initialAadhaar, docType, autoScan]);
+    // Only reset when a new image is opened — not when parent re-renders PAN/Aadhaar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, imageUrl, autoScan]);
+
+  useEffect(() => {
+    if (!open) return;
+    setPan(initialPan);
+    setAadhaar(initialAadhaar);
+  }, [open, initialPan, initialAadhaar]);
 
   useEffect(() => {
     return () => {
@@ -147,44 +139,49 @@ export function KycImageCropDialog({
       blob: Blob;
       pan: string | null;
       aadhaar: string | null;
+      rotationDeg: 0 | 90 | 180 | 270;
     }> => {
       if (!needsId) {
-        return { blob, pan: null, aadhaar: null };
+        return { blob, pan: null, aadhaar: null, rotationDeg: 0 };
       }
-      let ocr = await runKycOcr(blob, docType);
-      let working = blob;
-
-      // If sideways/upside-down after landscape fix, try 180° flip.
-      const found =
-        (docType === 'pan' && ocr.pan) || (docType === 'aadhaar' && ocr.aadhaar);
-      if (!found) {
-        working = await rotateBlob180(blob);
-        ocr = await runKycOcr(working, docType);
+      try {
+        // Rotate only when OCR cannot read upright text.
+        const ocr = await runKycOcrWithAutoOrient(blob, docType);
+        return {
+          blob: ocr.blob,
+          pan: ocr.pan,
+          aadhaar: ocr.aadhaar,
+          rotationDeg: ocr.rotationDeg
+        };
+      } catch (e) {
+        console.warn('OCR skipped', e);
+        return { blob, pan: null, aadhaar: null, rotationDeg: 0 };
       }
-      return { blob: working, pan: ocr.pan, aadhaar: ocr.aadhaar };
     },
     [docType, needsId]
   );
 
   const finishWithBlob = useCallback(
-    async (blob: Blob, file: File, methodLabel: string) => {
-      setBusyLabel(
-        needsId ? 'Reading PAN / Aadhaar…' : 'Preparing image…'
-      );
+    async (blob: Blob, file: File, methodLabel: string, gen: number) => {
+      if (gen !== scanGenRef.current) return;
+      setBusyLabel(needsId ? 'Reading text…' : 'Preparing image…');
       let finalBlob = blob;
       let finalFile = file;
 
       if (needsId) {
         try {
           const ocr = await applyOcrToState(blob);
-          if (ocr.blob && ocr.blob !== blob) {
+          if (gen !== scanGenRef.current) return;
+          if (ocr.blob !== blob) {
             finalBlob = ocr.blob;
             finalFile = croppedBlobToFile(ocr.blob, fileBaseName);
           }
+          const rotatedNote =
+            ocr.rotationDeg > 0 ? `, rotated ${ocr.rotationDeg}°` : '';
           if (docType === 'pan') {
             if (ocr.pan) {
               setPan(ocr.pan);
-              toast.success(`PAN detected (${methodLabel}).`);
+              toast.success(`PAN detected (${methodLabel}${rotatedNote}).`);
             } else {
               toast.warning(
                 'Could not read PAN. Enter it manually after checking the crop.'
@@ -193,7 +190,7 @@ export function KycImageCropDialog({
           } else if (docType === 'aadhaar') {
             if (ocr.aadhaar) {
               setAadhaar(ocr.aadhaar);
-              toast.success(`Aadhaar detected (${methodLabel}).`);
+              toast.success(`Aadhaar detected (${methodLabel}${rotatedNote}).`);
             } else {
               toast.warning(
                 'Could not read Aadhaar. Enter it manually after checking the crop.'
@@ -210,6 +207,7 @@ export function KycImageCropDialog({
         }
       }
 
+      if (gen !== scanGenRef.current) return;
       setCroppedFile(finalFile);
       setPreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -222,69 +220,132 @@ export function KycImageCropDialog({
 
   const runAutoDocumentScan = useCallback(async () => {
     if (scanInFlightRef.current) return;
+    const gen = scanGenRef.current;
     scanInFlightRef.current = true;
     setBusy(true);
     setStep('processing');
-    setBusyLabel('Detecting card corners…');
+    setBusyLabel('Cropping card…');
     try {
       const normalized = await normalizeKycDocumentImage(
         imageUrl,
         docType,
         fileBaseName
       );
+      if (gen !== scanGenRef.current) return;
       setBusyLabel(
-        normalized.method === 'corners'
-          ? 'Corner crop done. Scanning…'
-          : 'Card cropped. Scanning…'
+        needsId ? 'Card cropped. Reading text…' : 'Card cropped…'
       );
       await finishWithBlob(
         normalized.blob,
         normalized.file,
-        normalized.method === 'corners' ? 'corner crop' : 'auto crop'
+        'auto crop',
+        gen
       );
     } catch (e) {
+      if (gen !== scanGenRef.current) return;
       console.error('Auto document scan failed', e);
       toast.warning(
-        'Auto card detect failed. Adjust the crop manually, then scan.'
+        'Auto crop failed. Adjust the crop manually, then scan.'
       );
       setStep('crop');
     } finally {
-      scanInFlightRef.current = false;
-      setBusy(false);
+      if (gen === scanGenRef.current) {
+        scanInFlightRef.current = false;
+        setBusy(false);
+      }
     }
-  }, [docType, fileBaseName, finishWithBlob, imageUrl]);
+  }, [docType, fileBaseName, finishWithBlob, imageUrl, needsId]);
 
-  // Auto-run corner detect + OCR when dialog opens.
+  // Auto-run once when dialog opens (stable deps — avoid restart loops).
   useEffect(() => {
-    if (!open || !autoScan || !imageUrl || autoStartedRef.current) return;
+    if (!open || !autoScan || !imageUrl) return;
+    if (autoStartedRef.current) return;
     autoStartedRef.current = true;
     void runAutoDocumentScan();
-  }, [open, autoScan, imageUrl, runAutoDocumentScan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally once per open/imageUrl
+  }, [open, autoScan, imageUrl]);
 
   const runManualCropAndScan = useCallback(
     async (pixels: CroppedAreaPixels) => {
       if (scanInFlightRef.current) return;
+      const gen = scanGenRef.current;
       scanInFlightRef.current = true;
       setBusy(true);
       setBusyLabel(needsId ? 'Cropping & scanning…' : 'Cropping…');
       try {
-        const blob = await getCroppedImageBlob(imageUrl, pixels, 0.92, 2);
+        const blob = await getCroppedImageBlob(editUrl, pixels, 0.92, 2);
         const file = croppedBlobToFile(blob, fileBaseName);
-        await finishWithBlob(blob, file, 'manual crop');
+        await finishWithBlob(blob, file, 'manual crop', gen);
       } catch (e) {
         pageError(e instanceof Error ? e.message : 'Crop failed');
       } finally {
-        scanInFlightRef.current = false;
-        setBusy(false);
+        if (gen === scanGenRef.current) {
+          scanInFlightRef.current = false;
+          setBusy(false);
+        }
       }
     },
-    [fileBaseName, finishWithBlob, imageUrl, needsId]
+    [editUrl, fileBaseName, finishWithBlob, needsId]
   );
 
   const onCropComplete = useCallback((_area: Area, pixels: Area) => {
     pixelsRef.current = pixels;
     setCroppedAreaPixels(pixels);
   }, []);
+
+  async function rotateBlobUrl(
+    sourceUrl: string,
+    direction: 'cw' | 'ccw'
+  ): Promise<string> {
+    const res = await fetch(sourceUrl);
+    const srcBlob = await res.blob();
+    const rotated = await rotateImageBlobCw(
+      srcBlob,
+      direction === 'cw' ? 90 : 270
+    );
+    return URL.createObjectURL(rotated);
+  }
+
+  async function rotateEditSource(direction: 'cw' | 'ccw') {
+    setBusy(true);
+    setBusyLabel('Rotating…');
+    try {
+      const nextUrl = await rotateBlobUrl(editUrl, direction);
+      if (ownedEditUrlRef.current) URL.revokeObjectURL(ownedEditUrlRef.current);
+      ownedEditUrlRef.current = nextUrl;
+      setEditUrl(nextUrl);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+      pixelsRef.current = null;
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Rotate failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rotatePreview(direction: 'cw' | 'ccw') {
+    if (!croppedFile) return;
+    setBusy(true);
+    setBusyLabel('Rotating…');
+    try {
+      const blob = await rotateImageBlobCw(
+        croppedFile,
+        direction === 'cw' ? 90 : 270
+      );
+      const file = croppedBlobToFile(blob, fileBaseName);
+      setCroppedFile(file);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(blob);
+      });
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Rotate failed');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleConfirm() {
     if (!croppedFile) {
@@ -336,83 +397,144 @@ export function KycImageCropDialog({
     <FormDialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && !busy) onCancel();
+        // Always allow dismiss — cancel in-flight scan via generation bump.
+        if (!next) {
+          scanGenRef.current += 1;
+          scanInFlightRef.current = false;
+          onCancel();
+        }
       }}
       title={title}
       description={
         step === 'processing'
-          ? 'Detecting card edges, rotating if needed, then reading details…'
+          ? 'Cropping the card, then reading text (rotates only if text is sideways)…'
           : step === 'crop'
-            ? 'Drag to frame the card, then crop & scan.'
+            ? 'Rotate if needed, drag to frame the card, then apply crop.'
             : needsId
-              ? 'Confirm the number, then upload.'
-              : 'Preview the crop, then upload.'
+              ? 'Rotate or re-crop if needed, confirm the number, then upload.'
+              : 'Rotate or re-crop if needed, then upload.'
       }
       className="w-[min(100vw-1rem,36rem)] sm:max-w-xl"
       contentClassName="overflow-hidden"
       footer={
         step === 'processing' ? (
-          <FormActions
-            onCancel={onCancel}
-            submitLabel="Working…"
-            saving
-            submitType="button"
-            disabled
-          />
-        ) : step === 'crop' ? (
-          <FormActions
-            onCancel={onCancel}
-            submitLabel={needsId ? 'Crop & scan' : 'Apply crop'}
-            saving={busy}
-            submitType="button"
-            onSubmitClick={() => {
-              const pixels = pixelsRef.current ?? croppedAreaPixels;
-              if (!pixels) {
-                pageError('Wait for the image to load.');
-                return;
-              }
-              void runManualCropAndScan(pixels);
-            }}
-            disabled={busy || !(pixelsRef.current || croppedAreaPixels)}
-          />
-        ) : (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
-              disabled={busy}
               onClick={() => {
+                scanGenRef.current += 1;
+                scanInFlightRef.current = false;
+                setBusy(false);
                 setStep('crop');
-                setFieldError(undefined);
               }}
             >
-              Manual crop
+              Manual crop & rotate
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                autoStartedRef.current = false;
-                void runAutoDocumentScan();
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </div>
+        ) : step === 'crop' ? (
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-11 gap-1.5 sm:h-9 sm:min-h-9"
+                disabled={busy}
+                onClick={() => void rotateEditSource('ccw')}
+              >
+                <RotateCcw className="size-4" aria-hidden />
+                Rotate left
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-11 gap-1.5 sm:h-9 sm:min-h-9"
+                disabled={busy}
+                onClick={() => void rotateEditSource('cw')}
+              >
+                <RotateCw className="size-4" aria-hidden />
+                Rotate right
+              </Button>
+            </div>
+            <FormActions
+              onCancel={onCancel}
+              submitLabel={needsId ? 'Apply crop & scan' : 'Apply crop'}
+              saving={busy}
+              submitType="button"
+              onSubmitClick={() => {
+                const pixels = pixelsRef.current ?? croppedAreaPixels;
+                if (!pixels) {
+                  pageError('Wait for the image to load.');
+                  return;
+                }
+                void runManualCropAndScan(pixels);
               }}
-            >
-              Re-detect
-            </Button>
-            <Button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleConfirm()}
-            >
-              {busy ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  {busyLabel}
-                </>
-              ) : (
-                'Upload'
-              )}
-            </Button>
+              disabled={busy || !(pixelsRef.current || croppedAreaPixels)}
+            />
+          </div>
+        ) : (
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-11 gap-1.5 sm:h-9 sm:min-h-9"
+                disabled={busy}
+                onClick={() => {
+                  setStep('crop');
+                  setFieldError(undefined);
+                }}
+              >
+                Manual crop
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-11 gap-1.5 sm:h-9 sm:min-h-9"
+                disabled={busy || !croppedFile}
+                onClick={() => void rotatePreview('ccw')}
+              >
+                <RotateCcw className="size-4" aria-hidden />
+                Rotate left
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-11 gap-1.5 sm:h-9 sm:min-h-9"
+                disabled={busy || !croppedFile}
+                onClick={() => void rotatePreview('cw')}
+              >
+                <RotateCw className="size-4" aria-hidden />
+                Rotate right
+              </Button>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleConfirm()}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                    {busyLabel}
+                  </>
+                ) : (
+                  'Upload'
+                )}
+              </Button>
+            </div>
           </div>
         )
       }
@@ -422,8 +544,8 @@ export function KycImageCropDialog({
           <Loader2 className="size-8 animate-spin" aria-hidden />
           <p className="text-sm font-medium">{busyLabel}</p>
           <p className="max-w-sm text-xs text-white/70">
-            The system is detecting card corners to automatically rotate and crop the image.
-       
+            Cropping the card, then OCR. Rotates only if text is not upright.
+            If this takes too long, use Skip to manual.
           </p>
         </div>
       ) : null}
@@ -434,9 +556,10 @@ export function KycImageCropDialog({
             className="relative w-full overflow-hidden rounded-xl bg-ds-gray-900"
             style={{ height: 320 }}
           >
-            {imageUrl ? (
+            {editUrl ? (
               <Cropper
-                image={imageUrl}
+                key={editUrl}
+                image={editUrl}
                 crop={crop}
                 zoom={zoom}
                 aspect={aspect}

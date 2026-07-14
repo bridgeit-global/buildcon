@@ -32,25 +32,6 @@ function canvasToJpegBlob(canvas: HTMLCanvasElement, quality = 0.92): Promise<Bl
   });
 }
 
-/** Rotate canvas 90° clockwise. */
-function rotateCanvas90Cw(source: HTMLCanvasElement): HTMLCanvasElement {
-  const out = document.createElement('canvas');
-  out.width = source.height;
-  out.height = source.width;
-  const ctx = out.getContext('2d');
-  if (!ctx) throw new Error('Canvas is not available.');
-  ctx.translate(out.width, 0);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(source, 0, 0);
-  return out;
-}
-
-/** Ensure ID card is landscape (PAN/Aadhaar read horizontally). */
-function ensureLandscape(canvas: HTMLCanvasElement): HTMLCanvasElement {
-  if (canvas.width >= canvas.height) return canvas;
-  return rotateCanvas90Cw(canvas);
-}
-
 /**
  * Find non-background content bounds (cards on plain tables / walls).
  * Samples corner colors as background so light cream cards still isolate.
@@ -254,7 +235,8 @@ async function extractWithJscanify(
     if (!extracted || extracted.width < 40 || extracted.height < 40) {
       return null;
     }
-    return ensureLandscape(extracted);
+    // Keep extracted orientation as-is; OCR layer rotates only if text is not upright.
+    return extracted;
   } catch (e) {
     console.warn('Corner extract failed, using content bounds', e);
     return null;
@@ -289,9 +271,7 @@ function extractWithContentBounds(
 
   let cropped = box ? cropCanvas(work, box) : work;
 
-  if (docType === 'pan' || docType === 'aadhaar') {
-    cropped = ensureLandscape(cropped);
-  }
+  // Do not force-rotate here — orientation is fixed only when OCR cannot read upright text.
 
   if (cropped.width < 900) {
     const up = document.createElement('canvas');
@@ -319,8 +299,8 @@ export type NormalizeDocumentResult = {
 };
 
 /**
- * Auto-detect ID card (corners when possible, else content bounds),
- * perspective-correct, and rotate to landscape for PAN/Aadhaar.
+ * Auto-crop ID card via content bounds.
+ * Rotation is deferred to OCR — only when text is not readable upright.
  */
 export async function normalizeKycDocumentImage(
   imageSrc: string,
@@ -328,30 +308,44 @@ export async function normalizeKycDocumentImage(
   fileBaseName = 'kyc-doc'
 ): Promise<NormalizeDocumentResult> {
   const image = await loadImage(imageSrc);
-
-  // Prefer fast content-bounds first (reliable for table photos), then
-  // refine with OpenCV corners when available.
-  let canvas = extractWithContentBounds(image, docType);
-  let method: 'corners' | 'bounds' = 'bounds';
-
-  // OpenCV corner extract can improve skewed shots; keep if result looks sharper/larger.
-  const cornerCanvas = await extractWithJscanify(image, docType);
-  if (cornerCanvas) {
-    const cornerArea = cornerCanvas.width * cornerCanvas.height;
-    const boundsArea = canvas.width * canvas.height;
-    // Prefer corner result when it produced a reasonable card-sized crop.
-    if (cornerArea > boundsArea * 0.35 && cornerArea < boundsArea * 3.5) {
-      canvas = cornerCanvas;
-      method = 'corners';
-    }
-  }
-
+  const canvas = extractWithContentBounds(image, docType);
   const blob = await canvasToJpegBlob(canvas, 0.92);
   return {
     blob,
     file: croppedBlobToFile(blob, fileBaseName),
-    method,
+    method: 'bounds',
     width: canvas.width,
     height: canvas.height
   };
+}
+
+/**
+ * Optional OpenCV corner refine. Times out quickly so it never freezes the UI.
+ * Call only when you can afford a background upgrade — not on the critical path.
+ */
+export async function tryRefineWithCorners(
+  imageSrc: string,
+  docType: string,
+  timeoutMs = 4000
+): Promise<NormalizeDocumentResult | null> {
+  try {
+    const image = await loadImage(imageSrc);
+    const cornerCanvas = await Promise.race([
+      extractWithJscanify(image, docType),
+      new Promise<null>((resolve) => {
+        window.setTimeout(() => resolve(null), timeoutMs);
+      })
+    ]);
+    if (!cornerCanvas) return null;
+    const blob = await canvasToJpegBlob(cornerCanvas, 0.92);
+    return {
+      blob,
+      file: croppedBlobToFile(blob, 'kyc-doc-corners'),
+      method: 'corners',
+      width: cornerCanvas.width,
+      height: cornerCanvas.height
+    };
+  } catch {
+    return null;
+  }
 }
