@@ -56,6 +56,7 @@ import {
   createInitialDraft,
   resetDraft
 } from '../project-create-shared';
+import { ProjectExcelImportCard } from '../project-excel-import-card';
 import BackButton from '@/components/buttons/back-button';
 import { canCreateProject as userCanCreateProject } from '@/lib/profile-roles';
 import { coerceProjectFy, isReadyProjectType } from '@/lib/project/project-fy';
@@ -404,6 +405,16 @@ export default function CreateProjectPage() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {createStep <= 2 ? (
+            <div className="mb-4">
+              <ProjectExcelImportCard
+                onImported={(patch) => {
+                  setDraft((d) => ({ ...d, ...patch }));
+                  setCreateStep(1);
+                }}
+              />
+            </div>
+          ) : null}
 
           {createStep === 0 ? (
             <div className="grid grid-cols-2 gap-4">
