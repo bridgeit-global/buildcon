@@ -78,8 +78,8 @@ const addressKind = z.enum(['current', 'permanent']);
 /** Address lines + PIN + state (no city) — used on customer create and application forms */
 export const applicationAddressFieldsSchema = z.object({
   address_line1: z.string().trim().min(1, 'Address line 1 is required.'),
-  address_line2: z.string().trim().min(1, 'Address line 2 is required.'),
-  address_line3: z.string().trim().min(1, 'Address line 3 is required.'),
+  address_line2: z.string().trim(),
+  address_line3: z.string().trim(),
   state: z.string().trim().min(1, 'State is required.'),
   pin: z.string().trim().refine((v) => /^\d{6}$/.test(v), {
     message: 'Enter a 6-digit PIN code.'
@@ -226,8 +226,8 @@ export const addressFormSchema = z.object({
   kind: addressKind,
   same_as_correspondence: z.boolean(),
   address_line1: z.string().trim().min(1, 'Address line 1 is required.'),
-  address_line2: z.string().trim().min(1, 'Address line 2 is required.'),
-  address_line3: z.string().trim().min(1, 'Address line 3 is required.'),
+  address_line2: z.string().trim(),
+  address_line3: z.string().trim(),
   city: z.string(),
   state: z.string().trim().min(1, 'State is required.'),
   pin: z.string().trim().refine((v) => /^\d{6}$/.test(v), {

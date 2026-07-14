@@ -238,8 +238,7 @@ export function CustomerAddressDialog({
                 <TextInputField
                   className="md:col-span-2"
                   label="Address line 2"
-                  required
-                  placeholder="Street, area, landmark"
+                  placeholder="Street, area, landmark (optional)"
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
@@ -255,8 +254,7 @@ export function CustomerAddressDialog({
                 <TextInputField
                   className="md:col-span-2"
                   label="Address line 3"
-                  required
-                  placeholder="Locality, city district"
+                  placeholder="Locality, city district (optional)"
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}

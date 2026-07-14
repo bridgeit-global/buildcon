@@ -45,12 +45,6 @@ function validateAddress(
   if (!addr?.address_line1?.trim()) {
     errors[`${prefix}_line1`] = 'Address line 1 is required.';
   }
-  if (!addr?.address_line2?.trim()) {
-    errors[`${prefix}_line2`] = 'Address line 2 is required.';
-  }
-  if (!addr?.address_line3?.trim()) {
-    errors[`${prefix}_line3`] = 'Address line 3 is required.';
-  }
   if (!addr?.pin?.trim() || !/^\d{6}$/.test(addr.pin.trim())) {
     errors[`${prefix}_pin`] = 'Enter a valid 6-digit PIN code.';
   }

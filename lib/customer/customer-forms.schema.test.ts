@@ -200,7 +200,7 @@ describe('addressFormSchema', () => {
     ).toBe(true);
   });
 
-  it('rejects missing address lines', () => {
+  it('accepts empty address lines 2 and 3', () => {
     expect(
       addressFormSchema.safeParse({
         kind: 'current',
@@ -208,6 +208,21 @@ describe('addressFormSchema', () => {
         address_line1: '12 Main St',
         address_line2: '',
         address_line3: '',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pin: '400001'
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects missing address line 1', () => {
+    expect(
+      addressFormSchema.safeParse({
+        kind: 'current',
+        same_as_correspondence: false,
+        address_line1: '',
+        address_line2: 'Near Park',
+        address_line3: 'Andheri West',
         city: 'Mumbai',
         state: 'Maharashtra',
         pin: '400001'

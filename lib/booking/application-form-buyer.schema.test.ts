@@ -43,12 +43,13 @@ describe('validateApplicationFormBuyer', () => {
     expect(validateApplicationFormBuyer(validBuyer)).toEqual({});
   });
 
-  it('requires residential address lines and state', () => {
+  it('requires residential address line 1 and state', () => {
     const errors = validateApplicationFormBuyer({
       ...validBuyer,
-      residentialAddress: fullAddress({ address_line2: '' })
+      residentialAddress: fullAddress({ address_line1: '', address_line2: '' })
     });
-    expect(errors.res_address_line2).toBeTruthy();
+    expect(errors.res_address_line1).toBeTruthy();
+    expect(errors.res_address_line2).toBeUndefined();
   });
 
   it('validates permanent address when different', () => {

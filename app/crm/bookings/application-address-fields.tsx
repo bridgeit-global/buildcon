@@ -61,7 +61,7 @@ export function ApplicationAddressFields({
       <div>
         <Input
           value={values.address_line2}
-          placeholder="Address line 2"
+          placeholder="Address line 2 (optional)"
           disabled={disabled}
           onChange={(e) => onChange({ address_line2: e.target.value })}
           aria-invalid={errors?.line2 ? true : undefined}
@@ -71,7 +71,7 @@ export function ApplicationAddressFields({
       <div>
         <Input
           value={values.address_line3}
-          placeholder="Address line 3"
+          placeholder="Address line 3 (optional)"
           disabled={disabled}
           onChange={(e) => onChange({ address_line3: e.target.value })}
           aria-invalid={errors?.line3 ? true : undefined}
