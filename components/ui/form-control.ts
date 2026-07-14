@@ -12,7 +12,7 @@ export const formControlClass = cn(
 /** Popover combobox triggers that should match Input height. */
 export const formControlTriggerClass = cn(
   formControlHeightClass,
-  'w-full justify-between px-3 py-0 text-left text-sm font-normal transition-[color,box-shadow,border-color] duration-150'
+  'flex w-full items-center justify-between gap-2 px-3 py-0 text-left text-sm font-normal transition-[color,box-shadow,border-color] duration-150'
 );
 
 /** Invalid state border and focus ring for form controls. */

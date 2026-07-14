@@ -87,7 +87,7 @@ export function MultiSearchableSelect({
           )}
         >
           {values.length > 0 ? (
-            <span className="flex flex-1 flex-wrap gap-1">
+            <span className="flex min-w-0 flex-1 flex-wrap gap-1">
               {values.map((v) => (
                 <span
                   key={v}
@@ -110,13 +110,13 @@ export function MultiSearchableSelect({
               ))}
             </span>
           ) : (
-            <span className="text-muted-foreground">{placeholder}</span>
+            <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
           )}
-          <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className="h-4 w-4 shrink-0 self-center opacity-50" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-(--radix-popover-trigger-width) p-0"
+        className="w-(--radix-popover-trigger-width) overflow-hidden p-0"
         align="start"
       >
         <div className="flex items-center border-b px-3">

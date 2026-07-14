@@ -57,18 +57,18 @@ export function SearchableSelect({
           aria-expanded={open}
           className={cn(
             formControlTriggerClass,
-            'border border-input bg-transparent shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-0.5',
+            'rounded-md border border-input bg-transparent shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-0.5',
             !value && 'text-muted-foreground',
             error ? formControlInvalidClass : undefined,
             className
           )}
         >
-          <span className="truncate">{value || placeholder}</span>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="min-w-0 flex-1 truncate text-left">{value || placeholder}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-(--radix-popover-trigger-width) p-0"
+        className="w-(--radix-popover-trigger-width) overflow-hidden p-0"
         align="start"
       >
         <div className="flex items-center border-b px-3">
