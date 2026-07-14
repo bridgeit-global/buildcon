@@ -83,9 +83,15 @@ import {
 import { kycUploadSchema, guardianNameFieldLabel } from '@/lib/customer/customer-forms.schema';
 import {
   isKycFileAllowed,
+  isKycImageFile,
   kycFileAcceptForDocType,
   kycFileRejectMessage
 } from '@/lib/customer/kyc-file';
+import {
+  KycImageCropDialog,
+  type KycCropConfirmPayload
+} from '@/components/ui/kyc-image-crop-dialog';
+import type { KycOcrDocType } from '@/lib/customer/kyc-ocr';
 import {
   GeneratedDocumentsTable,
   type GeneratedDocRow
@@ -264,10 +270,17 @@ export default function BookingDetailPage() {
   const [projectName, setProjectName] = useState<string | null>(null);
   const [projectLocation, setProjectLocation] = useState<string | null>(null);
   const kycFileRef = useRef<HTMLInputElement>(null);
+  const kycUploadTargetRef = useRef<{ customerId: string; docType: string }>({
+    customerId: '',
+    docType: 'pan'
+  });
   const prefilledBuyerFields = useRef<Record<string, Set<string>>>({});
   const [kycUploadCustomerId, setKycUploadCustomerId] = useState('');
   const [kycDocType, setKycDocType] = useState('pan');
   const [uploadingKycKey, setUploadingKycKey] = useState<string | null>(null);
+  const [kycCropOpen, setKycCropOpen] = useState(false);
+  const [kycCropImageUrl, setKycCropImageUrl] = useState('');
+  const [kycCropDocType, setKycCropDocType] = useState<KycOcrDocType>('pan');
   const [buyerKycFieldErrors, setBuyerKycFieldErrors] = useState<
     Record<string, { pan?: string; aadhaar?: string }>
   >({});
@@ -1325,7 +1338,17 @@ export default function BookingDetailPage() {
     }
   }
 
+  function closeKycCropDialog() {
+    setKycCropOpen(false);
+    if (kycCropImageUrl) {
+      URL.revokeObjectURL(kycCropImageUrl);
+      setKycCropImageUrl('');
+    }
+    if (kycFileRef.current) kycFileRef.current.value = '';
+  }
+
   function openKycFilePicker(customerId: string, docType: string) {
+    kycUploadTargetRef.current = { customerId, docType };
     setKycUploadCustomerId(customerId);
     setKycDocType(docType);
     const input = kycFileRef.current;
@@ -1335,22 +1358,58 @@ export default function BookingDetailPage() {
     input.click();
   }
 
-  async function uploadKyc() {
-    const file = kycFileRef.current?.files?.[0];
-    if (!file || !kycUploadCustomerId) return;
-    const uploadCustomerId = kycUploadCustomerId;
-    const uploadDocType = kycDocType;
-    if (!isKycFileAllowed(file, uploadDocType)) {
-      pageError(kycFileRejectMessage(uploadDocType));
-      if (kycFileRef.current) kycFileRef.current.value = '';
-      return;
+  async function persistBuyerIdentifiersFromUpload(
+    customerId: string,
+    pan: string | undefined,
+    aadhaar: string | undefined
+  ) {
+    const patch: Record<string, string | null> = {};
+    if (pan !== undefined) {
+      const panNorm = normalizePan(pan);
+      if (panNorm) patch.pan_number = panNorm;
     }
+    if (aadhaar !== undefined) {
+      const aadhaarNorm = normalizeAadhaar(aadhaar);
+      if (aadhaarNorm) patch.aadhaar_last4 = aadhaarNorm;
+    }
+    if (Object.keys(patch).length === 0) return;
+
+    setBuyerKyc((rows) =>
+      rows.map((r) =>
+        r.customerId === customerId
+          ? {
+              ...r,
+              ...(patch.pan_number ? { pan: patch.pan_number } : {}),
+              ...(patch.aadhaar_last4 ? { aadhaarLast4: patch.aadhaar_last4 } : {})
+            }
+          : r
+      )
+    );
+
+    const { error } = await supabase
+      .from('customers')
+      .update(patch)
+      .eq('id', customerId);
+    if (error) {
+      throw new Error(error.message || 'Document uploaded but failed to save PAN / Aadhaar');
+    }
+  }
+
+  async function uploadKycFile(
+    file: File,
+    uploadCustomerId: string,
+    uploadDocType: string,
+    identifiers?: { pan?: string; aadhaar?: string }
+  ) {
     const buyer = buyerKyc.find((b) => b.customerId === uploadCustomerId);
     if (!buyer) return;
+
+    const panForValidate = identifiers?.pan ?? buyer.pan;
+    const aadhaarForValidate = identifiers?.aadhaar ?? buyer.aadhaarLast4;
     const uploadParsed = kycUploadSchema.safeParse({
       docType: uploadDocType,
-      pan_number: buyer.pan,
-      aadhaar_last4: buyer.aadhaarLast4,
+      pan_number: panForValidate,
+      aadhaar_last4: aadhaarForValidate,
       hasFile: true
     });
     if (!uploadParsed.success) {
@@ -1365,14 +1424,14 @@ export default function BookingDetailPage() {
       }
       pageError(
         uploadParsed.error.issues.find((i) => i.path[0] === 'hasFile')?.message ??
-        'Fix the highlighted fields before uploading.'
+          'Fix the highlighted fields before uploading.'
       );
-      if (kycFileRef.current) kycFileRef.current.value = '';
       return;
     }
+
     const kycKey = `${uploadCustomerId}:${uploadDocType}`;
     setUploadingKycKey(kycKey);
-    const ext = extensionFromFile(file);
+    const ext = extensionFromFile(file) || '.jpg';
     const path = `customer/${uploadCustomerId}/${uploadDocType}/${crypto.randomUUID()}${ext}`;
     try {
       const {
@@ -1380,7 +1439,11 @@ export default function BookingDetailPage() {
       } = await supabase.auth.getUser();
       const { error: storageErr } = await supabase.storage
         .from(KYC_BUCKET)
-        .upload(path, file, { cacheControl: '3600', upsert: false });
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined
+        });
       if (storageErr) throw storageErr;
       const { error: insErr } = await supabase.from('customer_kyc_documents').insert({
         customer_id: uploadCustomerId,
@@ -1393,22 +1456,96 @@ export default function BookingDetailPage() {
         await supabase.storage.from(KYC_BUCKET).remove([path]);
         throw insErr;
       }
+
+      if (uploadDocType === 'pan' || uploadDocType === 'aadhaar') {
+        try {
+          await persistBuyerIdentifiersFromUpload(
+            uploadCustomerId,
+            identifiers?.pan,
+            identifiers?.aadhaar
+          );
+        } catch (e) {
+          pageError(
+            e instanceof Error
+              ? e.message
+              : 'Document uploaded but failed to save PAN / Aadhaar'
+          );
+        }
+      }
+
       if (kycFileRef.current) kycFileRef.current.value = '';
       setBuyerKyc((rows) =>
         rows.map((r) => {
           if (r.customerId !== uploadCustomerId) return r;
-          if (uploadDocType === 'pan') return { ...r, hasPanDoc: true, panDocPath: path };
-          if (uploadDocType === 'aadhaar') return { ...r, hasAadhaarDoc: true, aadhaarDocPath: path };
-          if (uploadDocType === 'photo') return { ...r, hasPhotoDoc: true, photoDocPath: path };
-          return r;
+          const withIds =
+            uploadDocType === 'pan' && identifiers?.pan
+              ? { ...r, pan: identifiers.pan }
+              : uploadDocType === 'aadhaar' && identifiers?.aadhaar
+                ? { ...r, aadhaarLast4: identifiers.aadhaar }
+                : r;
+          if (uploadDocType === 'pan') {
+            return { ...withIds, hasPanDoc: true, panDocPath: path };
+          }
+          if (uploadDocType === 'aadhaar') {
+            return { ...withIds, hasAadhaarDoc: true, aadhaarDocPath: path };
+          }
+          if (uploadDocType === 'photo') {
+            return { ...withIds, hasPhotoDoc: true, photoDocPath: path };
+          }
+          return withIds;
         })
       );
-      toast.success(`${uploadDocType === 'pan' ? 'PAN' : uploadDocType === 'aadhaar' ? 'Aadhaar' : 'Photo'} uploaded.`);
+      toast.success(
+        `${uploadDocType === 'pan' ? 'PAN' : uploadDocType === 'aadhaar' ? 'Aadhaar' : 'Photo'} uploaded.`
+      );
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
       setUploadingKycKey(null);
     }
+  }
+
+  async function onKycFileSelected() {
+    const file = kycFileRef.current?.files?.[0];
+    const { customerId: uploadCustomerId, docType: uploadDocType } =
+      kycUploadTargetRef.current;
+    if (!file || !uploadCustomerId) return;
+    setKycUploadCustomerId(uploadCustomerId);
+    setKycDocType(uploadDocType);
+    if (!isKycFileAllowed(file, uploadDocType)) {
+      pageError(kycFileRejectMessage(uploadDocType));
+      if (kycFileRef.current) kycFileRef.current.value = '';
+      return;
+    }
+
+    if (
+      isKycImageFile(file) &&
+      (uploadDocType === 'pan' ||
+        uploadDocType === 'aadhaar' ||
+        uploadDocType === 'photo')
+    ) {
+      if (kycCropImageUrl) URL.revokeObjectURL(kycCropImageUrl);
+      const url = URL.createObjectURL(file);
+      setKycCropDocType(uploadDocType);
+      setKycCropImageUrl(url);
+      setKycCropOpen(true);
+      return;
+    }
+
+    // PDF (or non-croppable): require typed identifiers first.
+    await uploadKycFile(file, uploadCustomerId, uploadDocType);
+  }
+
+  async function onKycCropConfirm(payload: KycCropConfirmPayload) {
+    const uploadCustomerId =
+      kycUploadTargetRef.current.customerId || kycUploadCustomerId;
+    const uploadDocType = kycCropDocType;
+    if (!uploadCustomerId) return;
+    await uploadKycFile(payload.file, uploadCustomerId, uploadDocType, {
+      pan: payload.pan,
+      aadhaar: payload.aadhaar
+    });
+    closeKycCropDialog();
   }
 
   async function submitCancellation() {
@@ -2268,7 +2405,7 @@ export default function BookingDetailPage() {
                 ref={kycFileRef}
                 type="file"
                 className="hidden"
-                onChange={() => void uploadKyc()}
+                onChange={() => void onKycFileSelected()}
               />
 
               {/* Actions */}
@@ -2585,6 +2722,26 @@ export default function BookingDetailPage() {
         url={allotmentLetterPreviewUrl}
         title="Allotment Letter"
       />
+
+      {/* KYC crop + OCR — portal dialog, kept at page root */}
+      {kycCropImageUrl ? (
+        <KycImageCropDialog
+          open={kycCropOpen}
+          imageUrl={kycCropImageUrl}
+          docType={kycCropDocType}
+          autoScan
+          initialPan={
+            buyerKyc.find((b) => b.customerId === kycUploadCustomerId)?.pan ?? ''
+          }
+          initialAadhaar={
+            buyerKyc.find((b) => b.customerId === kycUploadCustomerId)
+              ?.aadhaarLast4 ?? ''
+          }
+          fileBaseName={`${kycCropDocType}-crop`}
+          onCancel={closeKycCropDialog}
+          onConfirm={onKycCropConfirm}
+        />
+      ) : null}
 
       {/* KYC Document Preview — image or PDF */}
       {kycPreviewIsImage ? (

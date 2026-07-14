@@ -18,6 +18,18 @@ export function kycFileAcceptForDocType(docType: string): string {
   return docType === 'photo' ? KYC_PHOTO_FILE_ACCEPT : KYC_ID_DOC_FILE_ACCEPT;
 }
 
+export function isKycImageFile(file: File): boolean {
+  const t = (file.type || '').toLowerCase();
+  if (t && KYC_IMAGE_MIME.has(t)) return true;
+  return KYC_IMAGE_EXT.has(extensionFromName(file.name));
+}
+
+export function isKycPdfFile(file: File): boolean {
+  const t = (file.type || '').toLowerCase();
+  if (t === 'application/pdf') return true;
+  return extensionFromName(file.name) === '.pdf';
+}
+
 export function isKycFileAllowed(file: File, docType: string): boolean {
   const t = (file.type || '').toLowerCase();
   if (docType === 'photo') {
