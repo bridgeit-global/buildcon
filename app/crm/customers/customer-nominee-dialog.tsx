@@ -1,24 +1,22 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { FormRow } from '@/components/ui/form-row';
+import { FormSection } from '@/components/ui/form-section';
 import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
-import { Controller } from 'react-hook-form';
 import { TextInputField } from '@/components/ui/text-input-field';
 import {
   nomineeFormSchema,
   type NomineeFormValues
 } from '@/lib/customer/customer-forms.schema';
 import { todayIsoDate } from '@/lib/date-input-value';
+
+const FORM_ID = 'customer-nominee-form';
 
 type Props = {
   open: boolean;
@@ -50,34 +48,43 @@ export function CustomerNomineeDialog({
   }, [open, defaultValues, reset]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <form
-          onSubmit={handleSubmit(
-            async (values) => onSubmit(values),
-            () => pageError('Fix the highlighted fields before saving.')
-          )}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {editing ? 'Edit nominee' : 'Add nominee'}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-2 gap-4">
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? 'Edit nominee' : 'Add nominee'}
+      description="Nominee details for legal and financial records."
+      footer={
+        <FormActions
+          formId={FORM_ID}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Save nominee"
+          saving={saving}
+        />
+      }
+    >
+      <form
+        id={FORM_ID}
+        onSubmit={handleSubmit(
+          async (values) => onSubmit(values),
+          () => pageError('Fix the highlighted fields before saving.')
+        )}
+        className="space-y-6"
+      >
+        <FormSection title="Nominee details">
+          <FormRow>
             <RhfTextInput
               control={control}
               name="nominee_name"
               label="Full name"
               placeholder="Nominee name"
-              className="col-span-2"
+              className="md:col-span-2"
             />
             <Controller
               control={control}
               name="relationship"
               render={({ field, fieldState }) => (
                 <TextInputField
-                  className="col-span-2"
+                  className="md:col-span-2"
                   label="Relationship"
                   placeholder="e.g. Spouse, Father"
                   value={field.value ?? ''}
@@ -92,7 +99,7 @@ export function CustomerNomineeDialog({
               name="nominee_dob"
               render={({ field, fieldState }) => (
                 <TextInputField
-                  className="col-span-2"
+                  className="md:col-span-2"
                   label="Date of birth"
                   type="date"
                   max={todayIsoDate()}
@@ -103,23 +110,9 @@ export function CustomerNomineeDialog({
                 />
               )}
             />
-          </div>
-
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </FormRow>
+        </FormSection>
+      </form>
+    </FormDialog>
   );
 }

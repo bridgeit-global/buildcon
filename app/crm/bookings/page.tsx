@@ -25,6 +25,9 @@ import {
   statusLabelForUnit
 } from '../inventory/unit-status';
 import { Card } from '@/components/ui/card';
+import { CreateBookingDrawer } from '@/app/crm/bookings/create-booking-drawer';
+import { FormSection } from '@/components/ui/form-section';
+import { FormRow } from '@/components/ui/form-row';
 import { Button } from '@/components/ui/button';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { Input } from '@/components/ui/input';
@@ -1347,44 +1350,41 @@ export default function BookingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-start gap-2 rounded-lg text-left transition-colors hover:bg-ds-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary-500/40 -m-1 p-1"
-            onClick={() => setCreateFormOpen((open) => !open)}
-            aria-expanded={createFormOpen}
-            aria-controls="create-booking-form"
-          >
-            <ChevronDown
-              className={cn(
-                'mt-0.5 size-4 shrink-0 text-ds-gray-500 transition-transform',
-                createFormOpen && 'rotate-180'
-              )}
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-ds-gray-900">
-                Create booking
-              </div>
-              <div className="text-xs text-ds-gray-500">
-                Select a blocked unit held for a lead — customer comes from the linked
-                enquiry. Add optional co-buyers below.
-              </div>
-            </div>
-          </button>
+      <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ds-gray-900">Bookings</div>
+          <div className="text-xs text-ds-gray-500">
+            Record a token against a blocked unit, or manage existing bookings below.
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
-            className="shrink-0"
             onClick={load}
             disabled={loading}
           >
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
+          <Button onClick={() => setCreateFormOpen(true)}>Create booking</Button>
         </div>
+      </Card>
 
-        {createFormOpen ? (
-          <div id="create-booking-form" className="mt-4 flex flex-col gap-4">
+      <CreateBookingDrawer
+        open={createFormOpen}
+        onOpenChange={setCreateFormOpen}
+        saving={creating}
+        onCancel={() => setCreateFormOpen(false)}
+        onSubmit={createBooking}
+        submitDisabled={
+          creating ||
+          !unitId ||
+          !customerId ||
+          unitInquiryLoading ||
+          linkedCustomerMissing ||
+          Boolean(inquiryBookingBlockMessage)
+        }
+        banner={
+          <>
         {prefillMeta ? (
           <div className="overflow-hidden rounded-xl border border-ds-success-200/90 bg-linear-to-br from-ds-success-50 via-card to-ds-gray-50 shadow-sm">
             <div className="flex items-start justify-between gap-3 border-b border-ds-success-100 px-4 py-3">
@@ -1493,13 +1493,16 @@ export default function BookingsPage() {
         ) : null}
 
         {createdBookingId ? (
-          <div className="mt-3 rounded-md border border-ds-success-200 bg-ds-success-50 p-3 text-sm text-ds-success-800">
+          <div className="rounded-md border border-ds-success-200 bg-ds-success-50 p-3 text-sm text-ds-success-800">
             Booking created:{' '}
             <strong>{formatBookingDisplayId(createdBookingId)}</strong>
           </div>
         ) : null}
-
-        <div className="grid grid-cols-2 gap-4">
+          </>
+        }
+      >
+        <FormSection title="Booking details" description="Unit, customer, co-buyers, and payment.">
+        <FormRow>
           <div className="col-span-2">
             <SearchablePicker<UnitOption>
               label="Blocked units"
@@ -1842,9 +1845,10 @@ export default function BookingsPage() {
             />
             <FormFieldError message={createFieldError('bookingAmount')} />
           </div>
-        </div>
+        </FormRow>
+        </FormSection>
 
-        <div className="mt-4 grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card className="p-4">
             <div className="text-xs font-semibold text-muted-foreground">Unit</div>
             {unitForCostPreview ? (
@@ -1956,24 +1960,7 @@ export default function BookingsPage() {
           />
         ) : null}
 
-        <div className="flex justify-end">
-          <Button
-            onClick={createBooking}
-            disabled={
-              creating ||
-              !unitId ||
-              !customerId ||
-              unitInquiryLoading ||
-              linkedCustomerMissing ||
-              Boolean(inquiryBookingBlockMessage)
-            }
-          >
-            {creating ? 'Starting…' : 'Record token & continue'}
-          </Button>
-        </div>
-          </div>
-        ) : null}
-      </Card>
+      </CreateBookingDrawer>
 
       <Card className="p-4">
         <div className="flex items-center justify-between gap-3">

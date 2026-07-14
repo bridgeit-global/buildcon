@@ -5,17 +5,18 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { pageError } from '@/lib/toast';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDrawer } from '@/components/ui/form-drawer';
 import { FormFieldError } from '@/components/ui/form-field-error';
+import { FormRow, FormRowFull } from '@/components/ui/form-row';
+import { FormSection } from '@/components/ui/form-section';
+import { FieldLabel } from '@/components/ui/field-label';
 import { TextInputField } from '@/components/ui/text-input-field';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+  formControlClass,
+  formControlFieldGapClass
+} from '@/components/ui/form-control';
 import {
   Select,
   SelectContent,
@@ -31,6 +32,9 @@ import {
 import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
 import { INDIAN_STATES } from '@/lib/address/pincode-lookup';
 import { getCitiesForState } from '@/lib/address/indian-state-cities';
+import { cn } from '@/lib/utils';
+
+const FORM_ID = 'customer-address-form';
 
 export type CorrespondenceAddress = {
   address_line1: string | null;
@@ -48,7 +52,6 @@ type Props = {
   editing: boolean;
   defaultValues: AddressFormValues;
   onSubmit: (values: AddressFormValues) => void | Promise<void>;
-  /** Current/correspondence address used for the "same as" copy option. */
   correspondenceAddress?: CorrespondenceAddress | null;
 };
 
@@ -113,7 +116,6 @@ export function CustomerAddressDialog({
     if (canCopyCorrespondence && sameAsCorrespondence) {
       applyCorrespondence();
     }
-    // Re-copy whenever the toggle is enabled.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sameAsCorrespondence, canCopyCorrespondence]);
 
@@ -130,21 +132,33 @@ export function CustomerAddressDialog({
   }, [watchedState, watchedCity]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <form
-          onSubmit={handleSubmit(
-            async (values) => onSubmit(values),
-            () => pageError('Fix the highlighted fields before saving.')
-          )}
-        >
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Edit address' : 'Add address'}</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Label>Type</Label>
+    <FormDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? 'Edit address' : 'Add address'}
+      description="Manage correspondence or permanent address for this customer."
+      size="lg"
+      footer={
+        <FormActions
+          formId={FORM_ID}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Save address"
+          saving={saving}
+        />
+      }
+    >
+      <form
+        id={FORM_ID}
+        onSubmit={handleSubmit(
+          async (values) => onSubmit(values),
+          () => pageError('Fix the highlighted fields before saving.')
+        )}
+        className="space-y-6"
+      >
+        <FormSection title="Address type">
+          <FormRow>
+            <FormRowFull>
+              <FieldLabel>Address type</FieldLabel>
               <Controller
                 control={control}
                 name="kind"
@@ -158,7 +172,7 @@ export function CustomerAddressDialog({
                       }
                     }}
                   >
-                    <SelectTrigger className="mt-1 w-full">
+                    <SelectTrigger className={cn(formControlFieldGapClass, formControlClass)}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -168,34 +182,44 @@ export function CustomerAddressDialog({
                   </Select>
                 )}
               />
-            </div>
+            </FormRowFull>
 
             {canCopyCorrespondence ? (
-              <div className="col-span-2">
+              <FormRowFull>
                 <Controller
                   control={control}
                   name="same_as_correspondence"
                   render={({ field }) => (
-                    <label className="flex items-center gap-2 text-sm text-ds-gray-700">
+                    <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-foreground">
                       <Checkbox
+                        className="mt-0.5"
                         checked={field.value}
                         onCheckedChange={(checked) =>
                           field.onChange(checked === true)
                         }
                       />
-                      Permanent address same as correspondence (current) address
+                      <span>
+                        Permanent address same as correspondence (current) address
+                      </span>
                     </label>
                   )}
                 />
-              </div>
+              </FormRowFull>
             ) : null}
+          </FormRow>
+        </FormSection>
 
+        <FormSection
+          title="Address details"
+          description="Street address, PIN code, state, and city."
+        >
+          <FormRow>
             <Controller
               control={control}
               name="address_line1"
               render={({ field, fieldState }) => (
                 <TextInputField
-                  className="col-span-2"
+                  className="md:col-span-2"
                   label="Address line 1"
                   required
                   placeholder="Flat / house no., building"
@@ -212,7 +236,7 @@ export function CustomerAddressDialog({
               name="address_line2"
               render={({ field, fieldState }) => (
                 <TextInputField
-                  className="col-span-2"
+                  className="md:col-span-2"
                   label="Address line 2"
                   required
                   placeholder="Street, area, landmark"
@@ -229,7 +253,7 @@ export function CustomerAddressDialog({
               name="address_line3"
               render={({ field, fieldState }) => (
                 <TextInputField
-                  className="col-span-2"
+                  className="md:col-span-2"
                   label="Address line 3"
                   required
                   placeholder="Locality, city district"
@@ -241,95 +265,78 @@ export function CustomerAddressDialog({
                 />
               )}
             />
-            <div className="col-span-2">
-              <Controller
-                control={control}
-                name="pin"
-                render={({ field, fieldState }) => (
-                  <div className="relative">
-                    <TextInputField
-                      label="PIN Code"
-                      required
-                      value={field.value}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                        field.onChange(val);
-                        handlePinChange(val);
-                      }}
-                      onBlur={field.onBlur}
-                      placeholder="e.g. 400001"
-                      inputMode="numeric"
-                      maxLength={6}
-                      disabled={lockedToCorrespondence}
-                      error={fieldState.error?.message}
-                    />
-                    {pincodeLoading && (
-                      <Loader2 className="absolute right-3 top-8 h-4 w-4 animate-spin text-ds-gray-400" />
-                    )}
-                  </div>
-                )}
-              />
-            </div>
-            <div>
-              <Label>State</Label>
-              <Controller
-                control={control}
-                name="state"
-                render={({ field, fieldState }) => (
-                  <>
-                    <SearchableSelect
-                      value={field.value}
-                      onValueChange={(val) => {
-                        field.onChange(val);
-                        if (val !== watchedState)
-                          setValue('city', '', { shouldDirty: true });
-                      }}
-                      options={stateOptions}
-                      placeholder="Select state"
-                      searchPlaceholder="Search state…"
-                      className="mt-1"
-                      disabled={lockedToCorrespondence}
-                    />
-                    <FormFieldError message={fieldState.error?.message} />
-                  </>
-                )}
-              />
-            </div>
-            <div>
-              <Label>City</Label>
-              <Controller
-                control={control}
-                name="city"
-                render={({ field }) => (
+            <Controller
+              control={control}
+              name="pin"
+              render={({ field, fieldState }) => (
+                <div className="relative md:col-span-2">
+                  <TextInputField
+                    label="PIN code"
+                    required
+                    value={field.value}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      field.onChange(val);
+                      handlePinChange(val);
+                    }}
+                    onBlur={field.onBlur}
+                    placeholder="e.g. 400001"
+                    inputMode="numeric"
+                    maxLength={6}
+                    disabled={lockedToCorrespondence}
+                    error={fieldState.error?.message}
+                  />
+                  {pincodeLoading ? (
+                    <Loader2 className="absolute right-3 top-9 size-4 animate-spin text-muted-foreground" />
+                  ) : null}
+                </div>
+              )}
+            />
+            <Controller
+              control={control}
+              name="state"
+              render={({ field, fieldState }) => (
+                <div>
+                  <FieldLabel required>State</FieldLabel>
+                  <SearchableSelect
+                    value={field.value}
+                    onValueChange={(val) => {
+                      field.onChange(val);
+                      if (val !== watchedState)
+                        setValue('city', '', { shouldDirty: true });
+                    }}
+                    options={stateOptions}
+                    placeholder="Select state"
+                    searchPlaceholder="Search state…"
+                    className={formControlFieldGapClass}
+                    disabled={lockedToCorrespondence}
+                    error={Boolean(fieldState.error?.message)}
+                  />
+                  <FormFieldError message={fieldState.error?.message} />
+                </div>
+              )}
+            />
+            <Controller
+              control={control}
+              name="city"
+              render={({ field }) => (
+                <div>
+                  <FieldLabel>City</FieldLabel>
                   <SearchableSelect
                     value={field.value}
                     onValueChange={field.onChange}
                     options={cityOptions}
                     placeholder="Select city"
                     searchPlaceholder="Search city…"
-                    className="mt-1"
+                    className={formControlFieldGapClass}
                     disabled={lockedToCorrespondence}
                   />
-                )}
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+                </div>
+              )}
+            />
+          </FormRow>
+        </FormSection>
+      </form>
+    </FormDrawer>
   );
 }

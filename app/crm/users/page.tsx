@@ -16,13 +16,17 @@ import { Button } from '@/components/ui/button';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { FormRow, FormRowFull } from '@/components/ui/form-row';
+import { FormSection } from '@/components/ui/form-section';
+import { FieldLabel } from '@/components/ui/field-label';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
+  formControlClass,
+  formControlFieldGapClass,
+  formControlInvalidClass
+} from '@/components/ui/form-control';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -436,117 +440,137 @@ export default function UsersPage() {
 
           {isOrgAdmin(profile?.role) ? (
             <div className="mt-4">
-              <Dialog
+              <Button onClick={() => setOpenInvite(true)}>Invite / Add user</Button>
+              <FormDialog
                 open={openInvite}
                 onOpenChange={(next) => {
                   setOpenInvite(next);
                   if (!next) inviteValidation.resetValidation();
                 }}
+                title="Invite user and assign projects"
+                description="Send an email invite and assign project access for the new team member."
+                className="sm:max-w-2xl"
+                footer={
+                  <FormActions
+                    onCancel={() => setOpenInvite(false)}
+                    submitLabel="Invite"
+                    saving={inviting}
+                    submitType="button"
+                    onSubmitClick={() => void inviteUser()}
+                  />
+                }
               >
-                <DialogTrigger asChild>
-                  <Button>Invite / Add user</Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Invite user and assign projects</DialogTitle>
-                  </DialogHeader>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <EmailInputField
-                      required
-                        value={invite.email}
-                        onChange={(v) => {
-                          setInvite((s) => ({ ...s, email: v }));
-                          inviteValidation.touch('email');
+                <div className="space-y-6">
+                  <FormSection title="User details">
+                    <FormRow>
+                      <FormRowFull>
+                        <EmailInputField
+                          required
+                          value={invite.email}
+                          onChange={(v) => {
+                            setInvite((s) => ({ ...s, email: v }));
+                            inviteValidation.touch('email');
+                          }}
+                          error={inviteValidation.fieldError('email')}
+                          placeholder="user@company.com"
+                        />
+                      </FormRowFull>
+                      <TextInputField
+                        className="md:col-span-2"
+                        label="Name"
+                        required
+                        value={invite.name}
+                        onChange={(e) => {
+                          setInvite((s) => ({ ...s, name: e.target.value }));
+                          inviteValidation.touch('name');
                         }}
-                        error={inviteValidation.fieldError('email')}
-                        placeholder="user@company.com"
+                        error={inviteValidation.fieldError('name')}
+                        placeholder="Full name"
                       />
-                    </div>
-                    <TextInputField
-                      className="col-span-2"
-                      label="Name"
-                      required
-                      value={invite.name}
-                      onChange={(e) => {
-                        setInvite((s) => ({ ...s, name: e.target.value }));
-                        inviteValidation.touch('name');
-                      }}
-                      error={inviteValidation.fieldError('name')}
-                      placeholder="Full name"
-                    />
-                    <div>
-                      <Label>Profile role</Label>
-                      <Select
-                        value={invite.profileRole}
-                        onValueChange={(v) => {
-                          setInvite((s) => ({ ...s, profileRole: v }));
-                          inviteValidation.touch('profileRole');
-                        }}
-                      >
-                        <SelectTrigger
-                          className="mt-1 w-full"
-                          aria-invalid={
-                            inviteValidation.fieldError('profileRole') ? true : undefined
-                          }
+                      <div>
+                        <FieldLabel required>Profile role</FieldLabel>
+                        <Select
+                          value={invite.profileRole}
+                          onValueChange={(v) => {
+                            setInvite((s) => ({ ...s, profileRole: v }));
+                            inviteValidation.touch('profileRole');
+                          }}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {inviteRoleOptions.map((r) => (
-                            <SelectItem key={r} value={r}>
-                              {r}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormFieldError message={inviteValidation.fieldError('profileRole')} />
-                    </div>
-                    <div>
-                      <Label>Project member role</Label>
-                      <Select
-                        value={invite.projectMemberRole}
-                        onValueChange={(v) => {
-                          setInvite((s) => ({
-                            ...s,
-                            projectMemberRole: v
-                          }));
-                          inviteValidation.touch('projectMemberRole');
-                        }}
-                      >
-                        <SelectTrigger
-                          className="mt-1 w-full"
-                          aria-invalid={
-                            inviteValidation.fieldError('projectMemberRole')
-                              ? true
-                              : undefined
-                          }
+                          <SelectTrigger
+                            className={cn(
+                              formControlFieldGapClass,
+                              formControlClass,
+                              inviteValidation.fieldError('profileRole')
+                                ? formControlInvalidClass
+                                : undefined
+                            )}
+                            aria-invalid={
+                              inviteValidation.fieldError('profileRole') ? true : undefined
+                            }
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inviteRoleOptions.map((r) => (
+                              <SelectItem key={r} value={r}>
+                                {r}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormFieldError message={inviteValidation.fieldError('profileRole')} />
+                      </div>
+                      <div>
+                        <FieldLabel required>Project member role</FieldLabel>
+                        <Select
+                          value={invite.projectMemberRole}
+                          onValueChange={(v) => {
+                            setInvite((s) => ({
+                              ...s,
+                              projectMemberRole: v
+                            }));
+                            inviteValidation.touch('projectMemberRole');
+                          }}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {['Member', 'Manager'].map((r) => (
-                            <SelectItem key={r} value={r}>
-                              {r}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormFieldError
-                        message={inviteValidation.fieldError('projectMemberRole')}
-                      />
-                    </div>
+                          <SelectTrigger
+                            className={cn(
+                              formControlFieldGapClass,
+                              formControlClass,
+                              inviteValidation.fieldError('projectMemberRole')
+                                ? formControlInvalidClass
+                                : undefined
+                            )}
+                            aria-invalid={
+                              inviteValidation.fieldError('projectMemberRole')
+                                ? true
+                                : undefined
+                            }
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['Member', 'Manager'].map((r) => (
+                              <SelectItem key={r} value={r}>
+                                {r}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormFieldError
+                          message={inviteValidation.fieldError('projectMemberRole')}
+                        />
+                      </div>
+                    </FormRow>
+                  </FormSection>
 
-                    <div className="col-span-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-semibold text-foreground">
-                            Assign projects
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Selected: {invite.projectIds.length}
-                          </div>
+                  <FormSection
+                    title="Project access"
+                    description="Select one or more projects for this user."
+                  >
+                    <FormRowFull>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm text-muted-foreground">
+                          Selected: {invite.projectIds.length}
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -570,9 +594,11 @@ export default function UsersPage() {
                         </div>
                       </div>
 
-                      <div className="mt-2">
-                        <Label>Search projects</Label>
+                      <div className="mt-4">
+                        <FieldLabel htmlFor="invite-project-search">Search projects</FieldLabel>
                         <Input
+                          id="invite-project-search"
+                          className={formControlFieldGapClass}
                           value={projectSearch}
                           onChange={(e) => setProjectSearch(e.target.value)}
                           placeholder="Type to filter…"
@@ -601,6 +627,7 @@ export default function UsersPage() {
                       ) : null}
 
                       <div className="mt-3">
+                        <FieldLabel>Add project</FieldLabel>
                         <SearchableSelect
                           value=""
                           onValueChange={(name) => {
@@ -614,7 +641,7 @@ export default function UsersPage() {
                               : 'Select project…'
                           }
                           searchPlaceholder="Search project…"
-                          className="w-full"
+                          className={formControlFieldGapClass}
                           disabled={projects.length === 0 || filteredProjects.length === 0}
                         />
                         {projects.length === 0 ? (
@@ -624,32 +651,16 @@ export default function UsersPage() {
                         ) : null}
                       </div>
 
-                      <div className="mt-2 text-xs text-muted-foreground">
+                      <p className="mt-3 text-xs text-muted-foreground">
                         This sends a Supabase email invite and adds rows to{' '}
                         <span className="font-mono">profiles</span> and{' '}
                         <span className="font-mono">project_members</span>.
-                      </div>
+                      </p>
                       <FormFieldError message={inviteValidation.fieldError('projectIds')} />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setOpenInvite(false)}
-                      disabled={inviting}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => void inviteUser()}
-                      disabled={inviting}
-                    >
-                      {inviting ? 'Inviting…' : 'Invite'}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                    </FormRowFull>
+                  </FormSection>
+                </div>
+              </FormDialog>
             </div>
           ) : (
             <div className="mt-4 text-xs text-muted-foreground">

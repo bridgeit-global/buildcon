@@ -1,7 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 
 export type EmailInputFieldProps = {
@@ -35,7 +35,11 @@ export function EmailInputField({
       <Input
         id={id}
         type="email"
-        className={cn(formControlFieldGapClass, inputClassName)}
+        className={cn(
+          formControlFieldGapClass,
+          error ? formControlInvalidClass : undefined,
+          inputClassName
+        )}
         aria-invalid={error ? true : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -1,7 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 
 export type PhoneInputFieldProps = {
@@ -37,7 +37,11 @@ export function PhoneInputField({
       </FieldLabel>
       <Input
         id={id}
-        className={cn(formControlFieldGapClass, inputClassName)}
+        className={cn(
+          formControlFieldGapClass,
+          error ? formControlInvalidClass : undefined,
+          inputClassName
+        )}
         aria-invalid={error ? true : undefined}
         value={value}
         onChange={(e) => {

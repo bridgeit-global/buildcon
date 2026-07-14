@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 
 export type TextareaFieldProps = Omit<
@@ -46,7 +46,11 @@ export const TextareaField = React.forwardRef<
       <Textarea
         ref={ref}
         id={id}
-        className={cn(label ? formControlFieldGapClass : undefined, textareaClassName)}
+        className={cn(
+          label ? formControlFieldGapClass : undefined,
+          error ? formControlInvalidClass : undefined,
+          textareaClassName
+        )}
         aria-invalid={invalid}
         {...textareaProps}
       />

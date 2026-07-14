@@ -4,21 +4,18 @@ import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { FormRow } from '@/components/ui/form-row';
+import { FormSection } from '@/components/ui/form-section';
 import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
 import { TextInputField } from '@/components/ui/text-input-field';
 import {
   bankFormSchema,
   type BankFormValues
 } from '@/lib/customer/customer-forms.schema';
+
+const FORM_ID = 'customer-bank-form';
 
 type Props = {
   open: boolean;
@@ -50,30 +47,39 @@ export function CustomerBankDialog({
   }, [open, defaultValues, reset]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <form
-          onSubmit={handleSubmit(
-            async (values) => onSubmit(values),
-            () => pageError('Fix the highlighted fields before saving.')
-          )}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {editing ? 'Edit bank details' : 'Add bank details'}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-2 gap-4">
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? 'Edit bank details' : 'Add bank details'}
+      description="Bank account information for payouts and refunds."
+      footer={
+        <FormActions
+          formId={FORM_ID}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Save bank details"
+          saving={saving}
+        />
+      }
+    >
+      <form
+        id={FORM_ID}
+        onSubmit={handleSubmit(
+          async (values) => onSubmit(values),
+          () => pageError('Fix the highlighted fields before saving.')
+        )}
+        className="space-y-6"
+      >
+        <FormSection title="Bank account">
+          <FormRow>
             <RhfTextInput
               control={control}
               name="bank_name"
               label="Bank name"
               placeholder="Bank name"
-              className="col-span-2"
+              className="md:col-span-2"
             />
             <TextInputField
-              className="col-span-2"
+              className="md:col-span-2"
               label="Account number"
               {...register('account_no')}
             />
@@ -93,23 +99,9 @@ export function CustomerBankDialog({
               )}
             />
             <TextInputField label="Branch" {...register('branch')} />
-          </div>
-
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          </FormRow>
+        </FormSection>
+      </form>
+    </FormDialog>
   );
 }

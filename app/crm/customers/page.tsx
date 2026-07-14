@@ -10,9 +10,11 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { sortingStateToQuery } from '@/lib/crm/list-sort';
 import { Card } from '@/components/ui/card';
 import { CrmSkeletonBar } from '../_components/crm-skeletons';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDrawer } from '@/components/ui/form-drawer';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -154,69 +156,57 @@ export default function CustomersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Card 1 — Create customer (collapsible) */}
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-start gap-2 rounded-lg text-left transition-colors hover:bg-ds-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary-500/40 -m-1 p-1"
-            onClick={() => setCreateFormOpen((o) => !o)}
-            aria-expanded={createFormOpen}
-            aria-controls="create-customer-form"
-          >
-            <ChevronDown
-              className={`mt-0.5 size-4 shrink-0 text-ds-gray-500 transition-transform${createFormOpen ? ' rotate-180' : ''}`}
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-ds-gray-900">
-                Add customer
-              </div>
-              <div className="text-xs text-ds-gray-500">
-                Create a new customer record — name, phone, residential address and
-                optional contact details.
-              </div>
-            </div>
-          </button>
+      <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ds-gray-900">Customers</div>
+          <div className="text-xs text-ds-gray-500">
+            Search and manage customer records, or add a new customer.
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
-            className="shrink-0"
             onClick={() => void fetchCustomerList()}
             disabled={loading}
           >
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
+          <Button onClick={() => setCreateFormOpen(true)}>Add customer</Button>
         </div>
-
-        {createFormOpen ? (
-          <form
-            id="create-customer-form"
-            onSubmit={createForm.handleSubmit(
-              async (values) => createCustomer(values),
-              () => pageError('Fix the highlighted fields before saving.')
-            )}
-            className="mt-4 flex flex-col gap-4"
-          >
-            <CustomerProfileFields control={createForm.control} showAddress />
-            <div className="flex justify-end gap-2 border-t border-ds-gray-100 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCreateFormOpen(false);
-                  createForm.reset(EMPTY_CUSTOMER_CREATE);
-                }}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save customer'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
       </Card>
+
+      <FormDrawer
+        open={createFormOpen}
+        onOpenChange={(open) => {
+          setCreateFormOpen(open);
+          if (!open) createForm.reset(EMPTY_CUSTOMER_CREATE);
+        }}
+        title="Add customer"
+        description="Create a new customer record with contact details and address."
+        size="lg"
+        footer={
+          <FormActions
+            formId="create-customer-form"
+            onCancel={() => {
+              setCreateFormOpen(false);
+              createForm.reset(EMPTY_CUSTOMER_CREATE);
+            }}
+            submitLabel="Save customer"
+            saving={saving}
+          />
+        }
+      >
+        <form
+          id="create-customer-form"
+          onSubmit={createForm.handleSubmit(
+            async (values) => createCustomer(values),
+            () => pageError('Fix the highlighted fields before saving.')
+          )}
+          className="space-y-6"
+        >
+          <CustomerProfileFields control={createForm.control} showAddress />
+        </form>
+      </FormDrawer>
 
       {/* Card 2 — Customer list table */}
       <Card className="p-4">

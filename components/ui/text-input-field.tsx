@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 
 export type TextInputFieldProps = Omit<
@@ -46,7 +46,11 @@ export const TextInputField = React.forwardRef<
       <Input
         ref={ref}
         id={id}
-        className={cn(label ? formControlFieldGapClass : undefined, inputClassName)}
+        className={cn(
+          label ? formControlFieldGapClass : undefined,
+          error ? formControlInvalidClass : undefined,
+          inputClassName
+        )}
         aria-invalid={invalid}
         {...inputProps}
       />

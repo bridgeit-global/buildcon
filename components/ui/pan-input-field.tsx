@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 import {
   normalizePan,
@@ -56,7 +56,12 @@ export function PanInputField({
       </FieldLabel>
       <Input
         id={id}
-        className={cn(formControlFieldGapClass, 'uppercase', inputClassName)}
+        className={cn(
+          formControlFieldGapClass,
+          'uppercase',
+          displayError ? formControlInvalidClass : undefined,
+          inputClassName
+        )}
         aria-invalid={displayError ? true : undefined}
         value={value}
         onChange={(e) => onChange(normalizePan(e.target.value))}

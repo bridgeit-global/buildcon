@@ -4,15 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { FormRow } from '@/components/ui/form-row';
+import { FormSection } from '@/components/ui/form-section';
+import { FieldLabel } from '@/components/ui/field-label';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+  formControlClass,
+  formControlFieldGapClass
+} from '@/components/ui/form-control';
 import {
   Select,
   SelectContent,
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { FormFieldError } from '@/components/ui/form-field-error';
+import { FileUploadField } from '@/components/ui/file-upload-field';
 import { PanInputField } from '@/components/ui/pan-input-field';
 import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
 import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';
@@ -29,6 +29,9 @@ import {
   kycFileAcceptForDocType,
   kycFileRejectMessage
 } from '@/lib/customer/kyc-file';
+import { cn } from '@/lib/utils';
+
+const FORM_ID = 'customer-kyc-upload-form';
 
 const KYC_DOC_TYPES: { value: string; label: string }[] = [
   { value: 'aadhaar', label: 'Aadhaar' },
@@ -82,7 +85,8 @@ export function CustomerKycUploadDialog({
     reValidateMode: 'onBlur'
   });
 
-  const { control, handleSubmit, setValue, watch, reset } = form;
+  const { control, handleSubmit, setValue, reset } = form;
+
   useEffect(() => {
     if (open) {
       reset({
@@ -102,51 +106,67 @@ export function CustomerKycUploadDialog({
     });
   }
 
+  function resetOnClose() {
+    reset({
+      docType: 'aadhaar',
+      pan_number: initialPan,
+      aadhaar_last4: initialAadhaar,
+      hasFile: false
+    });
+    setDocType('aadhaar');
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  const fileHint =
+    docType === 'photo'
+      ? 'JPEG, PNG, or WebP only.'
+      : 'PDF or image (JPEG, PNG, WebP).';
+
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next) {
-          reset({
-            docType: 'aadhaar',
-            pan_number: initialPan,
-            aadhaar_last4: initialAadhaar,
-            hasFile: false
-          });
-          setDocType('aadhaar');
-          if (fileRef.current) fileRef.current.value = '';
-        }
+        if (!next) resetOnClose();
       }}
+      title="Upload KYC document"
+      description="Attach identity or address proof for this customer."
+      className="sm:max-w-xl"
+      footer={
+        <FormActions
+          formId={FORM_ID}
+          onCancel={() => onOpenChange(false)}
+          submitLabel="Upload"
+          saving={saving}
+        />
+      }
     >
-      <DialogContent className="max-w-xl">
-        <form
-          onSubmit={handleSubmit(
-            async (values) => {
-              const file = fileRef.current?.files?.[0];
-              if (!file) return;
-              if (!isKycFileAllowed(file, values.docType)) {
-                pageError(kycFileRejectMessage(values.docType));
-                if (fileRef.current) fileRef.current.value = '';
-                return;
-              }
-              await onUpload({
-                docType: values.docType,
-                pan_number: values.pan_number,
-                aadhaar_last4: values.aadhaar_last4,
-                file
-              });
-            },
-            () => pageError('Fix the highlighted fields before uploading.')
-          )}
-        >
-          <DialogHeader>
-            <DialogTitle>Upload KYC document</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid gap-4">
-            <div>
-              <Label>Document type</Label>
+      <form
+        id={FORM_ID}
+        onSubmit={handleSubmit(
+          async (values) => {
+            const file = fileRef.current?.files?.[0];
+            if (!file) return;
+            if (!isKycFileAllowed(file, values.docType)) {
+              pageError(kycFileRejectMessage(values.docType));
+              if (fileRef.current) fileRef.current.value = '';
+              return;
+            }
+            await onUpload({
+              docType: values.docType,
+              pan_number: values.pan_number,
+              aadhaar_last4: values.aadhaar_last4,
+              file
+            });
+          },
+          () => pageError('Fix the highlighted fields before uploading.')
+        )}
+        className="space-y-6"
+      >
+        <FormSection title="Document">
+          <FormRow>
+            <div className="md:col-span-2">
+              <FieldLabel>Document type</FieldLabel>
               <Select
                 value={docType}
                 onValueChange={(v) => {
@@ -161,7 +181,7 @@ export function CustomerKycUploadDialog({
                   }
                 }}
               >
-                <SelectTrigger className="mt-1 w-full">
+                <SelectTrigger className={cn(formControlFieldGapClass, formControlClass)}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -175,7 +195,7 @@ export function CustomerKycUploadDialog({
             </div>
 
             {docType === 'pan' ? (
-              <div>
+              <div className="md:col-span-2">
                 <Controller
                   control={control}
                   name="pan_number"
@@ -195,62 +215,43 @@ export function CustomerKycUploadDialog({
             ) : null}
 
             {docType === 'aadhaar' ? (
-              <Controller
-                control={control}
-                name="aadhaar_last4"
-                render={({ field, fieldState }) => (
-                  <AadhaarInputField
-                    label="Aadhaar number"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={fieldState.error?.message}
-                  />
-                )}
-              />
+              <div className="md:col-span-2">
+                <Controller
+                  control={control}
+                  name="aadhaar_last4"
+                  render={({ field, fieldState }) => (
+                    <AadhaarInputField
+                      label="Aadhaar number"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
+              </div>
             ) : null}
 
-            <div>
-              <Label>File</Label>
-              <Controller
-                control={control}
-                name="hasFile"
-                render={({ fieldState }) => (
-                  <>
-                    <Input
-                      ref={fileRef}
-                      type="file"
-                      accept={kycFileAcceptForDocType(docType)}
-                      onChange={syncHasFile}
-                      className="mt-1 block h-auto py-1.5 text-sm text-ds-gray-600 file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
-                      aria-invalid={fieldState.error ? true : undefined}
-                    />
-                    <FormFieldError message={fieldState.error?.message} />
-                  </>
-                )}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {docType === 'photo'
-                  ? 'JPEG, PNG, or WebP only.'
-                  : 'PDF or image (JPEG, PNG, WebP).'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Uploading…' : 'Upload'}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <Controller
+              control={control}
+              name="hasFile"
+              render={({ fieldState }) => (
+                <div className="md:col-span-2">
+                  <FileUploadField
+                    id="kyc-file-upload"
+                    label="File"
+                    required
+                    accept={kycFileAcceptForDocType(docType)}
+                    hint={fileHint}
+                    error={fieldState.error?.message}
+                    inputRef={fileRef}
+                    onChange={syncHasFile}
+                  />
+                </div>
+              )}
+            />
+          </FormRow>
+        </FormSection>
+      </form>
+    </FormDialog>
   );
 }

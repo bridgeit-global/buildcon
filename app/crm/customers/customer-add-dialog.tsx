@@ -5,22 +5,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pageError } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import {
-  CUSTOMER_FORM_DIALOG_CLASS,
-  CustomerProfileFields
-} from '@/app/crm/customers/customer-form-ui';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDrawer } from '@/components/ui/form-drawer';
+import { CustomerProfileFields } from '@/app/crm/customers/customer-form-ui';
 import {
   customerCreateSchema,
   EMPTY_CUSTOMER_CREATE,
   type CustomerCreateFormValues
 } from '@/lib/customer/customer-forms.schema';
+
+const FORM_ID = 'customer-add-form';
 
 type Props = {
   open: boolean;
@@ -48,41 +42,36 @@ export function CustomerAddDialog({
   }, [open, reset]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm">Add</Button>
-      </DialogTrigger>
-      <DialogContent className={CUSTOMER_FORM_DIALOG_CLASS}>
+    <>
+      <Button size="sm" onClick={() => onOpenChange(true)}>
+        Add
+      </Button>
+      <FormDrawer
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Add customer"
+        description="Create a new customer record with contact details and address."
+        size="lg"
+        footer={
+          <FormActions
+            formId={FORM_ID}
+            onCancel={() => onOpenChange(false)}
+            submitLabel="Save customer"
+            saving={saving}
+          />
+        }
+      >
         <form
+          id={FORM_ID}
           onSubmit={handleSubmit(
             async (values) => onSubmit(values),
             () => pageError('Fix the highlighted fields before saving.')
           )}
-          className="flex min-h-0 flex-1 flex-col"
+          className="space-y-6"
         >
-          <DialogHeader className="shrink-0 px-6 pt-6 pb-0">
-            <DialogTitle>Add customer</DialogTitle>
-          </DialogHeader>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <CustomerProfileFields control={control} showAddress />
-          </div>
-
-          <div className="flex shrink-0 justify-end gap-2 border-t px-6 py-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
+          <CustomerProfileFields control={control} showAddress />
         </form>
-      </DialogContent>
-    </Dialog>
+      </FormDrawer>
+    </>
   );
 }

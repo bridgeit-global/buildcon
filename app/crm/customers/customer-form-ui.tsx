@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import type { Control, FieldErrors, FieldPath, FieldValues } from 'react-hook-form';
 import { Controller, useController, useWatch } from 'react-hook-form';
 import { TextInputField } from '@/components/ui/text-input-field';
-import { Label } from '@/components/ui/label';
 import { FieldLabel } from '@/components/ui/field-label';
 import { Button } from '@/components/ui/button';
 import { EmailInputField } from '@/components/ui/email-input-field';
@@ -12,6 +11,12 @@ import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { PanInputField } from '@/components/ui/pan-input-field';
 import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
 import { DobInputField } from '@/components/ui/dob-input-field';
+import { FormSection } from '@/components/ui/form-section';
+import { FormRow, FormRowFull } from '@/components/ui/form-row';
+import {
+  formControlClass,
+  formControlFieldGapClass
+} from '@/components/ui/form-control';
 import {
   Select,
   SelectContent,
@@ -31,9 +36,6 @@ import {
   ApplicationAddressFields,
   type ApplicationAddressValues
 } from '@/app/crm/bookings/application-address-fields';
-
-export const CUSTOMER_FORM_DIALOG_CLASS =
-  'flex max-h-[min(90vh,720px)] w-[min(100vw-2rem,36rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl';
 
 export { FormFieldError } from '@/components/ui/form-field-error';
 
@@ -223,9 +225,9 @@ function RhfCustomerRelationSelect<T extends FieldValues>({
   );
   return (
     <div>
-      <Label>Customer relation</Label>
+      <FieldLabel>Customer relation</FieldLabel>
       <Select value={field.value || undefined} onValueChange={field.onChange}>
-        <SelectTrigger className="mt-1 w-full">
+        <SelectTrigger className={cn(formControlFieldGapClass, formControlClass)}>
           <SelectValue placeholder="Select relation" />
         </SelectTrigger>
         <SelectContent>
@@ -283,80 +285,85 @@ function CustomerCreateAddressSection<T extends FieldValues>({
   }) as 'same' | 'different' | undefined;
 
   return (
-    <>
-      <div className="space-y-2 sm:col-span-2">
-        <FieldLabel required>Residential Address</FieldLabel>
-        <Controller
-          control={control}
-          name={'residential_address' as FieldPath<T>}
-          render={({ field, formState }) => (
-            <ApplicationAddressFields
-              values={field.value ?? EMPTY_APPLICATION_ADDRESS}
-              onChange={(patch) => field.onChange({ ...field.value, ...patch })}
-              errors={addressFieldErrors(
-                formState.errors.residential_address as
-                  | FieldErrors<ApplicationAddressValues>
-                  | undefined
-              )}
-            />
-          )}
-        />
-      </div>
+    <FormSection
+      title="Address"
+      description="Residential and permanent address details for the customer profile."
+    >
+      <FormRowFull>
+        <div className="space-y-2">
+          <FieldLabel required>Residential address</FieldLabel>
+          <Controller
+            control={control}
+            name={'residential_address' as FieldPath<T>}
+            render={({ field, formState }) => (
+              <ApplicationAddressFields
+                values={field.value ?? EMPTY_APPLICATION_ADDRESS}
+                onChange={(patch) => field.onChange({ ...field.value, ...patch })}
+                errors={addressFieldErrors(
+                  formState.errors.residential_address as
+                    | FieldErrors<ApplicationAddressValues>
+                    | undefined
+                )}
+              />
+            )}
+          />
+        </div>
+      </FormRowFull>
 
-      <div className="space-y-3 sm:col-span-2">
-        <FieldLabel required>
-          Permanent Address same as Correspondence Address?
-        </FieldLabel>
-        <Controller
-          control={control}
-          name={'permanent_same_as_correspondence' as FieldPath<T>}
-          render={({ field }) => (
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ['same', 'Same'],
-                  ['different', 'Different']
-                ] as const
-              ).map(([value, label]) => (
-                <Button
-                  key={value}
-                  type="button"
-                  size="sm"
-                  variant={field.value === value ? 'default' : 'outline'}
-                  onClick={() => field.onChange(value)}
-                >
-                  {label}
-                </Button>
-              ))}
+      <FormRowFull>
+        <div className="space-y-3">
+          <FieldLabel required>
+            Permanent address same as correspondence address?
+          </FieldLabel>
+          <Controller
+            control={control}
+            name={'permanent_same_as_correspondence' as FieldPath<T>}
+            render={({ field }) => (
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['same', 'Same'],
+                    ['different', 'Different']
+                  ] as const
+                ).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    size="sm"
+                    variant={field.value === value ? 'default' : 'outline'}
+                    onClick={() => field.onChange(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            )}
+          />
+          {permanentSame === 'different' ? (
+            <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+              <FieldLabel required>Permanent address</FieldLabel>
+              <Controller
+                control={control}
+                name={'permanent_address' as FieldPath<T>}
+                render={({ field, formState }) => (
+                  <ApplicationAddressFields
+                    values={field.value ?? EMPTY_APPLICATION_ADDRESS}
+                    onChange={(patch) =>
+                      field.onChange({ ...field.value, ...patch })
+                    }
+                    errors={addressFieldErrors(
+                      formState.errors.permanent_address as
+                        | FieldErrors<ApplicationAddressValues>
+                        | undefined
+                    )}
+                  />
+                )}
+              />
             </div>
-          )}
-        />
-        {permanentSame === 'different' ? (
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-ds-gray-600">
-              Permanent Address
-            </Label>
-            <Controller
-              control={control}
-              name={'permanent_address' as FieldPath<T>}
-              render={({ field, formState }) => (
-                <ApplicationAddressFields
-                  values={field.value ?? EMPTY_APPLICATION_ADDRESS}
-                  onChange={(patch) =>
-                    field.onChange({ ...field.value, ...patch })
-                  }
-                  errors={addressFieldErrors(
-                    formState.errors.permanent_address as
-                      | FieldErrors<ApplicationAddressValues>
-                      | undefined
-                  )}
-                />
-              )}
-            />
-          </div>
-        ) : null}
-      </div>
-    </>
+          ) : null}
+        </div>
+      </FormRowFull>
+    </FormSection>
   );
 }
 
@@ -370,122 +377,142 @@ export function CustomerProfileFields<T extends FieldValues>({
   showAddress?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
-        <RhfTextInput
-          control={control}
-          name={'first_name' as FieldPath<T>}
-          label="First name"
-          required
-          placeholder="e.g. Amit"
-        />
-        <RhfTextInput
-          control={control}
-          name={'middle_name' as FieldPath<T>}
-          label="Middle name"
-          placeholder="Optional"
-        />
-        <RhfTextInput
-          control={control}
-          name={'last_name' as FieldPath<T>}
-          label="Last name"
-          required
-          placeholder="e.g. Deshmukh"
-        />
-      </div>
-      <RhfPhoneInput
-        control={control}
-        name={'phone' as FieldPath<T>}
-        label="Primary mobile number"
-        required
-      />
-      <RhfPhoneInput
-        control={control}
-        name={'phone_secondary' as FieldPath<T>}
-        label="Secondary mobile number"
-      />
-      <RhfEmailInput
-        control={control}
-        name={'email' as FieldPath<T>}
-        label="Email"
-        placeholder="name@email.com"
-      />
-      <Controller
-        control={control}
-        name={'dob' as FieldPath<T>}
-        render={({ field, fieldState }) => (
-          <DobInputField
-            label="Date of birth"
-            value={field.value ?? ''}
-            onChange={field.onChange}
-            error={fieldState.error?.message}
+    <div className="space-y-6">
+      <FormSection
+        title="Basic information"
+        description="Contact details and personal information for the customer."
+      >
+        <FormRow>
+          <RhfTextInput
+            control={control}
+            name={'first_name' as FieldPath<T>}
+            label="First name"
+            required
+            placeholder="e.g. Amit"
           />
-        )}
-      />
-      <RhfTextInput
-        control={control}
-        name={'occupation' as FieldPath<T>}
-        label="Occupation"
-        placeholder="Salaried / Business…"
-      />
-      <Controller
-        control={control}
-        name={'nationality' as FieldPath<T>}
-        render={({ field }) => (
-          <div className="sm:col-span-2">
-            <Label>Nationality</Label>
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Indian">Indian</SelectItem>
-                <SelectItem value="NRI">NRI</SelectItem>
-                <SelectItem value="Foreign National">Foreign National</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      />
-      <RhfCustomerRelationSelect control={control} />
-      <RhfGuardianNameInput control={control} />
-      <Controller
-        control={control}
-        name={'residential_status' as FieldPath<T>}
-        render={({ field }) => (
-          <div>
-            <Label>Residential status</Label>
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RESIDENTIAL_STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      />
-      <RhfPassportInput control={control} />
-      {showAddress ? <CustomerCreateAddressSection control={control} /> : null}
+          <RhfTextInput
+            control={control}
+            name={'middle_name' as FieldPath<T>}
+            label="Middle name"
+            placeholder="Optional"
+          />
+          <RhfTextInput
+            control={control}
+            name={'last_name' as FieldPath<T>}
+            label="Last name"
+            required
+            placeholder="e.g. Deshmukh"
+          />
+          <RhfPhoneInput
+            control={control}
+            name={'phone' as FieldPath<T>}
+            label="Primary mobile number"
+            required
+          />
+          <RhfPhoneInput
+            control={control}
+            name={'phone_secondary' as FieldPath<T>}
+            label="Secondary mobile number"
+          />
+          <RhfEmailInput
+            control={control}
+            name={'email' as FieldPath<T>}
+            label="Email"
+            placeholder="name@email.com"
+          />
+          <Controller
+            control={control}
+            name={'dob' as FieldPath<T>}
+            render={({ field, fieldState }) => (
+              <DobInputField
+                label="Date of birth"
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+          <RhfTextInput
+            control={control}
+            name={'occupation' as FieldPath<T>}
+            label="Occupation"
+            placeholder="Salaried / Business…"
+          />
+        </FormRow>
+      </FormSection>
+
+      <FormSection
+        title="Identity & residency"
+        description="Nationality, guardian details, and residential status."
+      >
+        <FormRow>
+          <Controller
+            control={control}
+            name={'nationality' as FieldPath<T>}
+            render={({ field }) => (
+              <div>
+                <FieldLabel>Nationality</FieldLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className={cn(formControlFieldGapClass, formControlClass)}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Indian">Indian</SelectItem>
+                    <SelectItem value="NRI">NRI</SelectItem>
+                    <SelectItem value="Foreign National">Foreign National</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          />
+          <RhfCustomerRelationSelect control={control} />
+          <RhfGuardianNameInput control={control} />
+          <Controller
+            control={control}
+            name={'residential_status' as FieldPath<T>}
+            render={({ field }) => (
+              <div>
+                <FieldLabel>Residential status</FieldLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className={cn(formControlFieldGapClass, formControlClass)}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RESIDENTIAL_STATUS_OPTIONS.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          />
+          <RhfPassportInput control={control} />
+        </FormRow>
+      </FormSection>
+
       {showKyc ? (
-        <>
-          <RhfPanInput
-            control={control}
-            name={'pan_number' as FieldPath<T>}
-            label="PAN"
-          />
-          <RhfAadhaarInput
-            control={control}
-            name={'aadhaar_last4' as FieldPath<T>}
-            label="Aadhaar number"
-          />
-        </>
+        <FormSection
+          title="Identity & KYC"
+          description="Government ID numbers used for verification."
+        >
+          <FormRow>
+            <RhfPanInput
+              control={control}
+              name={'pan_number' as FieldPath<T>}
+              label="PAN"
+            />
+            <RhfAadhaarInput
+              control={control}
+              name={'aadhaar_last4' as FieldPath<T>}
+              label="Aadhaar number"
+            />
+          </FormRow>
+        </FormSection>
       ) : null}
+
+      {showAddress ? <CustomerCreateAddressSection control={control} /> : null}
     </div>
   );
 }

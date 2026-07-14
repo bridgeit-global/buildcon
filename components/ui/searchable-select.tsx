@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formControlTriggerClass, formControlInvalidClass } from '@/components/ui/form-control';
 import {
   Popover,
   PopoverContent,
@@ -17,6 +18,7 @@ type SearchableSelectProps = {
   searchPlaceholder?: string;
   className?: string;
   disabled?: boolean;
+  error?: boolean;
 };
 
 export function SearchableSelect({
@@ -26,7 +28,8 @@ export function SearchableSelect({
   placeholder = 'Select…',
   searchPlaceholder = 'Search…',
   className,
-  disabled
+  disabled,
+  error
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -53,8 +56,10 @@ export function SearchableSelect({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            'flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+            formControlTriggerClass,
+            'border border-input bg-transparent shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-0.5',
             !value && 'text-muted-foreground',
+            error ? formControlInvalidClass : undefined,
             className
           )}
         >

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
+import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
 import { cn } from '@/lib/utils';
 import { normalizeAadhaar } from '@/lib/customer/kyc-identifiers';
 
@@ -46,7 +46,11 @@ export function AadhaarInputField({
       </FieldLabel>
       <Input
         id={id}
-        className={cn(formControlFieldGapClass, inputClassName)}
+        className={cn(
+          formControlFieldGapClass,
+          displayError ? formControlInvalidClass : undefined,
+          inputClassName
+        )}
         aria-invalid={displayError ? true : undefined}
         value={value}
         onChange={(e) => onChange(normalizeAadhaar(e.target.value))}

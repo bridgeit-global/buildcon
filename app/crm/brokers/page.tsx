@@ -15,10 +15,18 @@ import {
   type BrokerFormValues
 } from '@/lib/broker/broker-forms.schema';
 import { Card } from '@/components/ui/card';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { FormRow } from '@/components/ui/form-row';
+import { FormSection } from '@/components/ui/form-section';
+import { FieldLabel } from '@/components/ui/field-label';
+import {
+  formControlClass,
+  formControlFieldGapClass
+} from '@/components/ui/form-control';
 import { CrmSkeletonBar } from '../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { EmailInputField } from '@/components/ui/email-input-field';
@@ -30,7 +38,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { BrokerListTable, type BrokerTableRow } from './broker-list-table';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -148,68 +157,73 @@ export default function BrokersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <button
-            type="button"
-            className="-m-1 flex min-w-0 flex-1 items-start gap-2 rounded-lg p-1 text-left transition-colors hover:bg-ds-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary-500/40"
-            onClick={() => setCreateFormOpen((o) => !o)}
-            aria-expanded={createFormOpen}
-            aria-controls="create-broker-form"
-          >
-            <ChevronDown
-              className={`mt-0.5 size-4 shrink-0 text-ds-gray-500 transition-transform${createFormOpen ? ' rotate-180' : ''}`}
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-ds-gray-900">
-                Add broker
-              </div>
-              <div className="text-xs text-ds-gray-500">
-                Create a new broker record — fill in name, phone and optional
-                contact details.
-              </div>
-            </div>
-          </button>
+      <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-ds-gray-900">Brokers</div>
+          <div className="text-xs text-ds-gray-500">
+            Search broker records or add a new broker to the directory.
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
-            className="shrink-0"
             onClick={() => void fetchBrokerList()}
             disabled={loading}
           >
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
+          <Button onClick={() => setCreateFormOpen(true)}>Add broker</Button>
         </div>
+      </Card>
 
-        {createFormOpen ? (
-          <form
-            id="create-broker-form"
-            onSubmit={(e) => void createBroker(e)}
-            className="mt-4 flex flex-col gap-4"
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
-                <TextInputField
-                  label="First name"
-                  required
-                  placeholder="e.g. Amit"
-                  error={errors.first_name?.message}
-                  {...register('first_name')}
-                />
-                <TextInputField
-                  label="Middle name"
-                  placeholder="Optional"
-                  error={errors.middle_name?.message}
-                  {...register('middle_name')}
-                />
-                <TextInputField
-                  label="Last name"
-                  required
-                  placeholder="e.g. Deshmukh"
-                  error={errors.last_name?.message}
-                  {...register('last_name')}
-                />
-              </div>
+      <FormDialog
+        open={createFormOpen}
+        onOpenChange={(open) => {
+          setCreateFormOpen(open);
+          if (!open) reset(EMPTY_BROKER_FORM);
+        }}
+        title="Add broker"
+        description="Create a new broker record with name, phone, and optional contact details."
+        className="sm:max-w-xl"
+        footer={
+          <FormActions
+            formId="create-broker-form"
+            onCancel={() => {
+              setCreateFormOpen(false);
+              reset(EMPTY_BROKER_FORM);
+            }}
+            submitLabel="Save broker"
+            saving={saving}
+          />
+        }
+      >
+        <form
+          id="create-broker-form"
+          onSubmit={(e) => void createBroker(e)}
+          className="space-y-6"
+        >
+          <FormSection title="Broker details">
+            <FormRow>
+              <TextInputField
+                label="First name"
+                required
+                placeholder="e.g. Amit"
+                error={errors.first_name?.message}
+                {...register('first_name')}
+              />
+              <TextInputField
+                label="Middle name"
+                placeholder="Optional"
+                error={errors.middle_name?.message}
+                {...register('middle_name')}
+              />
+              <TextInputField
+                label="Last name"
+                required
+                placeholder="e.g. Deshmukh"
+                error={errors.last_name?.message}
+                {...register('last_name')}
+              />
               <PhoneInputField
                 value={watch('phone')}
                 onChange={(v) => setValue('phone', v, { shouldValidate: true })}
@@ -221,12 +235,12 @@ export default function BrokersPage() {
                 error={errors.email?.message}
               />
               <TextInputField
-                className="sm:col-span-2"
+                className="md:col-span-2"
                 label="RERA / license no."
                 {...register('license_no')}
               />
               <div>
-                <Label>Status</Label>
+                <FieldLabel>Status</FieldLabel>
                 <Select
                   value={status}
                   onValueChange={(v) =>
@@ -235,7 +249,7 @@ export default function BrokersPage() {
                     })
                   }
                 >
-                  <SelectTrigger className="mt-1 w-full">
+                  <SelectTrigger className={cn(formControlFieldGapClass, formControlClass)}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -245,32 +259,15 @@ export default function BrokersPage() {
                 </Select>
               </div>
               <TextareaField
-                className="sm:col-span-2"
+                className="md:col-span-2"
                 label="Notes"
                 rows={3}
                 {...register('notes')}
               />
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-ds-gray-100 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCreateFormOpen(false);
-                  reset(EMPTY_BROKER_FORM);
-                }}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save broker'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </Card>
+            </FormRow>
+          </FormSection>
+        </form>
+      </FormDialog>
 
       <Card className="p-4">
         <div className="mb-4">
