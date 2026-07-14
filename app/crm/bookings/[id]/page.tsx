@@ -80,7 +80,7 @@ import {
   parseBookingBuyerKycFieldErrors,
   parseBookingBuyerPanInlineError
 } from '@/lib/booking/booking-workflow.schema';
-import { kycUploadSchema } from '@/lib/customer/customer-forms.schema';
+import { kycUploadSchema, guardianNameFieldLabel } from '@/lib/customer/customer-forms.schema';
 import {
   isKycFileAllowed,
   kycFileAcceptForDocType,
@@ -99,6 +99,8 @@ import { DobInputField } from '@/components/ui/dob-input-field';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
 import { mergeLookupOptions } from '@/lib/master/master-lookup';
 import { idProofOptionsForResidentialStatus } from '@/lib/customer/id-proof-options';
+import { RESIDENTIAL_STATUS_OPTIONS } from '@/lib/customer/application-form-data';
+import { formatFullName, splitFullName } from '@/lib/person-name';
 import {
   effectivePermanentAddress,
   inferPermanentSameAsCorrespondence,
@@ -140,7 +142,9 @@ type BuyerAddress = {
 type BuyerKyc = {
   customerId: string;
   label: string;
-  fullName: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
   phone: string | null;
   phone_secondary: string | null;
   email: string | null;
@@ -211,7 +215,9 @@ function buyerAddressToFormAddress(
 
 function buyerToApplicationFormInput(b: BuyerKyc) {
   return {
-    fullName: b.fullName,
+    first_name: b.first_name,
+    middle_name: b.middle_name,
+    last_name: b.last_name,
     phone: b.phone,
     phone_secondary: b.phone_secondary,
     email: b.email,
@@ -411,7 +417,7 @@ export default function BookingDetailPage() {
       supabase
         .from('customers')
         .select(
-          'id,full_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address'
+          'id,full_name,first_name,middle_name,last_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address'
         )
         .in('id', buyerIdList),
       supabase
@@ -472,19 +478,29 @@ export default function BookingDetailPage() {
             pin: permAddr.pin
           }
         : null;
+      const first = String(c?.first_name ?? '').trim();
+      const middle = String(c?.middle_name ?? '').trim();
+      const last = String(c?.last_name ?? '').trim();
+      const fromFull =
+        !first && !last
+          ? splitFullName(String(c?.full_name ?? b.label))
+          : null;
       return {
         customerId: b.id,
         label: b.label,
-        fullName: String(c?.full_name ?? b.label),
+        first_name: first || fromFull?.first_name || '',
+        middle_name: middle || fromFull?.middle_name || '',
+        last_name: last || fromFull?.last_name || '',
         phone: (c?.phone as string | null) ?? null,
         phone_secondary: (c?.phone_secondary as string | null) ?? null,
         email: (c?.email as string | null) ?? null,
         occupation: (c?.occupation as string | null) ?? null,
         dob: (c?.dob as string | null) ?? null,
-        nationality: (c?.nationality as string | null) ?? null,
+        nationality: (c?.nationality as string | null) || 'Indian',
         guardian_name: (c?.guardian_name as string | null) ?? null,
         guardian_relation: (c?.guardian_relation as string | null) ?? null,
-        residential_status: (c?.residential_status as string | null) ?? null,
+        residential_status:
+          (c?.residential_status as string | null) || 'Resident Indian',
         passport_number: (c?.passport_number as string | null) ?? null,
         id_proof_type: (c?.id_proof_type as string | null) ?? null,
         office_name_address: (c?.office_name_address as string | null) ?? null,
@@ -507,7 +523,7 @@ export default function BookingDetailPage() {
     const prefilled: Record<string, Set<string>> = {};
     for (const nb of nextBuyerKyc) {
       const fields = new Set<string>();
-      if (nb.fullName) fields.add('fullName');
+      if (nb.first_name || nb.last_name) fields.add('name');
       if (nb.guardian_name) fields.add('guardian_name');
       if (nb.guardian_relation) fields.add('guardian_relation');
       if (nb.dob) fields.add('dob');
@@ -1247,7 +1263,14 @@ export default function BookingDetailPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           customerId: b.customerId,
-          full_name: b.fullName.trim(),
+          first_name: b.first_name.trim(),
+          middle_name: b.middle_name.trim(),
+          last_name: b.last_name.trim(),
+          full_name: formatFullName({
+            first_name: b.first_name,
+            middle_name: b.middle_name,
+            last_name: b.last_name
+          }),
           phone: b.phone?.replace(/\D/g, '') || null,
           phone_secondary: b.phone_secondary?.replace(/\D/g, '') || null,
           email: b.email?.trim() || null,
@@ -1503,12 +1526,13 @@ export default function BookingDetailPage() {
         <>
           {workflowStage === 'token' && !cancelled ? (
             <Card className="space-y-4 p-4">
-              <h2 className="font-semibold text-ds-gray-900">Token received</h2>
+              <h2 className="font-semibold text-ds-gray-900">Token details</h2>
               {tokenStageLocked ? (
                 <>
                   <p className="text-sm text-ds-gray-600">
-                    Token was recorded when this booking was created (from inquiry or the
-                    bookings form). Token details cannot be changed. Continue to the
+                    Token commitment was captured when this booking was created (from inquiry
+                    or the bookings form). Payment is posted to the ledger at booking
+                    confirmation. Token details cannot be changed — continue to the
                     application form.
                   </p>
                   <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -1537,6 +1561,11 @@ export default function BookingDetailPage() {
                 </>
               ) : (
                 <>
+                  <p className="text-sm text-ds-gray-600">
+                    Capture the token the customer will give. This is a commitment —
+                    money is recorded on the ledger only when you reach booking
+                    confirmation.
+                  </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Amount (INR)</Label>
@@ -1597,7 +1626,7 @@ export default function BookingDetailPage() {
                       })
                     }
                   >
-                    Save token
+                    Save token details
                   </Button>
                 </>
               )}
@@ -1650,7 +1679,6 @@ export default function BookingDetailPage() {
                 {buyerKyc.map((b, bIdx) => {
                   const errs = appFormFieldErrors[b.customerId] ?? {};
                   const isSavingThis = savingBuyerAppForm === b.customerId;
-                  const pre = prefilledBuyerFields.current[b.customerId];
                   const customerRelationOptions = mergeLookupOptions(
                     masterCustomerRelations,
                     buyerKyc.map((row) => row.guardian_relation)
@@ -1660,6 +1688,15 @@ export default function BookingDetailPage() {
                   );
                   const residentialValues = applicationAddressFromRow(b.residentialAddress);
                   const permanentValues = applicationAddressFromRow(b.permanentAddress);
+                  const patchBuyerField = <K extends keyof BuyerKyc>(
+                    key: K,
+                    value: BuyerKyc[K]
+                  ) =>
+                    setBuyerKyc((rows) =>
+                      rows.map((r) =>
+                        r.customerId === b.customerId ? { ...r, [key]: value } : r
+                      )
+                    );
                   const patchResidential = (
                     patch: Partial<ReturnType<typeof applicationAddressFromRow>>
                   ) =>
@@ -1718,34 +1755,92 @@ export default function BookingDetailPage() {
                         )}
                       </div>
 
+                      {/* Basic information — matches customer create */}
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <TextInputField
-                          label="Full Name"
+                          label="First name"
                           required
-                          value={b.fullName}
-                          placeholder="Full Name"
-                          onChange={(e) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, fullName: e.target.value } : r
-                              )
-                            )
-                          }
-                          error={errs.fullName}
+                          value={b.first_name}
+                          placeholder="e.g. Amit"
+                          onChange={(e) => patchBuyerField('first_name', e.target.value)}
+                          error={errs.first_name}
                         />
+                        <TextInputField
+                          label="Middle name"
+                          value={b.middle_name}
+                          placeholder="Optional"
+                          onChange={(e) => patchBuyerField('middle_name', e.target.value)}
+                        />
+                        <TextInputField
+                          label="Last name"
+                          required
+                          value={b.last_name}
+                          placeholder="e.g. Deshmukh"
+                          onChange={(e) => patchBuyerField('last_name', e.target.value)}
+                          error={errs.last_name}
+                        />
+                        <PhoneInputField
+                          label="Primary mobile number"
+                          required
+                          value={b.phone ?? ''}
+                          placeholder="10-digit mobile"
+                          onChange={(v) => patchBuyerField('phone', v)}
+                          error={errs.phone}
+                        />
+                        <PhoneInputField
+                          label="Secondary mobile number"
+                          value={b.phone_secondary ?? ''}
+                          placeholder="10-digit mobile (optional)"
+                          onChange={(v) => patchBuyerField('phone_secondary', v)}
+                          error={errs.phone_secondary}
+                        />
+                        <EmailInputField
+                          label="Email"
+                          value={b.email ?? ''}
+                          placeholder="name@email.com"
+                          onChange={(email) => patchBuyerField('email', email)}
+                          error={errs.email}
+                        />
+                        <DobInputField
+                          required
+                          value={b.dob ?? ''}
+                          onChange={(dob) => patchBuyerField('dob', dob)}
+                          error={errs.dob}
+                        />
+                        <TextInputField
+                          label="Occupation"
+                          value={b.occupation ?? ''}
+                          placeholder="Salaried / Business…"
+                          onChange={(e) => patchBuyerField('occupation', e.target.value)}
+                        />
+                      </div>
+
+                      {/* Identity & residency — matches customer create */}
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="space-y-1">
+                          <FieldLabel required>Nationality</FieldLabel>
+                          <Select
+                            value={b.nationality || undefined}
+                            onValueChange={(v) => patchBuyerField('nationality', v)}
+                          >
+                            <SelectTrigger aria-invalid={!!errs.nationality}>
+                              <SelectValue placeholder="Select nationality" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Indian">Indian</SelectItem>
+                              <SelectItem value="NRI">NRI</SelectItem>
+                              <SelectItem value="Foreign National">Foreign National</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormFieldError message={errs.nationality} />
+                        </div>
 
                         <div className="space-y-1">
-                          <FieldLabel required>Customer Relation</FieldLabel>
+                          <FieldLabel required>Customer relation</FieldLabel>
                           <Select
                             value={b.guardian_relation ?? ''}
                             onValueChange={(v) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, guardian_relation: v }
-                                    : r
-                                )
-                              )
+                              patchBuyerField('guardian_relation', v)
                             }
                           >
                             <SelectTrigger aria-invalid={!!errs.guardian_relation}>
@@ -1763,96 +1858,20 @@ export default function BookingDetailPage() {
                         </div>
 
                         <TextInputField
-                          label="Father's/Mother's/Spouse's Name"
+                          label={guardianNameFieldLabel(b.guardian_relation)}
                           required
                           value={b.guardian_name ?? ''}
-                          placeholder="Guardian name"
+                          placeholder="As on PAN / Aadhaar"
                           onChange={(e) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, guardian_name: e.target.value } : r
-                              )
-                            )
+                            patchBuyerField('guardian_name', e.target.value)
                           }
                           error={errs.guardian_name}
                         />
 
-                        <DobInputField
-                          required
-                          value={b.dob ?? ''}
-                          onChange={(dob) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, dob } : r
-                              )
-                            )
-                          }
-                          error={errs.dob}
-                        />
-
-                        <PanInputField
-                          label="PAN"
-                          required
-                          value={b.pan}
-                          placeholder="ABCDE1234F"
-                          onChange={(pan) => {
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, pan } : r
-                              )
-                            );
-                            setBuyerKycBlurError(
-                              b.customerId,
-                              'pan',
-                              parseBookingBuyerPanInlineError(pan)
-                            );
-                          }}
-                          error={errs.pan || buyerKycFieldErrors[b.customerId]?.pan}
-                        />
-
-                        <AadhaarInputField
-                          label="Aadhaar No."
-                          required
-                          value={b.aadhaarLast4}
-                          placeholder="123456789012"
-                          onChange={(aadhaarLast4) => {
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, aadhaarLast4 }
-                                  : r
-                              )
-                            );
-                            setBuyerKycBlurError(
-                              b.customerId,
-                              'aadhaar',
-                              parseBookingBuyerAadhaarInlineError(aadhaarLast4)
-                            );
-                          }}
-                          error={
-                            errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar
-                          }
-                        />
-
-                        <TextInputField
-                          label="Nationality"
-                          required
-                          value={b.nationality ?? ''}
-                          placeholder="Indian"
-                          onChange={(e) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, nationality: e.target.value } : r
-                              )
-                            )
-                          }
-                          error={errs.nationality}
-                        />
-
                         <div className="space-y-1">
-                          <FieldLabel required>Residential Status</FieldLabel>
+                          <FieldLabel required>Residential status</FieldLabel>
                           <Select
-                            value={b.residential_status ?? ''}
+                            value={b.residential_status || undefined}
                             onValueChange={(v) =>
                               setBuyerKyc((rows) =>
                                 rows.map((r) => {
@@ -1875,26 +1894,70 @@ export default function BookingDetailPage() {
                               <SelectValue placeholder="Select status" />
                             </SelectTrigger>
                             <SelectContent>
-                              {['Resident Indian', 'NRI', 'Foreign National'].map((s) => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              {RESIDENTIAL_STATUS_OPTIONS.map((s) => (
+                                <SelectItem key={s} value={s}>
+                                  {s}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                           <FormFieldError message={errs.residential_status} />
                         </div>
 
+                        {b.residential_status !== 'Resident Indian' ? (
+                          <TextInputField
+                            label="Passport no. (NRI / foreign)"
+                            value={b.passport_number ?? ''}
+                            placeholder="Passport number"
+                            onChange={(e) =>
+                              patchBuyerField('passport_number', e.target.value)
+                            }
+                          />
+                        ) : null}
+                      </div>
+
+                      {/* Identity & KYC — application-required */}
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <PanInputField
+                          label="PAN"
+                          required
+                          value={b.pan}
+                          placeholder="ABCDE1234F"
+                          onChange={(pan) => {
+                            patchBuyerField('pan', pan);
+                            setBuyerKycBlurError(
+                              b.customerId,
+                              'pan',
+                              parseBookingBuyerPanInlineError(pan)
+                            );
+                          }}
+                          error={errs.pan || buyerKycFieldErrors[b.customerId]?.pan}
+                        />
+
+                        <AadhaarInputField
+                          label="Aadhaar number"
+                          required
+                          value={b.aadhaarLast4}
+                          placeholder="123456789012"
+                          onChange={(aadhaarLast4) => {
+                            patchBuyerField('aadhaarLast4', aadhaarLast4);
+                            setBuyerKycBlurError(
+                              b.customerId,
+                              'aadhaar',
+                              parseBookingBuyerAadhaarInlineError(aadhaarLast4)
+                            );
+                          }}
+                          error={
+                            errs.aadhaar || buyerKycFieldErrors[b.customerId]?.aadhaar
+                          }
+                        />
+
                         <div className="space-y-1">
-                          <FieldLabel required>ID Proof</FieldLabel>
+                          <FieldLabel required>ID proof</FieldLabel>
                           <Select
                             value={b.id_proof_type ?? ''}
                             onValueChange={(v) =>
-                              setBuyerKyc((rows) =>
-                                rows.map((r) =>
-                                  r.customerId === b.customerId
-                                    ? { ...r, id_proof_type: v }
-                                    : r
-                                )
-                              )
+                              patchBuyerField('id_proof_type', v)
                             }
                           >
                             <SelectTrigger aria-invalid={!!errs.id_proof_type}>
@@ -1910,85 +1973,11 @@ export default function BookingDetailPage() {
                           </Select>
                           <FormFieldError message={errs.id_proof_type} />
                         </div>
-
-                        <TextInputField
-                          label="Profession / Occupation"
-                          labelClassName="text-xs text-ds-gray-600"
-                          value={b.occupation ?? ''}
-                          placeholder="e.g. Business, Service, Professional"
-                          onChange={(e) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, occupation: e.target.value } : r
-                              )
-                            )
-                          }
-                        />
-
-                        <TextInputField
-                          label="Passport No. (NRI/Foreign)"
-                          labelClassName="text-xs text-ds-gray-600"
-                          value={b.passport_number ?? ''}
-                          placeholder="Passport number"
-                          onChange={(e) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, passport_number: e.target.value } : r
-                              )
-                            )
-                          }
-                        />
-                      </div>
-
-                      {/* Contact Details */}
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <PhoneInputField
-                          label="Primary Mobile Number"
-                          required
-                          value={b.phone ?? ''}
-                          placeholder="10-digit mobile"
-                          onChange={(v) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, phone: v } : r
-                              )
-                            )
-                          }
-                          error={errs.phone}
-                        />
-                        <PhoneInputField
-                          label="Secondary Mobile Number"
-                          value={b.phone_secondary ?? ''}
-                          placeholder="10-digit mobile (optional)"
-                          onChange={(v) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId
-                                  ? { ...r, phone_secondary: v }
-                                  : r
-                              )
-                            )
-                          }
-                          error={errs.phone_secondary}
-                        />
-                        <EmailInputField
-                          label="Email Id"
-                          value={b.email ?? ''}
-                          placeholder="email@example.com"
-                          onChange={(email) =>
-                            setBuyerKyc((rows) =>
-                              rows.map((r) =>
-                                r.customerId === b.customerId ? { ...r, email } : r
-                              )
-                            )
-                          }
-                          error={errs.email}
-                        />
                       </div>
 
                       {/* Residential Address */}
                       <div className="space-y-2">
-                        <FieldLabel required>Residential Address</FieldLabel>
+                        <FieldLabel required>Residential address</FieldLabel>
                         <ApplicationAddressFields
                           values={residentialValues}
                           onChange={(patch) => patchResidential(patch)}
@@ -2005,7 +1994,7 @@ export default function BookingDetailPage() {
                       {/* Permanent vs Correspondence */}
                       <div className="space-y-3">
                         <FieldLabel required>
-                          Permanent Address same as Correspondence Address?
+                          Permanent address same as correspondence address?
                         </FieldLabel>
                         <div className="flex flex-wrap gap-2">
                           {(
@@ -2024,15 +2013,9 @@ export default function BookingDetailPage() {
                                   : 'outline'
                               }
                               onClick={() =>
-                                setBuyerKyc((rows) =>
-                                  rows.map((r) =>
-                                    r.customerId === b.customerId
-                                      ? {
-                                          ...r,
-                                          permanentSameAsCorrespondence: value
-                                        }
-                                      : r
-                                  )
+                                patchBuyerField(
+                                  'permanentSameAsCorrespondence',
+                                  value
                                 )
                               }
                             >
@@ -2041,10 +2024,8 @@ export default function BookingDetailPage() {
                           ))}
                         </div>
                         {b.permanentSameAsCorrespondence === 'different' ? (
-                          <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-ds-gray-600">
-                              Permanent Address
-                            </Label>
+                          <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                            <FieldLabel required>Permanent address</FieldLabel>
                             <ApplicationAddressFields
                               values={permanentValues}
                               onChange={(patch) => patchPermanent(patch)}
@@ -2061,17 +2042,12 @@ export default function BookingDetailPage() {
                       </div>
 
                       <TextareaField
-                        label="Office Name & Address"
-                        labelClassName="text-xs text-ds-gray-600"
+                        label="Office name & address"
                         value={b.office_name_address ?? ''}
                         placeholder="Office name and address"
                         rows={2}
                         onChange={(e) =>
-                          setBuyerKyc((rows) =>
-                            rows.map((r) =>
-                              r.customerId === b.customerId ? { ...r, office_name_address: e.target.value } : r
-                            )
-                          )
+                          patchBuyerField('office_name_address', e.target.value)
                         }
                       />
 

@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { resolveCoBuyers } from '@/lib/booking/co-buyers';
-import { insertDefaultPaymentSchedule } from '@/lib/booking/booking-schedule';
+import {
+  ensureTokenCollectionForBooking,
+  insertDefaultPaymentSchedule
+} from '@/lib/booking/booking-schedule';
+import { seedConfirmationDocuments } from '@/lib/booking/seed-confirmation-documents';
 import { isUnitSelectableForBookingCreate } from '@/app/crm/inventory/unit-status';
 import {
   isTokenStageComplete,
@@ -251,7 +255,7 @@ export async function POST(request: Request) {
   });
 
   const tokenRecorded = isTokenStageComplete(stageData);
-  /** Record token & continue: stay on token until user advances on the booking detail page. */
+  /** Create booking & continue: stay on token until user advances on the booking detail page. */
   const initialWorkflowStage = confirmNow ? 'confirmation' : 'token';
 
   const unitStatusBefore = String(unitRow.status || '').trim().toUpperCase();
@@ -323,6 +327,18 @@ export async function POST(request: Request) {
             ? body.saleTotalInr
             : null
       });
+      // Token stage is commitment only — post collection at confirmation.
+      if (confirmNow) {
+        await ensureTokenCollectionForBooking(admin, bookingId, {
+          stageData: stageData as Record<string, unknown>,
+          bookingAmount,
+          paymentMode: modeTrim,
+          createdBy: gate.userId
+        });
+        await seedConfirmationDocuments(admin, bookingId, {
+          generatedBy: gate.userId
+        });
+      }
     } catch (e) {
       await admin.from('bookings').delete().eq('id', bookingId);
       await admin

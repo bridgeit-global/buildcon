@@ -19,7 +19,9 @@ const fullAddress = (
 });
 
 const validBuyer = {
-  fullName: 'Ravi Kumar',
+  first_name: 'Ravi',
+  middle_name: '',
+  last_name: 'Kumar',
   phone: '9876543210',
   phone_secondary: '',
   email: 'ravi@example.com',

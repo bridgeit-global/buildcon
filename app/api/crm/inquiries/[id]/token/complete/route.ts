@@ -1,23 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
-import {
-  insertDefaultPaymentSchedule,
-  ensureTokenCollectionForBooking
-} from '@/lib/booking/booking-schedule';
+import { insertDefaultPaymentSchedule } from '@/lib/booking/booking-schedule';
 import { isUnitBookableForWorkflow } from '@/app/crm/inventory/unit-status';
-import { loadBookingPrintPack } from '@/lib/booking/load-booking-print-pack';
-import { persistGeneratedBookingDocumentServer } from '@/lib/booking/persist-generated-booking-document-server';
-import { generatedReceiptExistsForCollection } from '@/lib/booking/booking-generated-doc-kind';
 import { isInquiryTokenComplete } from '@/app/crm/inquiry/inquiry-token-stage';
 import type { InquiryStageData } from '@/app/crm/inquiry/inquiry-types';
 import type { BookingStageData } from '@/app/crm/bookings/booking-types';
 import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amount-cap';
 import { normalizeBookingPaymentMode } from '@/lib/booking/booking-payment';
+import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-import { resolveSaleTotalInrForBooking } from '@/lib/booking/resolve-sale-total';
 
 type Body = { saleTotalInr?: number | null };
 
@@ -56,7 +50,7 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          'Inquiry is missing project / unit / customer. Complete the qualification stage before recording the token.'
+          'Inquiry is missing project / unit / customer. Complete the qualification stage before capturing token details.'
       },
       { status: 409 }
     );
@@ -223,7 +217,7 @@ export async function POST(
 
   const bookingId = bookingRow.id as string;
 
-  // Seed payment schedule + token collection on instalment 1.
+  // Seed payment schedule only — token is a commitment; collection + receipt at confirmation.
   try {
     await insertDefaultPaymentSchedule(admin, bookingId, {
       projectId,
@@ -234,12 +228,6 @@ export async function POST(
       saleTotalInr:
         body.saleTotalInr != null && body.saleTotalInr > 0 ? body.saleTotalInr : null
     });
-    await ensureTokenCollectionForBooking(admin, bookingId, {
-      stageData: stageData as unknown as Record<string, unknown>,
-      bookingAmount: tokenAmount,
-      paymentMode,
-      createdBy: gate.userId
-    });
   } catch (e) {
     await admin.from('bookings').delete().eq('id', bookingId);
     await admin.from('units').update({ status: unitStatusBefore }).eq('id', unitId);
@@ -249,77 +237,11 @@ export async function POST(
     );
   }
 
-  // Generate token receipt PDF (notification is sent manually via Documents > Send).
-  let tokenReceiptId: string | null = null;
-  try {
-    const packRes = await loadBookingPrintPack(admin, bookingId);
-    if (packRes.ok) {
-      const { data: schedule } = await admin
-        .from('payment_schedules')
-        .select('id, instalment_no, milestone')
-        .eq('booking_id', bookingId)
-        .eq('instalment_no', 1)
-        .maybeSingle();
-      const scheduleId = schedule?.id as string | undefined;
-      let collectionId: string | null = null;
-      if (scheduleId) {
-        const { data: col } = await admin
-          .from('collections')
-          .select('id, received_amount, received_at, mode, reference')
-          .eq('booking_id', bookingId)
-          .eq('schedule_id', scheduleId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        collectionId = (col?.id as string | undefined) ?? null;
-
-        const { data: existing } = await admin
-          .from('generated_documents')
-          .select('storage_path')
-          .eq('booking_id', bookingId)
-          .limit(200);
-        const alreadyGenerated =
-          collectionId &&
-          generatedReceiptExistsForCollection(
-            (existing ?? []) as { storage_path: string }[],
-            collectionId
-          );
-
-        if (collectionId && col && !alreadyGenerated) {
-          const persisted = await persistGeneratedBookingDocumentServer(
-            admin,
-            packRes.pack,
-            'receipt',
-            {
-              linkId: collectionId,
-              generatedBy: gate.userId,
-              htmlOverrides: {
-                receivedAmount: Number(col.received_amount || tokenAmount),
-                receivedAt: (col.received_at as string | null) ?? tokenDate,
-                paymentMode: (col.mode as string | null) ?? tokenMode,
-                paymentReference: (col.reference as string | null) ?? tokenReference,
-                instalmentLabel: schedule
-                  ? `${schedule.instalment_no}. ${schedule.milestone}`
-                  : 'Booking Amount'
-              }
-            }
-          );
-          if (persisted.ok) {
-            tokenReceiptId = persisted.id;
-          }
-        }
-      }
-    }
-  } catch {
-    // Token receipt generation is best-effort; booking has already been created.
-  }
-
   return NextResponse.json({
     ok: true,
     bookingId,
     workflowStage: bookingRow.workflow_stage,
-    created: true,
-    tokenReceiptId
+    created: true
   });
 }
 

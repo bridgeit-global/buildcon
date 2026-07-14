@@ -41,7 +41,7 @@ describe('STATUS_LABEL', () => {
   it.each([
     ['AVAILABLE', 'Available'],
     ['BLOCKED', 'Blocked'],
-    ['TOKEN', 'Token received'],
+    ['TOKEN', 'Token'],
     ['BOOKED', 'Booked'],
     ['AGREEMENT', 'Agreement done'],
     ['REGISTERED', 'Registered'],
@@ -303,7 +303,7 @@ describe('statusLabelForUnit', () => {
     ['B', 'Booked'],
     ['S', 'Registered'],
     ['RF', 'Available'],
-    ['TOKEN', 'Token received'],
+    ['TOKEN', 'Token'],
     ['POSSESSED', 'Possession given'],
     ['UNKNOWN_CODE', 'UNKNOWN_CODE'],
     [null, '—'],

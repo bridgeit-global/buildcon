@@ -11,7 +11,7 @@ export function CreateBookingDrawer({
   onCancel,
   onSubmit,
   submitDisabled,
-  submitLabel = 'Record token & continue',
+  submitLabel = 'Create booking & continue',
   banner,
   children
 }: {

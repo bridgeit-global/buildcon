@@ -214,7 +214,7 @@ export default function CustomersPage() {
           <div className="text-sm font-semibold text-ds-gray-900">
             Customers
           </div>
-          <p className="text-xs text-ds-gray-500">
+          <div className="text-xs text-ds-gray-500">
             {loading && customers.length === 0 ? (
               <CrmSkeletonBar className="inline-block w-16" />
             ) : (
@@ -223,7 +223,7 @@ export default function CustomersPage() {
                 {searchQuery.trim() ? ' (filtered)' : ''}
               </>
             )}
-          </p>
+          </div>
         </div>
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

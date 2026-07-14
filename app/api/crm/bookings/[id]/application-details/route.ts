@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { normalizeAadhaar, normalizePan } from '@/lib/customer/kyc-identifiers';
-import { namePartsFromFullName } from '@/lib/person-name';
+import { formatFullName, namePartsFromFullName } from '@/lib/person-name';
 
 type AddressPayload = {
   address_line1: string | null;
@@ -15,7 +15,11 @@ type AddressPayload = {
 
 type ApplicationDetailsBody = {
   customerId: string;
-  full_name: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  /** @deprecated Prefer first_name / last_name; kept for older clients. */
+  full_name?: string;
   phone: string | null;
   phone_secondary: string | null;
   email: string | null;
@@ -110,12 +114,36 @@ export async function POST(
     );
   }
 
-  if (!body.full_name?.trim()) {
-    return NextResponse.json({ error: 'Full name is required.' }, { status: 400 });
+  const first_name = String(body.first_name ?? '').trim();
+  const middle_name = String(body.middle_name ?? '').trim();
+  const last_name = String(body.last_name ?? '').trim();
+  const legacyFull = String(body.full_name ?? '').trim();
+
+  let nameParts: { first_name: string; middle_name: string; last_name: string; full_name: string };
+  if (first_name || last_name) {
+    if (!first_name) {
+      return NextResponse.json({ error: 'First name is required.' }, { status: 400 });
+    }
+    if (!last_name) {
+      return NextResponse.json({ error: 'Last name is required.' }, { status: 400 });
+    }
+    nameParts = {
+      first_name,
+      middle_name,
+      last_name,
+      full_name: formatFullName({ first_name, middle_name, last_name })
+    };
+  } else if (legacyFull) {
+    nameParts = namePartsFromFullName(legacyFull);
+  } else {
+    return NextResponse.json(
+      { error: 'First name and last name are required.' },
+      { status: 400 }
+    );
   }
 
   const customerPatch: Record<string, unknown> = {
-    ...namePartsFromFullName(body.full_name.trim())
+    ...nameParts
   };
   if (body.phone) customerPatch.phone = body.phone.replace(/\D/g, '');
   customerPatch.phone_secondary = body.phone_secondary

@@ -15,7 +15,9 @@ export type ApplicationFormAddress = {
 };
 
 export type ApplicationFormBuyerInput = {
-  fullName: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
   phone: string | null;
   phone_secondary: string | null;
   email: string | null;
@@ -90,12 +92,13 @@ export function validateApplicationFormBuyer(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
-  if (!b.fullName.trim()) errors.fullName = 'Full name is required.';
+  if (!b.first_name.trim()) errors.first_name = 'First name is required.';
+  if (!b.last_name.trim()) errors.last_name = 'Last name is required.';
   if (!b.guardian_relation?.trim()) {
     errors.guardian_relation = 'Customer relation is required.';
   }
   if (!b.guardian_name?.trim()) {
-    errors.guardian_name = "Father's/Mother's/Spouse's name is required.";
+    errors.guardian_name = 'Guardian name is required.';
   }
 
   if (!b.dob) errors.dob = 'Date of birth is required.';

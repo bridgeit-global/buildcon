@@ -76,7 +76,7 @@ const STAGE_TABS: Array<{
   label: string;
 }> = [
     { id: 'all', label: 'All stages' },
-    { id: 'token', label: 'Token received' },
+    { id: 'token', label: 'Token' },
     ...BOOKING_WORKFLOW_STAGES.filter((s) => s !== 'token').map((s) => ({
       id: s,
       label: BOOKING_WORKFLOW_LABEL[s]

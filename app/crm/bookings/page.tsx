@@ -923,7 +923,7 @@ export default function BookingsPage() {
       bookingAmount
     });
     if (!parsed.success) {
-      pageError('Fix the highlighted fields before recording the token.');
+      pageError('Fix the highlighted fields before creating the booking.');
       return;
     }
     const amountCapMsg = bookingAmountExceedsUnitTotalMessage(
@@ -1354,7 +1354,7 @@ export default function BookingsPage() {
         <div className="min-w-0">
           <div className="text-sm font-semibold text-ds-gray-900">Bookings</div>
           <div className="text-xs text-ds-gray-500">
-            Record a token against a blocked unit, or manage existing bookings below.
+            Capture token commitment against a blocked unit, or manage existing bookings below.
           </div>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -1501,7 +1501,10 @@ export default function BookingsPage() {
           </>
         }
       >
-        <FormSection title="Booking details" description="Unit, customer, co-buyers, and payment.">
+        <FormSection
+          title="Booking details"
+          description="Unit, customer, co-buyers, and planned token amount. Payment posts to the ledger at booking confirmation."
+        >
         <FormRow>
           <div className="col-span-2">
             <SearchablePicker<UnitOption>

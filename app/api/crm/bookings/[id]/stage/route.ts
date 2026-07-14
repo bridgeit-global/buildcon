@@ -204,7 +204,8 @@ export async function POST(
       await syncBookingPaymentScheduleToSaleTotal(admin, bookingId, {
         stageData: stageData as Record<string, unknown>,
         bookingAmount: resolvedBookingAmount,
-        createdBy: gate.userId
+        createdBy: gate.userId,
+        postTokenCollection: true
       });
     } catch (e) {
       return NextResponse.json(

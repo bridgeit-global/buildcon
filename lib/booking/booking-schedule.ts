@@ -405,15 +405,11 @@ export async function insertDefaultPaymentSchedule(
 
   const { error } = await admin.from('payment_schedules').insert(scheduleRows);
   if (error) throw new Error(error.message);
-
-  await ensureTokenCollectionForBooking(admin, bookingId, {
-    bookingAmount,
-    stageData: opts.stageData
-  });
 }
 
 /**
- * Record token-stage payment as a collection on instalment 1 (Booking Amount).
+ * Post token payment as a collection on instalment 1 (Booking Amount).
+ * Call only at booking confirmation — token stage is a commitment, not receipt.
  * Idempotent: only tops up when schedule line received is below token amount.
  */
 export async function ensureTokenCollectionForBooking(
@@ -537,12 +533,14 @@ export async function syncBookingPaymentScheduleToSaleTotal(
     stageData?: Record<string, unknown> | null;
     bookingAmount?: number | null;
     createdBy?: string | null;
+    /** When true, post token collection (use when advancing to confirmation). */
+    postTokenCollection?: boolean;
   }
 ): Promise<{ updated: boolean; saleTotalInr: number; scheduleSum: number }> {
   const { data: booking, error: bErr } = await admin
     .from('bookings')
     .select(
-      'id,project_id,unit_id,sales_inquiry_id,booking_amount,stage_data,status,payment_mode'
+      'id,project_id,unit_id,sales_inquiry_id,booking_amount,stage_data,status,payment_mode,workflow_stage'
     )
     .eq('id', bookingId)
     .maybeSingle();
@@ -564,6 +562,9 @@ export async function syncBookingPaymentScheduleToSaleTotal(
       overrides?.bookingAmount ?? (booking.booking_amount as number | null),
     stageData
   });
+  const shouldPostTokenCollection =
+    Boolean(overrides?.postTokenCollection) ||
+    String(booking.workflow_stage ?? '') === 'confirmation';
 
   const [stages, saleTotalInr] = await Promise.all([
     loadProjectCldStages(admin, projectId),
@@ -597,6 +598,14 @@ export async function syncBookingPaymentScheduleToSaleTotal(
       saleTotalInr,
       stageData
     });
+    if (shouldPostTokenCollection) {
+      await ensureTokenCollectionForBooking(admin, bookingId, {
+        stageData,
+        bookingAmount,
+        paymentMode: (booking.payment_mode as string | null) ?? null,
+        createdBy: overrides?.createdBy ?? undefined
+      });
+    }
     return { updated: true, saleTotalInr, scheduleSum: saleTotalInr };
   }
 
@@ -684,12 +693,14 @@ export async function syncBookingPaymentScheduleToSaleTotal(
 
   const scheduleSum = merged.reduce((s, r) => s + r.amount, 0);
 
-  await ensureTokenCollectionForBooking(admin, bookingId, {
-    stageData,
-    bookingAmount,
-    paymentMode: (booking.payment_mode as string | null) ?? null,
-    createdBy: overrides?.createdBy ?? undefined
-  });
+  if (shouldPostTokenCollection) {
+    await ensureTokenCollectionForBooking(admin, bookingId, {
+      stageData,
+      bookingAmount,
+      paymentMode: (booking.payment_mode as string | null) ?? null,
+      createdBy: overrides?.createdBy ?? undefined
+    });
+  }
 
   return { updated, saleTotalInr, scheduleSum };
 }

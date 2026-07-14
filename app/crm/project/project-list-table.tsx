@@ -230,7 +230,7 @@ export function ProjectListTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-xs text-ds-gray-500">
+          <div className="text-xs text-ds-gray-500">
             {loading && projects.length === 0 ? (
               <CrmSkeletonBar className="inline-block w-16" />
             ) : (
@@ -239,7 +239,7 @@ export function ProjectListTable({
                 {globalFilter.trim() ? ' (filtered)' : ''}
               </>
             )}
-          </p>
+          </div>
           <div className="min-w-[7rem]">
             <Label className="text-xs text-ds-gray-500">Rows per page</Label>
             <Select

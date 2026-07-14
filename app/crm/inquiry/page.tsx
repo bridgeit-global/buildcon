@@ -221,7 +221,7 @@ function InquiryPageContent() {
             {
               title: 'Token',
               value: kpiStats.converted,
-              hint: 'Token received',
+              hint: 'Token committed',
               href: '/crm/inquiry/list?stage=token',
               ariaLabel: 'Open list filtered to token stage'
             }

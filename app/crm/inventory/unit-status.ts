@@ -22,7 +22,7 @@ const LEGACY_BOOKED = new Set(['B', 'BOOKED']);
 export const STATUS_LABEL: Record<string, string> = {
   AVAILABLE: 'Available',
   BLOCKED: 'Blocked',
-  TOKEN: 'Token received',
+  TOKEN: 'Token',
   BOOKED: 'Booked',
   AGREEMENT: 'Agreement done',
   REGISTERED: 'Registered',
