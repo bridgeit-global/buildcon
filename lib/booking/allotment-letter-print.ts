@@ -1,5 +1,7 @@
 import { PRINT_FONT_FAMILY } from '@/lib/booking/print-font-family';
 import { formatDisplayDate } from '@/lib/format-display-date';
+import { resolveDeveloperTradeName } from '@/lib/organization/organization-settings';
+import { brandHeaderHtml } from '@/lib/booking/print-brand-header';
 
 export type AllotmentLetterPrintInput = {
   letterRef?: string | null;
@@ -17,6 +19,9 @@ export type AllotmentLetterPrintInput = {
   coBuyerNames?: string[];
   customerAddress?: string | null;
   generatedAt?: Date;
+  developerName?: string | null;
+  authorizedSignatoryName?: string | null;
+  logoDataUri?: string | null;
 };
 
 function esc(s: string | null | undefined): string {
@@ -84,6 +89,8 @@ export function buildAllotmentLetterHtml(input: AllotmentLetterPrintInput): stri
   const project = display(input.projectName, 'the Project');
   const location = display(input.projectLocation, '—');
   const customer = display(input.customerName);
+  const brand = resolveDeveloperTradeName(input.developerName);
+  const signatory = String(input.authorizedSignatoryName ?? '').trim();
   const coBuyers = (input.coBuyerNames ?? []).filter(Boolean);
   const address = display(input.customerAddress, '');
 
@@ -117,6 +124,16 @@ export function buildAllotmentLetterHtml(input: AllotmentLetterPrintInput): stri
       padding: 0;
     }
     .letter { max-width: 180mm; margin: 0 auto; }
+    .brand-block { text-align: center; margin: 0 0 8px; }
+    .brand-logo {
+      display: block;
+      max-height: 56px;
+      max-width: 220px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      margin: 0 auto 6px;
+    }
     .brand {
       text-align: center;
       font-size: 14pt;
@@ -174,7 +191,7 @@ export function buildAllotmentLetterHtml(input: AllotmentLetterPrintInput): stri
 </head>
 <body>
   <div class="letter">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Allotment Letter</p>
     <div class="meta">
       <span><strong>Ref:</strong> ${esc(letterRef)}</span>
@@ -210,8 +227,8 @@ export function buildAllotmentLetterHtml(input: AllotmentLetterPrintInput): stri
     <p class="para">Thanking you and assuring you of our best services.</p>
     <div class="sign-block">
       <p class="para">Yours faithfully,</p>
-      <p class="para"><strong>For BuildCon</strong></p>
-      <div class="sign-line">Authorized Signatory</div>
+      <p class="para"><strong>For ${esc(brand)}</strong></p>
+      <div class="sign-line">${esc(signatory || 'Authorized Signatory')}</div>
     </div>
     <p class="muted">Generated: ${esc(formatDate(at))}</p>
   </div>

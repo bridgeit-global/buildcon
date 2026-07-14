@@ -8,6 +8,8 @@ import {
   unitLine,
   type BookingSalesDocPrintBase
 } from '@/lib/booking/booking-receipt-demand-agreement-print';
+import { brandHeaderHtml } from '@/lib/booking/print-brand-header';
+import { resolveDeveloperTradeName } from '@/lib/organization/organization-settings';
 
 export type RegistrationDeedInput = BookingSalesDocPrintBase & {
   registrationDate?: string | null;
@@ -23,6 +25,7 @@ export function buildRegistrationDeedHtml(input: RegistrationDeedInput): string 
   const project = display(input.projectName, 'the Project');
   const location = display(input.projectLocation, '—');
   const customer = display(input.customerName);
+  const brand = resolveDeveloperTradeName(input.developerName);
   const coBuyers = (input.coBuyerNames ?? []).filter(Boolean);
   const coBlock =
     coBuyers.length > 0
@@ -43,19 +46,19 @@ export function buildRegistrationDeedHtml(input: RegistrationDeedInput): string 
 </head>
 <body>
   <div class="doc">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Registration deed (record copy)</p>
     <div class="meta">
       <span><strong>Deed ref.:</strong> ${esc(deedRef)}</span>
       <span><strong>Registration date:</strong> ${esc(registrationDate)}</span>
     </div>
     <p class="para">
-      This deed is generated for record-keeping by BuildCon CRM following the registration of the apartment /
+      This deed is generated for record-keeping by ${esc(brand)} CRM following the registration of the apartment /
       unit described below at <strong>${esc(sro)}</strong>.
     </p>
     <p class="para"><strong>Between</strong></p>
     <p class="para">
-      <strong>BuildCon</strong>, developer of the residential project known as <strong>${esc(project)}</strong>${locationSuffix}
+      <strong>${esc(brand)}</strong>, developer of the residential project known as <strong>${esc(project)}</strong>${locationSuffix}
       (hereinafter called the &quot;Developer&quot; / &quot;Vendor&quot;),
     </p>
     <p class="para"><strong>And</strong></p>
@@ -83,14 +86,14 @@ export function buildRegistrationDeedHtml(input: RegistrationDeedInput): string 
     </p>
     <p class="para"><strong>4. Records</strong></p>
     <p class="para">
-      This record copy is retained by BuildCon for customer relationship and after-sales servicing. The
+      This record copy is retained by ${esc(brand)} for customer relationship and after-sales servicing. The
       registered original deed shall prevail in case of any discrepancy.
     </p>
     <div class="sign-block">
       <table class="details" style="margin-top: 8px;">
         <tbody>
           <tr>
-            <th style="width:50%">For BuildCon (Developer)</th>
+            <th style="width:50%">For ${esc(brand)} (Developer)</th>
             <th style="width:50%">Purchaser</th>
           </tr>
           <tr>

@@ -18,6 +18,12 @@ import {
   printDemandLetter,
   printSaleAgreement
 } from '@/lib/booking/booking-receipt-demand-agreement-print';
+import { loadBrandLogoDataUri } from '@/lib/organization/brand-logo';
+import { fetchOrganizationSettings } from '@/lib/organization/fetch-organization-settings';
+import {
+  DEFAULT_DEVELOPER_TRADE_NAME,
+  resolveDeveloperTradeName
+} from '@/lib/organization/organization-settings';
 
 function unwrapJoin<T>(x: T | T[] | null): T | null {
   if (x == null) return null;
@@ -49,6 +55,11 @@ export type BookingPrintPack = {
   /** Ordered photo storage paths matching buyerKyc order (null when no photo uploaded). */
   buyerPhotoStoragePaths: (string | null)[];
   kycComplete: boolean;
+  /** Trade / brand name for print documents. */
+  developerName: string;
+  authorizedSignatoryName: string | null;
+  /** Brand logo data URI when configured. */
+  logoDataUri: string | null;
 };
 
 /**
@@ -81,7 +92,7 @@ export async function loadBookingPrintPack(
   const stage = (row.stage_data ?? {}) as BookingStageData;
   const primary = unwrapJoin(row.customers);
 
-  const [{ data: projectRow }, { data: addrRows }] = await Promise.all([
+  const [{ data: projectRow }, { data: addrRows }, org] = await Promise.all([
     supabase
       .from('projects')
       .select('name, location')
@@ -91,8 +102,19 @@ export async function loadBookingPrintPack(
       .from('customer_addresses')
       .select('kind,address_line1,city,state,pin')
       .eq('customer_id', row.customer_id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: true }),
+    fetchOrganizationSettings(supabase)
   ]);
+
+  const developerName = resolveDeveloperTradeName(
+    org?.trade_name ?? DEFAULT_DEVELOPER_TRADE_NAME
+  );
+  const authorizedSignatoryName =
+    String(org?.authorized_signatory_name ?? '').trim() || null;
+  const logoDataUri = await loadBrandLogoDataUri(
+    supabase,
+    org?.logo_storage_path
+  );
 
   const currentAddr =
     (addrRows ?? []).find((a) => a.kind === 'current') ?? addrRows?.[0];
@@ -213,7 +235,10 @@ export async function loadBookingPrintPack(
       buyerProfiles: profiles,
       buyerAddresses: addrByCustomer,
       buyerPhotoStoragePaths,
-      kycComplete
+      kycComplete,
+      developerName,
+      authorizedSignatoryName,
+      logoDataUri
     }
   };
 }
@@ -241,7 +266,10 @@ export function printAllotmentLetterFromPack(pack: BookingPrintPack): void {
     bookingAmount: booking.booking_amount,
     customerName: customer?.full_name ?? null,
     coBuyerNames: co.map((c) => c.full_name).filter(Boolean),
-    customerAddress: formatCustomerAddress(primaryAddr) || null
+    customerAddress: formatCustomerAddress(primaryAddr) || null,
+    developerName: pack.developerName,
+    authorizedSignatoryName: pack.authorizedSignatoryName,
+    logoDataUri: pack.logoDataUri
   });
 }
 
@@ -263,7 +291,10 @@ function salesDocBaseFromPack(pack: BookingPrintPack) {
     coBuyerNames: co.map((c) => c.full_name).filter(Boolean),
     bookingAmount: booking.booking_amount,
     workflowStage: booking.workflow_stage,
-    paymentMode: pack.stageData.token?.mode ?? booking.payment_mode ?? null
+    paymentMode: pack.stageData.token?.mode ?? booking.payment_mode ?? null,
+    developerName: pack.developerName,
+    authorizedSignatoryName: pack.authorizedSignatoryName,
+    logoDataUri: pack.logoDataUri
   };
 }
 

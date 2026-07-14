@@ -8,6 +8,8 @@ import {
 } from '@/lib/booking/booking-document-html-from-pack';
 import { renderHtmlToPdfBuffer } from '@/lib/booking/html-to-pdf';
 import { bookingGeneratedStoragePath } from '@/lib/booking/booking-generated-storage-path';
+import { loadActiveDocumentTemplate } from '@/lib/document-template/load-active-template';
+import { renderDocumentTemplateHtml } from '@/lib/document-template/render-template';
 import {
   isUnitPossessedStatus,
   UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE,
@@ -60,7 +62,17 @@ export async function persistGeneratedBookingDocumentServer(
     );
   }
 
-  const html = buildBookingDocumentHtmlFromPack(kind, pack, opts?.htmlOverrides, applicantPhotoDataUris);
+  const projectId = pack.booking.project_id;
+  const activeTemplate = await loadActiveDocumentTemplate(admin, projectId, kind);
+  const html = activeTemplate
+    ? renderDocumentTemplateHtml(activeTemplate.body, pack, opts?.htmlOverrides)
+    : buildBookingDocumentHtmlFromPack(
+        kind,
+        pack,
+        opts?.htmlOverrides,
+        applicantPhotoDataUris
+      );
+
   let pdf: Buffer;
   try {
     pdf = await renderHtmlToPdfBuffer(html);
@@ -71,7 +83,6 @@ export async function persistGeneratedBookingDocumentServer(
     };
   }
 
-  const projectId = pack.booking.project_id;
   const bookingId = pack.booking.id;
   const fileId = crypto.randomUUID();
   const storagePath = bookingGeneratedStoragePath({
@@ -97,7 +108,7 @@ export async function persistGeneratedBookingDocumentServer(
       project_id: projectId,
       booking_id: bookingId,
       customer_id: pack.booking.customer_id,
-      template_id: null,
+      template_id: activeTemplate?.id ?? null,
       storage_path: storagePath,
       generated_by: opts?.generatedBy ?? null
     })

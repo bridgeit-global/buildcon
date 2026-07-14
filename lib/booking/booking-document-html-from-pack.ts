@@ -58,6 +58,9 @@ function salesDocBaseFromPack(
     bookingAmount: booking.booking_amount,
     workflowStage: booking.workflow_stage,
     paymentMode: pack.stageData.token?.mode ?? booking.payment_mode ?? null,
+    developerName: pack.developerName,
+    authorizedSignatoryName: pack.authorizedSignatoryName,
+    logoDataUri: pack.logoDataUri,
     ...overrides
   };
 }
@@ -126,7 +129,10 @@ export function buildBookingDocumentHtmlFromPack(
         bookingAmount: booking.booking_amount,
         customerName: customer?.full_name ?? null,
         coBuyerNames: co.map((c) => c.full_name).filter(Boolean),
-        customerAddress: formatCustomerAddress(primaryAddr) || null
+        customerAddress: formatCustomerAddress(primaryAddr) || null,
+        developerName: pack.developerName,
+        authorizedSignatoryName: pack.authorizedSignatoryName,
+        logoDataUri: pack.logoDataUri
       });
     }
     default: {

@@ -670,9 +670,26 @@ create table if not exists public.document_templates (
   name text not null,
   category text not null default 'Sales',
   body text,
+  doc_kind text,
+  is_active boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (project_id, name)
+  updated_at timestamptz not null default now(),
+  unique (project_id, name),
+  constraint document_templates_doc_kind_check check (
+    doc_kind is null
+    or doc_kind in (
+      'application-form',
+      'allotment-letter',
+      'agreement',
+      'registration-deed',
+      'demand-letter'
+    )
+  )
 );
+
+create unique index if not exists document_templates_project_doc_kind_uidx
+  on public.document_templates (project_id, doc_kind)
+  where doc_kind is not null;
 
 create table if not exists public.generated_documents (
   id uuid primary key default gen_random_uuid(),
@@ -693,11 +710,21 @@ on public.document_templates
 for select
 using (public.has_project_access(project_id));
 
-create policy "document_templates_mutate_project"
+create policy "document_templates_insert_org_admin"
 on public.document_templates
-for all
-using (public.has_project_access(project_id))
-with check (public.has_project_access(project_id));
+for insert
+with check (public.is_org_admin() and public.has_project_access(project_id));
+
+create policy "document_templates_update_org_admin"
+on public.document_templates
+for update
+using (public.is_org_admin() and public.has_project_access(project_id))
+with check (public.is_org_admin() and public.has_project_access(project_id));
+
+create policy "document_templates_delete_org_admin"
+on public.document_templates
+for delete
+using (public.is_org_admin() and public.has_project_access(project_id));
 
 create policy "generated_documents_select_project"
 on public.generated_documents
@@ -709,4 +736,53 @@ on public.generated_documents
 for all
 using (public.has_project_access(project_id))
 with check (public.has_project_access(project_id));
+
+-- -----------------------------------------------------------------------------
+-- Organization (builder / developer) singleton
+-- -----------------------------------------------------------------------------
+
+create table if not exists public.organization_settings (
+  id uuid primary key default gen_random_uuid(),
+  legal_name text not null default 'BuildCon',
+  trade_name text not null default 'BuildCon',
+  registered_address text,
+  city text,
+  state text,
+  pin text,
+  phone text,
+  email text,
+  website text,
+  pan text,
+  gstin text,
+  cin text,
+  rera_promoter_no text,
+  authorized_signatory_name text,
+  logo_storage_path text,
+  bank_name text,
+  bank_account_name text,
+  bank_account_no text,
+  bank_ifsc text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users (id) on delete set null,
+  constraint organization_settings_legal_name_nonempty check (length(trim(legal_name)) > 0),
+  constraint organization_settings_trade_name_nonempty check (length(trim(trade_name)) > 0)
+);
+
+create unique index if not exists organization_settings_singleton
+  on public.organization_settings ((true));
+
+alter table public.organization_settings enable row level security;
+
+create policy "organization_settings_read_authenticated"
+on public.organization_settings
+for select
+using (auth.role() = 'authenticated');
+
+create policy "organization_settings_update_org_admin"
+on public.organization_settings
+for update
+using (public.is_org_admin())
+with check (public.is_org_admin());
 

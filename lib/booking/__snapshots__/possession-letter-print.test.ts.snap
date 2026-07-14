@@ -18,6 +18,16 @@ exports[`buildPossessionLetterHtml > matches snapshot for fixed fixture 1`] = `
       padding: 0;
     }
     .doc { max-width: 180mm; margin: 0 auto; }
+    .brand-block { text-align: center; margin: 0 0 8px; }
+    .brand-logo {
+      display: block;
+      max-height: 56px;
+      max-width: 220px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      margin: 0 auto 6px;
+    }
     .brand {
       text-align: center;
       font-size: 14pt;

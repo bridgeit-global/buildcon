@@ -16,7 +16,8 @@ import {
   Settings2,
   Shield,
   ShieldCheck,
-  Users
+  Users,
+  Landmark
 } from 'lucide-react';
 
 export type CrmNavItemId =
@@ -35,7 +36,8 @@ export type CrmNavItemId =
   | 'reports'
   | 'approvals'
   | 'users'
-  | 'masters';
+  | 'masters'
+  | 'organization';
 
 export type CrmNavItem = {
   id: CrmNavItemId;
@@ -164,6 +166,13 @@ export const CRM_NAV_GROUPS: CrmNavGroup[] = [
     id: 'admin',
     label: 'Admin',
     items: [
+      {
+        id: 'organization',
+        pageTitle: 'Organization (Admin)',
+        label: 'Organization',
+        href: '/crm/organization',
+        icon: Landmark
+      },
       {
         id: 'approvals',
         pageTitle: 'Approvals (Admin)',

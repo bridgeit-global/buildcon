@@ -1,6 +1,8 @@
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { PRINT_FONT_FAMILY } from '@/lib/booking/print-font-family';
 import { formatDisplayDate } from '@/lib/format-display-date';
+import { resolveDeveloperTradeName } from '@/lib/organization/organization-settings';
+import { brandHeaderHtml } from '@/lib/booking/print-brand-header';
 
 export type BookingSalesDocPrintBase = {
   bookingId: string;
@@ -17,6 +19,11 @@ export type BookingSalesDocPrintBase = {
   workflowStage?: string | null;
   paymentMode?: string | null;
   generatedAt?: Date;
+  /** Builder / developer brand on documents (falls back to BuildCon). */
+  developerName?: string | null;
+  authorizedSignatoryName?: string | null;
+  /** Brand logo as data URI for print/PDF (optional). */
+  logoDataUri?: string | null;
   /** When set (e.g. from a collection entry), receipt shows this amount instead of booking amount. */
   receivedAmount?: number | null;
   receivedAt?: string | null;
@@ -26,6 +33,12 @@ export type BookingSalesDocPrintBase = {
   demandAmount?: number | null;
   demandDueDate?: string | null;
 };
+
+function developerBrand(input: { developerName?: string | null }): string {
+  return resolveDeveloperTradeName(input.developerName);
+}
+
+export { brandHeaderHtml };
 
 export function esc(s: string | null | undefined): string {
   return String(s ?? '')
@@ -118,6 +131,16 @@ export function sharedStyles(): string {
       padding: 0;
     }
     .doc { max-width: 180mm; margin: 0 auto; }
+    .brand-block { text-align: center; margin: 0 0 8px; }
+    .brand-logo {
+      display: block;
+      max-height: 56px;
+      max-width: 220px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      margin: 0 auto 6px;
+    }
     .brand {
       text-align: center;
       font-size: 14pt;
@@ -196,6 +219,8 @@ export function buildBookingReceiptHtml(input: BookingSalesDocPrintBase): string
       ? `<p class="para">Co-applicant(s): ${coBuyers.map((n) => esc(n)).join(', ')}</p>`
       : '';
   const locationSuffix = location !== '—' ? `, ${esc(location)}` : '';
+  const brand = developerBrand(input);
+  const signatory = String(input.authorizedSignatoryName ?? '').trim();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -206,7 +231,7 @@ export function buildBookingReceiptHtml(input: BookingSalesDocPrintBase): string
 </head>
 <body>
   <div class="doc">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Payment receipt</p>
     <div class="meta">
       <span><strong>Receipt no.:</strong> ${esc(receiptNo)}</span>
@@ -236,8 +261,8 @@ export function buildBookingReceiptHtml(input: BookingSalesDocPrintBase): string
       Please retain this for your records.
     </p>
     <div class="sign-block">
-      <p class="para">For <strong>BuildCon</strong></p>
-      <div class="sign-line">Authorised signatory</div>
+      <p class="para">For <strong>${esc(brand)}</strong></p>
+      <div class="sign-line">${esc(signatory || 'Authorised signatory')}</div>
     </div>
     <p class="muted">Generated: ${esc(formatDate(at))} · Workflow: ${esc(display(input.workflowStage, '—'))}</p>
   </div>
@@ -261,6 +286,8 @@ export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
   const location = display(input.projectLocation, '—');
   const customer = display(input.customerName);
   const addressSuffix = location !== '—' ? ` situated at ${esc(location)}` : '';
+  const brand = developerBrand(input);
+  const signatory = String(input.authorizedSignatoryName ?? '').trim();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -271,7 +298,7 @@ export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
 </head>
 <body>
   <div class="doc">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Demand letter (dues)</p>
     <div class="meta">
       <span><strong>Ref:</strong> ${esc(demandRef)}</span>
@@ -307,8 +334,8 @@ export function buildDemandLetterHtml(input: BookingSalesDocPrintBase): string {
     </p>
     <div class="sign-block">
       <p class="para">Yours faithfully,</p>
-      <p class="para"><strong>For BuildCon</strong></p>
-      <div class="sign-line">Authorised signatory</div>
+      <p class="para"><strong>For ${esc(brand)}</strong></p>
+      <div class="sign-line">${esc(signatory || 'Authorised signatory')}</div>
     </div>
     <p class="muted">Generated: ${esc(formatDate(at))}</p>
   </div>
@@ -333,6 +360,7 @@ export function buildSaleAgreementHtml(input: BookingSalesDocPrintBase): string 
       ? `<p class="para"><strong>Co-applicant(s):</strong> ${coBuyers.map((n) => esc(n)).join(', ')}</p>`
       : '';
   const locationSuffix = location !== '—' ? ` at ${esc(location)}` : '';
+  const brand = developerBrand(input);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -343,7 +371,7 @@ export function buildSaleAgreementHtml(input: BookingSalesDocPrintBase): string 
 </head>
 <body>
   <div class="doc">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Draft sale agreement (booking)</p>
     <div class="meta">
       <span><strong>Agreement ref.:</strong> ${esc(agreementRef)}</span>
@@ -355,7 +383,7 @@ export function buildSaleAgreementHtml(input: BookingSalesDocPrintBase): string 
     </p>
     <p class="para"><strong>Between</strong></p>
     <p class="para">
-      <strong>BuildCon</strong>, developer of the residential project known as <strong>${esc(project)}</strong>${locationSuffix}
+      <strong>${esc(brand)}</strong>, developer of the residential project known as <strong>${esc(project)}</strong>${locationSuffix}
       (hereinafter called the &quot;Developer&quot;),
     </p>
     <p class="para"><strong>And</strong></p>
@@ -391,7 +419,7 @@ export function buildSaleAgreementHtml(input: BookingSalesDocPrintBase): string 
       <table class="details" style="margin-top: 8px;">
         <tbody>
           <tr>
-            <th style="width:50%">For BuildCon (Developer)</th>
+            <th style="width:50%">For ${esc(brand)} (Developer)</th>
             <th style="width:50%">Allottee</th>
           </tr>
           <tr>

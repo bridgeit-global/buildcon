@@ -11,7 +11,7 @@ import {
   formatPrintDate,
   sharedStyles
 } from '@/lib/booking/booking-receipt-demand-agreement-print';
-
+import { brandHeaderHtml } from '@/lib/booking/print-brand-header';
 export type CostSheetPrintInput = {
   unit: UnitCostInput;
   parkingRequired: 'Yes' | 'No';
@@ -21,6 +21,8 @@ export type CostSheetPrintInput = {
   applyDefaultGst?: boolean;
   customerName?: string | null;
   generatedAt?: Date;
+  developerName?: string | null;
+  logoDataUri?: string | null;
 };
 
 function rowsTable(
@@ -95,7 +97,7 @@ export function buildCostSheetHtml(input: CostSheetPrintInput): string {
 </head>
 <body>
   <div class="doc">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Cost sheet</p>
     <div class="meta">
       <span><strong>Unit:</strong> ${esc(input.unit.unit_code)}</span>

@@ -7,6 +7,8 @@ import {
   unitLine,
   type BookingSalesDocPrintBase
 } from '@/lib/booking/booking-receipt-demand-agreement-print';
+import { brandHeaderHtml } from '@/lib/booking/print-brand-header';
+import { resolveDeveloperTradeName } from '@/lib/organization/organization-settings';
 
 export type PossessionLetterInput = BookingSalesDocPrintBase & {
   possessionDate?: string | null;
@@ -21,6 +23,8 @@ export function buildPossessionLetterHtml(input: PossessionLetterInput): string 
   const project = display(input.projectName, 'the Project');
   const location = display(input.projectLocation, '—');
   const customer = display(input.customerName);
+  const brand = resolveDeveloperTradeName(input.developerName);
+  const signatory = String(input.authorizedSignatoryName ?? '').trim();
   const coBuyers = (input.coBuyerNames ?? []).filter(Boolean);
   const coBlock =
     coBuyers.length > 0
@@ -29,7 +33,7 @@ export function buildPossessionLetterHtml(input: PossessionLetterInput): string 
   const handoverDate = input.possessionDate
     ? formatPrintDate(new Date(input.possessionDate))
     : formatPrintDate(at);
-  const ocRef = display(input.occupancyCertificateRef, 'on file with BuildCon');
+  const ocRef = display(input.occupancyCertificateRef, `on file with ${brand}`);
   const contact = display(input.handoverContact, 'your relationship manager');
   const locationSuffix = location !== '—' ? ` at ${esc(location)}` : '';
 
@@ -42,7 +46,7 @@ export function buildPossessionLetterHtml(input: PossessionLetterInput): string 
 </head>
 <body>
   <div class="doc">
-    <p class="brand">BuildCon</p>
+    ${brandHeaderHtml(input)}
     <p class="doc-title">Letter of possession</p>
     <div class="meta">
       <span><strong>Letter ref.:</strong> ${esc(letterRef)}</span>
@@ -70,7 +74,7 @@ export function buildPossessionLetterHtml(input: PossessionLetterInput): string 
     <p class="para"><strong>2. Inspection and snag list</strong></p>
     <p class="para">
       A joint inspection of the unit shall be conducted with our site team. Any snags noted shall be captured
-      in the snag list and rectified by BuildCon as per the standard handover process.
+      in the snag list and rectified by ${esc(brand)} as per the standard handover process.
     </p>
     <p class="para"><strong>3. Handover of keys</strong></p>
     <p class="para">
@@ -84,11 +88,11 @@ export function buildPossessionLetterHtml(input: PossessionLetterInput): string 
       utility deposits shall be billed as per the agreed terms.
     </p>
     <p class="para">
-      We thank you for trusting BuildCon and look forward to welcoming you to your new home.
+      We thank you for trusting ${esc(brand)} and look forward to welcoming you to your new home.
     </p>
     <div class="sign-block">
       <p class="para">Yours sincerely,</p>
-      <div class="sign-line">For BuildCon · Authorised signatory</div>
+      <div class="sign-line">For ${esc(brand)} · ${esc(signatory || 'Authorised signatory')}</div>
     </div>
     <p class="muted">Generated: ${esc(formatPrintDate(at))} · Workflow: ${esc(display(input.workflowStage, '—'))}</p>
   </div>

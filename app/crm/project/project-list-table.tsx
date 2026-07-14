@@ -158,7 +158,7 @@ export function ProjectListTable({
         enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,
-        size: 96,
+        size: 280,
         cell: ({ row }) => {
           const p = row.original;
           return (
@@ -178,6 +178,14 @@ export function ProjectListTable({
                 onClick={() => router.push(`/crm/project/${p.id}/cld`)}
               >
                 CLD
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/crm/project/${p.id}/templates`)}
+              >
+                Templates
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => onManage(p)}>
                 Manage

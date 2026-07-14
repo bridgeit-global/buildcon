@@ -10,6 +10,9 @@ import {
 import { renderHtmlToPdfBuffer } from '@/lib/booking/html-to-pdf';
 import { buildCostSheetHtml } from '@/lib/inquiry/cost-sheet-print';
 import { inquiryCostSheetStoragePath } from '@/lib/inquiry/inquiry-cost-sheet-storage-path';
+import { loadBrandLogoDataUri } from '@/lib/organization/brand-logo';
+import { fetchOrganizationSettings } from '@/lib/organization/fetch-organization-settings';
+import { resolveDeveloperTradeName } from '@/lib/organization/organization-settings';
 import {
   dispatchDocumentToRecipient,
   type DispatchNotificationResult
@@ -205,13 +208,18 @@ export async function sendInquiryCostSheetServer(
     { applyDefaultGst: !projectPricing.gst_registered }
   );
 
+  const org = await fetchOrganizationSettings(admin);
+  const developerName = resolveDeveloperTradeName(org?.trade_name);
+  const logoDataUri = await loadBrandLogoDataUri(admin, org?.logo_storage_path);
   const html = buildCostSheetHtml({
     unit,
     parkingRequired: input.parkingRequired,
     parkingCount: input.parkingCount,
     projectParking,
     projectPricing,
-    customerName: fullName
+    customerName: fullName,
+    developerName,
+    logoDataUri
   });
 
   let pdf: Buffer;
