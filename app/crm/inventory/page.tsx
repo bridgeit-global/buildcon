@@ -499,8 +499,9 @@ function InventoryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { projects } = useCrmProjectsContext();
-  const [inventoryProjectId, setInventoryProjectId] = useState(() =>
-    resolveInventoryProjectId(projects, searchParams.get('projectId'))
+  const inventoryProjectId = resolveInventoryProjectId(
+    projects,
+    searchParams.get('projectId')
   );
 
   const [tab, setTab] = useState<InventoryTab>('Grid View');
@@ -537,20 +538,14 @@ function InventoryPageContent() {
   const [bulkCsv, setBulkCsv] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  useEffect(() => {
-    const urlId = searchParams.get('projectId');
-    if (urlId && projects.some((p) => p.id === urlId)) {
-      setInventoryProjectId(urlId);
-      return;
-    }
-    if (
-      inventoryProjectId &&
-      projects.some((p) => p.id === inventoryProjectId)
-    ) {
-      return;
-    }
-    setInventoryProjectId(projects[0]?.id ?? '');
-  }, [searchParams, projects, inventoryProjectId]);
+  const selectInventoryProject = useCallback(
+    (projectId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('projectId', projectId);
+      router.replace(`/crm/inventory?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
 
   const load = useCallback(async () => {
     if (!inventoryProjectId) {
@@ -954,8 +949,8 @@ function InventoryPageContent() {
                 projects.find((p) => p.id === inventoryProjectId)?.name ?? ''
               }
               onValueChange={(name) => {
-                const project = projects.find((p) => p.name === name);
-                if (project) setInventoryProjectId(project.id);
+                const next = projects.find((p) => p.name === name);
+                if (next) selectInventoryProject(next.id);
               }}
               options={projects.map((p) => p.name)}
               placeholder="Select project…"
