@@ -6,6 +6,7 @@ import {
 import { documentTemplateFormSchema } from '@/lib/document-template/document-template.schema';
 import { DOCUMENT_TEMPLATE_SAMPLES } from '@/lib/document-template/sample-templates';
 import { DOCUMENT_TEMPLATE_KINDS } from '@/lib/document-template/kinds';
+import { renderDocumentTemplatePreviewHtml } from '@/lib/document-template/preview-sample-values';
 
 describe('applyDocumentTemplatePlaceholders', () => {
   it('replaces known keys and leaves unknown keys intact', () => {
@@ -59,5 +60,25 @@ describe('sample templates', () => {
 
   it('documents a non-empty placeholder catalog', () => {
     expect(DOCUMENT_TEMPLATE_PLACEHOLDERS.length).toBeGreaterThan(10);
+  });
+});
+
+describe('renderDocumentTemplatePreviewHtml', () => {
+  it('fills placeholders with sample data', () => {
+    const html = renderDocumentTemplatePreviewHtml(
+      '<p>{{customer.name}} @ {{project.name}}</p>',
+      { projectName: 'Lakeview' }
+    );
+    expect(html).toContain('Ravi Kumar');
+    expect(html).toContain('Lakeview');
+    expect(html).not.toContain('{{customer.name}}');
+  });
+
+  it('renders every sample template without leftover core placeholders', () => {
+    for (const kind of DOCUMENT_TEMPLATE_KINDS) {
+      const html = renderDocumentTemplatePreviewHtml(DOCUMENT_TEMPLATE_SAMPLES[kind]);
+      expect(html).toContain('Ravi Kumar');
+      expect(html).not.toMatch(/\{\{customer\.name\}\}/);
+    }
   });
 });

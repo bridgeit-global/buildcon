@@ -14,6 +14,7 @@ import {
   EMPTY_ORGANIZATION_SETTINGS_FORM,
   organizationSettingsFormFromRow,
   organizationSettingsFormSchema,
+  type OrganizationSettingsFormField,
   type OrganizationSettingsFormValues
 } from '@/lib/organization/organization-settings.schema';
 import type { OrganizationSettings } from '@/lib/organization/organization-settings';
@@ -22,6 +23,28 @@ type OrgApiResponse = {
   organization?: OrganizationSettings;
   logoUrl?: string | null;
   error?: string;
+};
+
+const FIELD_IDS: Record<OrganizationSettingsFormField, string> = {
+  legal_name: 'org-legal-name',
+  trade_name: 'org-trade-name',
+  registered_address: 'org-registered-address',
+  city: 'org-city',
+  state: 'org-state',
+  pin: 'org-pin',
+  phone: 'org-phone',
+  email: 'org-email',
+  website: 'org-website',
+  pan: 'org-pan',
+  gstin: 'org-gstin',
+  cin: 'org-cin',
+  rera_promoter_no: 'org-rera',
+  authorized_signatory_name: 'org-signatory',
+  bank_name: 'org-bank-name',
+  bank_account_name: 'org-bank-account-name',
+  bank_account_no: 'org-bank-account-no',
+  bank_ifsc: 'org-bank-ifsc',
+  notes: 'org-notes'
 };
 
 export default function OrganizationPage() {
@@ -36,15 +59,15 @@ export default function OrganizationPage() {
     EMPTY_ORGANIZATION_SETTINGS_FORM
   );
 
-  const { fieldError, touch, validate, resetValidation } = useFieldValidation<
-    | 'legal_name'
-    | 'trade_name'
-    | 'pin'
-    | 'phone'
-    | 'email'
-    | 'pan'
-    | 'gstin'
-    | 'bank_ifsc',
+  const {
+    fieldError,
+    touch,
+    validate,
+    resetValidation,
+    submitAttempted,
+    errors
+  } = useFieldValidation<
+    OrganizationSettingsFormField,
     OrganizationSettingsFormValues
   >(organizationSettingsFormSchema, form);
 
@@ -70,16 +93,13 @@ export default function OrganizationPage() {
 
       const res = await fetch('/api/crm/organization');
       const json = (await res.json()) as OrgApiResponse;
-      if (!res.ok) {
-        if (!cancelled) {
+      if (!cancelled) {
+        if (!res.ok) {
           pageError(json.error ?? 'Failed to load organization details');
-          setLoading(false);
+        } else if (json.organization) {
+          setForm(organizationSettingsFormFromRow(json.organization));
+          setLogoUrl(json.logoUrl ?? null);
         }
-        return;
-      }
-      if (!cancelled && json.organization) {
-        setForm(organizationSettingsFormFromRow(json.organization));
-        setLogoUrl(json.logoUrl ?? null);
         setLoading(false);
       }
     })();
@@ -95,10 +115,29 @@ export default function OrganizationPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function focusFirstError(
+    nextErrors: Partial<Record<OrganizationSettingsFormField, string>>
+  ) {
+    const first = (
+      Object.keys(FIELD_IDS) as OrganizationSettingsFormField[]
+    ).find((key) => nextErrors[key]);
+    if (!first) return;
+    const el = document.getElementById(FIELD_IDS[first]);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (el instanceof HTMLElement) el.focus();
+  }
+
   async function onSave() {
     const parsed = validate();
     if (!parsed.success) {
+      const nextErrors = Object.fromEntries(
+        parsed.error.issues
+          .filter((issue) => typeof issue.path[0] === 'string')
+          .map((issue) => [String(issue.path[0]), issue.message])
+      ) as Partial<Record<OrganizationSettingsFormField, string>>;
       pageError(parsed.error.issues[0]?.message ?? 'Fix the highlighted fields.');
+      // Defer until submitAttempted paint so invalid styles are visible.
+      window.setTimeout(() => focusFirstError(nextErrors), 0);
       return;
     }
     setSaving(true);
@@ -175,7 +214,14 @@ export default function OrganizationPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm sm:p-6">
+      <form
+        className="rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm sm:p-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void onSave();
+        }}
+        noValidate
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-ds-gray-900">
@@ -188,10 +234,9 @@ export default function OrganizationPage() {
             </p>
           </div>
           <Button
-            type="button"
+            type="submit"
             className="min-h-11 shrink-0"
             disabled={saving}
-            onClick={() => void onSave()}
           >
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
@@ -218,8 +263,8 @@ export default function OrganizationPage() {
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <p className="text-xs text-ds-gray-500">
-                Shown on receipts, agreements, and letters. PNG, JPG, WebP, or SVG
-                up to 2 MB.
+                Shown on receipts, agreements, letters, and the CRM sidebar. PNG,
+                JPG, WebP, or SVG up to 2 MB.
               </p>
               <div className="flex flex-wrap gap-2">
                 <input
@@ -262,6 +307,7 @@ export default function OrganizationPage() {
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInputField
+              id={FIELD_IDS.legal_name}
               label="Legal name"
               required
               value={form.legal_name}
@@ -270,6 +316,7 @@ export default function OrganizationPage() {
               onChange={(e) => setField('legal_name', e.target.value)}
             />
             <TextInputField
+              id={FIELD_IDS.trade_name}
               label="Trade / brand name"
               required
               value={form.trade_name}
@@ -278,42 +325,59 @@ export default function OrganizationPage() {
               onChange={(e) => setField('trade_name', e.target.value)}
             />
             <TextInputField
+              id={FIELD_IDS.authorized_signatory_name}
               label="Authorised signatory"
               value={form.authorized_signatory_name}
+              error={fieldError('authorized_signatory_name')}
+              onBlur={() => touch('authorized_signatory_name')}
               onChange={(e) =>
                 setField('authorized_signatory_name', e.target.value)
               }
             />
             <TextInputField
+              id={FIELD_IDS.rera_promoter_no}
               label="RERA promoter registration"
               value={form.rera_promoter_no}
+              error={fieldError('rera_promoter_no')}
+              onBlur={() => touch('rera_promoter_no')}
               onChange={(e) => setField('rera_promoter_no', e.target.value)}
             />
           </div>
           <TextareaField
+            id={FIELD_IDS.registered_address}
             label="Registered office address"
             rows={3}
             value={form.registered_address}
+            error={fieldError('registered_address')}
+            onBlur={() => touch('registered_address')}
             onChange={(e) => setField('registered_address', e.target.value)}
           />
           <div className="grid gap-4 sm:grid-cols-3">
             <TextInputField
+              id={FIELD_IDS.city}
               label="City"
               value={form.city}
+              error={fieldError('city')}
+              onBlur={() => touch('city')}
               onChange={(e) => setField('city', e.target.value)}
             />
             <TextInputField
+              id={FIELD_IDS.state}
               label="State"
               value={form.state}
+              error={fieldError('state')}
+              onBlur={() => touch('state')}
               onChange={(e) => setField('state', e.target.value)}
             />
             <TextInputField
+              id={FIELD_IDS.pin}
               label="PIN"
               value={form.pin}
               error={fieldError('pin')}
               onBlur={() => touch('pin')}
               onChange={(e) => setField('pin', e.target.value)}
               inputMode="numeric"
+              maxLength={6}
             />
           </div>
         </section>
@@ -324,14 +388,17 @@ export default function OrganizationPage() {
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInputField
+              id={FIELD_IDS.phone}
               label="Phone"
               value={form.phone}
               error={fieldError('phone')}
               onBlur={() => touch('phone')}
               onChange={(e) => setField('phone', e.target.value)}
               inputMode="tel"
+              maxLength={14}
             />
             <TextInputField
+              id={FIELD_IDS.email}
               label="Email"
               value={form.email}
               error={fieldError('email')}
@@ -340,10 +407,14 @@ export default function OrganizationPage() {
               type="email"
             />
             <TextInputField
+              id={FIELD_IDS.website}
               className="sm:col-span-2"
               label="Website"
               value={form.website}
+              error={fieldError('website')}
+              onBlur={() => touch('website')}
               onChange={(e) => setField('website', e.target.value)}
+              placeholder="https://example.com"
             />
           </div>
         </section>
@@ -354,23 +425,30 @@ export default function OrganizationPage() {
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInputField
+              id={FIELD_IDS.pan}
               label="PAN"
               value={form.pan}
               error={fieldError('pan')}
               onBlur={() => touch('pan')}
               onChange={(e) => setField('pan', e.target.value.toUpperCase())}
+              maxLength={10}
             />
             <TextInputField
+              id={FIELD_IDS.gstin}
               label="GSTIN"
               value={form.gstin}
               error={fieldError('gstin')}
               onBlur={() => touch('gstin')}
               onChange={(e) => setField('gstin', e.target.value.toUpperCase())}
+              maxLength={15}
             />
             <TextInputField
+              id={FIELD_IDS.cin}
               className="sm:col-span-2"
               label="CIN / LLPIN"
               value={form.cin}
+              error={fieldError('cin')}
+              onBlur={() => touch('cin')}
               onChange={(e) => setField('cin', e.target.value.toUpperCase())}
             />
           </div>
@@ -382,21 +460,33 @@ export default function OrganizationPage() {
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInputField
+              id={FIELD_IDS.bank_name}
               label="Bank name"
               value={form.bank_name}
+              error={fieldError('bank_name')}
+              onBlur={() => touch('bank_name')}
               onChange={(e) => setField('bank_name', e.target.value)}
             />
             <TextInputField
+              id={FIELD_IDS.bank_account_name}
               label="Account name"
               value={form.bank_account_name}
+              error={fieldError('bank_account_name')}
+              onBlur={() => touch('bank_account_name')}
               onChange={(e) => setField('bank_account_name', e.target.value)}
             />
             <TextInputField
+              id={FIELD_IDS.bank_account_no}
               label="Account number"
               value={form.bank_account_no}
+              error={fieldError('bank_account_no')}
+              onBlur={() => touch('bank_account_no')}
               onChange={(e) => setField('bank_account_no', e.target.value)}
+              inputMode="numeric"
+              maxLength={18}
             />
             <TextInputField
+              id={FIELD_IDS.bank_ifsc}
               label="IFSC"
               value={form.bank_ifsc}
               error={fieldError('bank_ifsc')}
@@ -404,6 +494,7 @@ export default function OrganizationPage() {
               onChange={(e) =>
                 setField('bank_ifsc', e.target.value.toUpperCase())
               }
+              maxLength={11}
             />
           </div>
         </section>
@@ -413,24 +504,32 @@ export default function OrganizationPage() {
             Notes
           </h3>
           <TextareaField
+            id={FIELD_IDS.notes}
             label="Internal notes"
             rows={3}
             value={form.notes}
+            error={fieldError('notes')}
+            onBlur={() => touch('notes')}
             onChange={(e) => setField('notes', e.target.value)}
           />
         </section>
 
+        {submitAttempted && Object.keys(errors).length > 0 ? (
+          <p className="mt-4 text-xs text-ds-error-600" role="status">
+            Fix the highlighted fields before saving.
+          </p>
+        ) : null}
+
         <div className="mt-6 flex justify-end sm:hidden">
           <Button
-            type="button"
+            type="submit"
             className="min-h-11 w-full"
             disabled={saving}
-            onClick={() => void onSave()}
           >
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

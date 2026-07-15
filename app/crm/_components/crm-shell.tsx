@@ -326,6 +326,8 @@ function CrmAppSidebar({
   const iconCollapsed = state === 'collapsed' && !isMobile;
 
   const [sectionOpen, setSectionOpen] = useState(getDefaultNavSectionOpen);
+  const [brandName, setBrandName] = useState('BuildCon');
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null);
   const flatNav = useMemo(() => flattenCrmNav(), []);
 
   useEffect(() => {
@@ -338,6 +340,29 @@ function CrmAppSidebar({
       }
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/crm/organization');
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          organization?: { trade_name?: string | null };
+          logoUrl?: string | null;
+        };
+        if (cancelled) return;
+        const name = String(json.organization?.trade_name ?? '').trim();
+        if (name) setBrandName(name);
+        setBrandLogoUrl(json.logoUrl ?? null);
+      } catch {
+        /* keep defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleSection = (groupId: string) => {
@@ -365,10 +390,19 @@ function CrmAppSidebar({
       >
         {iconCollapsed ? (
           <div className="flex flex-col items-center gap-2">
-            <Building2
-              className="size-[18px] shrink-0 text-sidebar-primary"
-              aria-hidden
-            />
+            {brandLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brandLogoUrl}
+                alt={brandName}
+                className="size-7 shrink-0 rounded-md object-contain"
+              />
+            ) : (
+              <Building2
+                className="size-[18px] shrink-0 text-sidebar-primary"
+                aria-hidden
+              />
+            )}
             <Button
               onClick={toggleSidebar}
               variant="ghost"
@@ -382,12 +416,23 @@ function CrmAppSidebar({
         ) : (
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-sidebar-foreground">
-                <Building2
-                  className="size-4 shrink-0 text-sidebar-primary"
-                  aria-hidden
-                />
-                BuildCon
+              <div className="flex flex-col items-start gap-1.5">
+                {brandLogoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={brandLogoUrl}
+                    alt=""
+                    className="h-8 w-auto max-w-full rounded-md object-contain"
+                  />
+                ) : (
+                  <Building2
+                    className="size-4 shrink-0 text-sidebar-primary"
+                    aria-hidden
+                  />
+                )}
+                <div className="min-w-0 text-[15px] font-bold tracking-tight text-sidebar-foreground">
+                  <span className="block truncate">{brandName}</span>
+                </div>
               </div>
               <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-sidebar-foreground/55">
                 Redevelopment CRM

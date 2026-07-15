@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { zodFieldErrors } from '@/lib/form/zod-field-errors';
 import {
+  EMPTY_ORGANIZATION_SETTINGS_FORM,
   organizationSettingsFormSchema,
   organizationSettingsPayload
 } from './organization-settings.schema';
@@ -7,27 +9,42 @@ import {
 describe('organizationSettingsFormSchema', () => {
   it('requires legal and trade names', () => {
     const result = organizationSettingsFormSchema.safeParse({
+      ...EMPTY_ORGANIZATION_SETTINGS_FORM,
       legal_name: '',
-      trade_name: '',
-      registered_address: '',
-      city: '',
-      state: '',
-      pin: '',
-      phone: '',
-      email: '',
-      website: '',
-      pan: '',
-      gstin: '',
-      cin: '',
-      rera_promoter_no: '',
-      authorized_signatory_name: '',
-      bank_name: '',
-      bank_account_name: '',
-      bank_account_no: '',
-      bank_ifsc: '',
-      notes: ''
+      trade_name: ''
     });
     expect(result.success).toBe(false);
+    const errors = zodFieldErrors(result);
+    expect(errors.legal_name).toMatch(/legal name/i);
+    expect(errors.trade_name).toMatch(/trade/i);
+  });
+
+  it('rejects invalid contact and tax fields', () => {
+    const result = organizationSettingsFormSchema.safeParse({
+      ...EMPTY_ORGANIZATION_SETTINGS_FORM,
+      legal_name: 'Acme Developers Pvt Ltd',
+      trade_name: 'Acme',
+      pin: '12',
+      phone: '12345',
+      email: 'not-an-email',
+      website: 'notaurl',
+      pan: 'BAD',
+      gstin: 'BAD',
+      cin: 'BAD',
+      bank_account_no: '12',
+      bank_ifsc: 'BAD'
+    });
+    expect(result.success).toBe(false);
+    const errors = zodFieldErrors(result);
+    expect(errors.pin).toBeTruthy();
+    expect(errors.phone).toBeTruthy();
+    expect(errors.email).toBeTruthy();
+    expect(errors.website).toBeTruthy();
+    expect(errors.pan).toBeTruthy();
+    expect(errors.gstin).toBeTruthy();
+    expect(errors.cin).toBeTruthy();
+    expect(errors.bank_account_no).toBeTruthy();
+    expect(errors.bank_ifsc).toBeTruthy();
   });
 
   it('accepts a valid builder profile', () => {
@@ -57,5 +74,8 @@ describe('organizationSettingsFormSchema', () => {
     if (!parsed.success) return;
     expect(organizationSettingsPayload(parsed.data).pan).toBe('ABCDE1234F');
     expect(organizationSettingsPayload(parsed.data).phone).toBe('9876543210');
+    expect(organizationSettingsPayload(parsed.data).website).toBe(
+      'https://sunrise.example'
+    );
   });
 });

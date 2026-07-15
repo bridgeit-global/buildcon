@@ -7,81 +7,140 @@ import {
 
 const optionalTrimmed = z.string();
 
+const optionalWebsite = z.string().refine(
+  (v) => {
+    const t = v.trim();
+    if (!t) return true;
+    try {
+      const url = new URL(t.includes('://') ? t : `https://${t}`);
+      return Boolean(url.hostname) && url.hostname.includes('.');
+    } catch {
+      return false;
+    }
+  },
+  { message: 'Enter a valid website URL.' }
+);
+
+const optionalPan = z.string().refine(
+  (v) => {
+    const t = v.trim().toUpperCase();
+    if (!t) return true;
+    return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(t);
+  },
+  { message: 'Enter a valid PAN (e.g. ABCDE1234F).' }
+);
+
+const optionalGstin = z.string().refine(
+  (v) => {
+    const t = v.trim().toUpperCase();
+    if (!t) return true;
+    return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(t);
+  },
+  { message: 'Enter a valid 15-character GSTIN.' }
+);
+
+const optionalCin = z.string().refine(
+  (v) => {
+    const t = v.trim().toUpperCase();
+    if (!t) return true;
+    // Company CIN (21) or LLPIN (e.g. AAA-1234)
+    return (
+      /^[UL][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/.test(t) ||
+      /^[A-Z]{3}-[0-9]{4}$/.test(t)
+    );
+  },
+  { message: 'Enter a valid CIN or LLPIN.' }
+);
+
+const optionalPin = z.string().refine(
+  (v) => {
+    const t = v.trim();
+    if (!t) return true;
+    return /^\d{6}$/.test(t);
+  },
+  { message: 'Enter a 6-digit PIN code.' }
+);
+
+const optionalIfsc = z.string().refine(
+  (v) => {
+    const t = v.trim().toUpperCase();
+    if (!t) return true;
+    return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(t);
+  },
+  { message: 'Enter a valid IFSC (e.g. HDFC0001234).' }
+);
+
+const optionalBankAccountNo = z.string().refine(
+  (v) => {
+    const t = v.replace(/\s+/g, '').trim();
+    if (!t) return true;
+    return /^\d{9,18}$/.test(t);
+  },
+  { message: 'Enter a valid account number (9–18 digits).' }
+);
+
 export const organizationSettingsFormSchema = z.object({
-  legal_name: z.string().trim().min(1, 'Legal name is required.'),
-  trade_name: z.string().trim().min(1, 'Trade / brand name is required.'),
-  registered_address: optionalTrimmed,
-  city: optionalTrimmed,
-  state: optionalTrimmed,
-  pin: z.string().refine(
-    (v) => {
-      const t = v.trim();
-      if (!t) return true;
-      return /^\d{6}$/.test(t);
-    },
-    { message: 'Enter a 6-digit PIN code.' }
-  ),
+  legal_name: z
+    .string()
+    .trim()
+    .min(2, 'Legal name must be at least 2 characters.')
+    .max(200, 'Legal name is too long.'),
+  trade_name: z
+    .string()
+    .trim()
+    .min(2, 'Trade / brand name must be at least 2 characters.')
+    .max(120, 'Trade / brand name is too long.'),
+  registered_address: optionalTrimmed.max(500, 'Address is too long.'),
+  city: optionalTrimmed.max(100, 'City is too long.'),
+  state: optionalTrimmed.max(100, 'State is too long.'),
+  pin: optionalPin,
   phone: optionalPhone10,
   email: optionalEmail,
-  website: optionalTrimmed,
-  pan: z.string().refine(
-    (v) => {
-      const t = v.trim().toUpperCase();
-      if (!t) return true;
-      return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(t);
-    },
-    { message: 'Enter a valid PAN (e.g. ABCDE1234F).' }
+  website: optionalWebsite,
+  pan: optionalPan,
+  gstin: optionalGstin,
+  cin: optionalCin,
+  rera_promoter_no: optionalTrimmed.max(64, 'RERA number is too long.'),
+  authorized_signatory_name: optionalTrimmed.max(
+    120,
+    'Signatory name is too long.'
   ),
-  gstin: z.string().refine(
-    (v) => {
-      const t = v.trim().toUpperCase();
-      if (!t) return true;
-      return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(t);
-    },
-    { message: 'Enter a valid 15-character GSTIN.' }
-  ),
-  cin: optionalTrimmed,
-  rera_promoter_no: optionalTrimmed,
-  authorized_signatory_name: optionalTrimmed,
-  bank_name: optionalTrimmed,
-  bank_account_name: optionalTrimmed,
-  bank_account_no: optionalTrimmed,
-  bank_ifsc: z.string().refine(
-    (v) => {
-      const t = v.trim().toUpperCase();
-      if (!t) return true;
-      return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(t);
-    },
-    { message: 'Enter a valid IFSC (e.g. HDFC0001234).' }
-  ),
-  notes: optionalTrimmed
+  bank_name: optionalTrimmed.max(120, 'Bank name is too long.'),
+  bank_account_name: optionalTrimmed.max(120, 'Account name is too long.'),
+  bank_account_no: optionalBankAccountNo,
+  bank_ifsc: optionalIfsc,
+  notes: optionalTrimmed.max(2000, 'Notes are too long.')
 });
 
 export type OrganizationSettingsFormValues = z.infer<
   typeof organizationSettingsFormSchema
 >;
 
-export const EMPTY_ORGANIZATION_SETTINGS_FORM: OrganizationSettingsFormValues = {
-  legal_name: '',
-  trade_name: '',
-  registered_address: '',
-  city: '',
-  state: '',
-  pin: '',
-  phone: '',
-  email: '',
-  website: '',
-  pan: '',
-  gstin: '',
-  cin: '',
-  rera_promoter_no: '',
-  authorized_signatory_name: '',
-  bank_name: '',
-  bank_account_name: '',
-  bank_account_no: '',
-  bank_ifsc: '',
-  notes: ''
-};
+export type OrganizationSettingsFormField =
+  keyof OrganizationSettingsFormValues;
+
+export const EMPTY_ORGANIZATION_SETTINGS_FORM: OrganizationSettingsFormValues =
+  {
+    legal_name: '',
+    trade_name: '',
+    registered_address: '',
+    city: '',
+    state: '',
+    pin: '',
+    phone: '',
+    email: '',
+    website: '',
+    pan: '',
+    gstin: '',
+    cin: '',
+    rera_promoter_no: '',
+    authorized_signatory_name: '',
+    bank_name: '',
+    bank_account_name: '',
+    bank_account_no: '',
+    bank_ifsc: '',
+    notes: ''
+  };
 
 export function organizationSettingsFormFromRow(row: {
   legal_name: string;
@@ -134,6 +193,7 @@ export function organizationSettingsPayload(
     const t = v.trim();
     return t || null;
   };
+  const website = trimOrNull(values.website);
   return {
     legal_name: values.legal_name.trim(),
     trade_name: values.trade_name.trim(),
@@ -145,7 +205,11 @@ export function organizationSettingsPayload(
       ? normalizePhoneDigits(values.phone)
       : null,
     email: trimOrNull(values.email)?.toLowerCase() ?? null,
-    website: trimOrNull(values.website),
+    website: website
+      ? website.includes('://')
+        ? website
+        : `https://${website}`
+      : null,
     pan: trimOrNull(values.pan)?.toUpperCase() ?? null,
     gstin: trimOrNull(values.gstin)?.toUpperCase() ?? null,
     cin: trimOrNull(values.cin)?.toUpperCase() ?? null,
@@ -153,7 +217,7 @@ export function organizationSettingsPayload(
     authorized_signatory_name: trimOrNull(values.authorized_signatory_name),
     bank_name: trimOrNull(values.bank_name),
     bank_account_name: trimOrNull(values.bank_account_name),
-    bank_account_no: trimOrNull(values.bank_account_no),
+    bank_account_no: values.bank_account_no.replace(/\s+/g, '').trim() || null,
     bank_ifsc: trimOrNull(values.bank_ifsc)?.toUpperCase() ?? null,
     notes: trimOrNull(values.notes)
   };

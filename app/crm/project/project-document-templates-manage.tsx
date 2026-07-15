@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { pageError, toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
@@ -18,6 +18,7 @@ import {
   DOCUMENT_TEMPLATE_SAMPLES,
   sampleTemplateDownloadName
 } from '@/lib/document-template/sample-templates';
+import { renderDocumentTemplatePreviewHtml } from '@/lib/document-template/preview-sample-values';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,9 +31,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { FormDialog } from '@/components/ui/form-dialog';
 import { StatusChip } from '@/components/ui/status-chip';
 import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
-import { Download, Pencil, Trash2, Upload } from 'lucide-react';
+import { Download, Eye, Pencil, Trash2, Upload } from 'lucide-react';
 
 const TEMPLATE_SELECT =
   'id,project_id,name,category,doc_kind,body,is_active,created_at,updated_at';
@@ -58,6 +60,17 @@ export function ProjectDocumentTemplatesManage({
   const [name, setName] = useState(DOCUMENT_TEMPLATE_KIND_LABEL['application-form']);
   const [body, setBody] = useState(DOCUMENT_TEMPLATE_SAMPLES['application-form']);
   const [isActive, setIsActive] = useState(true);
+
+  const deferredBody = useDeferredValue(body);
+  const livePreviewHtml = useMemo(
+    () => renderDocumentTemplatePreviewHtml(deferredBody, { projectName }),
+    [deferredBody, projectName]
+  );
+  const previewPending = deferredBody !== body;
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('Template preview');
+  const [dialogHtml, setDialogHtml] = useState('');
 
   const usedKinds = useMemo(
     () => new Set(rows.map((r) => r.doc_kind)),
@@ -124,6 +137,23 @@ export function ProjectDocumentTemplatesManage({
     a.download = sampleTemplateDownloadName(kind);
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function openDialogPreview(htmlBody: string, title: string) {
+    if (!htmlBody.trim()) {
+      pageError('Add HTML content before previewing.');
+      return;
+    }
+    setDialogTitle(title);
+    setDialogHtml(renderDocumentTemplatePreviewHtml(htmlBody, { projectName }));
+    setDialogOpen(true);
+  }
+
+  function previewSavedRow(row: DocumentTemplateRow) {
+    openDialogPreview(
+      row.body ?? '',
+      `${DOCUMENT_TEMPLATE_KIND_LABEL[row.doc_kind]} preview`
+    );
   }
 
   async function onUploadFile(file: File | null) {
@@ -238,6 +268,8 @@ export function ProjectDocumentTemplatesManage({
     }
   }
 
+  const showEditor = canEdit && (editingId || availableKinds.length > 0);
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -261,7 +293,7 @@ export function ProjectDocumentTemplatesManage({
           ) : null}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] caption-bottom text-sm">
+          <table className="w-full min-w-160 caption-bottom text-sm">
             <thead>
               <tr className="border-b border-ds-gray-200 text-left text-ds-gray-500">
                 <th className="px-2 py-2 font-medium">Document</th>
@@ -305,32 +337,46 @@ export function ProjectDocumentTemplatesManage({
                           size="sm"
                           variant="outline"
                           className="gap-1.5"
-                          onClick={() => startEdit(row)}
-                          disabled={!canEdit || saving}
+                          onClick={() => previewSavedRow(row)}
                         >
-                          <Pencil className="size-3.5" />
-                          Edit
+                          <Eye className="size-3.5" />
+                          Preview
                         </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void toggleActive(row)}
-                          disabled={!canEdit || saving}
-                        >
-                          {row.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => void deleteTemplate(row)}
-                          disabled={!canEdit || saving}
-                        >
-                          <Trash2 className="size-3.5" />
-                          Delete
-                        </Button>
+                        {canEdit ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5"
+                              onClick={() => startEdit(row)}
+                              disabled={saving}
+                            >
+                              <Pencil className="size-3.5" />
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void toggleActive(row)}
+                              disabled={saving}
+                            >
+                              {row.is_active ? 'Deactivate' : 'Activate'}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5"
+                              onClick={() => void deleteTemplate(row)}
+                              disabled={saving}
+                            >
+                              <Trash2 className="size-3.5" />
+                              Delete
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -346,7 +392,7 @@ export function ProjectDocumentTemplatesManage({
           <h2 className="mb-3 text-sm font-semibold text-ds-gray-900">
             {editingId ? 'Edit template' : 'Add template'}
           </h2>
-          {!editingId && availableKinds.length === 0 ? (
+          {!showEditor ? (
             <p className="text-sm text-muted-foreground">
               All five document types already have a template. Edit or delete one to add
               another.
@@ -423,7 +469,7 @@ export function ProjectDocumentTemplatesManage({
                 >
                   Load sample into editor
                 </Button>
-                <label className="ml-auto flex items-center gap-2 text-sm text-ds-gray-700">
+                <label className="ml-auto flex min-h-11 items-center gap-2 text-sm text-ds-gray-700">
                   <input
                     type="checkbox"
                     checked={isActive}
@@ -434,15 +480,37 @@ export function ProjectDocumentTemplatesManage({
                 </label>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="tpl-body">HTML body</Label>
-                <Textarea
-                  id="tpl-body"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className="min-h-[18rem] font-mono text-xs"
-                  spellCheck={false}
-                />
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+                <div className="flex min-h-0 flex-col gap-1.5">
+                  <Label htmlFor="tpl-body">HTML code</Label>
+                  <Textarea
+                    id="tpl-body"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    className="min-h-72 flex-1 resize-y font-mono text-xs lg:min-h-128"
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="flex min-h-0 flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Live preview</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {previewPending ? 'Updating…' : 'Sample booking data'}
+                    </span>
+                  </div>
+                  <div
+                    className={`min-h-72 overflow-hidden rounded-lg border border-ds-gray-200 bg-ds-gray-50 lg:min-h-128 ${
+                      previewPending ? 'opacity-70' : ''
+                    }`}
+                  >
+                    <iframe
+                      title={`${DOCUMENT_TEMPLATE_KIND_LABEL[docKind]} live preview`}
+                      srcDoc={livePreviewHtml}
+                      sandbox=""
+                      className="h-72 w-full bg-white lg:h-128"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -466,10 +534,34 @@ export function ProjectDocumentTemplatesManage({
       ) : (
         <Card className="rounded-xl border-ds-gray-200 p-4 shadow-sm">
           <p className="text-sm text-muted-foreground">
-            View-only. Super Admin or Admin can upload and edit HTML templates.
+            View-only. Super Admin or Admin can upload and edit HTML templates. You can
+            still preview saved templates from the table above.
           </p>
         </Card>
       )}
+
+      <FormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={dialogTitle}
+        description="Sample data is used for placeholders. Live booking values appear when you generate a document."
+        className="w-[min(100vw-1.5rem,56rem)] sm:max-w-4xl"
+        contentClassName="p-0 sm:px-0 sm:py-0"
+        footer={
+          <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="bg-ds-gray-50 p-3 sm:p-4">
+          <iframe
+            title={dialogTitle}
+            srcDoc={dialogHtml}
+            sandbox=""
+            className="h-[min(70vh,36rem)] w-full rounded-lg border border-ds-gray-200 bg-white"
+          />
+        </div>
+      </FormDialog>
 
       <Card className="rounded-xl border-ds-gray-200 p-4 shadow-sm">
         <h2 className="mb-2 text-sm font-semibold text-ds-gray-900">Placeholders</h2>
@@ -478,7 +570,7 @@ export function ProjectDocumentTemplatesManage({
           generated for a booking.
         </p>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[28rem] text-sm">
+          <table className="w-full min-w-md text-sm">
             <thead>
               <tr className="border-b border-ds-gray-200 text-left text-ds-gray-500">
                 <th className="px-2 py-2 font-medium">Token</th>
