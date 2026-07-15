@@ -8,7 +8,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { sortRowsByState } from '@/lib/crm/list-sort';
-import { useCrmProjectsContext } from '../../_components/active-project-context';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatInr, formatInrCompactLacCr } from '../../inr-format';
@@ -69,7 +69,7 @@ export default function FinancialsBookingPage() {
   const params = useParams();
   const bookingId = String(params.bookingId ?? '');
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { projects } = useCrmProjectsContext();
+  const projects = useCrmProjectsStore((s) => s.projects);
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]

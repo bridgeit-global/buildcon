@@ -116,7 +116,7 @@ import {
 import {
   useInquiryWizardStore,
   type WizardNavigationRequest
-} from './inquiry-wizard-store';
+} from '@/store/inquiry-wizard-store';
 import {
   wizardSnapshotsEqual,
   wizardStepLabel,

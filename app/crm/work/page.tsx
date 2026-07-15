@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { pageError } from '@/lib/toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useCrmProjectsContext } from '../_components/active-project-context';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -39,7 +39,7 @@ function stageDataOf(
 
 export default function WorkQueuePage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { projects } = useCrmProjectsContext();
+  const projects = useCrmProjectsStore((s) => s.projects);
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]

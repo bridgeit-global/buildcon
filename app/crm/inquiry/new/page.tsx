@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { CrmFormSkeleton } from '../../_components/crm-skeletons';
 import { NewInquiryWizard } from '../new-inquiry-wizard';
-import { useInquiryWizardStore } from '../inquiry-wizard-store';
+import { useInquiryWizardStore } from '@/store/inquiry-wizard-store';
 import {
   InquiryPipelinePanel,
   type InquiryPipelineRow

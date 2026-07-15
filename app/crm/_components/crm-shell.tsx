@@ -29,7 +29,7 @@ import {
   readNavSectionOpenFromStorage
 } from './nav';
 import type { CrmProject } from './types';
-import { CrmProjectsProvider } from './active-project-context';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 import { CrmNotificationBell } from './crm-notification-bell';
 import { ThemeSwitcher } from '@/components/theme-switcher';
 import { cn } from '@/lib/utils';
@@ -87,6 +87,7 @@ export function CrmShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const setProjects = useCrmProjectsStore((s) => s.setProjects);
 
   const flatNav = useMemo(() => flattenCrmNav(), []);
 
@@ -99,6 +100,10 @@ export function CrmShell({
   const isDashboardRoot = pathname === '/crm/dashboard';
   const breadcrumbModule = matchedNav?.label ?? pageHeading;
 
+  useEffect(() => {
+    setProjects(projects);
+  }, [projects, setProjects]);
+
   return (
     <SidebarProvider
       defaultOpen
@@ -107,66 +112,64 @@ export function CrmShell({
     >
       <CrmAppSidebar userEmail={userEmail} pathname={pathname} />
       <SidebarInset className="crm-scrollbar min-h-0 overflow-y-auto overscroll-contain">
-        <CrmProjectsProvider value={{ projects }}>
-          <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-card/80">
-            <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <SidebarTrigger
-                  className="size-9 shrink-0 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
-                  aria-label="Open navigation menu"
-                />
-                <nav
-                  className="min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground hidden sm:flex"
-                  aria-label="Breadcrumb"
-                >
-                  <Link
-                    href="/crm/dashboard"
-                    className="font-medium text-ds-gray-600 underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
-                  >
-                    Dashboard
-                  </Link>
-                  {!isDashboardRoot ? (
-                    <>
-                      <span className="text-ds-gray-400" aria-hidden>
-                        /
-                      </span>
-                      <span className="max-w-[220px] truncate font-medium text-foreground">
-                        {breadcrumbModule}
-                      </span>
-                    </>
-                  ) : null}
-                </nav>
-                <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-                  <CrmNavSearch navItems={flatNav} />
-                  <CrmNotificationBell />
-                  <ThemeSwitcher compact />
-                  <CrmUserMenu userEmail={userEmail} />
-                </div>
-              </div>
+        <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-card/80">
+          <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <SidebarTrigger
+                className="size-9 shrink-0 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+                aria-label="Open navigation menu"
+              />
               <nav
-                className="min-w-0 truncate text-[11px] text-muted-foreground sm:hidden"
+                className="min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground hidden sm:flex"
                 aria-label="Breadcrumb"
               >
                 <Link
                   href="/crm/dashboard"
-                  className="font-medium text-ds-gray-600"
+                  className="font-medium text-ds-gray-600 underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
                 >
                   Dashboard
                 </Link>
                 {!isDashboardRoot ? (
-                  <span className="text-foreground">
-                    {' '}
-                    / {breadcrumbModule}
-                  </span>
+                  <>
+                    <span className="text-ds-gray-400" aria-hidden>
+                      /
+                    </span>
+                    <span className="max-w-[220px] truncate font-medium text-foreground">
+                      {breadcrumbModule}
+                    </span>
+                  </>
                 ) : null}
               </nav>
-              <h1 className="min-w-0 text-base font-bold leading-snug text-foreground sm:text-lg">
-                {pageHeading}
-              </h1>
+              <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+                <CrmNavSearch navItems={flatNav} />
+                <CrmNotificationBell />
+                <ThemeSwitcher compact />
+                <CrmUserMenu userEmail={userEmail} />
+              </div>
             </div>
-          </header>
-          <div className="p-4 sm:p-5">{children}</div>
-        </CrmProjectsProvider>
+            <nav
+              className="min-w-0 truncate text-[11px] text-muted-foreground sm:hidden"
+              aria-label="Breadcrumb"
+            >
+              <Link
+                href="/crm/dashboard"
+                className="font-medium text-ds-gray-600"
+              >
+                Dashboard
+              </Link>
+              {!isDashboardRoot ? (
+                <span className="text-foreground">
+                  {' '}
+                  / {breadcrumbModule}
+                </span>
+              ) : null}
+            </nav>
+            <h1 className="min-w-0 text-base font-bold leading-snug text-foreground sm:text-lg">
+              {pageHeading}
+            </h1>
+          </div>
+        </header>
+        <div className="p-4 sm:p-5">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

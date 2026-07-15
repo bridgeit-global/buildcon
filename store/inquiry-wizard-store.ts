@@ -1,8 +1,8 @@
 'use client';
 
 import { create } from 'zustand';
-import type { InquiryPipelineUiStage } from './inquiry-funnel-stages';
-import type { InquiryWizardUiDrafts } from './inquiry-wizard-ui';
+import type { InquiryPipelineUiStage } from '@/app/crm/inquiry/inquiry-funnel-stages';
+import type { InquiryWizardUiDrafts } from '@/app/crm/inquiry/inquiry-wizard-ui';
 import {
   emptyWizardSavedSnapshots,
   wizardSnapshotsEqual,
@@ -11,7 +11,7 @@ import {
   type WizardStep2Snapshot,
   type WizardStep3Snapshot,
   type WizardStepId
-} from './inquiry-wizard-snapshots';
+} from '@/app/crm/inquiry/inquiry-wizard-snapshots';
 
 export type WizardNavPending = {
   onProceed: () => void | Promise<void>;

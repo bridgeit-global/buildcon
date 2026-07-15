@@ -9,7 +9,7 @@ import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useCrmProjectsContext } from '../_components/active-project-context';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 import {
   CrmInventoryGridMatrixSkeleton,
   CrmInventoryKvRowSkeleton,
@@ -498,7 +498,7 @@ function InventoryPageContent() {
   const { activeNames: masterUnitCategories } = useMasterLookup('unit_category');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { projects } = useCrmProjectsContext();
+  const projects = useCrmProjectsStore((s) => s.projects);
   const inventoryProjectId = resolveInventoryProjectId(
     projects,
     searchParams.get('projectId')

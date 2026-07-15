@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
-import { useCrmProjectsContext } from '../_components/active-project-context';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { loadBookingPrintPack, type BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
@@ -55,7 +55,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
   const lockedBookingId = pathBookingId?.trim() ? pathBookingId.trim() : '';
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { projects } = useCrmProjectsContext();
+  const projects = useCrmProjectsStore((s) => s.projects);
   const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
 
   const [generated, setGenerated] = useState<GeneratedDocRow[]>([]);

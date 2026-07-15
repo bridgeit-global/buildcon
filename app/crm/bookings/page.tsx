@@ -13,7 +13,7 @@ import { pageError } from '@/lib/toast';
 import { formatBookingDisplayId } from '@/lib/booking/allotment-letter-print';
 import { Check, ChevronDown, Search, Sparkles, UserPlus, X } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { useCrmProjectsContext } from '../_components/active-project-context';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 import {
   PaymentCostOverview,
   type PaymentCostOverviewMode
@@ -381,7 +381,7 @@ function SearchablePicker<T extends { id: string }>({
 export default function BookingsPage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { projects } = useCrmProjectsContext();
+  const projects = useCrmProjectsStore((s) => s.projects);
   const projectNameById = useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
