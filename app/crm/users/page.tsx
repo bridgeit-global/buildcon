@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { inviteProfileRoles, isOrgAdmin } from '@/lib/profile-roles';
 import { pageError } from '@/lib/toast';
 import {
@@ -37,10 +37,13 @@ import {
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   buildProjectMemberRemovalBlockSet,
-  PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE,
   projectMemberRemovalKey
 } from '@/lib/admin/project-member-pipeline-guard';
 import { CrmTableSkeleton } from '../_components/crm-skeletons';
+import {
+  UsersMembersTable,
+  type UsersMemberRow
+} from './users-members-table';
 
 type ProfileRow = {
   id: string;
@@ -67,7 +70,6 @@ export default function UsersPage() {
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [myProjectRole, setMyProjectRole] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>(
     []
@@ -124,7 +126,7 @@ export default function UsersPage() {
 
   async function load() {
     setLoading(true);
-    
+
     const {
       data: { user },
       error: userErr
@@ -152,18 +154,20 @@ export default function UsersPage() {
     setProjects((projData ?? []) as Array<{ id: string; name: string }>);
 
     if (isOrgAdmin(myProfileRole)) {
-      const [{ data: dir, error: dirErr }, { count: superAdminCount, error: superAdminErr }] =
-        await Promise.all([
-          supabase
-            .from('profiles')
-            .select('id,name,role,linked_customer_id,linked_broker_id')
-            .order('name', { ascending: true })
-            .limit(500),
-          supabase
-            .from('profiles')
-            .select('id', { count: 'exact', head: true })
-            .eq('role', 'Super Admin')
-        ]);
+      const [
+        { data: dir, error: dirErr },
+        { count: superAdminCount, error: superAdminErr }
+      ] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id,name,role,linked_customer_id,linked_broker_id')
+          .order('name', { ascending: true })
+          .limit(500),
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'Super Admin')
+      ]);
       if (dirErr) pageError(dirErr.message);
       if (superAdminErr) pageError(superAdminErr.message);
       setPortalDirectory((dir ?? []) as ProfileRow[]);
@@ -185,11 +189,6 @@ export default function UsersPage() {
           (m) => m.user_id === user.id && m.role === 'Manager'
         )
       : false;
-    if (user) {
-      setMyProjectRole(isManagerOnAnyProject ? 'Manager' : null);
-    } else {
-      setMyProjectRole(null);
-    }
 
     if (isOrgAdmin(myProfileRole) || isManagerOnAnyProject) {
       const { data: staffData, error: staffErr } = await supabase
@@ -285,7 +284,7 @@ export default function UsersPage() {
       return;
     }
     setInviting(true);
-        try {
+    try {
       const res = await fetch('/api/crm/admin/users', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -330,6 +329,11 @@ export default function UsersPage() {
     [projects]
   );
 
+  const profileNameById = useMemo(
+    () => new Map(profiles.map((p) => [p.id, p.name || 'Unnamed user'])),
+    [profiles]
+  );
+
   const managerProjectIds = useMemo(() => {
     if (!profile) return new Set<string>();
     return new Set(
@@ -348,15 +352,47 @@ export default function UsersPage() {
 
   const manageableProjects = useMemo(
     () => projects.filter((p) => canManageProject(p.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [projects, profile?.role, managerProjectIds]
   );
 
   const addMemberUserOptions = useMemo(
     () =>
       profiles
-        .filter((p) => !members.some((m) => m.user_id === p.id))
+        .filter(
+          (p) =>
+            !members.some(
+              (m) =>
+                m.user_id === p.id && m.project_id === addMemberProjectId
+            )
+        )
         .map((p) => profileOptionLabel(p)),
-    [profiles, members]
+    [profiles, members, addMemberProjectId]
+  );
+
+  const memberTableRows = useMemo<UsersMemberRow[]>(
+    () =>
+      members.map((m) => ({
+        projectId: m.project_id,
+        userId: m.user_id,
+        projectName: projectNameById.get(m.project_id) ?? 'Unknown project',
+        userName: profileNameById.get(m.user_id) ?? 'Unknown user',
+        role: m.role,
+        status: m.status,
+        canManage: canManageProject(m.project_id),
+        removalBlocked: pipelineBlockedMembers.has(
+          projectMemberRemovalKey(m.project_id, m.user_id)
+        )
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      members,
+      projectNameById,
+      profileNameById,
+      profile?.role,
+      managerProjectIds,
+      pipelineBlockedMembers
+    ]
   );
 
   async function upsertMember(
@@ -366,7 +402,7 @@ export default function UsersPage() {
     status: string
   ) {
     if (!canManageProject(projectId)) return;
-        const res = await fetch('/api/crm/admin/project-members', {
+    const res = await fetch('/api/crm/admin/project-members', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ projectId, userId, role, status })
@@ -383,7 +419,7 @@ export default function UsersPage() {
       return;
     }
     setSavingPortal(true);
-        try {
+    try {
       const cust = portalCustomerId.trim() || null;
       const brok = portalBrokerId.trim() || null;
       const { error: uErr } = await supabase
@@ -404,7 +440,7 @@ export default function UsersPage() {
 
   async function removeMember(projectId: string, userId: string) {
     if (!canManageProject(projectId)) return;
-        const res = await fetch('/api/crm/admin/project-members', {
+    const res = await fetch('/api/crm/admin/project-members', {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ projectId, userId })
@@ -413,6 +449,27 @@ export default function UsersPage() {
     if (!res.ok) pageError(json.error || 'Failed to remove member');
     await load();
   }
+
+  const handleRoleChange = useCallback((row: UsersMemberRow, role: string) => {
+    void upsertMember(row.projectId, row.userId, role, row.status);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.role, managerProjectIds]);
+
+  const handleStatusChange = useCallback(
+    (row: UsersMemberRow, status: string) => {
+      void upsertMember(row.projectId, row.userId, row.role, status);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile?.role, managerProjectIds]
+  );
+
+  const handleRemove = useCallback(
+    (row: UsersMemberRow) => {
+      void removeMember(row.projectId, row.userId);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile?.role, managerProjectIds]
+  );
 
   if (loading && !profile && projects.length === 0) {
     return (
@@ -424,385 +481,337 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="p-4">
-          <div className="text-sm font-semibold text-foreground">My profile</div>
-          <div className="mt-3 text-sm text-ds-gray-700">
-            <div>
-              <span className="text-muted-foreground">Role:</span>{' '}
-              <strong>{profile?.role ?? '—'}</strong>
-            </div>
-            <div className="mt-1">
-              <span className="text-muted-foreground">Name:</span>{' '}
-              <strong>{profile?.name ?? '—'}</strong>
+      <Card className="rounded-xl border-ds-gray-200 p-4 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-sm font-semibold text-ds-gray-900">
+              Users &amp; access
+            </h1>
+            <p className="mt-1 text-xs text-ds-gray-500">
+              Manage profile roles and project membership across accessible
+              projects.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              Refresh
+            </Button>
+            {isOrgAdmin(profile?.role) ? (
+              <Button onClick={() => setOpenInvite(true)}>
+                Invite / Add user
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-ds-gray-200 bg-ds-gray-50/60 px-4 py-3">
+            <div className="text-xs font-medium text-ds-gray-500">Your role</div>
+            <div className="mt-1 text-sm font-semibold text-ds-gray-900">
+              {profile?.role ?? '—'}
             </div>
           </div>
+          <div className="rounded-lg border border-ds-gray-200 bg-ds-gray-50/60 px-4 py-3">
+            <div className="text-xs font-medium text-ds-gray-500">Your name</div>
+            <div className="mt-1 text-sm font-semibold text-ds-gray-900">
+              {profile?.name ?? '—'}
+            </div>
+          </div>
+        </div>
 
-          {isOrgAdmin(profile?.role) ? (
-            <div className="mt-4">
-              <Button onClick={() => setOpenInvite(true)}>Invite / Add user</Button>
-              <FormDialog
-                open={openInvite}
-                onOpenChange={(next) => {
-                  setOpenInvite(next);
-                  if (!next) inviteValidation.resetValidation();
+        {!isOrgAdmin(profile?.role) ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Only Admins can invite users and assign project access.
+          </p>
+        ) : null}
+      </Card>
+
+      <FormDialog
+        open={openInvite}
+        onOpenChange={(next) => {
+          setOpenInvite(next);
+          if (!next) inviteValidation.resetValidation();
+        }}
+        title="Invite user and assign projects"
+        description="Send an email invite and assign project access for the new team member."
+        className="sm:max-w-2xl"
+        footer={
+          <FormActions
+            onCancel={() => setOpenInvite(false)}
+            submitLabel="Invite"
+            saving={inviting}
+            submitType="button"
+            onSubmitClick={() => void inviteUser()}
+          />
+        }
+      >
+        <div className="space-y-6">
+          <FormSection title="User details">
+            <FormRow>
+              <FormRowFull>
+                <EmailInputField
+                  required
+                  value={invite.email}
+                  onChange={(v) => {
+                    setInvite((s) => ({ ...s, email: v }));
+                    inviteValidation.touch('email');
+                  }}
+                  error={inviteValidation.fieldError('email')}
+                  placeholder="user@company.com"
+                />
+              </FormRowFull>
+              <TextInputField
+                className="md:col-span-2"
+                label="Name"
+                required
+                value={invite.name}
+                onChange={(e) => {
+                  setInvite((s) => ({ ...s, name: e.target.value }));
+                  inviteValidation.touch('name');
                 }}
-                title="Invite user and assign projects"
-                description="Send an email invite and assign project access for the new team member."
-                className="sm:max-w-2xl"
-                footer={
-                  <FormActions
-                    onCancel={() => setOpenInvite(false)}
-                    submitLabel="Invite"
-                    saving={inviting}
-                    submitType="button"
-                    onSubmitClick={() => void inviteUser()}
-                  />
-                }
-              >
-                <div className="space-y-6">
-                  <FormSection title="User details">
-                    <FormRow>
-                      <FormRowFull>
-                        <EmailInputField
-                          required
-                          value={invite.email}
-                          onChange={(v) => {
-                            setInvite((s) => ({ ...s, email: v }));
-                            inviteValidation.touch('email');
-                          }}
-                          error={inviteValidation.fieldError('email')}
-                          placeholder="user@company.com"
-                        />
-                      </FormRowFull>
-                      <TextInputField
-                        className="md:col-span-2"
-                        label="Name"
-                        required
-                        value={invite.name}
-                        onChange={(e) => {
-                          setInvite((s) => ({ ...s, name: e.target.value }));
-                          inviteValidation.touch('name');
-                        }}
-                        error={inviteValidation.fieldError('name')}
-                        placeholder="Full name"
-                      />
-                      <div>
-                        <FieldLabel required>Profile role</FieldLabel>
-                        <Select
-                          value={invite.profileRole}
-                          onValueChange={(v) => {
-                            setInvite((s) => ({ ...s, profileRole: v }));
-                            inviteValidation.touch('profileRole');
-                          }}
-                        >
-                          <SelectTrigger
-                            className={cn(
-                              formControlFieldGapClass,
-                              formControlClass,
-                              inviteValidation.fieldError('profileRole')
-                                ? formControlInvalidClass
-                                : undefined
-                            )}
-                            aria-invalid={
-                              inviteValidation.fieldError('profileRole') ? true : undefined
-                            }
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {inviteRoleOptions.map((r) => (
-                              <SelectItem key={r} value={r}>
-                                {r}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormFieldError message={inviteValidation.fieldError('profileRole')} />
-                      </div>
-                      <div>
-                        <FieldLabel required>Project member role</FieldLabel>
-                        <Select
-                          value={invite.projectMemberRole}
-                          onValueChange={(v) => {
-                            setInvite((s) => ({
-                              ...s,
-                              projectMemberRole: v
-                            }));
-                            inviteValidation.touch('projectMemberRole');
-                          }}
-                        >
-                          <SelectTrigger
-                            className={cn(
-                              formControlFieldGapClass,
-                              formControlClass,
-                              inviteValidation.fieldError('projectMemberRole')
-                                ? formControlInvalidClass
-                                : undefined
-                            )}
-                            aria-invalid={
-                              inviteValidation.fieldError('projectMemberRole')
-                                ? true
-                                : undefined
-                            }
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {['Member', 'Manager'].map((r) => (
-                              <SelectItem key={r} value={r}>
-                                {r}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormFieldError
-                          message={inviteValidation.fieldError('projectMemberRole')}
-                        />
-                      </div>
-                    </FormRow>
-                  </FormSection>
-
-                  <FormSection
-                    title="Project access"
-                    description="Select one or more projects for this user."
+                error={inviteValidation.fieldError('name')}
+                placeholder="Full name"
+              />
+              <div>
+                <FieldLabel required>Profile role</FieldLabel>
+                <Select
+                  value={invite.profileRole}
+                  onValueChange={(v) => {
+                    setInvite((s) => ({ ...s, profileRole: v }));
+                    inviteValidation.touch('profileRole');
+                  }}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      formControlFieldGapClass,
+                      formControlClass,
+                      inviteValidation.fieldError('profileRole')
+                        ? formControlInvalidClass
+                        : undefined
+                    )}
+                    aria-invalid={
+                      inviteValidation.fieldError('profileRole')
+                        ? true
+                        : undefined
+                    }
                   >
-                    <FormRowFull>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm text-muted-foreground">
-                          Selected: {invite.projectIds.length}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={selectAllVisibleProjects}
-                            disabled={filteredProjects.length === 0}
-                          >
-                            Select visible
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={clearAllProjects}
-                            disabled={invite.projectIds.length === 0}
-                          >
-                            Clear
-                          </Button>
-                        </div>
-                      </div>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inviteRoleOptions.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormFieldError
+                  message={inviteValidation.fieldError('profileRole')}
+                />
+              </div>
+              <div>
+                <FieldLabel required>Project member role</FieldLabel>
+                <Select
+                  value={invite.projectMemberRole}
+                  onValueChange={(v) => {
+                    setInvite((s) => ({
+                      ...s,
+                      projectMemberRole: v
+                    }));
+                    inviteValidation.touch('projectMemberRole');
+                  }}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      formControlFieldGapClass,
+                      formControlClass,
+                      inviteValidation.fieldError('projectMemberRole')
+                        ? formControlInvalidClass
+                        : undefined
+                    )}
+                    aria-invalid={
+                      inviteValidation.fieldError('projectMemberRole')
+                        ? true
+                        : undefined
+                    }
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['Member', 'Manager'].map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormFieldError
+                  message={inviteValidation.fieldError('projectMemberRole')}
+                />
+              </div>
+            </FormRow>
+          </FormSection>
 
-                      <div className="mt-4">
-                        <FieldLabel htmlFor="invite-project-search">Search projects</FieldLabel>
-                        <Input
-                          id="invite-project-search"
-                          className={formControlFieldGapClass}
-                          value={projectSearch}
-                          onChange={(e) => setProjectSearch(e.target.value)}
-                          placeholder="Type to filter…"
-                        />
-                      </div>
-
-                      {invite.projectIds.length ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {invite.projectIds.slice(0, 8).map((id) => (
-                            <button
-                              key={id}
-                              type="button"
-                              onClick={() => removeProject(id)}
-                              className="rounded-full border border-ds-gray-200 bg-card px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
-                              title="Remove"
-                            >
-                              {projects.find((p) => p.id === id)?.name ?? 'Unknown project'} ×
-                            </button>
-                          ))}
-                          {invite.projectIds.length > 8 ? (
-                            <div className="rounded-full border border-ds-gray-200 bg-ds-gray-50 px-3 py-1 text-xs text-ds-gray-500">
-                              +{invite.projectIds.length - 8} more
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-
-                      <div className="mt-3">
-                        <FieldLabel>Add project</FieldLabel>
-                        <SearchableSelect
-                          value=""
-                          onValueChange={(name) => {
-                            const project = filteredProjects.find((p) => p.name === name);
-                            toggleProjectById(project?.id ?? '');
-                          }}
-                          options={filteredProjects.map((p) => p.name)}
-                          placeholder={
-                            filteredProjects.length === 0
-                              ? 'No projects match your search.'
-                              : 'Select project…'
-                          }
-                          searchPlaceholder="Search project…"
-                          className={formControlFieldGapClass}
-                          disabled={projects.length === 0 || filteredProjects.length === 0}
-                        />
-                        {projects.length === 0 ? (
-                          <div className="mt-2 text-xs text-ds-gray-500">
-                            No projects found.
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        This sends a Supabase email invite and adds rows to{' '}
-                        <span className="font-mono">profiles</span> and{' '}
-                        <span className="font-mono">project_members</span>.
-                      </p>
-                      <FormFieldError message={inviteValidation.fieldError('projectIds')} />
-                    </FormRowFull>
-                  </FormSection>
+          <FormSection
+            title="Project access"
+            description="Select one or more projects for this user."
+          >
+            <FormRowFull>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Selected: {invite.projectIds.length}
                 </div>
-              </FormDialog>
-            </div>
-          ) : (
-            <div className="mt-4 text-xs text-muted-foreground">
-              Only Admins can invite users and assign project access.
-            </div>
-          )}
-        </Card>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={selectAllVisibleProjects}
+                    disabled={filteredProjects.length === 0}
+                  >
+                    Select visible
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={clearAllProjects}
+                    disabled={invite.projectIds.length === 0}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
 
-        <Card className="p-4">
-          <div className="text-sm font-semibold text-foreground">
+              <div className="mt-4">
+                <FieldLabel htmlFor="invite-project-search">
+                  Search projects
+                </FieldLabel>
+                <Input
+                  id="invite-project-search"
+                  className={formControlFieldGapClass}
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  placeholder="Type to filter…"
+                />
+              </div>
+
+              {invite.projectIds.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {invite.projectIds.slice(0, 8).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => removeProject(id)}
+                      className="rounded-full border border-ds-gray-200 bg-card px-3 py-1 text-xs text-ds-gray-700 hover:bg-ds-gray-50"
+                      title="Remove"
+                    >
+                      {projects.find((p) => p.id === id)?.name ??
+                        'Unknown project'}{' '}
+                      ×
+                    </button>
+                  ))}
+                  {invite.projectIds.length > 8 ? (
+                    <div className="rounded-full border border-ds-gray-200 bg-ds-gray-50 px-3 py-1 text-xs text-ds-gray-500">
+                      +{invite.projectIds.length - 8} more
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="mt-3">
+                <FieldLabel>Add project</FieldLabel>
+                <SearchableSelect
+                  value=""
+                  onValueChange={(name) => {
+                    const project = filteredProjects.find((p) => p.name === name);
+                    toggleProjectById(project?.id ?? '');
+                  }}
+                  options={filteredProjects.map((p) => p.name)}
+                  placeholder={
+                    filteredProjects.length === 0
+                      ? 'No projects match your search.'
+                      : 'Select project…'
+                  }
+                  searchPlaceholder="Search project…"
+                  className={formControlFieldGapClass}
+                  disabled={
+                    projects.length === 0 || filteredProjects.length === 0
+                  }
+                />
+                {projects.length === 0 ? (
+                  <div className="mt-2 text-xs text-ds-gray-500">
+                    No projects found.
+                  </div>
+                ) : null}
+              </div>
+
+              <p className="mt-3 text-xs text-muted-foreground">
+                This sends a Supabase email invite and adds rows to{' '}
+                <span className="font-mono">profiles</span> and{' '}
+                <span className="font-mono">project_members</span>.
+              </p>
+              <FormFieldError
+                message={inviteValidation.fieldError('projectIds')}
+              />
+            </FormRowFull>
+          </FormSection>
+        </div>
+      </FormDialog>
+
+      <Card className="overflow-hidden rounded-xl border-ds-gray-200 p-4 shadow-sm">
+        <div className="mb-4">
+          <div className="text-sm font-semibold text-ds-gray-900">
             Project members
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {members.length} member(s) across projects
-          </div>
-          <div className="mt-3 overflow-auto">
-            <table className="min-w-[520px] w-full text-sm">
-              <thead className="bg-muted text-xs text-muted-foreground">
-                <tr>
-                  {['Project', 'User', 'Role', 'Status', 'Actions'].map(
-                    (h) => (
-                    <th key={h} className="px-3 py-2 text-left font-semibold border-b">
-                      {h}
-                    </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((m) => {
-                  const removalBlocked = pipelineBlockedMembers.has(
-                    projectMemberRemovalKey(m.project_id, m.user_id)
-                  );
-                  return (
-                  <tr key={`${m.project_id}-${m.user_id}`} className="border-b">
-                    <td className="max-w-[140px] truncate px-3 py-2 text-xs text-ds-gray-600">
-                      {projectNameById.get(m.project_id) ?? 'Unknown project'}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-ds-gray-700">
-                      {profiles.find((p) => p.id === m.user_id)?.name ??
-                        'Unknown user'}
-                    </td>
-                    <td className="px-3 py-2 text-ds-gray-700">
-                      {canManageProject(m.project_id) ? (
-                        <Select
-                          value={m.role}
-                          onValueChange={(v) =>
-                            upsertMember(m.project_id, m.user_id, v, m.status)
-                          }
-                        >
-                          <SelectTrigger size="sm" className="h-8 w-auto min-w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {['Member', 'Manager'].map((r) => (
-                              <SelectItem key={r} value={r}>
-                                {r}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        m.role
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-ds-gray-700">
-                      {canManageProject(m.project_id) ? (
-                        <Select
-                          value={m.status}
-                          onValueChange={(v) =>
-                            upsertMember(m.project_id, m.user_id, m.role, v)
-                          }
-                        >
-                          <SelectTrigger size="sm" className="h-8 w-auto min-w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {['Active', 'Inactive'].map((s) => (
-                              <SelectItem key={s} value={s}>
-                                {s}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        m.status
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {canManageProject(m.project_id) ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={removalBlocked}
-                          title={
-                            removalBlocked
-                              ? PROJECT_MEMBER_REMOVE_PIPELINE_BLOCK_MESSAGE
-                              : undefined
-                          }
-                          onClick={() => removeMember(m.project_id, m.user_id)}
-                        >
-                          Remove
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-ds-gray-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                  );
-                })}
-                {members.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
-                      No members found (or you don’t have access).
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+          <p className="mt-1 text-xs text-ds-gray-500">
+            {members.length} member{members.length !== 1 ? 's' : ''} across
+            projects
+          </p>
+        </div>
 
-          {canManageAnyMembers ? (
-            <div className="mt-4">
-              <div className="text-sm font-semibold text-foreground">Add member</div>
-              <div className="mt-2 flex flex-wrap items-end gap-3">
-                <div className="min-w-[200px]">
-                  <Label className="text-xs">Project</Label>
-                  <SearchableSelect
-                    value={
-                      manageableProjects.find((p) => p.id === addMemberProjectId)
-                        ?.name ?? ''
-                    }
-                    onValueChange={(name) => {
-                      const project = manageableProjects.find((p) => p.name === name);
-                      setAddMemberProjectId(project?.id ?? '');
-                    }}
-                    options={manageableProjects.map((p) => p.name)}
-                    placeholder="Select project…"
-                    searchPlaceholder="Search project…"
-                    className="mt-1 w-full"
-                  />
-                </div>
+        <UsersMembersTable
+          rows={memberTableRows}
+          loading={loading}
+          onRoleChange={handleRoleChange}
+          onStatusChange={handleStatusChange}
+          onRemove={handleRemove}
+        />
+
+        {canManageAnyMembers ? (
+          <div className="mt-6 border-t border-ds-gray-100 pt-4">
+            <div className="text-sm font-semibold text-ds-gray-900">
+              Add member
+            </div>
+            <p className="mt-1 text-xs text-ds-gray-500">
+              Assign an existing profile to a project you manage.
+            </p>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="w-full min-w-0 sm:max-w-56">
+                <Label className="text-xs text-ds-gray-500">Project</Label>
+                <SearchableSelect
+                  value={
+                    manageableProjects.find((p) => p.id === addMemberProjectId)
+                      ?.name ?? ''
+                  }
+                  onValueChange={(name) => {
+                    const project = manageableProjects.find(
+                      (p) => p.name === name
+                    );
+                    setAddMemberProjectId(project?.id ?? '');
+                  }}
+                  options={manageableProjects.map((p) => p.name)}
+                  placeholder="Select project…"
+                  searchPlaceholder="Search project…"
+                  className="mt-1 w-full"
+                />
+              </div>
+              <div className="w-full min-w-0 sm:max-w-sm">
+                <Label className="text-xs text-ds-gray-500">User</Label>
                 <SearchableSelect
                   key={addMemberPickerKey}
                   value=""
@@ -811,26 +820,115 @@ export default function UsersPage() {
                     const user = profiles.find(
                       (p) =>
                         profileOptionLabel(p) === label &&
-                        !members.some((m) => m.user_id === p.id)
+                        !members.some(
+                          (m) =>
+                            m.user_id === p.id &&
+                            m.project_id === addMemberProjectId
+                        )
                     );
                     if (!user) return;
-                    void upsertMember(addMemberProjectId, user.id, 'Member', 'Active');
+                    void upsertMember(
+                      addMemberProjectId,
+                      user.id,
+                      'Member',
+                      'Active'
+                    );
                     setAddMemberPickerKey((k) => k + 1);
                   }}
                   options={addMemberUserOptions}
                   placeholder="Select user…"
                   searchPlaceholder="Search user…"
-                  className="mt-1 min-w-[320px] w-[min(320px,100%)]"
+                  className="mt-1 w-full"
                 />
-                <div className="text-xs text-muted-foreground">
-                  Tip: Admins can invite new users. Super Admin role is limited to one account.
-                </div>
               </div>
+              <p className="text-xs text-muted-foreground sm:pb-2">
+                Tip: Admins can invite new users. Super Admin is limited to one
+                account.
+              </p>
             </div>
-          ) : null}
+          </div>
+        ) : null}
+      </Card>
+
+      {profile?.role === 'Super Admin' ? (
+        <Card className="rounded-xl border-ds-gray-200 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-ds-gray-900">
+            Buyer / channel partner portal
+          </div>
+          <p className="mt-1 text-xs text-ds-gray-500">
+            Link an auth user to a <span className="font-mono">customers</span>{' '}
+            row for the buyer portal, or to a{' '}
+            <span className="font-mono">brokers</span> row for broker-scoped
+            inquiry reads.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <Label className="text-xs text-ds-gray-500">Staff user</Label>
+              <SearchableSelect
+                value={(() => {
+                  const row = portalDirectory.find((p) => p.id === portalUserId);
+                  return row ? profileOptionLabel(row) : '';
+                })()}
+                onValueChange={(label) => {
+                  const row = portalDirectory.find(
+                    (p) => profileOptionLabel(p) === label
+                  );
+                  if (!row) return;
+                  setPortalUserId(row.id);
+                  portalValidation.touch('portalUserId');
+                  setPortalCustomerId(row.linked_customer_id ?? '');
+                  setPortalBrokerId(row.linked_broker_id ?? '');
+                }}
+                options={portalDirectory.map((p) => profileOptionLabel(p))}
+                placeholder="Select user…"
+                searchPlaceholder="Search user…"
+              />
+              <FormFieldError
+                message={portalValidation.fieldError('portalUserId')}
+              />
+            </div>
+            <TextInputField
+              label="Linked customer id (UUID)"
+              labelClassName="text-xs"
+              value={portalCustomerId}
+              onChange={(e) => {
+                setPortalCustomerId(e.target.value);
+                portalValidation.touch('portalCustomerId');
+              }}
+              onBlur={() => portalValidation.touch('portalCustomerId')}
+              error={portalValidation.fieldError('portalCustomerId')}
+              placeholder="00000000-0000-0000-0000-000000000000"
+              inputClassName="font-mono text-xs"
+            />
+            <TextInputField
+              className="sm:col-span-2"
+              label="Linked broker id (UUID, optional)"
+              labelClassName="text-xs"
+              value={portalBrokerId}
+              onChange={(e) => {
+                setPortalBrokerId(e.target.value);
+                portalValidation.touch('portalBrokerId');
+              }}
+              onBlur={() => portalValidation.touch('portalBrokerId')}
+              error={portalValidation.fieldError('portalBrokerId')}
+              placeholder="Optional"
+              inputClassName="font-mono text-xs"
+            />
+          </div>
+          <Button
+            className="mt-3"
+            type="button"
+            disabled={savingPortal}
+            onClick={() => void savePortalLinks()}
+          >
+            {savingPortal ? 'Saving…' : 'Save portal links'}
+          </Button>
+          <p className="mt-2 text-xs text-ds-gray-500">
+            Buyer portal: <span className="font-mono">/portal</span> after
+            login.
+          </p>
         </Card>
-      </div>
+      ) : null}
     </div>
   );
 }
-
