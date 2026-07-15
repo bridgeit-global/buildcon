@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
@@ -331,7 +332,7 @@ export function InquiryListTable({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         enableSorting: false,
         enableResizing: false,
         size: 96,
@@ -351,34 +352,29 @@ export function InquiryListTable({
             );
           }
           return (
-            <div className="flex flex-wrap justify-end gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8"
-                onClick={() =>
-                  router.push(
-                    `/crm/inquiry/new?inquiry=${encodeURIComponent(inq.id)}`
-                  )
+            <TableRowActions
+              actions={[
+                {
+                  id: 'pipeline',
+                  label: 'Pipeline',
+                  onClick: () =>
+                    router.push(
+                      `/crm/inquiry/new?inquiry=${encodeURIComponent(inq.id)}`
+                    )
+                },
+                {
+                  id: 'booking',
+                  label: 'Booking',
+                  icon: <ArrowRight className="size-3.5 opacity-90" />,
+                  variant: 'default',
+                  disabled: !inq.unit_id?.trim(),
+                  title: inq.unit_id?.trim()
+                    ? undefined
+                    : 'Assign a unit before booking',
+                  onClick: () => navigateToBookingFromInquiry(inq)
                 }
-              >
-                Pipeline
-              </Button>
-              {inq.unit_id?.trim() ? (
-                <Button
-                  type="button"
-                  className="h-8 gap-1"
-                  onClick={() => navigateToBookingFromInquiry(inq)}
-                >
-                  Booking
-                  <ArrowRight className="size-3.5 opacity-90" />
-                </Button>
-              ) : (
-                <span className="self-center px-1 text-[10px] text-muted-foreground">
-                  No unit
-                </span>
-              )}
-            </div>
+              ]}
+            />
           );
         }
       }

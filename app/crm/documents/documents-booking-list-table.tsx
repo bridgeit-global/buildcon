@@ -143,7 +143,7 @@ export function DocumentsBookingListTable({
       },
       {
         id: 'action',
-        header: 'Action',
+        header: 'Actions',
         enableSorting: false,
         enableResizing: false,
         size: 96,

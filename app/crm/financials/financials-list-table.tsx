@@ -176,7 +176,7 @@ export function FinancialsListTable({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,

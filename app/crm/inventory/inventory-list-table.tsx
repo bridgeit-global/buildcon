@@ -17,7 +17,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { TableViewButton } from '@/components/buttons/table-view-button';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -236,27 +236,27 @@ export function InventoryListTable({
       },
       {
         id: 'actions',
-        header: 'Action',
+        header: 'Actions',
         enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,
         size: 96,
         cell: ({ row }) => (
-          <div
-            className="flex items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {isUnitAvailableForBooking(row.original.status) ? (
-              <button
-                type="button"
-                className="rounded border border-ds-success-200 bg-ds-success-50 px-2 py-0.5 text-[10px] font-semibold text-ds-success-600 hover:bg-ds-success-100"
-                onClick={() => onEdit(row.original)}
-              >
-                Edit
-              </button>
-            ) : null}
-            <TableViewButton onClick={() => onOpenDetail(row.original)} />
-          </div>
+          <TableRowActions
+            actions={[
+              {
+                id: 'edit',
+                label: 'Edit',
+                hidden: !isUnitAvailableForBooking(row.original.status),
+                onClick: () => onEdit(row.original)
+              },
+              {
+                id: 'view',
+                label: 'View',
+                onClick: () => onOpenDetail(row.original)
+              }
+            ]}
+          />
         )
       }
     ],

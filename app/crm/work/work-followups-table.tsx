@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
@@ -169,18 +169,17 @@ export function WorkFollowupsTable({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,
         size: 96,
         cell: ({ row }) => (
-          <Link
+          <TableViewButton
             href={`/crm/inquiry/new?inquiry=${encodeURIComponent(row.original.inquiryId)}`}
-            className="text-xs font-semibold text-ds-primary-600 underline"
-          >
-            Open pipeline
-          </Link>
+            label="Open pipeline"
+            showIcon={false}
+          />
         )
       }
     ],

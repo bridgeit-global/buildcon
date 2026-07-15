@@ -74,7 +74,7 @@ export function CustomerListTable({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         enableSorting: false,
         enableResizing: false,
         size: 96,

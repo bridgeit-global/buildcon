@@ -43,12 +43,28 @@ const columns = useMemo<ColumnDef<MyRow, unknown>[]>(
       header: 'Actions',
       enableGlobalFilter: false,
       enableSorting: false,
-      cell: ({ row }) => (/* buttons */)
+      cell: ({ row }) => (
+        <TableRowActions
+          actions={[
+            /* ≤2 → inline outline buttons; >2 → ⋯ menu */
+            { id: 'view', label: 'View', href: `/crm/…/${row.original.id}` },
+            { id: 'edit', label: 'Edit', onClick: () => onEdit(row.original) }
+          ]}
+        />
+      )
     }
   ],
   [deps]
 );
 ```
+
+## Row actions
+
+- Use `TableViewButton` for a single View/Open action.
+- Use `TableRowActions` (`components/buttons/table-row-actions.tsx`) when a row has one or more actions.
+- **≤2 actions**: render as consistent outline/default `size="sm"` buttons.
+- **>2 actions**: collapse into a single `⋯` dropdown menu (do not show more than two inline buttons).
+- Prefer `header: 'Actions'`; keep `enableGlobalFilter: false` and `enableSorting: false`.
 
 ## Rendering
 

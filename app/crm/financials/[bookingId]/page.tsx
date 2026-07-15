@@ -5,6 +5,7 @@ import { pageError, toast } from '@/lib/toast';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useServerListSorting } from '@/components/data-table/crm-table-features';
 import { sortRowsByState } from '@/lib/crm/list-sort';
@@ -659,74 +660,67 @@ export default function FinancialsBookingPage() {
                 schedules.length > 1 &&
                 unpaidMergeTargets.length > 0;
               return (
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1"
-                    disabled={saving || loading || !row.id}
-                    onClick={() => {
-                      if (!row.id) return;
-                      setEditMilestoneSchedule({
-                        id: row.id,
-                        instalment_no: row.instalment_no,
-                        milestone: row.milestone,
-                        due_date: row.due_date,
-                        amount: row.amount,
-                        received,
-                        balance: row.balance
-                      });
-                    }}
-                    title="Edit milestone name, due date, or amount"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1 text-ds-error-700 hover:text-ds-error-800"
-                    disabled={saving || loading || !canDelete}
-                    onClick={() => {
-                      if (!row.id) return;
-                      setDeleteMilestoneSchedule({
-                        id: row.id,
-                        instalment_no: row.instalment_no,
-                        milestone: row.milestone,
-                        amount: row.amount,
-                        received
-                      });
-                    }}
-                    title={
-                      received > 0
-                        ? 'Cannot delete — collections exist on this instalment'
-                        : schedules.length <= 1
-                          ? 'Cannot delete the only instalment'
-                          : unpaidMergeTargets.length === 0
-                            ? 'Cannot delete — no unpaid instalment to return amount to'
-                            : 'Delete milestone and return amount to an unpaid instalment'
+                <TableRowActions
+                  menuLabel={`Actions for instalment ${row.instalment_no}`}
+                  actions={[
+                    {
+                      id: 'edit',
+                      label: 'Edit',
+                      icon: <Pencil className="size-3.5" />,
+                      disabled: saving || loading || !row.id,
+                      title: 'Edit milestone name, due date, or amount',
+                      onClick: () => {
+                        if (!row.id) return;
+                        setEditMilestoneSchedule({
+                          id: row.id,
+                          instalment_no: row.instalment_no,
+                          milestone: row.milestone,
+                          due_date: row.due_date,
+                          amount: row.amount,
+                          received,
+                          balance: row.balance
+                        });
+                      }
+                    },
+                    {
+                      id: 'delete',
+                      label: 'Delete',
+                      icon: <Trash2 className="size-3.5" />,
+                      variant: 'destructive',
+                      disabled: saving || loading || !canDelete,
+                      title:
+                        received > 0
+                          ? 'Cannot delete — collections exist on this instalment'
+                          : schedules.length <= 1
+                            ? 'Cannot delete the only instalment'
+                            : unpaidMergeTargets.length === 0
+                              ? 'Cannot delete — no unpaid instalment to return amount to'
+                              : 'Delete milestone and return amount to an unpaid instalment',
+                      onClick: () => {
+                        if (!row.id) return;
+                        setDeleteMilestoneSchedule({
+                          id: row.id,
+                          instalment_no: row.instalment_no,
+                          milestone: row.milestone,
+                          amount: row.amount,
+                          received
+                        });
+                      }
+                    },
+                    {
+                      id: 'collect',
+                      label: 'Collect',
+                      variant: 'default',
+                      disabled: saving || loading || row.balance <= 0 || !row.id,
+                      title: 'Record a receipt against this instalment',
+                      onClick: () => {
+                        setManageDefaultScheduleId(row.id ?? null);
+                        setManageDefaultAmount(null);
+                        setManageOpen(true);
+                      }
                     }
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-8"
-                    disabled={saving || loading || row.balance <= 0 || !row.id}
-                    onClick={() => {
-                      setManageDefaultScheduleId(row.id ?? null);
-                      setManageDefaultAmount(null);
-                      setManageOpen(true);
-                    }}
-                    title="Record a receipt against this instalment"
-                  >
-                    Collect
-                  </Button>
-                </div>
+                  ]}
+                />
               );
             }}
           />

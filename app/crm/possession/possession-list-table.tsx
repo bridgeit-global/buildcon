@@ -16,6 +16,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, KeyRound, Search } from 'lucide-react';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -165,16 +166,16 @@ export function PossessionListTable({
         enableResizing: false,
         size: 96,
         cell: ({ row }) => (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="min-h-9 gap-1.5"
-            onClick={() => onManage(row.original)}
-          >
-            <KeyRound className="size-3.5" aria-hidden />
-            Manage
-          </Button>
+          <TableRowActions
+            actions={[
+              {
+                id: 'manage',
+                label: 'Manage',
+                icon: <KeyRound className="size-3.5" aria-hidden />,
+                onClick: () => onManage(row.original)
+              }
+            ]}
+          />
         )
       }
     ],

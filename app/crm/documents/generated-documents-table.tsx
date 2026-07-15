@@ -19,6 +19,7 @@ import {
   type FilterFn
 } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Download, Eye, Loader2, RefreshCw, Search, Send } from 'lucide-react';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   parseKindFromBookingGeneratedPath,
@@ -272,9 +273,9 @@ export function GeneratedDocumentsTable({
         </span>
       )
     };
-    const downloadCol: ColumnDef<GeneratedDocRow, unknown> = {
-      id: 'download',
-      header: 'Download',
+    const actionsCol: ColumnDef<GeneratedDocRow, unknown> = {
+      id: 'actions',
+      header: 'Actions',
       enableGlobalFilter: false,
       enableSorting: false,
       enableResizing: false,
@@ -282,97 +283,68 @@ export function GeneratedDocumentsTable({
       cell: ({ row }) => {
         const r = row.original;
         const bucket = storageBucketForGeneratedPath(r.storage_path);
-        const busy = downloadBusyId === r.id;
         if (!showDownload) return <span className="text-ds-gray-400">—</span>;
         if (!bucket) {
           return <span className="text-xs text-ds-gray-500">Print log</span>;
         }
+
+        const viewBusy = viewBusyId === r.id;
+        const downloadBusy = downloadBusyId === r.id;
+        const sendBusy = notifyBusyId === r.id;
+        const canSend = Boolean(onNotify && r.booking_id);
+
         return (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1"
-            disabled={busy}
-            onClick={() => void downloadRow(r)}
-          >
-            <Download className="h-4 w-4" />
-            {busy ? '…' : 'Download'}
-          </Button>
-        );
-      }
-    };
-    const viewCol: ColumnDef<GeneratedDocRow, unknown> = {
-      id: 'view',
-      header: 'View',
-      enableGlobalFilter: false,
-      enableSorting: false,
-      enableResizing: false,
-      size: 96,
-      cell: ({ row }) => {
-        const r = row.original;
-        const bucket = storageBucketForGeneratedPath(r.storage_path);
-        const busy = viewBusyId === r.id;
-        if (!showDownload) return <span className="text-ds-gray-400">—</span>;
-        if (!bucket) {
-          return <span className="text-xs text-ds-gray-500">—</span>;
-        }
-        return (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1"
-            disabled={busy}
-            onClick={() => void viewRow(r)}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-            {busy ? '…' : 'View'}
-          </Button>
-        );
-      }
-    };
-    const sendCol: ColumnDef<GeneratedDocRow, unknown> = {
-      id: 'send',
-      header: 'Send',
-      enableGlobalFilter: false,
-      enableSorting: false,
-      enableResizing: false,
-      size: 96,
-      cell: ({ row }) => {
-        const r = row.original;
-        const bucket = storageBucketForGeneratedPath(r.storage_path);
-        if (!onNotify || !r.booking_id || !bucket) {
-          return <span className="text-ds-gray-400">—</span>;
-        }
-        const busy = notifyBusyId === r.id;
-        return (
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            className="gap-1"
-            disabled={busy}
-            onClick={async () => {
-              setNotifyBusyId(r.id);
-              try {
-                await onNotify(r.booking_id!, r.id);
-              } finally {
-                setNotifyBusyId(null);
+          <TableRowActions
+            menuLabel="Document actions"
+            actions={[
+              {
+                id: 'view',
+                label: 'View',
+                icon: viewBusy ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Eye className="size-3.5" />
+                ),
+                busy: viewBusy,
+                onClick: () => void viewRow(r)
+              },
+              {
+                id: 'download',
+                label: 'Download',
+                icon: <Download className="size-3.5" />,
+                busy: downloadBusy,
+                onClick: () => void downloadRow(r)
+              },
+              {
+                id: 'send',
+                label: sendBusy ? 'Sending' : 'Send',
+                icon: sendBusy ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Send className="size-3.5" />
+                ),
+                variant: 'default',
+                hidden: !canSend,
+                busy: sendBusy,
+                onClick: async () => {
+                  if (!onNotify || !r.booking_id) return;
+                  setNotifyBusyId(r.id);
+                  try {
+                    await onNotify(r.booking_id, r.id);
+                  } finally {
+                    setNotifyBusyId(null);
+                  }
+                }
               }
-            }}
-          >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            {busy ? 'Sending…' : 'Send'}
-          </Button>
+            ]}
+          />
         );
       }
     };
 
     if (variant === 'bookingFocus') {
-      const cols: ColumnDef<GeneratedDocRow, unknown>[] = [kindCol, generatedCol];
-      if (!showDownload) cols.push(pathCol);
-      else cols.push(pathCol, viewCol, downloadCol, sendCol);
+      const cols: ColumnDef<GeneratedDocRow, unknown>[] = [kindCol, generatedCol, pathCol];
+      if (showDownload) cols.push(actionsCol);
       return cols;
     }
 
@@ -416,7 +388,7 @@ export function GeneratedDocumentsTable({
       },
       generatedCol,
       pathCol,
-      ...(showDownload ? [viewCol, downloadCol, sendCol] : [])
+      ...(showDownload ? [actionsCol] : [])
     ];
   }, [variant, showDownload, viewBusyId, viewRow, downloadBusyId, downloadRow, notifyBusyId, onNotify, scheduleLabelById]);
 

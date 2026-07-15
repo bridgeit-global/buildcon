@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
@@ -63,7 +63,6 @@ export function ProjectListTable({
   sorting,
   onSortingChange
 }: ProjectListTableProps) {
-  const router = useRouter();
   const [globalFilter, setGlobalFilter] = useState('');
 
   const columns = useMemo<ColumnDef<CrmProjectListItem, unknown>[]>(
@@ -158,44 +157,40 @@ export function ProjectListTable({
         enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,
-        size: 280,
+        size: 72,
         cell: ({ row }) => {
           const p = row.original;
           return (
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => router.push(`/crm/inventory?projectId=${p.id}`)}
-              >
-                Inventory
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => router.push(`/crm/project/${p.id}/cld`)}
-              >
-                CLD
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => router.push(`/crm/project/${p.id}/templates`)}
-              >
-                Templates
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => onManage(p)}>
-                Manage
-              </Button>
-            </div>
+            <TableRowActions
+              menuLabel={`Actions for ${p.name}`}
+              actions={[
+                {
+                  id: 'inventory',
+                  label: 'Inventory',
+                  href: `/crm/inventory?projectId=${p.id}`
+                },
+                {
+                  id: 'cld',
+                  label: 'CLD',
+                  href: `/crm/project/${p.id}/cld`
+                },
+                {
+                  id: 'templates',
+                  label: 'Templates',
+                  href: `/crm/project/${p.id}/templates`
+                },
+                {
+                  id: 'manage',
+                  label: 'Manage',
+                  onClick: () => onManage(p)
+                }
+              ]}
+            />
           );
         }
       }
     ],
-    [onManage, router]
+    [onManage]
   );
 
   const { columnSizing, onColumnSizingChange, tableFeatures } = useCrmTableFeatures({

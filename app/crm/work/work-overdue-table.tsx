@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { TableViewButton } from '@/components/buttons/table-view-button';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
@@ -145,18 +146,17 @@ export function WorkOverdueTable({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         enableGlobalFilter: false,
         enableSorting: false,
         enableResizing: false,
         size: 96,
         cell: () => (
-          <Link
+          <TableViewButton
             href="/crm/financials"
-            className="text-xs font-semibold text-ds-primary-600 underline"
-          >
-            Record receipt
-          </Link>
+            label="Record receipt"
+            showIcon={false}
+          />
         )
       }
     ],

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
 import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
@@ -121,37 +122,32 @@ export function CollectionsListTable({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         enableSorting: false,
         enableResizing: false,
         size: 96,
         enableColumnFilter: false,
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8"
-              disabled={busy || loading}
-              onClick={() => void onGenerateReceipt(row.original)}
-            >
-              Save receipt
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1 text-ds-error-700 hover:text-ds-error-800"
-              disabled={busy || loading}
-              onClick={() => void onDelete(row.original)}
-              title="Delete this collection entry"
-            >
-              <Trash2 className="size-3.5" />
-              Delete
-            </Button>
-          </div>
+          <TableRowActions
+            actions={[
+              {
+                id: 'save-receipt',
+                label: 'Save receipt',
+                disabled: busy || loading,
+                onClick: () => void onGenerateReceipt(row.original)
+              },
+              {
+                id: 'delete',
+                label: 'Delete',
+                icon: <Trash2 className="size-3.5" />,
+                variant: 'destructive',
+                disabled: busy || loading,
+                title: 'Delete this collection entry',
+                onClick: () => void onDelete(row.original)
+              }
+            ]}
+          />
         )
       }
     ],
