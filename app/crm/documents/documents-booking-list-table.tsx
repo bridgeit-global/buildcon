@@ -105,7 +105,7 @@ export function DocumentsBookingListTable({
         header: 'Project',
         accessorFn: (row) => projectName(row.projects),
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{projectName(row.original.projects)}</span>
+          <span className="text-foreground">{projectName(row.original.projects)}</span>
         )
       },
       {
@@ -115,7 +115,7 @@ export function DocumentsBookingListTable({
         cell: ({ row }) => {
           const u = unwrapJoin(row.original.units);
           return (
-            <span className="font-semibold text-ds-gray-900">{u?.unit_code ?? '—'}</span>
+            <span className="font-semibold text-foreground">{u?.unit_code ?? '—'}</span>
           );
         }
       },
@@ -136,7 +136,7 @@ export function DocumentsBookingListTable({
         header: 'Customer',
         accessorFn: (row) => unwrapJoin(row.customers)?.full_name ?? '',
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">
+          <span className="text-foreground">
             {unwrapJoin(row.original.customers)?.full_name ?? '—'}
           </span>
         )
@@ -181,9 +181,9 @@ export function DocumentsBookingListTable({
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="w-full sm:max-w-sm">
-          <Label className="text-ds-gray-600">Search bookings</Label>
+          <Label className="text-muted-foreground">Search bookings</Label>
           <div className="relative mt-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ds-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
               value={globalFilter}
@@ -193,7 +193,7 @@ export function DocumentsBookingListTable({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Label className="sr-only sm:not-sr-only sm:text-ds-gray-600">Rows</Label>
+          <Label className="sr-only sm:not-sr-only sm:text-muted-foreground">Rows</Label>
           <Select
             value={String(table.getState().pagination.pageSize)}
             onValueChange={(v) => table.setPageSize(Number(v))}
@@ -212,14 +212,14 @@ export function DocumentsBookingListTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-208 caption-bottom text-sm"
+          className="w-full min-w-208 caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -231,7 +231,7 @@ export function DocumentsBookingListTable({
               <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-muted-foreground">
                   {rows.length === 0
                     ? 'No confirmed bookings.'
                     : 'No rows match your search.'}
@@ -246,7 +246,7 @@ export function DocumentsBookingListTable({
                     key={row.id}
                     tabIndex={0}
                     className={cn(
-                      'border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60',
+                      'border-b border-border last:border-0 transition-colors hover:bg-muted/50',
                       isSelected && 'bg-ds-primary-50/70 hover:bg-ds-primary-50'
                     )}
                   >
@@ -261,7 +261,7 @@ export function DocumentsBookingListTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

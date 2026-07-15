@@ -111,7 +111,7 @@ export function WorkFollowupsTable({
         header: 'Project',
         accessorKey: 'projectName',
         cell: ({ row }) => (
-          <span className="max-w-[120px] truncate text-xs text-ds-gray-600">
+          <span className="max-w-[120px] truncate text-xs text-muted-foreground">
             {row.original.projectName}
           </span>
         )
@@ -130,7 +130,7 @@ export function WorkFollowupsTable({
         accessorFn: (r) =>
           r.stageKey === 'site_visit' ? 'Visit site' : r.funnelStage,
         cell: ({ row }) => (
-          <span className="text-xs text-ds-gray-600">
+          <span className="text-xs text-muted-foreground">
             {row.original.stageKey === 'site_visit'
               ? 'Visit site'
               : row.original.funnelStage}
@@ -145,7 +145,7 @@ export function WorkFollowupsTable({
         cell: ({ row }) => {
           const r = row.original;
           return (
-            <span className="text-xs text-ds-gray-600">
+            <span className="text-xs text-muted-foreground">
               {r.assignedToMe ? (
                 <span className="font-semibold text-ds-primary-700">You</span>
               ) : r.assignedTo ? (
@@ -162,7 +162,7 @@ export function WorkFollowupsTable({
         header: 'Note',
         accessorKey: 'note',
         cell: ({ row }) => (
-          <span className="max-w-[280px] text-xs text-ds-gray-600">
+          <span className="max-w-[280px] text-xs text-muted-foreground">
             {row.original.note?.trim() || '—'}
           </span>
         )
@@ -214,7 +214,7 @@ export function WorkFollowupsTable({
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="max-w-md"
         />
-        <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>
             {table.getFilteredRowModel().rows.length} follow-up
             {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
@@ -239,14 +239,14 @@ export function WorkFollowupsTable({
 
       <div className="overflow-x-auto">
         <table
-          className="w-full min-w-[640px] caption-bottom text-sm"
+          className="w-full min-w-[640px] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr
                 key={hg.id}
-                className="border-b border-ds-gray-100 bg-ds-gray-50/80"
+                className="border-b border-border bg-muted/60"
               >
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
@@ -261,7 +261,7 @@ export function WorkFollowupsTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-muted-foreground"
                 >
                   {globalFilter
                     ? 'No follow-ups match your search.'
@@ -276,7 +276,7 @@ export function WorkFollowupsTable({
                   <tr
                     key={row.id}
                     className={cn(
-                      'border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60',
+                      'border-b border-border last:border-0 transition-colors hover:bg-muted/50',
                       highlight &&
                         'border-l-4 border-l-ds-primary-500 bg-ds-primary-50/80'
                     )}
@@ -301,7 +301,7 @@ export function WorkFollowupsTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

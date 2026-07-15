@@ -344,7 +344,7 @@ export function InquiryListTable({
           if (closed) {
             const reason = getInquiryClosedStatus(inq.stage_data);
             return (
-              <span className="px-1 text-[10px] font-medium text-ds-gray-500">
+              <span className="px-1 text-[10px] font-medium text-muted-foreground">
                 {reason && reason !== 'Closed'
                   ? `Closed · ${reason}`
                   : 'Closed'}
@@ -412,15 +412,15 @@ export function InquiryListTable({
       : String(sourceFilterVal);
 
   return (
-    <Card className="border-ds-gray-200 p-4 shadow-sm" id="inquiry-list">
+    <Card className="border-border p-4 shadow-sm" id="inquiry-list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-ds-gray-900">
+          <div className="text-sm font-semibold text-foreground">
             Inquiry list
           </div>
-          <div className="mt-1 text-xs text-ds-gray-500">
+          <div className="mt-1 text-xs text-muted-foreground">
             Table view with search, filters, and pagination.{' '}
-            <span className="tabular-nums text-ds-gray-900">
+            <span className="tabular-nums text-foreground">
               {loadingInquiries && inquiries.length === 0 ? (
                 <CrmSkeletonBar className="inline-block w-16" />
               ) : (
@@ -439,7 +439,7 @@ export function InquiryListTable({
         </Button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-1 border-b border-ds-gray-200">
+      <div className="mt-4 flex flex-wrap gap-1 border-b border-border">
         {STAGE_TABS.map((t) => {
           const active = stageTab === t.id;
           const count = stageCounts[t.id] ?? 0;
@@ -451,12 +451,12 @@ export function InquiryListTable({
                 'px-3 py-2 text-xs font-medium',
                 active
                   ? 'border-b-2 border-ds-primary-500 text-ds-primary-700'
-                  : 'text-ds-gray-600 hover:text-ds-gray-900'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => setStageTab(t.id)}
             >
               {t.label}{' '}
-              <span className="ml-1 rounded-full bg-ds-gray-100 px-1.5 py-0.5 text-[10px] text-ds-gray-600">
+              <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 {count}
               </span>
             </button>
@@ -466,7 +466,7 @@ export function InquiryListTable({
 
       <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
         <div className="min-w-[12rem] flex-1">
-          <Label htmlFor="inquiry-search" className="text-xs text-ds-gray-500">
+          <Label htmlFor="inquiry-search" className="text-xs text-muted-foreground">
             Search
           </Label>
           <Input
@@ -479,7 +479,7 @@ export function InquiryListTable({
         </div>
         <div className="flex flex-wrap gap-3">
           <div className="min-w-[10rem]">
-            <Label className="text-xs text-ds-gray-500">Lead source</Label>
+            <Label className="text-xs text-muted-foreground">Lead source</Label>
             <SearchableSelect
               value={
                 sourceFilter && sourceFilter !== '__all__'
@@ -496,7 +496,7 @@ export function InquiryListTable({
             />
           </div>
           <div className="min-w-[8rem]">
-            <Label className="text-xs text-ds-gray-500">Rows per page</Label>
+            <Label className="text-xs text-muted-foreground">Rows per page</Label>
             <Select
               value={String(table.getState().pagination.pageSize)}
               onValueChange={(v) => table.setPageSize(Number(v))}
@@ -516,14 +516,14 @@ export function InquiryListTable({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-[56rem] caption-bottom text-sm"
+          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -537,7 +537,7 @@ export function InquiryListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-muted-foreground"
                 >
                   No enquiries match the current filters.
                 </td>
@@ -546,7 +546,7 @@ export function InquiryListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
@@ -558,7 +558,7 @@ export function InquiryListTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           {table.getFilteredRowModel().rows.length} row
           {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}

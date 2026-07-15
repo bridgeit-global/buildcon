@@ -199,7 +199,7 @@ export function BookingDocumentsMatrixTable({
         header: 'Document',
         accessorKey: 'label',
         cell: ({ row }) => (
-          <span className="font-medium text-ds-gray-900">{row.original.label}</span>
+          <span className="font-medium text-foreground">{row.original.label}</span>
         )
       },
       {
@@ -209,10 +209,10 @@ export function BookingDocumentsMatrixTable({
         cell: ({ row }) => {
           const { latest } = row.original;
           if (!latest) {
-            return <span className="text-sm text-ds-gray-500">Not generated yet</span>;
+            return <span className="text-sm text-muted-foreground">Not generated yet</span>;
           }
           return (
-            <div className="text-sm text-ds-gray-600">
+            <div className="text-sm text-muted-foreground">
               <span className="whitespace-nowrap">
                 Latest {formatDisplayDateTime(latest.generated_at)}
               </span>
@@ -260,7 +260,7 @@ export function BookingDocumentsMatrixTable({
         cell: ({ row }) => {
           const latest = row.original.latest;
           if (!latest) {
-            return <span className="text-xs text-ds-gray-500">Generate first</span>;
+            return <span className="text-xs text-muted-foreground">Generate first</span>;
           }
           const busy = viewBusyId === latest.id;
           return (
@@ -287,7 +287,7 @@ export function BookingDocumentsMatrixTable({
         cell: ({ row }) => {
           const latest = row.original.latest;
           if (!latest) {
-            return <span className="text-xs text-ds-gray-500">—</span>;
+            return <span className="text-xs text-muted-foreground">—</span>;
           }
           const busy = notifyBusyId === latest.id;
           return (
@@ -344,14 +344,14 @@ export function BookingDocumentsMatrixTable({
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-xl caption-bottom text-sm"
+          className="w-full min-w-xl caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -360,7 +360,7 @@ export function BookingDocumentsMatrixTable({
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
+              <tr key={row.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
                 {row.getVisibleCells().map((cell) => (
                   <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                 ))}
@@ -372,7 +372,7 @@ export function BookingDocumentsMatrixTable({
       {unitPossessed ? (
         <p className="text-xs text-ds-warning-800">{UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE}</p>
       ) : (
-        <p className="text-xs text-ds-gray-500">
+        <p className="text-xs text-muted-foreground">
           Files are stored as PDF in Documents. After generating, use View to review the document,
           then Send to notify the customer via email / SMS / WhatsApp.
         </p>

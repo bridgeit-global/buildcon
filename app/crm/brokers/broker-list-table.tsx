@@ -44,7 +44,7 @@ export function BrokerListTable({
         header: 'Name',
         accessorKey: 'full_name',
         cell: ({ row }) => (
-          <span className="font-semibold text-ds-gray-900">
+          <span className="font-semibold text-foreground">
             {row.original.full_name}
           </span>
         )
@@ -54,7 +54,7 @@ export function BrokerListTable({
         header: 'Phone',
         accessorKey: 'phone',
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{row.original.phone ?? '—'}</span>
+          <span className="text-foreground">{row.original.phone ?? '—'}</span>
         )
       },
       {
@@ -62,7 +62,9 @@ export function BrokerListTable({
         header: 'Email',
         accessorKey: 'email',
         cell: ({ row }) => (
-          <span className="text-ds-gray-600">{row.original.email ?? '—'}</span>
+          <span className="text-muted-foreground">
+            {row.original.email ?? '—'}
+          </span>
         )
       },
       {
@@ -70,7 +72,7 @@ export function BrokerListTable({
         header: 'RERA / License',
         accessorKey: 'license_no',
         cell: ({ row }) => (
-          <span className="text-ds-gray-600">
+          <span className="text-muted-foreground">
             {row.original.license_no ?? '—'}
           </span>
         )
@@ -90,7 +92,7 @@ export function BrokerListTable({
         header: 'Added',
         accessorKey: 'created_at',
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-ds-gray-500">
+          <span className="whitespace-nowrap text-muted-foreground">
             {formatDisplayDate(row.original.created_at)}
           </span>
         )
@@ -124,16 +126,16 @@ export function BrokerListTable({
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table
-        className="w-full min-w-4xl caption-bottom text-sm"
+        className="w-full min-w-4xl caption-bottom text-sm text-foreground"
         style={{ width: table.getCenterTotalSize() }}
       >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr
               key={hg.id}
-              className="border-b border-ds-gray-100 bg-ds-gray-50/80"
+              className="border-b border-border bg-muted/60"
             >
               {hg.headers.map((h) => (
                 <CrmDataTableHead key={h.id} header={h} />
@@ -148,7 +150,7 @@ export function BrokerListTable({
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-12 text-center text-ds-gray-500"
+                className="px-4 py-12 text-center text-muted-foreground"
               >
                 No brokers found.
               </td>
@@ -157,7 +159,7 @@ export function BrokerListTable({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
               >
                 {row.getVisibleCells().map((cell) => (
                   <CrmDataTableCell key={cell.id} cell={cell} />

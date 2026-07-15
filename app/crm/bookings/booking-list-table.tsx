@@ -121,7 +121,7 @@ export function BookingListTable({
         header: 'Project',
         accessorFn: (row) => projectNameById.get(row.project_id) ?? '',
         cell: ({ row }) => (
-          <span className="text-xs text-ds-gray-600">
+          <span className="text-xs text-muted-foreground">
             {projectNameById.get(row.original.project_id) ?? '—'}
           </span>
         )
@@ -138,10 +138,10 @@ export function BookingListTable({
               href={href}
               className="block min-h-[44px] min-w-0 rounded-md py-1.5 pl-0 pr-2 text-left outline-offset-2 hover:bg-ds-primary-50/50 focus-visible:ring-2 focus-visible:ring-ds-primary-500"
             >
-              <span className="font-medium text-ds-gray-900 underline-offset-2 hover:underline">
+              <span className="font-medium text-foreground underline-offset-2 hover:underline">
                 {u?.unit_code ?? '—'}
               </span>
-              <span className="block text-xs text-ds-gray-500">
+              <span className="block text-xs text-muted-foreground">
                 {u ? `${u.wing_name} · F${u.floor}` : ''}
               </span>
             </Link>
@@ -157,10 +157,10 @@ export function BookingListTable({
           const co = row.original.co_buyers ?? [];
           return (
             <div>
-              <span className="font-medium text-ds-gray-900">{c?.full_name ?? '—'}</span>
-              <span className="block text-xs text-ds-gray-500">{c?.phone ?? ''}</span>
+              <span className="font-medium text-foreground">{c?.full_name ?? '—'}</span>
+              <span className="block text-xs text-muted-foreground">{c?.phone ?? ''}</span>
               {co.length > 0 ? (
-                <span className="mt-1 block text-xs text-ds-gray-500">
+                <span className="mt-1 block text-xs text-muted-foreground">
                   +{co.length} co-applicant{co.length > 1 ? 's' : ''}
                 </span>
               ) : null}
@@ -193,7 +193,7 @@ export function BookingListTable({
         cell: ({ row }) => {
           const amt = row.original.booking_amount;
           return (
-            <span className="tabular-nums text-ds-gray-800">
+            <span className="tabular-nums text-foreground">
               {amt != null ? `₹${Number(amt).toLocaleString('en-IN')}` : '—'}
             </span>
           );
@@ -238,7 +238,7 @@ export function BookingListTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1 border-b border-ds-gray-200">
+      <div className="flex flex-wrap gap-1 border-b border-border">
         {STAGE_TABS.map((t) => {
           const active = stageTab === t.id;
           const count = stageCounts[t.id] ?? 0;
@@ -250,12 +250,12 @@ export function BookingListTable({
                 'px-3 py-2 text-xs font-medium',
                 active
                   ? 'border-b-2 border-ds-primary-500 text-ds-primary-700'
-                  : 'text-ds-gray-600 hover:text-ds-gray-900'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
               onClick={() => setStageTab(t.id)}
             >
               {t.label}{' '}
-              <span className="ml-1 rounded-full bg-ds-gray-100 px-1.5 py-0.5 text-[10px] text-ds-gray-600">
+              <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 {count}
               </span>
             </button>
@@ -269,7 +269,7 @@ export function BookingListTable({
           value={globalFilter}
           onChange={(e) => setGlobalFilter(e.target.value)}
         />
-        <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Select
             value={String(table.getState().pagination.pageSize)}
             onValueChange={(v) => table.setPageSize(Number(v))}
@@ -289,14 +289,14 @@ export function BookingListTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-[56rem] caption-bottom text-sm"
+          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -308,7 +308,7 @@ export function BookingListTable({
               <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-muted-foreground">
                   No bookings match your search.
                 </td>
               </tr>
@@ -316,7 +316,7 @@ export function BookingListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
@@ -328,7 +328,7 @@ export function BookingListTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

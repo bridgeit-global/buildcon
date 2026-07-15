@@ -74,7 +74,7 @@ export function UsersMembersTable({
         header: 'Project',
         accessorKey: 'projectName',
         cell: ({ row }) => (
-          <span className="font-semibold text-ds-gray-900">
+          <span className="font-semibold text-foreground">
             {row.original.projectName}
           </span>
         )
@@ -84,7 +84,7 @@ export function UsersMembersTable({
         header: 'User',
         accessorKey: 'userName',
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{row.original.userName}</span>
+          <span className="text-foreground">{row.original.userName}</span>
         )
       },
       {
@@ -94,7 +94,7 @@ export function UsersMembersTable({
         cell: ({ row }) => {
           const m = row.original;
           if (!m.canManage) {
-            return <span className="text-ds-gray-700">{m.role}</span>;
+            return <span className="text-foreground">{m.role}</span>;
           }
           return (
             <Select
@@ -157,7 +157,7 @@ export function UsersMembersTable({
         cell: ({ row }) => {
           const m = row.original;
           if (!m.canManage) {
-            return <span className="text-xs text-ds-gray-400">—</span>;
+            return <span className="text-xs text-muted-foreground">—</span>;
           }
           return (
             <TableRowActions
@@ -216,7 +216,7 @@ export function UsersMembersTable({
           <Label htmlFor="users-member-search" className="sr-only">
             Search members
           </Label>
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ds-gray-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="users-member-search"
             value={globalFilter}
@@ -226,12 +226,12 @@ export function UsersMembersTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-ds-gray-500">
+          <div className="text-xs text-muted-foreground">
             {filteredCount} member{filteredCount !== 1 ? 's' : ''}
             {globalFilter.trim() ? ' (filtered)' : ''}
           </div>
           <div className="min-w-28">
-            <Label className="text-xs text-ds-gray-500">Rows per page</Label>
+            <Label className="text-xs text-muted-foreground">Rows per page</Label>
             <Select
               value={String(table.getState().pagination.pageSize)}
               onValueChange={(v) => table.setPageSize(Number(v))}
@@ -251,16 +251,16 @@ export function UsersMembersTable({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-160 caption-bottom text-sm"
+          className="w-full min-w-160 caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr
                 key={hg.id}
-                className="border-b border-ds-gray-100 bg-ds-gray-50/80"
+                className="border-b border-border bg-muted/60"
               >
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
@@ -274,10 +274,10 @@ export function UsersMembersTable({
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center">
-                  <div className="text-sm font-semibold text-ds-gray-900">
+                  <div className="text-sm font-semibold text-foreground">
                     No members found
                   </div>
-                  <p className="mt-1 text-sm text-ds-gray-500">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {globalFilter.trim()
                       ? 'Try a different search.'
                       : 'Invite a user or add an existing profile to a project.'}
@@ -288,13 +288,13 @@ export function UsersMembersTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell
                       key={cell.id}
                       cell={cell}
-                      className="align-middle"
+                      className="align-middle text-foreground"
                     />
                   ))}
                 </tr>
@@ -304,7 +304,7 @@ export function UsersMembersTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

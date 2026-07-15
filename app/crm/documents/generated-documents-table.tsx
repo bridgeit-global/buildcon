@@ -244,7 +244,7 @@ export function GeneratedDocumentsTable({
       accessorFn: (row) =>
         formatGeneratedDocKind(row.storage_path, Boolean(row.template_id), scheduleLabelById),
       cell: ({ row }) => (
-        <span className="text-ds-gray-800">
+        <span className="text-foreground">
           {formatGeneratedDocKind(
             row.original.storage_path,
             Boolean(row.original.template_id),
@@ -258,7 +258,7 @@ export function GeneratedDocumentsTable({
       header: 'Generated',
       accessorKey: 'generated_at',
       cell: ({ getValue }) => (
-        <span className="whitespace-nowrap text-ds-gray-600">
+        <span className="whitespace-nowrap text-muted-foreground">
           {formatDisplayDateTime(String(getValue()))}
         </span>
       )
@@ -268,7 +268,7 @@ export function GeneratedDocumentsTable({
       header: 'Record',
       accessorKey: 'storage_path',
       cell: ({ getValue }) => (
-        <span className="max-w-[220px] truncate font-mono text-[11px] text-ds-gray-600">
+        <span className="max-w-[220px] truncate font-mono text-[11px] text-muted-foreground">
           {String(getValue()).slice(0, 10)}...
         </span>
       )
@@ -283,9 +283,9 @@ export function GeneratedDocumentsTable({
       cell: ({ row }) => {
         const r = row.original;
         const bucket = storageBucketForGeneratedPath(r.storage_path);
-        if (!showDownload) return <span className="text-ds-gray-400">—</span>;
+        if (!showDownload) return <span className="text-muted-foreground">—</span>;
         if (!bucket) {
-          return <span className="text-xs text-ds-gray-500">Print log</span>;
+          return <span className="text-xs text-muted-foreground">Print log</span>;
         }
 
         const viewBusy = viewBusyId === r.id;
@@ -354,7 +354,7 @@ export function GeneratedDocumentsTable({
         header: 'Project',
         accessorFn: (row) => projectLabel(row.projects),
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{projectLabel(row.original.projects)}</span>
+          <span className="text-foreground">{projectLabel(row.original.projects)}</span>
         )
       },
       kindCol,
@@ -365,7 +365,7 @@ export function GeneratedDocumentsTable({
         cell: ({ row }) => {
           const id = row.original.booking_id;
           const code = unitCodeFromBooking(row.original.bookings);
-          if (!id) return <span className="text-ds-gray-500">—</span>;
+          if (!id) return <span className="text-muted-foreground">—</span>;
           return (
             <div className="min-w-[8rem]">
               <Link
@@ -383,7 +383,7 @@ export function GeneratedDocumentsTable({
         header: 'Customer',
         accessorFn: (row) => customerLabel(row.customers),
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{customerLabel(row.original.customers)}</span>
+          <span className="text-foreground">{customerLabel(row.original.customers)}</span>
         )
       },
       generatedCol,
@@ -415,9 +415,9 @@ export function GeneratedDocumentsTable({
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="w-full sm:max-w-sm">
-          <Label className="text-ds-gray-600">Search generated</Label>
+          <Label className="text-muted-foreground">Search generated</Label>
           <div className="relative mt-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ds-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
               value={globalFilter}
@@ -433,7 +433,7 @@ export function GeneratedDocumentsTable({
               Refresh
             </Button>
           ) : null}
-          <Label className="sr-only sm:not-sr-only sm:text-ds-gray-600">Rows</Label>
+          <Label className="sr-only sm:not-sr-only sm:text-muted-foreground">Rows</Label>
           <Select
             value={String(table.getState().pagination.pageSize)}
             onValueChange={(v) => table.setPageSize(Number(v))}
@@ -452,18 +452,18 @@ export function GeneratedDocumentsTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
           className={
             variant === 'bookingFocus'
-              ? 'w-full min-w-[40rem] caption-bottom text-sm'
-              : 'w-full min-w-[56rem] caption-bottom text-sm'
+              ? 'w-full min-w-[40rem] caption-bottom text-sm text-foreground'
+              : 'w-full min-w-[56rem] caption-bottom text-sm text-foreground'
           }
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -475,7 +475,7 @@ export function GeneratedDocumentsTable({
               <CrmTableBodySkeleton colSpan={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
+                <td colSpan={columns.length} className="px-4 py-12 text-center text-muted-foreground">
                   {rows.length === 0
                     ? 'No generated records yet.'
                     : 'No rows match your search.'}
@@ -483,7 +483,7 @@ export function GeneratedDocumentsTable({
               </tr>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
+                <tr key={row.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                   ))}
@@ -494,7 +494,7 @@ export function GeneratedDocumentsTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

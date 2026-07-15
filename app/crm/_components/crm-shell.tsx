@@ -127,13 +127,13 @@ export function CrmShell({
               >
                 <Link
                   href="/crm/dashboard"
-                  className="font-medium text-ds-gray-600 underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+                  className="font-medium text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
                 >
                   Dashboard
                 </Link>
                 {!isDashboardRoot ? (
                   <>
-                    <span className="text-ds-gray-400" aria-hidden>
+                    <span className="text-muted-foreground/70" aria-hidden>
                       /
                     </span>
                     <span className="max-w-[220px] truncate font-medium text-foreground">
@@ -155,7 +155,7 @@ export function CrmShell({
             >
               <Link
                 href="/crm/dashboard"
-                className="font-medium text-ds-gray-600"
+                className="font-medium text-muted-foreground"
               >
                 Dashboard
               </Link>

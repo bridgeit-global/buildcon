@@ -116,7 +116,7 @@ export function BookingLedgerTable({
         header: 'Date',
         accessorKey: 'sortDate',
         cell: ({ row }) => (
-          <span className="whitespace-nowrap tabular-nums text-ds-gray-700">
+          <span className="whitespace-nowrap tabular-nums text-foreground">
             {formatDisplayDate(
               row.original.sortDate === '1970-01-01' ||
                 row.original.sortDate === '2099-12-31'
@@ -148,8 +148,8 @@ export function BookingLedgerTable({
         accessorKey: 'label',
         cell: ({ row }) => (
           <div>
-            <div className="font-medium text-ds-gray-900">{row.original.label}</div>
-            <div className="text-xs text-ds-gray-500">{row.original.detail}</div>
+            <div className="font-medium text-foreground">{row.original.label}</div>
+            <div className="text-xs text-muted-foreground">{row.original.detail}</div>
           </div>
         )
       },
@@ -158,7 +158,7 @@ export function BookingLedgerTable({
         header: 'Amount',
         accessorKey: 'amount',
         cell: ({ row }) => (
-          <span className="tabular-nums font-semibold text-ds-gray-900">
+          <span className="tabular-nums font-semibold text-foreground">
             {row.original.type === 'debit' ? '+' : '−'}
             {formatInr(row.original.amount, { maximumFractionDigits: 0 })}
           </span>
@@ -175,7 +175,7 @@ export function BookingLedgerTable({
                 ? 'text-ds-error-700'
                 : row.original.runningBalance < 0
                   ? 'text-ds-success-700'
-                  : 'text-ds-gray-700'
+                  : 'text-foreground'
             }`}
           >
             {formatInr(Math.abs(row.original.runningBalance), {
@@ -208,14 +208,14 @@ export function BookingLedgerTable({
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table
-        className="w-full min-w-[40rem] caption-bottom text-sm"
+        className="w-full min-w-[40rem] caption-bottom text-sm text-foreground"
         style={{ width: table.getCenterTotalSize() }}
       >
         <thead>
           {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+            <tr key={hg.id} className="border-b border-border bg-muted/60">
               {hg.headers.map((h) => (
                 <CrmDataTableHead key={h.id} header={h} />
               ))}
@@ -227,14 +227,14 @@ export function BookingLedgerTable({
             <CrmTableBodySkeleton colSpan={columns.length} />
           ) : table.getRowModel().rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-12 text-center text-ds-gray-500">
+              <td colSpan={columns.length} className="px-4 py-12 text-center text-muted-foreground">
                 No ledger entries yet. Demands appear from the payment schedule; credits when you
                 post collections.
               </td>
             </tr>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
+              <tr key={row.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
                 {row.getVisibleCells().map((cell) => (
                   <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
                 ))}

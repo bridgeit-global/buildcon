@@ -310,6 +310,19 @@
   --crm-accent-foreground: #ffffff;
   --crm-canvas: #020617;
 
+  /* Neutrals invert so text/bg-ds-gray-* stay readable (bare .dark is stripped by Tailwind) */
+  --ds-gray-25: #0b1220;
+  --ds-gray-50: #111827;
+  --ds-gray-100: #1f2937;
+  --ds-gray-200: #374151;
+  --ds-gray-300: #4b5563;
+  --ds-gray-400: #9ca3af;
+  --ds-gray-500: #9ca3af;
+  --ds-gray-600: #d1d5db;
+  --ds-gray-700: #e5e7eb;
+  --ds-gray-800: #f3f4f6;
+  --ds-gray-900: #f9fafb;
+
   --ds-primary-25: #172554;
   --ds-primary-50: #1e3a8a;
   --ds-primary-100: #1e40af;
@@ -362,6 +375,18 @@
   --crm-accent-foreground: #022c22;
   --crm-canvas: #0c0a09;
 
+  --ds-gray-25: #0b1220;
+  --ds-gray-50: #111827;
+  --ds-gray-100: #1f2937;
+  --ds-gray-200: #374151;
+  --ds-gray-300: #4b5563;
+  --ds-gray-400: #9ca3af;
+  --ds-gray-500: #9ca3af;
+  --ds-gray-600: #d1d5db;
+  --ds-gray-700: #e5e7eb;
+  --ds-gray-800: #f3f4f6;
+  --ds-gray-900: #f9fafb;
+
   --ds-primary-25: #022c22;
   --ds-primary-50: #064e3b;
   --ds-primary-100: #065f46;
@@ -413,6 +438,18 @@
   --crm-accent: #d4a84a;
   --crm-accent-foreground: #18181b;
   --crm-canvas: #09090b;
+
+  --ds-gray-25: #0b1220;
+  --ds-gray-50: #111827;
+  --ds-gray-100: #1f2937;
+  --ds-gray-200: #374151;
+  --ds-gray-300: #4b5563;
+  --ds-gray-400: #9ca3af;
+  --ds-gray-500: #9ca3af;
+  --ds-gray-600: #d1d5db;
+  --ds-gray-700: #e5e7eb;
+  --ds-gray-800: #f3f4f6;
+  --ds-gray-900: #f9fafb;
 
   --ds-primary-25: #3d2a0c;
   --ds-primary-50: #6b4a17;

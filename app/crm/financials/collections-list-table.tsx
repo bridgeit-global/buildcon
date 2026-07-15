@@ -81,10 +81,10 @@ export function CollectionsListTable({
         accessorFn: (r) => r.received_amount,
         cell: ({ row }) => (
           <div className="min-w-36">
-            <div className="font-semibold text-ds-gray-900 tabular-nums">
+            <div className="font-semibold text-foreground tabular-nums">
               ₹ {formatInr(Number(row.original.received_amount || 0), { maximumFractionDigits: 0 })}
             </div>
-            <div className="text-[11px] text-ds-gray-500">
+            <div className="text-[11px] text-muted-foreground">
               {formatDisplayDate(row.original.received_at)}
             </div>
           </div>
@@ -98,7 +98,7 @@ export function CollectionsListTable({
           return scheduleLabelById.get(r.schedule_id) ?? '—';
         },
         cell: ({ getValue }) => (
-          <span className="block min-w-48 max-w-[18rem] truncate text-sm text-ds-gray-700">
+          <span className="block min-w-48 max-w-[18rem] truncate text-sm text-foreground">
             {String(getValue() || '—')}
           </span>
         ),
@@ -110,10 +110,10 @@ export function CollectionsListTable({
         accessorFn: (r) => `${r.mode ?? ''} ${r.reference ?? ''}`.trim(),
         cell: ({ row }) => (
           <div className="min-w-48 max-w-[18rem]">
-            <div className="truncate text-sm font-medium text-ds-gray-900">
+            <div className="truncate text-sm font-medium text-foreground">
               {row.original.mode ?? '—'}
             </div>
-            <div className="truncate text-[11px] text-ds-gray-500">
+            <div className="truncate text-[11px] text-muted-foreground">
               {row.original.reference ?? '—'}
             </div>
           </div>
@@ -179,7 +179,7 @@ export function CollectionsListTable({
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-56 flex-1">
-          <Label htmlFor="collections-search" className="text-xs text-ds-gray-500">
+          <Label htmlFor="collections-search" className="text-xs text-muted-foreground">
             Search
           </Label>
           <Input
@@ -192,14 +192,14 @@ export function CollectionsListTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-4xl caption-bottom text-sm"
+          className="w-full min-w-4xl caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -213,7 +213,7 @@ export function CollectionsListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-muted-foreground"
                 >
                   No collections match the current filters.
                 </td>
@@ -222,7 +222,7 @@ export function CollectionsListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
@@ -234,7 +234,7 @@ export function CollectionsListTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           {table.getFilteredRowModel().rows.length} row
           {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}

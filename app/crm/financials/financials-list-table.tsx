@@ -91,7 +91,7 @@ export function FinancialsListTable({
         header: 'Project',
         accessorFn: (row) => projectNameById.get(row.project_id) ?? '',
         cell: ({ row }) => (
-          <span className="text-xs text-ds-gray-600">
+          <span className="text-xs text-muted-foreground">
             {projectNameById.get(row.original.project_id) ?? '—'}
           </span>
         )
@@ -101,7 +101,7 @@ export function FinancialsListTable({
         header: 'Unit',
         accessorKey: 'unit_code',
         cell: ({ row }) => (
-          <span className="font-medium text-ds-gray-900">
+          <span className="font-medium text-foreground">
             {row.original.unit_code}
           </span>
         )
@@ -111,7 +111,7 @@ export function FinancialsListTable({
         header: 'Buyer',
         accessorKey: 'customer_name',
         cell: ({ row }) => (
-          <span className="text-ds-gray-800">{row.original.customer_name}</span>
+          <span className="text-foreground">{row.original.customer_name}</span>
         )
       },
       {
@@ -120,7 +120,7 @@ export function FinancialsListTable({
         accessorFn: (r) => r.unit_status ?? '',
         cell: ({ row }) => {
           const code = String(row.original.unit_status ?? '').toUpperCase();
-          if (!code) return <span className="text-ds-gray-400">—</span>;
+          if (!code) return <span className="text-muted-foreground">—</span>;
           return <UnitStatusChip status={code} size="md" />;
         }
       },
@@ -129,7 +129,7 @@ export function FinancialsListTable({
         header: 'Final price',
         accessorFn: (r) => r.total_demand,
         cell: ({ row }) => (
-          <span className="tabular-nums text-ds-gray-800">
+          <span className="tabular-nums text-foreground">
             {formatInrCompactLacCr(row.original.total_demand)}
           </span>
         )
@@ -154,7 +154,7 @@ export function FinancialsListTable({
               'tabular-nums font-medium',
               row.original.balance > 0
                 ? 'text-ds-error-700'
-                : 'text-ds-gray-500'
+                : 'text-muted-foreground'
             )}
           >
             {formatInrCompactLacCr(row.original.balance)}
@@ -171,7 +171,7 @@ export function FinancialsListTable({
               {formatInrCompactLacCr(row.original.overdue)}
             </span>
           ) : (
-            <span className="text-ds-gray-400">—</span>
+            <span className="text-muted-foreground">—</span>
           )
       },
       {
@@ -220,7 +220,7 @@ export function FinancialsListTable({
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="max-w-md"
         />
-        <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>
             {table.getFilteredRowModel().rows.length} booking
             {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
@@ -243,14 +243,14 @@ export function FinancialsListTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-[56rem] caption-bottom text-sm"
+          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -264,7 +264,7 @@ export function FinancialsListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-muted-foreground"
                 >
                   {globalFilter
                     ? 'No bookings match your search.'
@@ -275,7 +275,7 @@ export function FinancialsListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
@@ -287,7 +287,7 @@ export function FinancialsListTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

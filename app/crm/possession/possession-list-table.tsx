@@ -103,7 +103,7 @@ export function PossessionListTable({
         header: 'Project',
         accessorKey: 'projectName',
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{row.original.projectName}</span>
+          <span className="text-foreground">{row.original.projectName}</span>
         )
       },
       {
@@ -111,7 +111,7 @@ export function PossessionListTable({
         header: 'Unit',
         accessorKey: 'unitCode',
         cell: ({ row }) => (
-          <span className="font-semibold text-ds-gray-900">{row.original.unitCode}</span>
+          <span className="font-semibold text-foreground">{row.original.unitCode}</span>
         )
       },
       {
@@ -119,7 +119,7 @@ export function PossessionListTable({
         header: 'Customer',
         accessorKey: 'customerName',
         cell: ({ row }) => (
-          <span className="text-ds-gray-700">{row.original.customerName}</span>
+          <span className="text-foreground">{row.original.customerName}</span>
         )
       },
       {
@@ -142,7 +142,7 @@ export function PossessionListTable({
         cell: ({ row }) => {
           const { done, total } = countChecklistDone(row.original.checklist);
           return (
-            <span className="text-ds-gray-700">
+            <span className="text-foreground">
               {done}/{total} complete
             </span>
           );
@@ -153,7 +153,7 @@ export function PossessionListTable({
         header: 'Workflow',
         accessorFn: (row) => POSSESSION_WORKFLOW_LABELS[row.workflowStage],
         cell: ({ row }) => (
-          <span className="text-ds-gray-600 text-xs">
+          <span className="text-muted-foreground text-xs">
             {POSSESSION_WORKFLOW_LABELS[row.original.workflowStage]}
           </span>
         )
@@ -210,7 +210,7 @@ export function PossessionListTable({
               Search
             </Label>
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ds-gray-400"
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
             />
             <Input
@@ -242,20 +242,20 @@ export function PossessionListTable({
             </Select>
           </div>
         </div>
-        <p className="text-xs text-ds-gray-500">
+        <p className="text-xs text-muted-foreground">
           {table.getFilteredRowModel().rows.length} unit
           {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-[56rem] caption-bottom text-sm"
+          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -269,7 +269,7 @@ export function PossessionListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-muted-foreground"
                 >
                   No units in possession-ready or possession-given status for your
                   projects. Mark a registered unit as &quot;Possession ready&quot; in
@@ -280,7 +280,7 @@ export function PossessionListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
@@ -292,7 +292,7 @@ export function PossessionListTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
           <span>Rows per page</span>
           <Select

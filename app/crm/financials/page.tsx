@@ -359,8 +359,8 @@ export default function FinancialsPage() {
             {exporting === 'receipts' ? 'Exporting…' : 'Export receipts CSV'}
           </Button>
         </div> */}
-        <div className="text-sm font-semibold text-ds-gray-900">Bookings</div>
-        <p className="text-xs text-ds-gray-500">
+        <div className="text-sm font-semibold text-foreground">Bookings</div>
+        <p className="text-xs text-muted-foreground">
           Select Manage to open payment schedule and collection entry for a booking.
         </p>
           <FinancialsListTable

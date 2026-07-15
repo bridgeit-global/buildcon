@@ -66,10 +66,10 @@ export function PaymentScheduleTable({
     (actions ? 8 : 7) + (receiptsBySchedule ? 1 : 0) + (demandCell ? 1 : 0);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
-      <table className="w-full min-w-4xl caption-bottom text-sm">
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full min-w-4xl caption-bottom text-sm text-foreground">
         <thead>
-          <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+          <tr className="border-b border-border bg-muted/60">
             {[
               '#',
               'Milestone',
@@ -84,7 +84,7 @@ export function PaymentScheduleTable({
             ].map((h) => (
                 <th
                   key={h}
-                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500"
+                  className="h-10 px-4 text-left align-middle text-xs font-semibold text-muted-foreground"
                 >
                   {h}
                 </th>
@@ -123,15 +123,15 @@ export function PaymentScheduleTable({
                       }, null)
                     : null;
                 return (
-                  <tr key={s.id ?? s.instalment_no} className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60">
-                    <td className={`${cellPad} text-ds-gray-600`}>{s.instalment_no}</td>
-                    <td className={`${cellPad} font-semibold text-ds-gray-900`}>
+                  <tr key={s.id ?? s.instalment_no} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
+                    <td className={`${cellPad} text-muted-foreground`}>{s.instalment_no}</td>
+                    <td className={`${cellPad} font-semibold text-foreground`}>
                       {s.milestone}
                     </td>
-                    <td className={`${cellPad} text-ds-gray-600`}>
+                    <td className={`${cellPad} text-muted-foreground`}>
                       {formatDisplayDate(s.due_date)}
                     </td>
-                    <td className={`${cellPad} text-ds-gray-700`}>
+                    <td className={`${cellPad} text-foreground`}>
                       ₹ {formatInr(Number(s.amount || 0), { maximumFractionDigits: 0 })}
                     </td>
                     <td className={`${cellPad} font-semibold text-ds-success-700`}>
@@ -146,10 +146,10 @@ export function PaymentScheduleTable({
                           receiptCell(calcRow)
                         ) : receiptsCount > 0 ? (
                           <div className="space-y-0.5">
-                            <div className="text-xs font-semibold text-ds-gray-900">
+                            <div className="text-xs font-semibold text-foreground">
                               {receiptsCount} {receiptsCount === 1 ? 'receipt' : 'receipts'}
                             </div>
-                            <div className="text-xs text-ds-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               Latest:{' '}
                               {formatDisplayDate(
                                 latestReceipt?.received_at || latestReceipt?.created_at || null
@@ -162,13 +162,13 @@ export function PaymentScheduleTable({
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-ds-gray-500">—</span>
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
                     ) : null}
                     {demandCell ? <td className={cellPad}>{demandCell(calcRow)}</td> : null}
                     <td className={cellPad}>
-                      <span className="rounded-full border border-ds-gray-200 px-2 py-0.5 text-xs text-ds-gray-700">
+                      <span className="rounded-full border border-border px-2 py-0.5 text-xs text-foreground">
                         {status}
                       </span>
                     </td>
@@ -185,7 +185,7 @@ export function PaymentScheduleTable({
             <tr>
               <td
                 colSpan={colCount}
-                className="px-4 py-12 text-center text-ds-gray-500"
+                className="px-4 py-12 text-center text-muted-foreground"
               >
                 {onlyUnpaid
                   ? 'No unpaid instalments in this schedule.'
@@ -196,14 +196,14 @@ export function PaymentScheduleTable({
         </tbody>
         {displayRows.length > 0 && !loading ? (
           <tfoot>
-            <tr className="border-t border-ds-gray-100 bg-ds-gray-50/80">
+            <tr className="border-t border-border bg-muted/60">
               <td
                 colSpan={3}
-                className="px-4 py-3 font-semibold text-ds-gray-900"
+                className="px-4 py-3 font-semibold text-foreground"
               >
                 {onlyUnpaid ? 'Total (unpaid)' : 'Total'}
               </td>
-              <td className="px-4 py-3 font-semibold text-ds-gray-900">
+              <td className="px-4 py-3 font-semibold text-foreground">
                 ₹ {formatInr(totalAmount, { maximumFractionDigits: 0 })}
               </td>
               <td className="px-4 py-3 font-semibold text-ds-success-700">

@@ -159,8 +159,8 @@ export default function BrokersPage() {
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-ds-gray-900">Brokers</div>
-          <div className="text-xs text-ds-gray-500">
+          <div className="text-sm font-semibold text-foreground">Brokers</div>
+          <div className="text-xs text-muted-foreground">
             Search broker records or add a new broker to the directory.
           </div>
         </div>
@@ -271,10 +271,10 @@ export default function BrokersPage() {
 
       <Card className="p-4">
         <div className="mb-4">
-          <div className="text-sm font-semibold text-ds-gray-900">
+          <div className="text-sm font-semibold text-foreground">
             Brokers
           </div>
-          <div className="text-xs text-ds-gray-500">
+          <div className="text-xs text-muted-foreground">
             {loading && brokers.length === 0 ? (
               <CrmSkeletonBar className="inline-block w-16" />
             ) : (
@@ -293,7 +293,7 @@ export default function BrokersPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-          <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Select
               value={String(pageSize)}
               onValueChange={(v) => {
@@ -326,7 +326,7 @@ export default function BrokersPage() {
           }}
         />
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="tabular-nums">
             Page {pageIndex + 1} of {pageCount}
           </span>

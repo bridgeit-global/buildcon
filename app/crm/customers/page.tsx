@@ -211,10 +211,10 @@ export default function CustomersPage() {
       {/* Card 2 — Customer list table */}
       <Card className="p-4">
         <div className="mb-4">
-          <div className="text-sm font-semibold text-ds-gray-900">
+          <div className="text-sm font-semibold text-foreground">
             Customers
           </div>
-          <div className="text-xs text-ds-gray-500">
+          <div className="text-xs text-muted-foreground">
             {loading && customers.length === 0 ? (
               <CrmSkeletonBar className="inline-block w-16" />
             ) : (
@@ -233,7 +233,7 @@ export default function CustomersPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-          <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Select
               value={String(pageSize)}
               onValueChange={(v) => {
@@ -266,7 +266,7 @@ export default function CustomersPage() {
           }}
         />
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="tabular-nums">
             Page {pageIndex + 1} of {pageCount}
           </span>

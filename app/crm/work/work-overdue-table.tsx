@@ -83,7 +83,7 @@ export function WorkOverdueTable({
         header: 'Project',
         accessorKey: 'projectName',
         cell: ({ row }) => (
-          <span className="max-w-[120px] truncate text-xs text-ds-gray-600">
+          <span className="max-w-[120px] truncate text-xs text-muted-foreground">
             {row.original.projectName}
           </span>
         )
@@ -126,7 +126,7 @@ export function WorkOverdueTable({
         header: 'Due',
         accessorKey: 'due_date',
         cell: ({ row }) => (
-          <span className="text-xs text-ds-gray-600">
+          <span className="text-xs text-muted-foreground">
             {formatDisplayDate(row.original.due_date)}
           </span>
         )
@@ -191,7 +191,7 @@ export function WorkOverdueTable({
           onChange={(e) => setGlobalFilter(e.target.value)}
           className="max-w-md"
         />
-        <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>
             {table.getFilteredRowModel().rows.length} line
             {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
@@ -216,14 +216,14 @@ export function WorkOverdueTable({
 
       <div className="overflow-x-auto">
         <table
-          className="w-full min-w-[720px] caption-bottom text-sm"
+          className="w-full min-w-[720px] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr
                 key={hg.id}
-                className="border-b border-ds-gray-100 bg-ds-gray-50/80"
+                className="border-b border-border bg-muted/60"
               >
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
@@ -238,7 +238,7 @@ export function WorkOverdueTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-ds-gray-500"
+                  className="px-4 py-12 text-center text-muted-foreground"
                 >
                   {globalFilter
                     ? 'No lines match your search.'
@@ -249,7 +249,7 @@ export function WorkOverdueTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell
@@ -269,7 +269,7 @@ export function WorkOverdueTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}

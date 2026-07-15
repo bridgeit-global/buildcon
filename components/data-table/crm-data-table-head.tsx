@@ -14,7 +14,7 @@ export function CrmDataTableHead<TData>({ header, className }: CrmDataTableHeadP
     return (
       <th
         className={cn(
-          'relative h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500',
+          'relative h-10 px-4 text-left align-middle text-xs font-semibold text-muted-foreground',
           className
         )}
         style={{ width: header.getSize() }}
@@ -29,7 +29,7 @@ export function CrmDataTableHead<TData>({ header, className }: CrmDataTableHeadP
   return (
     <th
       className={cn(
-        'relative h-10 px-4 text-left align-middle text-xs font-semibold text-ds-gray-500',
+        'relative h-10 px-4 text-left align-middle text-xs font-semibold text-muted-foreground',
         className
       )}
       style={{ width: header.getSize() }}
@@ -37,7 +37,7 @@ export function CrmDataTableHead<TData>({ header, className }: CrmDataTableHeadP
       {canSort ? (
         <button
           type="button"
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-md pr-2 outline-offset-2 hover:text-ds-gray-800 focus-visible:ring-2 focus-visible:ring-ds-primary-500"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md pr-2 outline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ds-primary-500"
           onClick={header.column.getToggleSortingHandler()}
         >
           <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>

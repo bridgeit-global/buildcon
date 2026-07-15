@@ -83,7 +83,7 @@ const exactOrAll: FilterFn<UnitRow> = (row, columnId, value) => {
   return cellValue === value;
 };
 
-const filterLabelClass = 'text-xs text-ds-gray-500';
+const filterLabelClass = 'text-xs text-muted-foreground';
 
 type Props = ServerSortedTableProps & {
   units: UnitRow[];
@@ -126,7 +126,7 @@ export function InventoryListTable({
         header: 'Unit No.',
         accessorKey: 'unit_code',
         cell: ({ row }) => (
-          <span className="text-[11px] font-semibold text-ds-gray-800">
+          <span className="text-[11px] font-semibold text-foreground">
             {row.original.unit_code}
           </span>
         )
@@ -137,7 +137,7 @@ export function InventoryListTable({
         accessorKey: 'wing_name',
         filterFn: exactOrAll,
         cell: ({ row }) => (
-          <span className="max-w-[140px] truncate text-[11px] text-ds-gray-500">
+          <span className="max-w-[140px] truncate text-[11px] text-muted-foreground">
             {row.original.wing_name}
           </span>
         )
@@ -148,7 +148,7 @@ export function InventoryListTable({
         accessorKey: 'floor',
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span className="text-[11px] text-ds-gray-500">
+          <span className="text-[11px] text-muted-foreground">
             {formatFloorLabel(row.original.floor, row.original.unit_type)}
           </span>
         )
@@ -160,7 +160,7 @@ export function InventoryListTable({
         filterFn: exactOrAll,
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span className="text-[11px] text-ds-gray-500">
+          <span className="text-[11px] text-muted-foreground">
             {row.original.unit_type ?? '—'}
           </span>
         )
@@ -184,7 +184,7 @@ export function InventoryListTable({
               : null
           ].filter(Boolean);
           return (
-            <span className="text-[10px] leading-snug text-ds-gray-700">
+            <span className="text-[10px] leading-snug text-foreground">
               {parts.join(' · ') || (u.area ?? '—')}
             </span>
           );
@@ -196,7 +196,7 @@ export function InventoryListTable({
         accessorKey: 'rate',
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span className="text-[11px] text-ds-gray-800">
+          <span className="text-[11px] text-foreground">
             {(Number(row.original.rate) || 0).toLocaleString('en-IN')}
           </span>
         )
@@ -220,7 +220,7 @@ export function InventoryListTable({
         cell: ({ row }) => {
           const p = row.original.parking_slots_included;
           return (
-            <span className="text-[11px] text-ds-gray-600">
+            <span className="text-[11px] text-muted-foreground">
               {p != null && Number(p) > 0 ? String(p) : '—'}
             </span>
           );
@@ -362,7 +362,7 @@ export function InventoryListTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-          <span className="text-xs text-ds-gray-500">{filteredCount} units</span>
+          <span className="text-xs text-muted-foreground">{filteredCount} units</span>
           <Button variant="outline" size="sm" onClick={onRefresh}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
@@ -370,14 +370,14 @@ export function InventoryListTable({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-[56rem] caption-bottom border-collapse text-sm"
+          className="w-full min-w-[56rem] caption-bottom border-collapse text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
-          <thead className="sticky top-0 z-[1] bg-ds-gray-50/90">
+          <thead className="sticky top-0 z-[1] bg-muted/60">
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100">
+              <tr key={hg.id} className="border-b border-border">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead
                     key={h.id}
@@ -395,7 +395,7 @@ export function InventoryListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="cursor-pointer border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                   onClick={() => onOpenDetail(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -407,7 +407,7 @@ export function InventoryListTable({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-xs text-ds-gray-500"
+                  className="px-4 py-12 text-center text-xs text-muted-foreground"
                 >
                   No units match the current filters.
                 </td>
@@ -420,7 +420,7 @@ export function InventoryListTable({
       {/* Pagination */}
       {filteredCount > 0 && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-ds-gray-500">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Rows per page</span>
             <Select
               value={String(pageSize)}
@@ -439,7 +439,7 @@ export function InventoryListTable({
             </Select>
           </div>
 
-          <div className="flex items-center gap-1 text-xs text-ds-gray-500">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>
               {pageIndex * pageSize + 1}–
               {Math.min((pageIndex + 1) * pageSize, filteredCount)} of{' '}

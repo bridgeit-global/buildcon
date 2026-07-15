@@ -75,9 +75,9 @@ export function ProjectListTable({
           const p = row.original;
           return (
             <div className="min-w-[10rem]">
-              <div className="font-semibold text-ds-gray-900">{p.name}</div>
+              <div className="font-semibold text-foreground">{p.name}</div>
               {p.location ? (
-                <div className="mt-0.5 text-xs text-ds-gray-500">{p.location}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{p.location}</div>
               ) : null}
             </div>
           );
@@ -88,7 +88,7 @@ export function ProjectListTable({
         header: 'Type',
         accessorKey: 'type',
         cell: ({ getValue }) => (
-          <span className="text-ds-gray-700">{String(getValue() ?? '—')}</span>
+          <span className="text-foreground">{String(getValue() ?? '—')}</span>
         )
       },
       {
@@ -109,7 +109,7 @@ export function ProjectListTable({
         header: 'FY',
         accessorFn: (row) => row.fy ?? '—',
         cell: ({ getValue }) => (
-          <span className="text-ds-gray-600">{String(getValue())}</span>
+          <span className="text-muted-foreground">{String(getValue())}</span>
         )
       },
       {
@@ -117,7 +117,7 @@ export function ProjectListTable({
         header: 'Wings',
         accessorKey: 'wing_count',
         cell: ({ getValue }) => (
-          <span className="tabular-nums text-ds-gray-700">{String(getValue() ?? 0)}</span>
+          <span className="tabular-nums text-foreground">{String(getValue() ?? 0)}</span>
         )
       },
       {
@@ -125,7 +125,7 @@ export function ProjectListTable({
         header: 'Units',
         accessorKey: 'unit_count',
         cell: ({ getValue }) => (
-          <span className="tabular-nums text-ds-gray-700">{String(getValue() ?? 0)}</span>
+          <span className="tabular-nums text-foreground">{String(getValue() ?? 0)}</span>
         )
       },
       {
@@ -133,7 +133,7 @@ export function ProjectListTable({
         header: 'Members',
         accessorKey: 'member_count',
         cell: ({ getValue }) => (
-          <span className="tabular-nums text-ds-gray-700">{String(getValue() ?? 0)}</span>
+          <span className="tabular-nums text-foreground">{String(getValue() ?? 0)}</span>
         )
       },
       {
@@ -143,7 +143,7 @@ export function ProjectListTable({
         cell: ({ row }) => {
           const rate = row.original.base_rate;
           return (
-            <span className="text-ds-gray-700">
+            <span className="text-foreground">
               {rate != null
                 ? `₹ ${formatInr(rate, { maximumFractionDigits: 0 })}/sq.ft`
                 : '—'}
@@ -217,13 +217,13 @@ export function ProjectListTable({
   const filteredCount = table.getFilteredRowModel().rows.length;
 
   return (
-    <Card className="overflow-hidden rounded-xl border-ds-gray-200 p-4 shadow-sm">
+    <Card className="overflow-hidden rounded-xl border-border p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
           <Label htmlFor="project-search" className="sr-only">
             Search projects
           </Label>
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ds-gray-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="project-search"
             value={globalFilter}
@@ -233,7 +233,7 @@ export function ProjectListTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-ds-gray-500">
+          <div className="text-xs text-muted-foreground">
             {loading && projects.length === 0 ? (
               <CrmSkeletonBar className="inline-block w-16" />
             ) : (
@@ -244,7 +244,7 @@ export function ProjectListTable({
             )}
           </div>
           <div className="min-w-[7rem]">
-            <Label className="text-xs text-ds-gray-500">Rows per page</Label>
+            <Label className="text-xs text-muted-foreground">Rows per page</Label>
             <Select
               value={String(table.getState().pagination.pageSize)}
               onValueChange={(v) => table.setPageSize(Number(v))}
@@ -264,14 +264,14 @@ export function ProjectListTable({
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-ds-gray-200">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-border">
         <table
-          className="w-full min-w-[56rem] caption-bottom text-sm"
+          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
           style={{ width: table.getCenterTotalSize() }}
         >
           <thead>
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-ds-gray-100 bg-ds-gray-50/80">
+              <tr key={hg.id} className="border-b border-border bg-muted/60">
                 {hg.headers.map((h) => (
                   <CrmDataTableHead key={h.id} header={h} />
                 ))}
@@ -284,8 +284,8 @@ export function ProjectListTable({
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-12 text-center">
-                  <div className="text-sm font-semibold text-ds-gray-900">No projects found</div>
-                  <p className="mt-1 text-sm text-ds-gray-500">
+                  <div className="text-sm font-semibold text-foreground">No projects found</div>
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {canCreateProject
                       ? 'Create a project to get started.'
                       : 'Ask an admin to add you to a project.'}
@@ -301,7 +301,7 @@ export function ProjectListTable({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-ds-gray-100 last:border-0 transition-colors hover:bg-ds-gray-50/60"
+                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
@@ -313,7 +313,7 @@ export function ProjectListTable({
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ds-gray-500">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="tabular-nums">
           Page {table.getState().pagination.pageIndex + 1} of{' '}
           {Math.max(1, table.getPageCount())}
