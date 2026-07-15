@@ -31,6 +31,14 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import { FormDialog } from '@/components/ui/form-dialog';
 import { StatusChip } from '@/components/ui/status-chip';
 import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
@@ -71,6 +79,9 @@ export function ProjectDocumentTemplatesManage({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('Template preview');
   const [dialogHtml, setDialogHtml] = useState('');
+
+  const [deleteTarget, setDeleteTarget] = useState<DocumentTemplateRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const usedKinds = useMemo(
     () => new Set(rows.map((r) => r.doc_kind)),
@@ -242,29 +253,28 @@ export function ProjectDocumentTemplatesManage({
     }
   }
 
-  async function deleteTemplate(row: DocumentTemplateRow) {
+  function requestDeleteTemplate(row: DocumentTemplateRow) {
     if (!canEdit) return;
-    if (
-      !window.confirm(
-        `Delete the ${DOCUMENT_TEMPLATE_KIND_LABEL[row.doc_kind]} template? Generation will fall back to the built-in layout.`
-      )
-    ) {
-      return;
-    }
-    setSaving(true);
+    setDeleteTarget(row);
+  }
+
+  async function confirmDeleteTemplate() {
+    if (!canEdit || !deleteTarget) return;
+    setDeleting(true);
     try {
       const { error } = await supabase
         .from('document_templates')
         .delete()
-        .eq('id', row.id);
+        .eq('id', deleteTarget.id);
       if (error) throw error;
       toast.success('Template deleted.');
-      if (editingId === row.id) resetForm();
+      if (editingId === deleteTarget.id) resetForm();
+      setDeleteTarget(null);
       await load();
     } catch (e) {
       pageError(e instanceof Error ? e.message : 'Failed to delete template');
     } finally {
-      setSaving(false);
+      setDeleting(false);
     }
   }
 
@@ -369,8 +379,8 @@ export function ProjectDocumentTemplatesManage({
                               size="sm"
                               variant="outline"
                               className="gap-1.5"
-                              onClick={() => void deleteTemplate(row)}
-                              disabled={saving}
+                              onClick={() => requestDeleteTemplate(row)}
+                              disabled={saving || deleting}
                             >
                               <Trash2 className="size-3.5" />
                               Delete
@@ -539,6 +549,51 @@ export function ProjectDocumentTemplatesManage({
           </p>
         </Card>
       )}
+
+      <Dialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg border-ds-gray-200 p-0">
+          <DialogHeader className="border-b border-ds-gray-100 bg-linear-to-br from-ds-error-50/60 to-card px-4 py-4 sm:px-6">
+            <DialogTitle className="text-left text-base font-semibold text-ds-gray-900">
+              Delete template
+            </DialogTitle>
+            <DialogDescription className="text-left text-xs text-ds-gray-600">
+              {deleteTarget
+                ? `Remove the ${DOCUMENT_TEMPLATE_KIND_LABEL[deleteTarget.doc_kind]} template${
+                    deleteTarget.name ? ` (“${deleteTarget.name}”)` : ''
+                  }. Generation will fall back to the built-in layout.`
+                : 'Remove this document template.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-4 py-4 sm:px-6">
+            <p className="text-sm text-ds-gray-700">
+              This cannot be undone. Previously generated PDFs are kept.
+            </p>
+          </div>
+          <DialogFooter className="border-t border-ds-gray-100 bg-card px-4 py-3 sm:px-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmDeleteTemplate()}
+              disabled={deleting || !deleteTarget}
+            >
+              {deleting ? 'Deleting…' : 'Delete template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <FormDialog
         open={dialogOpen}
