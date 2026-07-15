@@ -35,16 +35,28 @@ export default async function CrmLayout({ children }: { children: ReactNode }) {
   // Middleware should already enforce auth, but keep this layout resilient.
   const userEmail = user?.email ?? null;
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select(
-      'id,name,location,type,status,fy,rera_no,floors_per_wing,units_per_floor,base_rate,min_rate,max_rate'
-    )
-    .order('created_at', { ascending: false });
+  const [{ data: projects }, { data: profile }] = await Promise.all([
+    supabase
+      .from('projects')
+      .select(
+        'id,name,location,type,status,fy,rera_no,floors_per_wing,units_per_floor,base_rate,min_rate,max_rate'
+      )
+      .order('created_at', { ascending: false }),
+    user
+      ? supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null })
+  ]);
+
+  const userName = String(profile?.name ?? '').trim() || null;
 
   return (
     <CrmShell
       userEmail={userEmail}
+      userName={userName}
       projects={(projects ?? []) as CrmProject[]}
     >
       {children}

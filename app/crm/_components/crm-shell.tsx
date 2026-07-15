@@ -58,15 +58,15 @@ import {
   useSidebar
 } from '@/components/ui/sidebar';
 
-function initialsFromEmail(email: string | null) {
-  if (!email) return '?';
-  const local = email.split('@')[0] ?? '';
-  const cleaned = local.replace(/[._-]+/g, ' ').trim();
+function initialsFromLabel(label: string | null) {
+  if (!label) return '?';
+  const source = label.includes('@') ? (label.split('@')[0] ?? '') : label;
+  const cleaned = source.replace(/[._-]+/g, ' ').trim();
   const parts = cleaned.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
-  const compact = local.replace(/[^a-zA-Z0-9]/g, '');
+  const compact = source.replace(/[^a-zA-Z0-9]/g, '');
   if (compact.length >= 2) return compact.slice(0, 2).toUpperCase();
   return compact.slice(0, 1).toUpperCase() || '?';
 }
@@ -79,10 +79,12 @@ const sidebarProviderStyle = {
 
 export function CrmShell({
   userEmail,
+  userName,
   projects,
   children
 }: {
   userEmail: string | null;
+  userName: string | null;
   projects: CrmProject[];
   children: React.ReactNode;
 }) {
@@ -144,7 +146,7 @@ export function CrmShell({
                 <CrmNavSearch navItems={flatNav} />
                 <CrmNotificationBell />
                 <ThemeSwitcher compact />
-                <CrmUserMenu userEmail={userEmail} />
+                <CrmUserMenu userEmail={userEmail} userName={userName} />
               </div>
             </div>
             <nav
@@ -276,7 +278,14 @@ function CrmNavSearch({
   );
 }
 
-function CrmUserMenu({ userEmail }: { userEmail: string | null }) {
+function CrmUserMenu({
+  userEmail,
+  userName
+}: {
+  userEmail: string | null;
+  userName: string | null;
+}) {
+  const displayName = userName || userEmail || 'Account';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -287,10 +296,10 @@ function CrmUserMenu({ userEmail }: { userEmail: string | null }) {
           aria-label="User menu"
         >
           <span className="flex size-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-            {initialsFromEmail(userEmail)}
+            {initialsFromLabel(userName || userEmail)}
           </span>
           <span className="hidden max-w-[120px] truncate text-xs font-medium lg:inline">
-            {userEmail ?? 'Account'}
+            {displayName}
           </span>
         </Button>
       </DropdownMenuTrigger>
@@ -300,9 +309,15 @@ function CrmUserMenu({ userEmail }: { userEmail: string | null }) {
             <UserRound className="size-4 text-muted-foreground" aria-hidden />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-foreground">
-                {userEmail ?? 'Signed out'}
+                {userName || userEmail || 'Signed out'}
               </p>
-              <p className="text-[11px] text-muted-foreground">CRM account</p>
+              {userName && userEmail ? (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {userEmail}
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">CRM account</p>
+              )}
             </div>
           </div>
         </DropdownMenuLabel>
