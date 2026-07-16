@@ -37,8 +37,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# KYC OCR + document-scan vendor assets (copied on install/dev/build)
-/public/tesseract/
+# Document-scan vendor assets (copied on install/dev/build)
 /public/jscanify/
 
 

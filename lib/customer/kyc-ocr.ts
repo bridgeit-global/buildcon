@@ -1,80 +1,7 @@
-import {
-  isAadhaarValid,
-  isPanValid,
-  normalizeAadhaar,
-  normalizePan
-} from '@/lib/customer/kyc-identifiers';
-
-/** PAN pattern with optional spaces/hyphens between groups. */
-const PAN_LOOSE_RE = /\b([A-Za-z]{5})\s*[-]?\s*([0-9]{4})\s*[-]?\s*([A-Za-z])\b/g;
-
-/** 12-digit runs, optionally grouped as 4-4-4. */
-const AADHAAR_GROUPED_RE = /\b(\d{4})\s*[-]?\s*(\d{4})\s*[-]?\s*(\d{4})\b/g;
-const AADHAAR_PLAIN_RE = /\b(\d{12})\b/g;
-
-function looksMasked(segment: string): boolean {
-  return /x/i.test(segment);
-}
-
-/**
- * Extract the first valid PAN from OCR text.
- * Skips masked placeholders (e.g. XXXXX1234X).
- */
-export function extractPanFromText(text: string): string | null {
-  const raw = String(text ?? '');
-  PAN_LOOSE_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = PAN_LOOSE_RE.exec(raw)) !== null) {
-    if (looksMasked(m[0])) continue;
-    const pan = normalizePan(`${m[1]}${m[2]}${m[3]}`);
-    if (isPanValid(pan)) return pan;
-  }
-  // Fallback: strip noise and scan sliding 10-char windows of alphanumerics
-  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  for (let i = 0; i <= compact.length - 10; i++) {
-    const slice = compact.slice(i, i + 10);
-    if (looksMasked(slice)) continue;
-    if (isPanValid(slice)) return normalizePan(slice);
-  }
-  return null;
-}
-
-function firstAadhaarInSegment(segment: string): string | null {
-  AADHAAR_GROUPED_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = AADHAAR_GROUPED_RE.exec(segment)) !== null) {
-    if (looksMasked(m[0])) continue;
-    const digits = normalizeAadhaar(`${m[1]}${m[2]}${m[3]}`);
-    if (isAadhaarValid(digits)) return digits;
-  }
-
-  AADHAAR_PLAIN_RE.lastIndex = 0;
-  while ((m = AADHAAR_PLAIN_RE.exec(segment)) !== null) {
-    if (looksMasked(m[0])) continue;
-    const digits = normalizeAadhaar(m[1]!);
-    if (isAadhaarValid(digits)) return digits;
-  }
-  return null;
-}
-
-/**
- * Extract the first valid 12-digit Aadhaar from OCR text.
- * Skips masked groups (e.g. XXXX XXXX 1234) by blanking X-runs before match,
- * and scans line-by-line so a trailing last-4 does not glue onto the next line.
- */
-export function extractAadhaarFromText(text: string): string | null {
-  const raw = String(text ?? '');
-  const scrubbed = raw.replace(/x{2,}/gi, ' ');
-  for (const line of scrubbed.split(/\r?\n/)) {
-    const found = firstAadhaarInSegment(line);
-    if (found) return found;
-  }
-  if (!scrubbed.includes('\n') && !scrubbed.includes('\r')) {
-    return firstAadhaarInSegment(scrubbed);
-  }
-  // Last resort: full scrubbed text (handles soft line breaks as spaces).
-  return firstAadhaarInSegment(scrubbed.replace(/\s+/g, ' '));
-}
+export {
+  extractAadhaarFromText,
+  extractPanFromText
+} from '@/lib/customer/kyc-ocr-extract';
 
 export type KycOcrDocType = 'pan' | 'aadhaar' | 'photo';
 
@@ -84,13 +11,11 @@ export type KycOcrResult = {
   aadhaar: string | null;
 };
 
-/** Prefer same-origin assets under /public/tesseract. */
-const TESSERACT_PATHS = {
-  workerPath: '/tesseract/worker.min.js',
-  // Exact file path — avoids missing relaxedsimd variants on some CPUs.
-  corePath: '/tesseract/tesseract-core-simd-lstm.wasm.js',
-  langPath: 'https://tessdata.projectnaptha.com/4.0.0'
-} as const;
+export type KycOcrOrientResult = KycOcrResult & {
+  blob: Blob;
+  /** Degrees clockwise applied to make text readable. 0 = no rotate. */
+  rotationDeg: 0 | 90 | 180 | 270;
+};
 
 async function withTimeout<T>(
   promise: Promise<T>,
@@ -112,31 +37,6 @@ async function withTimeout<T>(
     if (timer) clearTimeout(timer);
   }
 }
-
-/**
- * Run Tesseract OCR on an image blob/file and extract KYC identifiers.
- * Call only in the browser. Hard-times out so the UI cannot hang forever.
- */
-export async function runKycOcr(
-  image: Blob | File | string,
-  docType: KycOcrDocType
-): Promise<KycOcrResult> {
-  if (docType === 'photo') {
-    return { text: '', pan: null, aadhaar: null };
-  }
-
-  if (typeof window === 'undefined') {
-    throw new Error('OCR is only available in the browser.');
-  }
-
-  return withTimeout(recognizeOnce(image, docType), 25_000, 'OCR');
-}
-
-export type KycOcrOrientResult = KycOcrResult & {
-  blob: Blob;
-  /** Degrees clockwise applied to make text readable. 0 = no rotate. */
-  rotationDeg: 0 | 90 | 180 | 270;
-};
 
 function loadBlobAsImage(blob: Blob): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(blob);
@@ -184,56 +84,87 @@ function rotateBlobCw(blob: Blob, degrees: 90 | 180 | 270): Promise<Blob> {
   );
 }
 
-function ocrFoundId(ocr: KycOcrResult, docType: KycOcrDocType): boolean {
-  if (docType === 'pan') return Boolean(ocr.pan);
-  if (docType === 'aadhaar') return Boolean(ocr.aadhaar);
-  return false;
-}
+type ApiOcrResponse = {
+  text?: string;
+  pan?: string | null;
+  aadhaar?: string | null;
+  rotationDeg?: number;
+  error?: string;
+};
 
-async function recognizeOnce(
-  image: Blob | File | string,
-  docType: KycOcrDocType
-): Promise<KycOcrResult> {
-  const { createWorker, PSM } = await import('tesseract.js');
-  const worker = await createWorker('eng', 1, {
-    workerPath: TESSERACT_PATHS.workerPath,
-    corePath: TESSERACT_PATHS.corePath,
-    langPath: TESSERACT_PATHS.langPath,
-    workerBlobURL: false,
-    logger: () => undefined
+async function recognizeViaApi(
+  image: Blob | File,
+  docType: 'pan' | 'aadhaar'
+): Promise<KycOcrResult & { rotationDeg: 0 | 90 | 180 | 270 }> {
+  const form = new FormData();
+  const file =
+    image instanceof File
+      ? image
+      : new File([image], 'kyc.jpg', {
+          type: image.type || 'image/jpeg'
+        });
+  form.set('file', file);
+  form.set('docType', docType);
+
+  const res = await fetch('/api/crm/kyc/ocr', {
+    method: 'POST',
+    body: form
   });
 
+  let body: ApiOcrResponse = {};
   try {
-    await worker.setParameters({
-      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-      preserve_interword_spaces: '1',
-      ...(docType === 'pan'
-        ? {
-            tessedit_char_whitelist:
-              'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789- '
-          }
-        : {
-            tessedit_char_whitelist: '0123456789- '
-          })
-    });
-
-    const {
-      data: { text }
-    } = await worker.recognize(image);
-
-    return {
-      text,
-      pan: docType === 'pan' ? extractPanFromText(text) : null,
-      aadhaar: docType === 'aadhaar' ? extractAadhaarFromText(text) : null
-    };
-  } finally {
-    await worker.terminate();
+    body = (await res.json()) as ApiOcrResponse;
+  } catch {
+    body = {};
   }
+
+  if (!res.ok) {
+    throw new Error(body.error || `OCR failed (${res.status})`);
+  }
+
+  const deg = body.rotationDeg;
+  const rotationDeg: 0 | 90 | 180 | 270 =
+    deg === 90 || deg === 180 || deg === 270 ? deg : 0;
+
+  return {
+    text: String(body.text ?? ''),
+    pan: typeof body.pan === 'string' ? body.pan : null,
+    aadhaar: typeof body.aadhaar === 'string' ? body.aadhaar : null,
+    rotationDeg
+  };
 }
 
 /**
- * OCR the image as-is first. Rotate (90/180/270) only when the ID number
- * cannot be read — i.e. text is sideways or upside-down.
+ * Run AI vision OCR on an image blob/file and extract KYC identifiers.
+ * Call only in the browser. Hard-times out so the UI cannot hang forever.
+ */
+export async function runKycOcr(
+  image: Blob | File | string,
+  docType: KycOcrDocType
+): Promise<KycOcrResult> {
+  if (docType === 'photo') {
+    return { text: '', pan: null, aadhaar: null };
+  }
+
+  if (typeof window === 'undefined') {
+    throw new Error('OCR is only available in the browser.');
+  }
+
+  if (typeof image === 'string') {
+    throw new Error('OCR expects an image Blob or File.');
+  }
+
+  const { rotationDeg: _r, ...result } = await withTimeout(
+    recognizeViaApi(image, docType),
+    45_000,
+    'OCR'
+  );
+  return result;
+}
+
+/**
+ * AI OCR the image once. If the model reports the card is rotated, rotate
+ * the blob clockwise so the uploaded crop is upright.
  */
 export async function runKycOcrWithAutoOrient(
   image: Blob,
@@ -243,30 +174,26 @@ export async function runKycOcrWithAutoOrient(
     return { text: '', pan: null, aadhaar: null, blob: image, rotationDeg: 0 };
   }
 
+  if (typeof window === 'undefined') {
+    throw new Error('OCR is only available in the browser.');
+  }
+
   return withTimeout(
     (async () => {
-      const first = await recognizeOnce(image, docType);
-      if (ocrFoundId(first, docType)) {
+      const first = await recognizeViaApi(image, docType);
+      if (first.rotationDeg === 0) {
         return { ...first, blob: image, rotationDeg: 0 as const };
       }
 
-      const turns: Array<90 | 180 | 270> = [90, 270, 180];
-      for (const deg of turns) {
-        try {
-          const rotated = await rotateBlobCw(image, deg);
-          const ocr = await recognizeOnce(rotated, docType);
-          if (ocrFoundId(ocr, docType)) {
-            return { ...ocr, blob: rotated, rotationDeg: deg };
-          }
-        } catch (e) {
-          console.warn(`OCR orient ${deg}° failed`, e);
-        }
+      try {
+        const rotated = await rotateBlobCw(image, first.rotationDeg);
+        return { ...first, blob: rotated, rotationDeg: first.rotationDeg };
+      } catch (e) {
+        console.warn('OCR rotate failed', e);
+        return { ...first, blob: image, rotationDeg: 0 as const };
       }
-
-      // Keep original crop if no orientation yielded a readable ID.
-      return { ...first, blob: image, rotationDeg: 0 as const };
     })(),
-    60_000,
+    50_000,
     'OCR auto-orient'
   );
 }

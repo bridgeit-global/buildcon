@@ -164,7 +164,7 @@ export function KycImageCropDialog({
   const finishWithBlob = useCallback(
     async (blob: Blob, file: File, methodLabel: string, gen: number) => {
       if (gen !== scanGenRef.current) return;
-      setBusyLabel(needsId ? 'Reading text…' : 'Preparing image…');
+      setBusyLabel(needsId ? 'Reading ID with AI…' : 'Preparing image…');
       let finalBlob = blob;
       let finalFile = file;
 
@@ -233,7 +233,7 @@ export function KycImageCropDialog({
       );
       if (gen !== scanGenRef.current) return;
       setBusyLabel(
-        needsId ? 'Card cropped. Reading text…' : 'Card cropped…'
+        needsId ? 'Card cropped. Reading ID with AI…' : 'Card cropped…'
       );
       await finishWithBlob(
         normalized.blob,
@@ -407,7 +407,7 @@ export function KycImageCropDialog({
       title={title}
       description={
         step === 'processing'
-          ? 'Cropping the card, then reading text (rotates only if text is sideways)…'
+          ? 'Cropping the card, then reading the ID with AI…'
           : step === 'crop'
             ? 'Rotate if needed, drag to frame the card, then apply crop.'
             : needsId
@@ -544,7 +544,8 @@ export function KycImageCropDialog({
           <Loader2 className="size-8 animate-spin" aria-hidden />
           <p className="text-sm font-medium">{busyLabel}</p>
           <p className="max-w-sm text-xs text-white/70">
-            Cropping the card, then OCR. Rotates only if text is not upright.
+            Cropping the card, then reading the ID with AI.
+            Rotates the image if the model reports it is sideways.
             If this takes too long, use Skip to manual.
           </p>
         </div>

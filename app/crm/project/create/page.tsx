@@ -69,6 +69,7 @@ import { canCreateProject as userCanCreateProject } from '@/lib/profile-roles';
 import { coerceProjectFy } from '@/lib/project/project-fy';
 import { ProjectFySelect } from '../project-fy-select';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
+import { useCrmProjectsStore } from '@/store/crm-projects-store';
 
 type ProfileRow = { id: string; name: string | null; role: string };
 type ProjectNameRow = { id: string; name: string };
@@ -124,6 +125,7 @@ function ReviewGroup(props: {
 export default function CreateProjectPage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const upsertProject = useCrmProjectsStore((s) => s.upsertProject);
 
   const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
@@ -231,29 +233,28 @@ export default function CreateProjectPage() {
       const parkingSlotsTotal = projectParkingTotal(draft.structures);
       const parkingAvg = projectParkingAvgRatePerSlot(draft.structures);
 
+      const projectPayload = {
+        name: draft.name.trim(),
+        location: draft.location || null,
+        type: draft.type,
+        status: draft.status,
+        fy: draft.fy || null,
+        rera_no: draft.rera_no.trim() || null,
+        floors_per_wing: metaFloors,
+        units_per_floor: metaUnits,
+        base_rate: Number(draft.base_rate || 0) || null,
+        min_rate: null,
+        max_rate: null,
+        parking_slots: parkingSlotsTotal > 0 ? parkingSlotsTotal : null,
+        parking_rate:
+          parkingSlotsTotal > 0 ? Math.round(parkingAvg ?? 0) : null
+      };
+
       const res = await fetch('/api/crm/projects', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          project: {
-            name: draft.name,
-            location: draft.location || null,
-            type: draft.type,
-            status: draft.status,
-            fy: draft.fy || null,
-            rera_no: draft.rera_no.trim() || null,
-            floors_per_wing: metaFloors,
-            units_per_floor: metaUnits,
-            base_rate: Number(draft.base_rate || 0) || null,
-            min_rate: null,
-            max_rate: null,
-            parking_slots:
-              parkingSlotsTotal > 0 ? parkingSlotsTotal : null,
-            parking_rate:
-              parkingSlotsTotal > 0
-                ? Math.round(parkingAvg ?? 0)
-                : null
-          },
+          project: projectPayload,
           wings,
           unitTypes,
           floorProvisions: draft.floorProvisions,
@@ -266,6 +267,12 @@ export default function CreateProjectPage() {
 
       const json = (await res.json()) as { projectId?: string; error?: string };
       if (!res.ok) throw new Error(json.error || 'Failed to create project');
+
+      if (json.projectId) {
+        // Keep the shared project-picker store in sync so the new project
+        // shows up immediately across the CRM without a full layout reload.
+        upsertProject({ id: json.projectId, ...projectPayload });
+      }
 
       router.push('/crm/project');
     } catch (e) {
@@ -467,8 +474,17 @@ export default function CreateProjectPage() {
             {createStep <= STEP_INVENTORY ? (
               <div className="mb-4">
                 <ProjectExcelImportCard
-                  onImported={(patch) => {
+                  existingProjects={existingProjects}
+                  onImported={(patch, _unitCount, meta) => {
                     setDraft((d) => ({ ...d, ...patch }));
+                    if (meta.nameConflict) {
+                      // Keep the user on Basics so the duplicate-name error is visible
+                      // instead of silently advancing with an unusable project name.
+                      step0Validation.touch('name');
+                      setCreateStep(STEP_BASICS);
+                      setMaxVisitedStep((m) => Math.max(m, STEP_BASICS));
+                      return;
+                    }
                     setCreateStep(STEP_INVENTORY);
                     setMaxVisitedStep((m) => Math.max(m, STEP_INVENTORY));
                   }}

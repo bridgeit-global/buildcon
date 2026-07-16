@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Copy browser OCR + document-scan assets into public/.
+ * Copy document-scan assets into public/.
  * Run before dev/build so large vendor files are not committed.
  */
 import fs from 'node:fs';
@@ -22,29 +22,9 @@ function copyFiles(destRel, files) {
   }
 }
 
-copyFiles('public/tesseract', [
-  ['node_modules/tesseract.js/dist/worker.min.js', 'worker.min.js'],
-  [
-    'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
-    'tesseract-core-simd-lstm.wasm.js'
-  ],
-  [
-    'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm',
-    'tesseract-core-simd-lstm.wasm'
-  ],
-  [
-    'node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js',
-    'tesseract-core-lstm.wasm.js'
-  ],
-  [
-    'node_modules/tesseract.js-core/tesseract-core-lstm.wasm',
-    'tesseract-core-lstm.wasm'
-  ]
-]);
-
 copyFiles('public/jscanify', [
   ['node_modules/jscanify/src/opencv.js', 'opencv.js'],
   ['node_modules/jscanify/src/jscanify.js', 'jscanify.js']
 ]);
 
-console.log('[copy-kyc-assets] ready: public/tesseract, public/jscanify');
+console.log('[copy-kyc-assets] ready: public/jscanify');

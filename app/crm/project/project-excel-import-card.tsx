@@ -4,17 +4,33 @@ import { useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { pageError, toast } from '@/lib/toast';
+import {
+  isProjectNameTaken,
+  PROJECT_NAME_DUPLICATE_ERROR,
+  type ProjectNameRow
+} from '@/lib/project/project-name';
 import type { CreateProjectDraft } from './project-create-shared';
 import {
   downloadProjectExcelTemplate,
   parseProjectExcelFile
 } from './project-excel';
 
+type ImportMeta = { nameConflict: boolean };
+
 type Props = {
-  onImported: (patch: Partial<CreateProjectDraft>, unitCount: number) => void;
+  /** Projects already saved in the org, used to flag a duplicate name right after import. */
+  existingProjects?: ProjectNameRow[];
+  onImported: (
+    patch: Partial<CreateProjectDraft>,
+    unitCount: number,
+    meta: ImportMeta
+  ) => void;
 };
 
-export function ProjectExcelImportCard({ onImported }: Props) {
+export function ProjectExcelImportCard({
+  existingProjects = [],
+  onImported
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -23,18 +39,33 @@ export function ProjectExcelImportCard({ onImported }: Props) {
     setImporting(true);
     try {
       const result = await parseProjectExcelFile(file);
-      onImported(result.draftPatch, result.unitCount);
+      const importedName = (result.draftPatch.name ?? '').trim();
+      const nameConflict =
+        importedName.length > 0 &&
+        isProjectNameTaken(importedName, existingProjects);
+
+      onImported(result.draftPatch, result.unitCount, { nameConflict });
+
       const warnSuffix =
         result.warnings.length > 0
           ? ` (${result.warnings.length} warning${
               result.warnings.length === 1 ? '' : 's'
             })`
           : '';
-      toast.success(
-        `Imported ${result.unitCount} unit${
-          result.unitCount === 1 ? '' : 's'
-        } from Excel${warnSuffix}.`
-      );
+
+      if (nameConflict) {
+        pageError(
+          `Imported ${result.unitCount} unit${
+            result.unitCount === 1 ? '' : 's'
+          }, but ${PROJECT_NAME_DUPLICATE_ERROR} Rename "${importedName}" on the Project sheet or update the project name field.`
+        );
+      } else {
+        toast.success(
+          `Imported ${result.unitCount} unit${
+            result.unitCount === 1 ? '' : 's'
+          } from Excel${warnSuffix}.`
+        );
+      }
       if (result.warnings.length) {
         toast.warning(result.warnings.slice(0, 3).join(' '));
       }

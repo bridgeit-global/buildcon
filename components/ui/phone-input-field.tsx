@@ -1,7 +1,14 @@
+'use client';
+
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { formControlFieldGapClass, formControlInvalidClass } from '@/components/ui/form-control';
+import {
+  CountryCodeSelect,
+  DEFAULT_COUNTRY_DIAL_CODE_OPTION
+} from '@/components/ui/country-code-select';
 import { cn } from '@/lib/utils';
 
 export type PhoneInputFieldProps = {
@@ -16,6 +23,8 @@ export type PhoneInputFieldProps = {
   labelClassName?: string;
   required?: boolean;
   error?: string;
+  /** Show the searchable country-code select beside the number input. Defaults to true. */
+  showCountryCode?: boolean;
 };
 
 export function PhoneInputField({
@@ -28,38 +37,50 @@ export function PhoneInputField({
   inputClassName,
   labelClassName,
   required,
-  error
+  error,
+  showCountryCode = true
 }: PhoneInputFieldProps) {
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY_DIAL_CODE_OPTION);
+
   return (
     <div>
       <FieldLabel htmlFor={id} className={cn(labelClassName)} required={required}>
         {label}
       </FieldLabel>
-      <Input
-        id={id}
-        className={cn(
-          formControlFieldGapClass,
-          error ? formControlInvalidClass : undefined,
-          inputClassName
+      <div className={cn('flex gap-2', formControlFieldGapClass)}>
+        {showCountryCode && (
+          <CountryCodeSelect
+            value={countryCode}
+            onValueChange={setCountryCode}
+            error={Boolean(error)}
+          />
         )}
-        aria-invalid={error ? true : undefined}
-        value={value}
-        onChange={(e) => {
-          if (mode === 'digits10') {
-            onChange(
-              String(e.target.value || '')
-                .replace(/\D/g, '')
-                .slice(0, 10)
-            );
-          } else {
-            onChange(e.target.value);
-          }
-        }}
-        placeholder={placeholder}
-        inputMode={mode === 'digits10' ? 'numeric' : 'tel'}
-        maxLength={mode === 'digits10' ? 10 : undefined}
-        autoComplete="tel"
-      />
+        <Input
+          id={id}
+          className={cn(
+            'flex-1',
+            error ? formControlInvalidClass : undefined,
+            inputClassName
+          )}
+          aria-invalid={error ? true : undefined}
+          value={value}
+          onChange={(e) => {
+            if (mode === 'digits10') {
+              onChange(
+                String(e.target.value || '')
+                  .replace(/\D/g, '')
+                  .slice(0, 10)
+              );
+            } else {
+              onChange(e.target.value);
+            }
+          }}
+          placeholder={placeholder}
+          inputMode={mode === 'digits10' ? 'numeric' : 'tel'}
+          maxLength={mode === 'digits10' ? 10 : undefined}
+          autoComplete="tel"
+        />
+      </div>
       <FormFieldError message={error} />
     </div>
   );

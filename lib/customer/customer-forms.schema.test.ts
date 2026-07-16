@@ -357,16 +357,16 @@ describe('kycUploadSchema', () => {
 });
 
 describe('guardianNameFieldLabel', () => {
-  it('uses relation-specific possessive labels', () => {
-    expect(guardianNameFieldLabel('Father')).toBe("Father's name");
-    expect(guardianNameFieldLabel('Mother')).toBe("Mother's name");
-    expect(guardianNameFieldLabel('Spouse')).toBe("Spouse's name");
-    expect(guardianNameFieldLabel('Other')).toBe('Guardian name');
+  it('uses relation-specific full name labels', () => {
+    expect(guardianNameFieldLabel('Father')).toBe('Father full name');
+    expect(guardianNameFieldLabel('Mother')).toBe('Mother full name');
+    expect(guardianNameFieldLabel('Spouse')).toBe('Spouse full name');
+    expect(guardianNameFieldLabel('Other')).toBe('Guardian full name');
   });
 
   it('defaults to Father when relation is empty', () => {
-    expect(guardianNameFieldLabel('')).toBe("Father's name");
-    expect(guardianNameFieldLabel(null)).toBe("Father's name");
+    expect(guardianNameFieldLabel('')).toBe('Father full name');
+    expect(guardianNameFieldLabel(null)).toBe('Father full name');
   });
 });
 

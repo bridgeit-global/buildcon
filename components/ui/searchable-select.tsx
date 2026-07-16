@@ -19,6 +19,14 @@ type SearchableSelectProps = {
   className?: string;
   disabled?: boolean;
   error?: boolean;
+  /** Classes for the dropdown panel; defaults to matching the trigger's width. */
+  contentClassName?: string;
+  /** Custom content for the trigger button once a value is selected (defaults to the raw value). */
+  renderValue?: (value: string) => React.ReactNode;
+  /** Custom content for each row in the dropdown list (defaults to the raw option). */
+  renderOption?: (option: string) => React.ReactNode;
+  /** Clicking the already-selected option clears it. Defaults to true; set false for single-choice pickers (e.g. country code) that should always stay selected. */
+  allowClear?: boolean;
 };
 
 export function SearchableSelect({
@@ -29,7 +37,11 @@ export function SearchableSelect({
   searchPlaceholder = 'Search…',
   className,
   disabled,
-  error
+  error,
+  contentClassName,
+  renderValue,
+  renderOption,
+  allowClear = true
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -63,12 +75,17 @@ export function SearchableSelect({
             className
           )}
         >
-          <span className="min-w-0 flex-1 truncate text-left">{value || placeholder}</span>
+          <span className="min-w-0 flex-1 truncate text-left">
+            {value ? (renderValue ? renderValue(value) : value) : placeholder}
+          </span>
           <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-(--radix-popover-trigger-width) overflow-hidden p-0"
+        className={cn(
+          'w-(--radix-popover-trigger-width) overflow-hidden p-0',
+          contentClassName
+        )}
         align="start"
       >
         <div className="flex items-center border-b px-3">
@@ -92,7 +109,7 @@ export function SearchableSelect({
               key={option}
               type="button"
               onClick={() => {
-                onValueChange(option === value ? '' : option);
+                onValueChange(allowClear && option === value ? '' : option);
                 setOpen(false);
               }}
               className={cn(
@@ -100,7 +117,7 @@ export function SearchableSelect({
                 option === value && 'bg-accent text-accent-foreground'
               )}
             >
-              {option}
+              {renderOption ? renderOption(option) : option}
               {option === value && (
                 <Check className="absolute right-2 h-4 w-4" />
               )}

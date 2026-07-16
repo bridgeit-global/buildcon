@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { extractAadhaarFromText, extractPanFromText } from './kyc-ocr';
+import { extractAadhaarFromText, extractPanFromText } from './kyc-ocr-extract';
+import { __test as aiTest } from './kyc-ocr-ai';
 
 describe('extractPanFromText', () => {
   it('extracts a spaced PAN', () => {
@@ -38,5 +39,32 @@ describe('extractAadhaarFromText', () => {
 
   it('returns null when no valid Aadhaar', () => {
     expect(extractAadhaarFromText('only 1234')).toBeNull();
+  });
+});
+
+describe('kyc-ocr-ai parseModelJson', () => {
+  it('parses valid JSON with identifiers', () => {
+    const parsed = aiTest.parseModelJson(
+      JSON.stringify({
+        pan: 'ABCDE1234F',
+        aadhaar: null,
+        text: 'PAN CARD',
+        rotation_deg: 90
+      })
+    );
+    expect(parsed.pan).toBe('ABCDE1234F');
+    expect(parsed.aadhaar).toBeNull();
+    expect(parsed.rotationDeg).toBe(90);
+  });
+
+  it('falls back to regex when JSON is invalid', () => {
+    const parsed = aiTest.parseModelJson('Here is PAN ABCDE1234F on the card');
+    expect(parsed.pan).toBe('ABCDE1234F');
+  });
+
+  it('defaults unknown provider to gemini', () => {
+    expect(aiTest.parseProvider('weird')).toBe('gemini');
+    expect(aiTest.parseProvider(undefined)).toBe('gemini');
+    expect(aiTest.parseProvider('openai')).toBe('openai');
   });
 });

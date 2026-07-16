@@ -325,8 +325,8 @@ export function guardianNameFieldLabel(
   relation: string | null | undefined
 ): string {
   const r = String(relation ?? '').trim() || DEFAULT_GUARDIAN_RELATION;
-  if (r.toLowerCase() === 'other') return 'Guardian name';
-  return `${r}'s name`;
+  if (r.toLowerCase() === 'other') return 'Guardian full name';
+  return `${r} full name`;
 }
 
 export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
