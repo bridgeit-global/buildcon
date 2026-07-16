@@ -9,6 +9,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { CrmDetailPageSkeleton } from '../../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
+import { DateInputField } from '@/components/ui/date-input-field';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
@@ -1718,16 +1719,16 @@ export default function BookingDetailPage() {
                         }
                       />
                     </div>
-                    <TextInputField
+                    <DateInputField
                       label="Date"
-                      type="date"
                       value={stageData.token?.date ?? ''}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         setStageData((d) => ({
                           ...d,
-                          token: { ...d.token, date: e.target.value }
+                          token: { ...d.token, date: value }
                         }))
                       }
+                      placeholder="Select token date"
                     />
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label>Payment mode</Label>
@@ -2460,20 +2461,20 @@ export default function BookingDetailPage() {
             <Card className="space-y-4 p-4">
               <h2 className="font-semibold text-ds-gray-900">Allotment</h2>
               <div className="grid gap-3 sm:grid-cols-2">
-                <TextInputField
+                <DateInputField
                   label="Allotment date"
                   required
-                  type="date"
                   value={stageData.allotment?.allotment_date ?? ''}
-                  onChange={(e) => {
+                  onChange={(value) => {
                     setStageData((d) => ({
                       ...d,
-                      allotment: { ...d.allotment, allotment_date: e.target.value }
+                      allotment: { ...d.allotment, allotment_date: value }
                     }));
                     setAllotmentDateTouched(true);
                   }}
                   onBlur={() => setAllotmentDateTouched(true)}
                   error={allotmentDateError}
+                  placeholder="Select allotment date"
                 />
               </div>
               <div className="flex flex-wrap gap-2">

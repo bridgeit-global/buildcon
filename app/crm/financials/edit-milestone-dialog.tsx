@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
+import { DateInputField } from '@/components/ui/date-input-field';
 import { FieldLabel } from '@/components/ui/field-label';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
@@ -255,13 +256,12 @@ export function EditMilestoneDialog({
               disabled={loading || saving || !schedule}
             />
 
-            <TextInputField
+            <DateInputField
               label="Due date"
-              type="date"
-              inputClassName="min-w-42 pr-10"
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={setDueDate}
               disabled={loading || saving || !schedule}
+              placeholder="Select due date"
             />
 
             <div className="space-y-1.5">

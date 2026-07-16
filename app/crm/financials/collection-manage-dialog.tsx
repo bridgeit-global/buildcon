@@ -8,6 +8,7 @@ import { resolveSortFromState, sortRowsByState } from '@/lib/crm/list-sort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
+import { DateInputField } from '@/components/ui/date-input-field';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -406,19 +407,18 @@ export function CollectionManageDialog({
                 <FormFieldError message={collectionFieldError('entryAmount')} />
               </div>
 
-              <TextInputField
+              <DateInputField
                 className="w-full min-w-0"
                 label="Date"
-                type="date"
-                inputClassName="w-full"
                 value={entryDate}
-                onChange={(e) => {
-                  setEntryDate(e.target.value);
+                onChange={(value) => {
+                  setEntryDate(value);
                   touchCollectionField('entryDate');
                 }}
                 onBlur={() => touchCollectionField('entryDate')}
                 error={collectionFieldError('entryDate')}
                 disabled={loading || saving}
+                placeholder="Select collection date"
               />
 
               <div className="w-full min-w-0 space-y-1.5">

@@ -19,6 +19,7 @@ import {
   resolveNegotiationDiscount,
   syncNegotiationDiscountFields
 } from '@/lib/inquiry/negotiation-discount';
+import { DateInputField } from '@/components/ui/date-input-field';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
@@ -932,18 +933,15 @@ function NegotiationForm({
           />
         </div>
       </div>
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Expected close</Label>
-        <Input
-          type="date"
-          className="h-8 text-xs"
-          value={data.expected_close ?? ''}
-          onChange={(e) =>
-            onChange({ ...data, expected_close: e.target.value })
-          }
-          disabled={formDisabled}
-        />
-      </div>
+      <DateInputField
+        label="Expected close"
+        labelClassName="text-xs"
+        value={data.expected_close ?? ''}
+        onChange={(value) => onChange({ ...data, expected_close: value })}
+        disabled={formDisabled}
+        placeholder="Select expected close date"
+        buttonClassName="h-8 text-xs"
+      />
       <div className="grid gap-1.5">
         <Label className="text-xs">Notes</Label>
         <Textarea

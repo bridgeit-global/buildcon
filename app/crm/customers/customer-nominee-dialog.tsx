@@ -9,6 +9,7 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { FormRow } from '@/components/ui/form-row';
 import { FormSection } from '@/components/ui/form-section';
 import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
+import { DateInputField } from '@/components/ui/date-input-field';
 import { TextInputField } from '@/components/ui/text-input-field';
 import {
   nomineeFormSchema,
@@ -98,15 +99,15 @@ export function CustomerNomineeDialog({
               control={control}
               name="nominee_dob"
               render={({ field, fieldState }) => (
-                <TextInputField
+                <DateInputField
                   className="md:col-span-2"
                   label="Date of birth"
-                  type="date"
                   max={todayIsoDate()}
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
                   error={fieldState.error?.message}
+                  placeholder="Select date of birth"
                 />
               )}
             />
