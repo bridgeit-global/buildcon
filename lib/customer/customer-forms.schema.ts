@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { isIsoDateNotAfterToday, isValidDobIso } from '@/lib/date-input-value';
+import {
+  isDobAtLeastMinAge,
+  isValidDobIso
+} from '@/lib/date-input-value';
 import {
   idProofOptionsForResidentialStatus,
   isNriResidentialStatus
@@ -107,8 +110,22 @@ export const EMPTY_APPLICATION_ADDRESS: z.infer<
   pin: ''
 };
 
-const optionalPastDate = z.string().refine(isIsoDateNotAfterToday, {
-  message: 'Date of birth cannot be in the future.'
+const nomineeDobField = z.string().superRefine((v, ctx) => {
+  const t = v.trim();
+  if (!t) return;
+  if (!isValidDobIso(t)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Enter a valid date of birth.'
+    });
+    return;
+  }
+  if (!isDobAtLeastMinAge(t, 18)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Nominee must be at least 18 years old.'
+    });
+  }
 });
 
 const customerProfileObject = z.object({
@@ -242,7 +259,7 @@ export const addressFormSchema = z.object({
 export const nomineeFormSchema = z.object({
   nominee_name: z.string().trim().min(1, 'Nominee name is required.'),
   relationship: z.string(),
-  nominee_dob: optionalPastDate
+  nominee_dob: nomineeDobField
 });
 
 /** Bank dialog */

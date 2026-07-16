@@ -6,9 +6,11 @@ import {
   dobDayOptions,
   dobPartsFromIso,
   dobYearOptions,
+  isDobAtLeastMinAge,
   isIsoDateNotAfterToday,
   isValidDobIso,
   isoFromDobParts,
+  latestDobIsoForMinAge,
   nextWeekIsoDate,
   todayIsoDate,
   withDateInputDefault
@@ -155,5 +157,23 @@ describe('dobYearOptions', () => {
     const years = dobYearOptions();
     expect(years[0]).toBe(2026);
     expect(years[years.length - 1]).toBe(1900);
+  });
+});
+
+describe('latestDobIsoForMinAge / isDobAtLeastMinAge', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T10:30:00'));
+  });
+
+  it('returns the latest DOB that is exactly minAge today', () => {
+    expect(latestDobIsoForMinAge(18)).toBe('2008-06-15');
+  });
+
+  it('accepts DOB on or before the latest eligible date', () => {
+    expect(isDobAtLeastMinAge('2008-06-15', 18)).toBe(true);
+    expect(isDobAtLeastMinAge('1990-01-01', 18)).toBe(true);
+    expect(isDobAtLeastMinAge('2008-06-16', 18)).toBe(false);
+    expect(isDobAtLeastMinAge('2015-01-01', 18)).toBe(false);
   });
 });

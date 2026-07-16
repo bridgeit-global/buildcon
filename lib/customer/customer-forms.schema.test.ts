@@ -280,6 +280,21 @@ describe('nomineeFormSchema', () => {
     ).toBe(false);
     vi.useRealTimers();
   });
+
+  it('rejects nominee under 18', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T10:30:00'));
+    const result = nomineeFormSchema.safeParse({
+      nominee_name: 'Priya Kumar',
+      relationship: 'Child',
+      nominee_dob: '2015-01-01'
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.message.includes('18'))).toBe(true);
+    }
+    vi.useRealTimers();
+  });
 });
 
 describe('bankFormSchema', () => {

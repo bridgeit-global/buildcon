@@ -131,3 +131,20 @@ export function ageFromDobIso(iso: string, at: Date = new Date()): number | null
   }
   return age >= 0 ? age : null;
 }
+
+/** Latest `YYYY-MM-DD` DOB that satisfies a minimum completed age today. */
+export function latestDobIsoForMinAge(minAge: number, at: Date = new Date()): string {
+  const d = new Date(at);
+  d.setFullYear(d.getFullYear() - minAge);
+  return todayIsoDate(d);
+}
+
+/** True when `iso` is a valid DOB and completed age is at least `minAge`. */
+export function isDobAtLeastMinAge(
+  iso: string,
+  minAge: number,
+  at: Date = new Date()
+): boolean {
+  const age = ageFromDobIso(iso, at);
+  return age != null && age >= minAge;
+}

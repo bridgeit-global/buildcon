@@ -9,13 +9,12 @@ import { FormDialog } from '@/components/ui/form-dialog';
 import { FormRow } from '@/components/ui/form-row';
 import { FormSection } from '@/components/ui/form-section';
 import { RhfTextInput } from '@/app/crm/customers/customer-form-ui';
-import { DateInputField } from '@/components/ui/date-input-field';
+import { DobInputField } from '@/components/ui/dob-input-field';
 import { TextInputField } from '@/components/ui/text-input-field';
 import {
   nomineeFormSchema,
   type NomineeFormValues
 } from '@/lib/customer/customer-forms.schema';
-import { todayIsoDate } from '@/lib/date-input-value';
 
 const FORM_ID = 'customer-nominee-form';
 
@@ -99,15 +98,14 @@ export function CustomerNomineeDialog({
               control={control}
               name="nominee_dob"
               render={({ field, fieldState }) => (
-                <DateInputField
+                <DobInputField
                   className="md:col-span-2"
                   label="Date of birth"
-                  max={todayIsoDate()}
+                  minAge={18}
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
                   error={fieldState.error?.message}
-                  placeholder="Select date of birth"
                 />
               )}
             />
