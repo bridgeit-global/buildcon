@@ -199,6 +199,7 @@ function patchBuyerAddress(
     address_line1: merged.address_line1 || null,
     address_line2: merged.address_line2 || null,
     address_line3: merged.address_line3 || null,
+    city: merged.city || null,
     state: merged.state || null,
     pin: merged.pin || null
   };
@@ -2222,6 +2223,7 @@ export default function BookingDetailPage() {
                             line2: errs.res_address_line2,
                             line3: errs.res_address_line3,
                             pin: errs.res_address_pin,
+                            city: errs.res_address_city,
                             state: errs.res_address_state
                           }}
                         />
@@ -2270,6 +2272,7 @@ export default function BookingDetailPage() {
                                 line2: errs.perm_address_line2,
                                 line3: errs.perm_address_line3,
                                 pin: errs.perm_address_pin,
+                                city: errs.perm_address_city,
                                 state: errs.perm_address_state
                               }}
                             />

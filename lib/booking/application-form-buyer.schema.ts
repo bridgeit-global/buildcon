@@ -63,6 +63,7 @@ export function addressesMatch(
     'address_line1',
     'address_line2',
     'address_line3',
+    'city',
     'state',
     'pin'
   ] as const;

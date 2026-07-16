@@ -270,6 +270,7 @@ function addressFieldErrors(
     line2: errors.address_line2?.message,
     line3: errors.address_line3?.message,
     pin: errors.pin?.message,
+    city: errors.city?.message,
     state: errors.state?.message
   };
 }

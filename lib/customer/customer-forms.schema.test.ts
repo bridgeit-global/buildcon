@@ -19,6 +19,7 @@ const validResidentialAddress = {
   address_line1: '12 Main St',
   address_line2: 'Near Park',
   address_line3: 'Andheri West',
+  city: 'Mumbai',
   state: 'Maharashtra',
   pin: '400001'
 };

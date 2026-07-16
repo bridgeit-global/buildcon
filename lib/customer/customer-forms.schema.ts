@@ -75,11 +75,12 @@ const ifscOptional = z.string().refine(
 
 const addressKind = z.enum(['current', 'permanent']);
 
-/** Address lines + PIN + state (no city) — used on customer create and application forms */
+/** Address lines + PIN + state + city — used on customer create and application forms */
 export const applicationAddressFieldsSchema = z.object({
   address_line1: z.string().trim().min(1, 'Address line 1 is required.'),
   address_line2: z.string().trim(),
   address_line3: z.string().trim(),
+  city: z.string().trim(),
   state: z.string().trim().min(1, 'State is required.'),
   pin: z.string().trim().refine((v) => /^\d{6}$/.test(v), {
     message: 'Enter a 6-digit PIN code.'
@@ -90,6 +91,7 @@ const optionalApplicationAddressFields = z.object({
   address_line1: z.string(),
   address_line2: z.string(),
   address_line3: z.string(),
+  city: z.string(),
   state: z.string(),
   pin: z.string()
 });
@@ -100,6 +102,7 @@ export const EMPTY_APPLICATION_ADDRESS: z.infer<
   address_line1: '',
   address_line2: '',
   address_line3: '',
+  city: '',
   state: '',
   pin: ''
 };
@@ -493,7 +496,7 @@ function applicationAddressToDbRow(
     address_line3: addr.address_line3.trim() || null,
     state: addr.state.trim() || null,
     pin: addr.pin.trim() || null,
-    city: null as string | null
+    city: addr.city.trim() || null
   };
 }
 
