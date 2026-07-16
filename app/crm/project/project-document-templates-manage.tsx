@@ -18,6 +18,7 @@ import {
   DOCUMENT_TEMPLATE_SAMPLES,
   sampleTemplateDownloadName
 } from '@/lib/document-template/sample-templates';
+import { defaultDocumentTemplateRows } from '@/lib/document-template/default-template-rows';
 import { renderDocumentTemplatePreviewHtml } from '@/lib/document-template/preview-sample-values';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,11 @@ export function ProjectDocumentTemplatesManage({
     if (editingId) return DOCUMENT_TEMPLATE_KINDS;
     return DOCUMENT_TEMPLATE_KINDS.filter((k) => !usedKinds.has(k));
   }, [editingId, usedKinds]);
+
+  const missingKinds = useMemo(
+    () => DOCUMENT_TEMPLATE_KINDS.filter((k) => !usedKinds.has(k)),
+    [usedKinds]
+  );
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -278,6 +284,27 @@ export function ProjectDocumentTemplatesManage({
     }
   }
 
+  async function installMissingDefaults() {
+    if (!canEdit || missingKinds.length === 0) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('document_templates')
+        .insert(defaultDocumentTemplateRows(projectId, missingKinds));
+      if (error) throw new Error(error.message);
+      toast.success(
+        `Installed ${missingKinds.length} default template${
+          missingKinds.length === 1 ? '' : 's'
+        } for this project.`
+      );
+      await load();
+    } catch (e) {
+      pageError(e instanceof Error ? e.message : 'Failed to install defaults');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const showEditor = canEdit && (editingId || availableKinds.length > 0);
 
   return (
@@ -285,9 +312,10 @@ export function ProjectDocumentTemplatesManage({
       <div>
         <h1 className="text-lg font-semibold text-ds-gray-900">Document templates</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload HTML templates for {projectName ?? 'this project'}. Active templates
-          are used when generating Application Form, Allotment Letter, Draft Sale
-          Agreement, Registration Deed, and Demand Letter. Use{' '}
+          Project-scoped HTML templates for {projectName ?? 'this project'}. Every
+          generated document (application form, allotment letter, receipt, demand
+          letter, agreement, registration deed, possession letter) uses the active
+          template mapped for this project. Use{' '}
           <code className="rounded bg-muted px-1 text-xs">{'{{placeholder}}'}</code>{' '}
           keys listed below.
         </p>
@@ -296,11 +324,24 @@ export function ProjectDocumentTemplatesManage({
       <Card className="overflow-hidden rounded-xl border-ds-gray-200 p-4 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-semibold text-ds-gray-900">Saved templates</h2>
-          {canEdit && availableKinds.length > 0 ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => resetForm()}>
-              New template
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {canEdit && missingKinds.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void installMissingDefaults()}
+                disabled={saving}
+              >
+                Install missing defaults ({missingKinds.length})
+              </Button>
+            ) : null}
+            {canEdit && availableKinds.length > 0 ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => resetForm()}>
+                New template
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-160 caption-bottom text-sm">
@@ -319,8 +360,8 @@ export function ProjectDocumentTemplatesManage({
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-2 py-8 text-center text-muted-foreground">
-                    No custom templates yet. Upload HTML below to override the built-in
-                    layouts.
+                    No templates mapped for this project yet. Install defaults or upload
+                    HTML below — document generation requires a project template per kind.
                   </td>
                 </tr>
               ) : (
@@ -565,7 +606,7 @@ export function ProjectDocumentTemplatesManage({
               {deleteTarget
                 ? `Remove the ${DOCUMENT_TEMPLATE_KIND_LABEL[deleteTarget.doc_kind]} template${
                     deleteTarget.name ? ` (“${deleteTarget.name}”)` : ''
-                  }. Generation will fall back to the built-in layout.`
+                  }. Generation for this kind will fail until a project template is mapped again.`
                 : 'Remove this document template.'}
             </DialogDescription>
           </DialogHeader>

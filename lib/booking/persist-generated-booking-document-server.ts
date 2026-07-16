@@ -2,14 +2,14 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BookingPrintPack } from '@/lib/booking/load-booking-print-pack';
 import type { BookingDocumentPrintKind } from '@/lib/booking/record-booking-document-print';
-import {
-  buildBookingDocumentHtmlFromPack,
-  type BookingDocumentHtmlOverrides
-} from '@/lib/booking/booking-document-html-from-pack';
+import type { BookingDocumentHtmlOverrides } from '@/lib/booking/booking-document-html-from-pack';
 import { renderHtmlToPdfBuffer } from '@/lib/booking/html-to-pdf';
 import { bookingGeneratedStoragePath } from '@/lib/booking/booking-generated-storage-path';
+import { ensureProjectDocumentTemplateKind } from '@/lib/document-template/ensure-project-document-templates';
+import { isDocumentTemplateKind } from '@/lib/document-template/kinds';
 import { loadActiveDocumentTemplate } from '@/lib/document-template/load-active-template';
 import { renderDocumentTemplateHtml } from '@/lib/document-template/render-template';
+import { BOOKING_DOCUMENT_KIND_LABEL } from '@/lib/booking/booking-generated-doc-kind';
 import {
   isUnitPossessedStatus,
   UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE,
@@ -23,26 +23,6 @@ export type PersistGeneratedBookingDocumentOpts = {
   generatedBy?: string | null;
 };
 
-async function loadApplicantPhotoDataUris(
-  admin: SupabaseClient,
-  paths: (string | null)[]
-): Promise<(string | null)[]> {
-  return Promise.all(
-    paths.map(async (p) => {
-      if (!p) return null;
-      try {
-        const { data, error } = await admin.storage.from('kyc').download(p);
-        if (error || !data) return null;
-        const buf = Buffer.from(await data.arrayBuffer());
-        const mime = data.type || 'image/jpeg';
-        return `data:${mime};base64,${buf.toString('base64')}`;
-      } catch {
-        return null;
-      }
-    })
-  );
-}
-
 /** Uploads printable PDF to the private `documents` bucket and inserts `generated_documents`. */
 export async function persistGeneratedBookingDocumentServer(
   admin: SupabaseClient,
@@ -54,24 +34,28 @@ export async function persistGeneratedBookingDocumentServer(
     return { ok: false, error: UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE };
   }
 
-  let applicantPhotoDataUris: (string | null)[] | undefined;
-  if (kind === 'application-form') {
-    applicantPhotoDataUris = await loadApplicantPhotoDataUris(
-      admin,
-      pack.buyerPhotoStoragePaths
-    );
+  const projectId = pack.booking.project_id;
+
+  // Document generation is project-scoped: ensure a template mapping exists, then use it.
+  if (isDocumentTemplateKind(kind)) {
+    const ensured = await ensureProjectDocumentTemplateKind(admin, projectId, kind);
+    if (!ensured.ok) return { ok: false, error: ensured.error };
   }
 
-  const projectId = pack.booking.project_id;
   const activeTemplate = await loadActiveDocumentTemplate(admin, projectId, kind);
-  const html = activeTemplate
-    ? renderDocumentTemplateHtml(activeTemplate.body, pack, opts?.htmlOverrides)
-    : buildBookingDocumentHtmlFromPack(
-        kind,
-        pack,
-        opts?.htmlOverrides,
-        applicantPhotoDataUris
-      );
+  if (!activeTemplate) {
+    const label = BOOKING_DOCUMENT_KIND_LABEL[kind] ?? kind;
+    return {
+      ok: false,
+      error: `No active ${label} template for this project. Add one under Project → Document templates.`
+    };
+  }
+
+  const html = renderDocumentTemplateHtml(
+    activeTemplate.body,
+    pack,
+    opts?.htmlOverrides
+  );
 
   let pdf: Buffer;
   try {
@@ -108,7 +92,7 @@ export async function persistGeneratedBookingDocumentServer(
       project_id: projectId,
       booking_id: bookingId,
       customer_id: pack.booking.customer_id,
-      template_id: activeTemplate?.id ?? null,
+      template_id: activeTemplate.id,
       storage_path: storagePath,
       generated_by: opts?.generatedBy ?? null
     })

@@ -92,6 +92,38 @@ export const DOCUMENT_TEMPLATE_SAMPLES: Record<DocumentTemplateKind, string> = {
     on or before <strong>{{demand.due_date}}</strong>.
   </p>
   <p class="muted">Booking amount: {{booking.amount_inr}}</p>`
+  ),
+  receipt: wrapSample(
+    'Payment receipt',
+    `  <h1>Payment receipt</h1>
+  <p class="muted">{{booking.display_id}} · {{generated_at}}</p>
+  <p>{{organization.logo_html}}</p>
+  <p>Received from <strong>{{customer.name}}</strong> towards
+    <strong>{{unit.line}}</strong> at <strong>{{project.name}}</strong>.</p>
+  <table>
+    <tbody>
+      <tr><th>Amount</th><td>{{payment.received_amount_inr}}</td></tr>
+      <tr><th>Date</th><td>{{payment.received_at}}</td></tr>
+      <tr><th>Mode</th><td>{{payment.mode}}</td></tr>
+      <tr><th>Reference</th><td>{{payment.reference}}</td></tr>
+      <tr><th>Instalment</th><td>{{demand.instalment_label}}</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Issued by {{organization.trade_name}}</p>`
+  ),
+  'possession-letter': wrapSample(
+    'Possession letter',
+    `  <h1>Possession letter</h1>
+  <p class="muted">{{booking.display_id}} · {{generated_at}}</p>
+  <p>Dear {{customer.name}},</p>
+  <p>
+    Possession of <strong>{{unit.line}}</strong> in
+    <strong>{{project.name}}</strong> ({{project.location}}) is hereby offered
+    against booking <strong>{{booking.display_id}}</strong>.
+  </p>
+  <p>Address: {{customer.address}}</p>
+  <p>Co-buyers: {{customer.co_buyers}}</p>
+  <p class="muted">{{organization.trade_name}} · {{organization.signatory}}</p>`
   )
 };
 

@@ -680,9 +680,11 @@ create table if not exists public.document_templates (
     or doc_kind in (
       'application-form',
       'allotment-letter',
+      'receipt',
+      'demand-letter',
       'agreement',
       'registration-deed',
-      'demand-letter'
+      'possession-letter'
     )
   )
 );

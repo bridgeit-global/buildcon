@@ -8,6 +8,7 @@ import {
   isProjectNameUniqueViolation
 } from '@/lib/project/project-name-server';
 import { PROJECT_NAME_DUPLICATE_ERROR } from '@/lib/project/project-name';
+import { ensureProjectDocumentTemplates } from '@/lib/document-template/ensure-project-document-templates';
 import type { CrmProjectListItem } from '@/app/crm/_components/types';
 
 type FloorProvisionInput = {
@@ -479,6 +480,12 @@ export async function POST(request: Request) {
   if (unitRows.length) {
     const { error } = await admin.from('units').insert(unitRows);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Seed project-scoped document templates for every generation kind.
+  const templatesSeed = await ensureProjectDocumentTemplates(admin, projectId);
+  if (templatesSeed.error) {
+    return NextResponse.json({ error: templatesSeed.error }, { status: 500 });
   }
 
   return NextResponse.json({ projectId });
