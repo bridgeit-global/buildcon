@@ -3,6 +3,9 @@ import {
   ageFromDobIso,
   datetimeLocalValue,
   datetimeLocalValueNextWeek,
+  datetimeLocalFromParts,
+  datetimeLocalPartsFromValue,
+  isValidDatetimeLocal,
   dobDayOptions,
   dobPartsFromIso,
   dobYearOptions,
@@ -50,6 +53,28 @@ describe('datetimeLocalValueNextWeek', () => {
 
   it('returns datetime one week later', () => {
     expect(datetimeLocalValueNextWeek()).toBe('2026-06-22T10:30');
+  });
+});
+
+describe('datetimeLocalPartsFromValue / datetimeLocalFromParts', () => {
+  it('round-trips datetime-local values', () => {
+    expect(datetimeLocalPartsFromValue('2026-06-15T14:30')).toEqual({
+      date: '2026-06-15',
+      hour: '14',
+      minute: '30'
+    });
+    expect(
+      datetimeLocalFromParts({ date: '2026-06-15', hour: '14', minute: '30' })
+    ).toBe('2026-06-15T14:30');
+  });
+});
+
+describe('isValidDatetimeLocal', () => {
+  it('accepts valid values and rejects invalid ones', () => {
+    expect(isValidDatetimeLocal('2026-06-15T14:30')).toBe(true);
+    expect(isValidDatetimeLocal('2026-02-31T10:00')).toBe(false);
+    expect(isValidDatetimeLocal('2026-06-15T25:00')).toBe(false);
+    expect(isValidDatetimeLocal('not-a-date')).toBe(false);
   });
 });
 

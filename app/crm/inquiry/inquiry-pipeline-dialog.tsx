@@ -20,6 +20,7 @@ import {
   syncNegotiationDiscountFields
 } from '@/lib/inquiry/negotiation-discount';
 import { DateInputField } from '@/components/ui/date-input-field';
+import { DateTimeInputField } from '@/components/ui/datetime-input-field';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
@@ -345,16 +346,15 @@ function EnquiryForm({
 }) {
   return (
     <div className="grid gap-3">
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Follow-up date</Label>
-        <Input
-          type="datetime-local"
-          className="h-8 text-xs"
-          value={data.follow_up_date ?? ''}
-          onChange={(e) => onChange({ ...data, follow_up_date: e.target.value })}
-          disabled={readOnly}
-        />
-      </div>
+      <DateTimeInputField
+        label="Follow-up date"
+        labelClassName="text-xs"
+        value={data.follow_up_date ?? ''}
+        onChange={(follow_up_date) => onChange({ ...data, follow_up_date })}
+        disabled={readOnly}
+        placeholder="Pick follow-up date & time"
+        buttonClassName="h-8 text-xs"
+      />
       <div className="grid gap-1.5">
         <Label className="text-xs">Cost sheet / quotation notes</Label>
         <Textarea
@@ -443,18 +443,15 @@ function QualifiedForm({
         />
       </div>
 
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Next follow-up</Label>
-        <Input
-          type="datetime-local"
-          className="h-8 text-xs"
-          value={data.follow_up_date ?? ''}
-          onChange={(e) =>
-            onChange({ ...data, follow_up_date: e.target.value })
-          }
-          disabled={readOnly}
-        />
-      </div>
+      <DateTimeInputField
+        label="Next follow-up"
+        labelClassName="text-xs"
+        value={data.follow_up_date ?? ''}
+        onChange={(follow_up_date) => onChange({ ...data, follow_up_date })}
+        disabled={readOnly}
+        placeholder="Pick follow-up date & time"
+        buttonClassName="h-8 text-xs"
+      />
       <div className="grid gap-1.5">
         <Label className="text-xs">Notes</Label>
         <Textarea
@@ -535,18 +532,15 @@ function SiteVisitForm({
 
   return (
     <div className="grid gap-3">
-      <div className="grid gap-1.5">
-        <Label className="text-xs">Visit date &amp; time</Label>
-        <Input
-          type="datetime-local"
-          className="h-8 text-xs"
-          value={data.scheduled_at ?? ''}
-          onChange={(e) =>
-            onChange({ ...data, scheduled_at: e.target.value })
-          }
-          disabled={formDisabled}
-        />
-      </div>
+      <DateTimeInputField
+        label="Visit date & time"
+        labelClassName="text-xs"
+        value={data.scheduled_at ?? ''}
+        onChange={(scheduled_at) => onChange({ ...data, scheduled_at })}
+        disabled={formDisabled}
+        placeholder="Pick visit date & time"
+        buttonClassName="h-8 text-xs"
+      />
 
       <div className="grid gap-1.5">
         <Label className="text-xs">Visit status</Label>

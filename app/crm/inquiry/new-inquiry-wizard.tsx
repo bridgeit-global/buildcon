@@ -23,6 +23,7 @@ import { FieldLabel } from '@/components/ui/field-label';
 import { Label } from '@/components/ui/label';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { TextInputField } from '@/components/ui/text-input-field';
+import { DateTimeInputField } from '@/components/ui/datetime-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
@@ -2779,22 +2780,22 @@ function StepVisitSite({
           (Closed stage) and releases the unit.
         </p>
         <div className="mt-3 grid gap-3">
-          <TextInputField
+          <DateTimeInputField
             label="Follow-up date"
             labelClassName={wizardLabelClass}
-            type="datetime-local"
-            inputClassName={cn(
+            buttonClassName={cn(
               wizardFieldClass,
               followUpAssignedToMe &&
                 followUpNeedsAttention(sellerForm.followUpDate) &&
                 'border-ds-primary-400 ring-1 ring-ds-primary-200'
             )}
             value={sellerForm.followUpDate}
-            onChange={(e) =>
-              setSellerForm((s) => ({ ...s, followUpDate: e.target.value }))
+            onChange={(followUpDate) =>
+              setSellerForm((s) => ({ ...s, followUpDate }))
             }
             onBlur={() => onFollowUpBlur?.()}
             disabled={formDisabled}
+            placeholder="Pick follow-up date & time"
           />
             {followUpAssignedToMe ? (
               <p className="text-[11px] text-ds-primary-700">

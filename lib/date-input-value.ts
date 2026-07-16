@@ -14,6 +14,54 @@ export function datetimeLocalValue(at: Date = new Date()): string {
   return `${todayIsoDate(at)}T${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
 }
 
+export type DatetimeLocalParts = {
+  date: string;
+  hour: string;
+  minute: string;
+};
+
+export function datetimeLocalPartsFromValue(
+  value: string | null | undefined,
+  fallbackHour = '10',
+  fallbackMinute = '00'
+): DatetimeLocalParts {
+  const t = String(value ?? '').trim();
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(t);
+  if (!match) {
+    return { date: '', hour: fallbackHour, minute: fallbackMinute };
+  }
+  return { date: match[1]!, hour: match[2]!, minute: match[3]! };
+}
+
+export function datetimeLocalFromParts(parts: DatetimeLocalParts): string {
+  const date = parts.date.trim();
+  const hour = parts.hour.trim();
+  const minute = parts.minute.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+  if (!/^\d{2}$/.test(hour) || !/^\d{2}$/.test(minute)) return '';
+  const h = Number(hour);
+  const m = Number(minute);
+  if (!Number.isFinite(h) || h < 0 || h > 23) return '';
+  if (!Number.isFinite(m) || m < 0 || m > 59) return '';
+  return `${date}T${hour}:${minute}`;
+}
+
+/** Validates `YYYY-MM-DDTHH:mm` as a real local calendar date and time. */
+export function isValidDatetimeLocal(value: string): boolean {
+  const t = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(t)) return false;
+  const [datePart, timePart] = t.split('T');
+  const [y, mo, d] = datePart.split('-').map(Number);
+  const [h, mi] = timePart.split(':').map(Number);
+  if (h! < 0 || h! > 23 || mi! < 0 || mi! > 59) return false;
+  const dt = new Date(y!, mo! - 1, d);
+  return (
+    dt.getFullYear() === y &&
+    dt.getMonth() === mo! - 1 &&
+    dt.getDate() === d
+  );
+}
+
 /** `YYYY-MM-DDTHH:mm` one week from `at` (for follow-up date defaults). */
 export function datetimeLocalValueNextWeek(at: Date = new Date()): string {
   const d = new Date(at);
