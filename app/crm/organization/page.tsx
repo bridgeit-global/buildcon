@@ -1,15 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isOrgAdmin } from '@/lib/profile-roles';
 import { CrmFormSkeleton } from '../_components/crm-skeletons';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { Button } from '@/components/ui/button';
+import { FieldLabel } from '@/components/ui/field-label';
+import { FormFieldError } from '@/components/ui/form-field-error';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { useFieldValidation } from '@/lib/form/zod-field-errors';
 import { pageError, toast } from '@/lib/toast';
+import { usePincodeLookup } from '@/lib/address/use-pincode-lookup';
+import { INDIAN_STATES } from '@/lib/address/pincode-lookup';
+import { getCitiesForState } from '@/lib/address/indian-state-cities';
 import {
   EMPTY_ORGANIZATION_SETTINGS_FORM,
   organizationSettingsFormFromRow,
@@ -114,6 +122,26 @@ export default function OrganizationPage() {
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
+
+  const onPincodeResult = useCallback(
+    (result: { city: string; state: string }) => {
+      setForm((prev) => ({ ...prev, state: result.state, city: result.city }));
+    },
+    []
+  );
+
+  const { loading: pincodeLoading, handlePinChange } =
+    usePincodeLookup(onPincodeResult);
+
+  const stateOptions = useMemo(() => [...INDIAN_STATES], []);
+
+  const cityOptions = useMemo(() => {
+    const list = getCitiesForState(form.state);
+    if (form.city && !list.includes(form.city)) {
+      return [form.city, ...list].sort();
+    }
+    return list;
+  }, [form.state, form.city]);
 
   function focusFirstError(
     nextErrors: Partial<Record<OrganizationSettingsFormField, string>>
@@ -353,32 +381,58 @@ export default function OrganizationPage() {
             onChange={(e) => setField('registered_address', e.target.value)}
           />
           <div className="grid gap-4 sm:grid-cols-3">
-            <TextInputField
-              id={FIELD_IDS.city}
-              label="City"
-              value={form.city}
-              error={fieldError('city')}
-              onBlur={() => touch('city')}
-              onChange={(e) => setField('city', e.target.value)}
-            />
-            <TextInputField
-              id={FIELD_IDS.state}
-              label="State"
-              value={form.state}
-              error={fieldError('state')}
-              onBlur={() => touch('state')}
-              onChange={(e) => setField('state', e.target.value)}
-            />
-            <TextInputField
-              id={FIELD_IDS.pin}
-              label="PIN"
-              value={form.pin}
-              error={fieldError('pin')}
-              onBlur={() => touch('pin')}
-              onChange={(e) => setField('pin', e.target.value)}
-              inputMode="numeric"
-              maxLength={6}
-            />
+            <div className="relative">
+              <TextInputField
+                id={FIELD_IDS.pin}
+                label="PIN"
+                value={form.pin}
+                error={fieldError('pin')}
+                onBlur={() => touch('pin')}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setField('pin', val);
+                  handlePinChange(val);
+                }}
+                inputMode="numeric"
+                maxLength={6}
+              />
+              {pincodeLoading ? (
+                <Loader2 className="absolute right-3 top-9 size-4 animate-spin text-muted-foreground" />
+              ) : null}
+            </div>
+            <div id={FIELD_IDS.state}>
+              <FieldLabel>State</FieldLabel>
+              <SearchableSelect
+                value={form.state}
+                onValueChange={(val) => {
+                  setField('state', val);
+                  if (val !== form.state) setField('city', '');
+                  touch('state');
+                }}
+                options={stateOptions}
+                placeholder="Select state"
+                searchPlaceholder="Search state…"
+                className={formControlFieldGapClass}
+                error={Boolean(fieldError('state'))}
+              />
+              <FormFieldError message={fieldError('state')} />
+            </div>
+            <div id={FIELD_IDS.city}>
+              <FieldLabel>City</FieldLabel>
+              <SearchableSelect
+                value={form.city}
+                onValueChange={(val) => {
+                  setField('city', val);
+                  touch('city');
+                }}
+                options={cityOptions}
+                placeholder="Select city"
+                searchPlaceholder="Search city…"
+                className={formControlFieldGapClass}
+                error={Boolean(fieldError('city'))}
+              />
+              <FormFieldError message={fieldError('city')} />
+            </div>
           </div>
         </section>
 
