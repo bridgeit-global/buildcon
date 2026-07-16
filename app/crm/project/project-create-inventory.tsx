@@ -32,7 +32,6 @@ import {
   newUnitNode,
   newWingNode,
   normalizeStructures,
-  totalStructureLeafArea,
   type UnitConfigDraft
 } from './project-structure-utils';
 
@@ -956,32 +955,6 @@ function UnitConfigBlock({
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-export function InventoryConfigSummary(props: {
-  draftName: string;
-  projectType: string;
-  structures: StructureNode[];
-}) {
-  const totalArea = totalStructureLeafArea(props.structures);
-
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {[
-        ['Name', props.draftName || '—'],
-        ['Kind', props.projectType || '—'],
-        ['Area', `${totalArea} sq.ft (all structures)`]
-      ].map(([k, v]) => (
-        <div
-          key={k}
-          className="rounded-md border border-border bg-muted px-2.5 py-2"
-        >
-          <div className="text-[9px] text-ds-gray-400">{k}</div>
-          <div className="text-xs font-bold text-foreground">{v}</div>
-        </div>
-      ))}
     </div>
   );
 }

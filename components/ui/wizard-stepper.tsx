@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 export type WizardStepDef = {
   id: string;
   label: string;
+  /** Optional helper text shown under the label (vertical stepper only). */
+  description?: string;
 };
 
 export type WizardStepperProps = {
@@ -253,17 +255,24 @@ export function WizardStepperVertical({
                     />
                   ) : null}
                 </div>
-                <span
-                  className={cn(
-                    'flex flex-1 items-center text-xs font-semibold leading-snug',
-                    isActive
-                      ? 'text-ds-primary-700'
-                      : done || hasData
-                        ? 'text-ds-primary-600'
-                        : 'text-muted-foreground'
-                  )}
-                >
-                  {step.label}
+                <span className="flex min-w-0 flex-1 flex-col justify-center py-1">
+                  <span
+                    className={cn(
+                      'text-xs font-semibold leading-snug',
+                      isActive
+                        ? 'text-ds-primary-700'
+                        : done || hasData
+                          ? 'text-ds-primary-600'
+                          : 'text-muted-foreground'
+                    )}
+                  >
+                    {step.label}
+                  </span>
+                  {step.description ? (
+                    <span className="mt-0.5 text-[10px] font-normal leading-snug text-muted-foreground">
+                      {step.description}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             </li>

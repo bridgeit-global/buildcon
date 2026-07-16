@@ -6,7 +6,6 @@ import {
   createProjectStep0Schema,
   createProjectStep0SchemaWithExisting,
   createProjectStep1FieldsSchema,
-  createProjectStep3Schema,
   firstUnitCategoryFromCsv,
   firstUnitTypeFromCsv,
   parseUnitCategoriesCsv,
@@ -35,11 +34,12 @@ describe('firstUnitTypeFromCsv', () => {
 });
 
 describe('createProjectStep0Schema', () => {
-  it('accepts name and location', () => {
+  it('accepts name, location and base rate', () => {
     expect(
       createProjectStep0Schema.safeParse({
         name: 'Sunrise',
-        location: 'Mumbai'
+        location: 'Mumbai',
+        base_rate: 10000
       }).success
     ).toBe(true);
   });
@@ -48,7 +48,18 @@ describe('createProjectStep0Schema', () => {
     expect(
       createProjectStep0Schema.safeParse({
         name: 'Sunrise',
-        location: ''
+        location: '',
+        base_rate: 10000
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects negative base rate', () => {
+    expect(
+      createProjectStep0Schema.safeParse({
+        name: 'Sunrise',
+        location: 'Mumbai',
+        base_rate: -1
       }).success
     ).toBe(false);
   });
@@ -60,7 +71,8 @@ describe('createProjectStep0Schema', () => {
     expect(
       schema.safeParse({
         name: 'sunrise heights',
-        location: 'Mumbai'
+        location: 'Mumbai',
+        base_rate: 10000
       }).success
     ).toBe(false);
   });
@@ -76,24 +88,6 @@ describe('createProjectStep1FieldsSchema', () => {
   it('rejects empty unit types csv', () => {
     expect(
       createProjectStep1FieldsSchema.safeParse({ unitTypesCsv: '' }).success
-    ).toBe(false);
-  });
-});
-
-describe('createProjectStep3Schema', () => {
-  it('accepts non-negative base rate', () => {
-    expect(
-      createProjectStep3Schema.safeParse({
-        base_rate: 10000
-      }).success
-    ).toBe(true);
-  });
-
-  it('rejects negative base rate', () => {
-    expect(
-      createProjectStep3Schema.safeParse({
-        base_rate: -1
-      }).success
     ).toBe(false);
   });
 });
@@ -182,6 +176,14 @@ describe('validateCreateStep', () => {
         existingProjects: [{ id: 'p1', name: 'Sunrise Heights' }]
       })
     ).toBe(PROJECT_NAME_DUPLICATE_ERROR);
+  });
+
+  it('validates step 0 base rate', () => {
+    const draft = createInitialDraft();
+    draft.name = 'Sunrise';
+    draft.location = 'Mumbai';
+    draft.base_rate = -5;
+    expect(validateCreateStep(0, draft)).toMatch(/rate/i);
   });
 
   it('validates step 1 unit types', () => {

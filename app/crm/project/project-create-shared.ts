@@ -14,13 +14,27 @@ import {
   normalizeStructures
 } from './project-structure-utils';
 
-export const WIZARD_STEPS = [
-  'Basic Info',
-  'Inventory Config',
-  'Floor Configure',
-  'Rates',
-  'Users & Access',
-  'Review'
+export const CREATE_PROJECT_WIZARD_STEPS = [
+  {
+    id: 'basics',
+    label: 'Basic Details',
+    description: 'Name, location, type and base rate'
+  },
+  {
+    id: 'inventory',
+    label: 'Inventory Config',
+    description: 'Buildings, wings and floor setup'
+  },
+  {
+    id: 'units',
+    label: 'Unit Setup',
+    description: 'Per-floor units, areas and rates'
+  },
+  {
+    id: 'review',
+    label: 'Review & Team',
+    description: 'Assign members and confirm'
+  }
 ] as const;
 
 export type CreateProjectDraft = {
@@ -68,7 +82,8 @@ export function parseUnitCategoriesCsv(csv: string): string[] {
 
 export const createProjectStep0Schema = z.object({
   name: z.string().trim().min(1, 'Project name is required.'),
-  location: z.string().trim().min(1, 'Location is required.')
+  location: z.string().trim().min(1, 'Location is required.'),
+  base_rate: z.number().min(0, 'Rate cannot be negative.')
 });
 
 export type CreateProjectValidationOptions = {
@@ -103,15 +118,10 @@ export const createProjectStep1FieldsSchema = z.object({
   })
 });
 
-export const createProjectStep3Schema = z.object({
-  base_rate: z.number().min(0, 'Rate cannot be negative.')
-});
-
 export type CreateProjectStep0Values = z.infer<typeof createProjectStep0Schema>;
 export type CreateProjectStep1FieldValues = z.infer<
   typeof createProjectStep1FieldsSchema
 >;
-export type CreateProjectStep3Values = z.infer<typeof createProjectStep3Schema>;
 
 /** First unit type from step 2 CSV (default for step 3 unit rows). */
 export function firstUnitTypeFromCsv(csv: string): string {
@@ -202,7 +212,7 @@ export function validateCreateDraft(
   draft: CreateProjectDraft,
   options?: CreateProjectValidationOptions
 ): string | null {
-  for (let step = 0; step <= 3; step++) {
+  for (let step = 0; step <= 2; step++) {
     const err = validateCreateStep(step, draft, options);
     if (err) return err;
   }
@@ -221,6 +231,7 @@ export function validateCreateStep(
       : false;
     if (duplicate) return PROJECT_NAME_DUPLICATE_ERROR;
     if (!draft.location.trim()) return 'Location is required.';
+    if (draft.base_rate < 0) return 'Rate cannot be negative.';
     return null;
   }
   if (step === 1) {
@@ -245,12 +256,6 @@ export function validateCreateStep(
       return 'Configure floors (use Auto-fill floors) before continuing.';
     }
     return validateFloorUnitTypesAssigned(draft);
-  }
-  if (step === 3) {
-    if (draft.base_rate < 0) {
-      return 'Rate cannot be negative.';
-    }
-    return null;
   }
   return null;
 }
