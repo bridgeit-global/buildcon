@@ -26,6 +26,7 @@ import { DocumentsBookingListTable } from './documents-booking-list-table';
 import { BookingDocumentsMatrixTable, buildMatrixRows } from './booking-documents-matrix-table';
 import { isUnitPossessedStatus, statusLabelForUnit } from '../inventory/unit-status';
 import BackButton from '@/components/buttons/back-button';
+import { isOrgAdmin } from '@/lib/profile-roles';
 
 type BookingPickRow = {
   id: string;
@@ -71,6 +72,7 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
     () => new Map()
   );
   const [outstandingTotal, setOutstandingTotal] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { sorting: bookingsSorting, onSortingChange: onBookingsSortingChange } =
     useServerListSorting();
   const { sorting: generatedSorting, onSortingChange: onGeneratedSortingChange } =
@@ -85,6 +87,30 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
       setSelectedBookingId('');
     }
   }, [lockedBookingId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (!cancelled) {
+        setIsAdmin(isOrgAdmin(profile?.role as string | null));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   const loadConfirmedBookings = useCallback(async () => {
     if (projectIds.length === 0) {
@@ -351,6 +377,15 @@ export function DocumentsPageContent({ pathBookingId }: DocumentsPageContentProp
               <Button type="button" variant="outline" size="sm" asChild>
                 <Link href={`/crm/units/${encodeURIComponent(printPack.booking.unit_id)}`}>
                   Open unit page
+                </Link>
+              </Button>
+            ) : null}
+            {isAdmin && printPack?.booking.project_id ? (
+              <Button type="button" variant="outline" size="sm" asChild>
+                <Link
+                  href={`/crm/project/${encodeURIComponent(printPack.booking.project_id)}/templates`}
+                >
+                  Manage templates
                 </Link>
               </Button>
             ) : null}
