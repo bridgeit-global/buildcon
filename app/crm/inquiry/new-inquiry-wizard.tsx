@@ -38,13 +38,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
 import {
@@ -281,7 +274,11 @@ export const NewInquiryWizard = forwardRef<
     name: 'Logged-in user'
   });
 
-  const { activeNames: masterLeadSources } = useMasterLookup('lead_source');
+  const {
+    items: masterLeadSourceItems,
+    activeNames: masterLeadSources,
+    reload: reloadLeadSources
+  } = useMasterLookup('lead_source');
   const { activeNames: masterUnitTypes } = useMasterLookup('unit_type');
   const leadSourceOptions = useMemo(
     () => masterLeadSources,
@@ -1518,6 +1515,41 @@ export const NewInquiryWizard = forwardRef<
     setUnitPickFilters(DEFAULT_UNIT_PICK_FILTERS);
   }
 
+  async function addLeadSource(name: string): Promise<string | null> {
+    const trimmedName = name.trim();
+    if (!trimmedName) return null;
+
+    const existing = masterLeadSourceItems.find(
+      (item) => item.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (existing) return existing.name;
+
+    const nextSortOrder =
+      masterLeadSourceItems.reduce(
+        (highest, item) => Math.max(highest, item.sort_order),
+        -1
+      ) + 1;
+    const { data, error } = await supabase
+      .from('master_lookup_items')
+      .insert({
+        kind: 'lead_source',
+        name: trimmedName,
+        sort_order: nextSortOrder,
+        is_active: true
+      })
+      .select('name')
+      .single();
+
+    if (error) {
+      pageError(error.message);
+      return null;
+    }
+
+    await reloadLeadSources();
+    toast.success('Lead source added.');
+    return data.name;
+  }
+
   function buildEnquiryStagePayload() {
     const parts = [
       sellerForm.interestedIn.trim()
@@ -2044,6 +2076,7 @@ export const NewInquiryWizard = forwardRef<
           setSellerForm={setSellerForm}
           brokers={brokers}
           leadSourceOptions={leadSourceOptions}
+          onAddLeadSource={addLeadSource}
           unitTypeOptions={unitTypeOptions}
           signedIn={Boolean(userLabel.id)}
           fieldError={step1Validation.fieldError}
@@ -2335,6 +2368,7 @@ function StepEnquiry({
   setSellerForm,
   brokers,
   leadSourceOptions,
+  onAddLeadSource,
   unitTypeOptions,
   signedIn,
   fieldError,
@@ -2347,6 +2381,7 @@ function StepEnquiry({
   setSellerForm: SetSellerForm;
   brokers: { id: string; full_name: string }[];
   leadSourceOptions: string[];
+  onAddLeadSource: (name: string) => Promise<string | null>;
   unitTypeOptions: string[];
   signedIn: boolean;
   fieldError: (field: keyof InquiryWizardStep1Values) => string | undefined;
@@ -2437,7 +2472,7 @@ function StepEnquiry({
           <FieldLabel className={wizardLabelClass} required>
             Lead source
           </FieldLabel>
-          <Select
+          <SearchableSelect
             value={sellerForm.leadSource}
             onValueChange={(v) => {
               setSellerForm((s) => ({
@@ -2448,21 +2483,13 @@ function StepEnquiry({
               }));
               touch('leadSource');
             }}
-          >
-            <SelectTrigger
-              className={wizardSelectTriggerClass}
-              aria-invalid={fieldError('leadSource') ? true : undefined}
-            >
-              <SelectValue placeholder="Select source…" />
-            </SelectTrigger>
-            <SelectContent>
-              {leadSourceOptions.map((src) => (
-                <SelectItem key={src} value={src}>
-                  {src}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={leadSourceOptions}
+            onCreateOption={onAddLeadSource}
+            placeholder="Select source…"
+            searchPlaceholder="Search or add a lead source…"
+            className={wizardSelectTriggerClass}
+            error={Boolean(fieldError('leadSource'))}
+          />
           <FormFieldError message={fieldError('leadSource')} />
         </div>
 

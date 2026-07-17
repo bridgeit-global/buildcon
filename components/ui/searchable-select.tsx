@@ -25,6 +25,10 @@ type SearchableSelectProps = {
   renderValue?: (value: string) => React.ReactNode;
   /** Custom content for each row in the dropdown list (defaults to the raw option). */
   renderOption?: (option: string) => React.ReactNode;
+  /** Creates a new option from the search text and returns its display value. */
+  onCreateOption?: (value: string) => string | null | Promise<string | null>;
+  /** Custom label for the option-creation action. */
+  createOptionLabel?: (value: string) => React.ReactNode;
   /** Clicking the already-selected option clears it. Defaults to true; set false for single-choice pickers (e.g. country code) that should always stay selected. */
   allowClear?: boolean;
 };
@@ -41,10 +45,13 @@ export function SearchableSelect({
   contentClassName,
   renderValue,
   renderOption,
+  onCreateOption,
+  createOptionLabel,
   allowClear = true
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
+  const [creating, setCreating] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const filtered = React.useMemo(() => {
@@ -52,6 +59,23 @@ export function SearchableSelect({
     const q = search.toLowerCase();
     return options.filter((o) => o.toLowerCase().includes(q));
   }, [options, search]);
+  const createValue = search.trim();
+  const canCreate =
+    Boolean(onCreateOption && createValue) &&
+    !options.some((option) => option.toLowerCase() === createValue.toLowerCase());
+
+  async function createOption() {
+    if (!onCreateOption || !canCreate || creating) return;
+    setCreating(true);
+    try {
+      const createdValue = await onCreateOption(createValue);
+      if (!createdValue) return;
+      onValueChange(createdValue);
+      setOpen(false);
+    } finally {
+      setCreating(false);
+    }
+  }
 
   React.useEffect(() => {
     if (open) {
@@ -123,6 +147,18 @@ export function SearchableSelect({
               )}
             </button>
           ))}
+          {canCreate ? (
+            <button
+              type="button"
+              onClick={() => void createOption()}
+              disabled={creating}
+              className="flex min-h-11 w-full items-center rounded-sm px-2 py-1.5 text-left text-sm font-medium text-primary outline-hidden select-none hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {creating
+                ? 'Adding…'
+                : createOptionLabel?.(createValue) ?? `Add “${createValue}”`}
+            </button>
+          ) : null}
         </div>
       </PopoverContent>
     </Popover>
