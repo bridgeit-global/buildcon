@@ -132,7 +132,7 @@ export function WizardStepper({
                       ? 'text-ds-primary-600'
                       : hasUnsaved
                         ? 'text-ds-warning-800'
-                        : 'text-muted-foreground'
+                      : 'text-ds-gray-500'
                 )}
               >
                 {step.label}
@@ -155,7 +155,7 @@ export function WizardStepper({
                   {inner}
                 </button>
               ) : (
-                <div className="flex flex-col items-center gap-1 opacity-70">
+                <div className="flex flex-col items-center gap-1">
                   {inner}
                 </div>
               )}

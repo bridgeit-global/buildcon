@@ -325,7 +325,9 @@ function NewInquiryPageInner() {
 
   const handleWizardStepChange = useCallback((step: number) => {
     setWizardStep(step);
+    if (step === 1) setViewStage('Enquiry');
     if (step === 2) setViewStage('Qualified');
+    if (step === 3) setViewStage('Site Visit');
   }, []);
 
   const handlePipelineStageChange = useCallback(
@@ -453,7 +455,7 @@ function NewInquiryPageInner() {
                   forcedStep={wizardStep as 1 | 2 | 3}
                   stagesReadOnly={inquiryUnitTokenLocked || inquiryClosed}
                   onStepChange={handleWizardStepChange}
-                  onCreated={(id) => void handleInquiryCreated(id)}
+                  onCreated={handleInquiryCreated}
                   onFunnelStageChange={handleFunnelStageChange}
                   onStageDataSaved={handleStageDataSaved}
                   onSkipToStage={handleSkipToStage}

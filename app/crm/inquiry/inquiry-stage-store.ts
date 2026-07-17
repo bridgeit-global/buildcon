@@ -394,10 +394,20 @@ export async function saveInquiryStageData(
     const key = STAGE_JSON_KEY[stage];
     const payload = patch[key];
     if (payload === undefined) continue;
+    const existingPayload = (existingStageData[key] ?? {}) as Record<
+      string,
+      unknown
+    >;
     const result = await upsertInquiryStagePayload(supabase, {
       inquiryId: id,
       stage,
-      payload: (payload ?? {}) as Record<string, unknown>,
+      // Stage interactions save individual fields (for example, a follow-up
+      // date on blur). Preserve previously saved fields such as the visit
+      // outcome instead of replacing the complete stage payload.
+      payload: {
+        ...existingPayload,
+        ...((payload ?? {}) as Record<string, unknown>)
+      },
       markCompleted: completed.has(stage)
     });
     if (!result.ok) return result;

@@ -93,8 +93,10 @@ export function buildWizardUiDraftPayload(
   }
 
   return {
-    drafts: Object.keys(drafts).length > 0 ? drafts : undefined,
-    unsaved: unsaved || undefined
+    // Send explicit empty values so a later clean save clears stale drafts and
+    // the persisted unsaved flag instead of retaining the prior dirty state.
+    drafts,
+    unsaved
   };
 }
 

@@ -195,8 +195,8 @@ type SiteVisitInterest = 'Interested' | 'Not Interested' | '';
 
 type NewInquiryWizardProps = {
   onInquirySaved?: () => void | Promise<void>;
-  /** Called with the new inquiry id after step 2 (unit qualified). */
-  onCreated?: (inquiryId: string) => void;
+  /** Called after a newly created enquiry and its Enquiry stage are persisted. */
+  onCreated?: (inquiryId: string) => void | Promise<void>;
   /** Resume visit-site step for an existing enquiry. */
   inquiryId?: string;
   /** Notifies parent when the internal step changes (1–3). */
@@ -582,6 +582,23 @@ export const NewInquiryWizard = forwardRef<
       setInquiryClosed(isInquiryClosed(stageData, rowFunnelStage));
       setClosedStatus(getInquiryClosedStatus(stageData));
       const { data: sd } = await loadInquiryStageData(supabase, id);
+      const enquiry = (sd?.enquiry ?? {}) as {
+        preferred_location?: string;
+        preferred_wing?: string;
+        budget_min?: string;
+        budget_max?: string;
+        parking_required?: 'Yes' | 'No';
+        parking_count?: string;
+      };
+      setSellerForm((s) => ({
+        ...s,
+        preferredLocation: String(enquiry.preferred_location ?? '').trim(),
+        preferredWing: String(enquiry.preferred_wing ?? '').trim(),
+        budgetMin: String(enquiry.budget_min ?? '').trim(),
+        budgetMax: String(enquiry.budget_max ?? '').trim(),
+        parkingRequired: enquiry.parking_required === 'Yes' ? 'Yes' : 'No',
+        parkingCount: String(enquiry.parking_count ?? '').trim() || '1'
+      }));
       const sv = sd?.site_visit as
         | { follow_up_date?: string; outcome?: string }
         | undefined;
@@ -686,12 +703,12 @@ export const NewInquiryWizard = forwardRef<
           leadSourceOther: leadSourceState.leadSourceOther,
           brokerId: String(row.broker_id ?? '').trim(),
           interestedIn: String(row.interested_in ?? '').trim(),
-          preferredLocation: '',
-          preferredWing: '',
-          budgetMin: '',
-          budgetMax: '',
-          parkingRequired: 'No',
-          parkingCount: '1',
+          preferredLocation: String(enquiry.preferred_location ?? '').trim(),
+          preferredWing: String(enquiry.preferred_wing ?? '').trim(),
+          budgetMin: String(enquiry.budget_min ?? '').trim(),
+          budgetMax: String(enquiry.budget_max ?? '').trim(),
+          parkingRequired: enquiry.parking_required === 'Yes' ? 'Yes' : 'No',
+          parkingCount: String(enquiry.parking_count ?? '').trim() || '1',
           followUpDate: siteFollowUp || datetimeLocalValueNextWeek(),
           notes: notesValue
         },
@@ -734,7 +751,8 @@ export const NewInquiryWizard = forwardRef<
     forcedStep,
     changeStep,
     hydrateWithPersistedDrafts,
-    applySnapshotToForm
+    applySnapshotToForm,
+    leadSourceOptions
   ]);
 
   useEffect(() => {
@@ -1155,10 +1173,14 @@ export const NewInquiryWizard = forwardRef<
       Boolean(userLabel.id);
     return {
       1: step1Ok,
-      2: step1Ok,
+      2:
+        step1Ok &&
+        inquiryWizardStep2Schema.safeParse({
+          selectedUnitId: sellerForm.selectedUnitId
+        }).success,
       3: Boolean(activeInquiryId)
     } as Record<StepId, boolean>;
-  }, [step1Values, userLabel.id, activeInquiryId]);
+  }, [step1Values, sellerForm.selectedUnitId, userLabel.id, activeInquiryId]);
 
   const persistCustomerToDb = useCallback(async (): Promise<string | null> => {
     if (!userLabel.id) {
@@ -1568,7 +1590,13 @@ export const NewInquiryWizard = forwardRef<
     return {
       follow_up_date: sellerForm.followUpDate.trim() || undefined,
       notes: parts.join(' · ') || undefined,
-      cost_sheet_notes: sellerForm.notes.trim() || undefined
+      cost_sheet_notes: sellerForm.notes.trim() || undefined,
+      preferred_location: sellerForm.preferredLocation.trim() || undefined,
+      preferred_wing: sellerForm.preferredWing.trim() || undefined,
+      budget_min: sellerForm.budgetMin.trim() || undefined,
+      budget_max: sellerForm.budgetMax.trim() || undefined,
+      parking_required: sellerForm.parkingRequired,
+      parking_count: sellerForm.parkingCount
     };
   }
 
@@ -1643,7 +1671,6 @@ export const NewInquiryWizard = forwardRef<
         setCreatedInquiryId(inquiryId);
         setPersistedInquiryProjectId(inquiryProjectId);
         setInquiryAssignedTo(userLabel.id);
-        onCreated?.(inquiryId);
       }
 
       const stageResult = await saveInquiryStageData(supabase, {
@@ -1664,6 +1691,7 @@ export const NewInquiryWizard = forwardRef<
       toast.success('Enquiry saved.');
       markStepSaved(1);
       onStageDataSaved?.();
+      if (!activeInquiryId) await onCreated?.(inquiryId);
       await onInquirySaved?.();
       return true;
     } catch (e) {
@@ -1684,6 +1712,11 @@ export const NewInquiryWizard = forwardRef<
     const advance = options?.advance !== false;
 
     const unitId = String(sellerForm.selectedUnitId || '').trim();
+    if (!unitId) {
+      step2Validation.touch('selectedUnitId');
+      pageError('Select an available unit before qualifying this enquiry.');
+      return false;
+    }
     const inquiryProjectId =
       String(selectedUnit?.project_id || '').trim() || resolveEnquiryProjectId();
     if (!inquiryProjectId) {
@@ -1753,26 +1786,6 @@ export const NewInquiryWizard = forwardRef<
 
       const enquiryPayload = buildEnquiryStagePayload();
 
-      if (!unitId) {
-        const stageResult = await saveInquiryStageData(supabase, {
-          inquiryId,
-          patch: { enquiry: enquiryPayload },
-          funnelStage: 'Enquiry',
-          markStagesCompleted: ['Enquiry'],
-          allowFunnelDowngrade: true
-        });
-        if (!stageResult.ok) {
-          throw new Error(stageResult.error ?? 'Failed to save enquiry');
-        }
-        if (advance) changeStep(3);
-        markStepSaved(2);
-        onFunnelStageChange?.('Enquiry');
-        toast.success('Enquiry saved — add a unit later to qualify.');
-        onStageDataSaved?.();
-        await onInquirySaved?.();
-        return true;
-      }
-
       const qualifiedNotes = [
         sellerForm.interestedIn.trim()
           ? `Interested in: ${sellerForm.interestedIn.trim()}`
@@ -1812,7 +1825,6 @@ export const NewInquiryWizard = forwardRef<
       onFunnelStageChange?.('Qualified');
       toast.success('Unit qualified — record the site visit when ready.');
       onStageDataSaved?.();
-      onCreated?.(inquiryId);
       await onInquirySaved?.();
       return true;
     } catch (e) {
@@ -2095,10 +2107,10 @@ export const NewInquiryWizard = forwardRef<
           )}
         >
           <p className="text-xs text-ds-gray-600">
-            Pick an available unit from the inventory grid, or continue without
-            a unit. All units are shown with price and status; only available
-            inventory can be selected. Selecting a unit qualifies the lead and
-            blocks inventory.
+            Pick an available unit from the inventory grid to qualify this lead.
+            All units are shown with price and status; only available inventory
+            can be selected. Saving the selection qualifies the lead and blocks
+            the unit for this enquiry.
           </p>
           <InquiryUnitPicker
             projects={accessibleProjects}
@@ -2214,9 +2226,7 @@ export const NewInquiryWizard = forwardRef<
                 : step === 1
                   ? 'Save & next'
                   : step === 2
-                    ? sellerForm.selectedUnitId.trim()
-                      ? 'Save unit & continue'
-                      : 'Save & continue'
+                    ? 'Save unit & continue'
                     : 'Next'}
             </Button>
           ) : null}
@@ -2988,7 +2998,7 @@ function StepVisitSite({
 function SelectedUnitSummaryCard({ unit }: { unit: UnitRow }) {
   return (
     <div className="overflow-hidden rounded-xl border border-ds-primary-200 bg-card shadow-sm">
-      <div className="border-b border-ds-primary-100 bg-gradient-to-br from-ds-primary-50 to-background px-4 py-4">
+      <div className="border-b border-ds-primary-100 bg-linear-to-br from-ds-primary-50 to-background px-4 py-4">
         <p className="text-[10px] font-bold uppercase tracking-wider text-ds-primary-700">
           Selected unit
         </p>

@@ -89,10 +89,10 @@ describe('inquiryWizardStep2Schema', () => {
     ).toBe(true);
   });
 
-  it('accepts empty string after trim (no min length enforced)', () => {
+  it('rejects an empty selected unit id', () => {
     expect(
       inquiryWizardStep2Schema.safeParse({ selectedUnitId: '' }).success
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('rejects missing selected unit id', () => {
