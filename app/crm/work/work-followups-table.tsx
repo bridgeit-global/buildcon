@@ -2,12 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { TableViewButton } from '@/components/buttons/table-view-button';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableRowCount,
+  CrmDataTableSearch,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -16,20 +19,9 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { followUpDueState } from '@/lib/inquiry/follow-up-due';
 import { cn } from '@/lib/utils';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type WorkFollowRow = {
   followId: string;
@@ -205,130 +197,55 @@ export function WorkFollowupsTable({
     ...tableFeatures
   });
 
+  const filteredCount = table.getFilteredRowModel().rows.length;
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Input
-          placeholder="Search customer, project, stage…"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <CrmDataTableSearch
+          id="work-followups-search"
           value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          className="max-w-md"
+          onChange={setGlobalFilter}
+          placeholder="Search customer, project, stage…"
         />
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>
-            {table.getFilteredRowModel().rows.length} follow-up
-            {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
-          </span>
-          <Select
-            value={String(table.getState().pagination.pageSize)}
-            onValueChange={(v) => table.setPageSize(Number(v))}
-          >
-            <SelectTrigger className="h-9 w-[72px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 15, 25, 50].map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          <CrmDataTableRowCount
+            count={filteredCount}
+            noun="follow-up"
+            filtered={globalFilter.trim().length > 0}
+          />
+          <CrmDataTablePageSize table={table} />
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table
-          className="w-full min-w-[640px] caption-bottom text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr
-                key={hg.id}
-                className="border-b border-border bg-muted/60"
-              >
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loading && table.getRowModel().rows.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-muted-foreground"
-                >
-                  {globalFilter
-                    ? 'No follow-ups match your search.'
-                    : 'No open follow-ups.'}
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => {
-                const r = row.original;
-                const highlight = r.assignedToMe && r.needsAttention;
-                return (
-                  <tr
-                    key={row.id}
-                    className={cn(
-                      'border-b border-border last:border-0 transition-colors hover:bg-muted/50',
-                      highlight &&
-                        'border-l-4 border-l-ds-primary-500 bg-ds-primary-50/80'
-                    )}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <CrmDataTableCell
-                        key={cell.id}
-                        cell={cell}
-                        className={cn(
-                          'align-top',
-                          cell.column.id === 'dueAt' && 'whitespace-nowrap',
-                          cell.column.id === 'actions' &&
-                            'whitespace-nowrap text-right'
-                        )}
-                      />
-                    ))}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        table={table}
+        columnCount={columns.length}
+        loading={loading}
+        dataLength={rows.length}
+        minTableWidth="min-w-[640px]"
+        cellClassName="align-top"
+        getRowClassName={(row) => {
+          const r = row.original;
+          const highlight = r.assignedToMe && r.needsAttention;
+          return highlight
+            ? 'border-l-4 border-l-ds-primary-500 bg-ds-primary-50/80'
+            : '';
+        }}
+        getCellClassName={(cell) => {
+          if (cell.column.id === 'dueAt') return 'whitespace-nowrap';
+          if (cell.column.id === 'actions') return 'whitespace-nowrap text-right';
+          return undefined;
+        }}
+        emptyState={{
+          title: globalFilter ? 'No follow-ups found' : 'No open follow-ups',
+          description: globalFilter
+            ? 'No follow-ups match your search.'
+            : 'Scheduled follow-ups will appear here.'
+        }}
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {Math.max(1, table.getPageCount())}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            className="size-8 p-0"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="size-8 p-0"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <CrmDataTablePagination table={table} />
     </div>
   );
 }

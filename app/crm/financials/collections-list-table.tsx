@@ -2,12 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { TableRowActions } from '@/components/buttons/table-row-actions';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableSearch,
+  CrmDataTableToolbar,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -16,13 +19,9 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Trash2 } from 'lucide-react';
 import { formatDisplayDate } from '@/lib/format-display-date';
 import { formatInr } from '../inr-format';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type CollectionsListRow = {
   id: string;
@@ -175,99 +174,41 @@ export function CollectionsListTable({
     ...tableFeatures
   });
 
+  const filteredCount = table.getFilteredRowModel().rows.length;
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-56 flex-1">
-          <Label htmlFor="collections-search" className="text-xs text-muted-foreground">
-            Search
-          </Label>
-          <Input
-            id="collections-search"
-            className="mt-1"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Milestone, mode, reference, date, amount…"
-          />
-        </div>
-      </div>
+      <CrmDataTableToolbar>
+        <CrmDataTableSearch
+          id="collections-search"
+          value={globalFilter}
+          onChange={setGlobalFilter}
+          placeholder="Milestone, mode, reference, date, amount…"
+          label="Search"
+        />
+        <CrmDataTablePageSize table={table} className="lg:ml-auto" />
+      </CrmDataTableToolbar>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table
-          className="w-full min-w-4xl caption-bottom text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-border bg-muted/60">
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loading && rows.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-muted-foreground"
-                >
-                  No collections match the current filters.
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        table={table}
+        columnCount={columns.length}
+        loading={loading}
+        dataLength={rows.length}
+        minTableWidth="min-w-4xl"
+        cellClassName="align-top"
+        emptyState={{
+          title: 'No collections found',
+          description: 'No collections match the current filters.'
+        }}
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">
-          {table.getFilteredRowModel().rows.length} row
-          {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
-          {globalFilter.trim() ? ' (filtered)' : ''}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="tabular-nums">
-            Page {table.getState().pagination.pageIndex + 1} of {Math.max(1, table.getPageCount())}
-          </span>
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-              aria-label="Next page"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <CrmDataTablePagination
+        table={table}
+        rowCount={filteredCount}
+        noun="row"
+        filtered={globalFilter.trim().length > 0}
+        showRowCount
+      />
     </div>
   );
 }

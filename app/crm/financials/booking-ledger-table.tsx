@@ -1,19 +1,17 @@
 'use client';
 
 import { useMemo } from 'react';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   useReactTable,
   type ColumnDef
 } from '@tanstack/react-table';
 import { formatDisplayDate } from '@/lib/format-display-date';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 import { formatInr } from '../inr-format';
 
 export type BookingLedgerScheduleInput = {
@@ -208,41 +206,18 @@ export function BookingLedgerTable({
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table
-        className="w-full min-w-[40rem] caption-bottom text-sm text-foreground"
-        style={{ width: table.getCenterTotalSize() }}
-      >
-        <thead>
-          {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="border-b border-border bg-muted/60">
-              {hg.headers.map((h) => (
-                <CrmDataTableHead key={h.id} header={h} />
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {loading && table.getRowModel().rows.length === 0 ? (
-            <CrmTableBodySkeleton colSpan={columns.length} />
-          ) : table.getRowModel().rows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="px-4 py-12 text-center text-muted-foreground">
-                No ledger entries yet. Demands appear from the payment schedule; credits when you
-                post collections.
-              </td>
-            </tr>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
-                {row.getVisibleCells().map((cell) => (
-                  <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+    <CrmDataTable
+      table={table}
+      columnCount={columns.length}
+      loading={loading}
+      dataLength={rows.length}
+      minTableWidth="min-w-[40rem]"
+      cellClassName="align-top"
+      emptyState={{
+        title: 'No ledger entries yet',
+        description:
+          'Demands appear from the payment schedule; credits when you post collections.'
+      }}
+    />
   );
 }

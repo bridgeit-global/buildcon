@@ -2,12 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { pageError } from '@/lib/toast';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
-import {
-  useCrmTableFeatures,
-  type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+import { CrmDataTable, useCrmTableFeatures, type ServerSortedTableProps } from '@/components/data-table';
 import {
   getCoreRowModel,
   useReactTable,
@@ -344,31 +339,14 @@ export function BookingDocumentsMatrixTable({
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table
-          className="w-full min-w-xl caption-bottom text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-border bg-muted/60">
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
-                {row.getVisibleCells().map((cell) => (
-                  <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        table={table}
+        columnCount={columns.length}
+        dataLength={rows.length}
+        minTableWidth="min-w-xl"
+        cellClassName="align-top"
+        emptyState="No document types configured."
+      />
       {unitPossessed ? (
         <p className="text-xs text-ds-warning-800">{UNIT_POSSESSED_NO_DOCUMENTS_MESSAGE}</p>
       ) : (

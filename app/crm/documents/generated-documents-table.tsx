@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { pageError } from '@/lib/toast';
 import { useCallback, useMemo, useState } from 'react';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableSearch,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -18,7 +20,7 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, Download, Eye, Loader2, RefreshCw, Search, Send } from 'lucide-react';
+import { Download, Eye, Loader2, RefreshCw, Send } from 'lucide-react';
 import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
@@ -26,17 +28,7 @@ import {
   parseLinkIdFromBookingGeneratedPath
 } from '@/lib/booking/booking-generated-doc-kind';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { PdfViewerDialog } from '@/components/pdf-viewer-dialog';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 export type GeneratedDocRow = {
   id: string;
   project_id: string;
@@ -414,114 +406,44 @@ export function GeneratedDocumentsTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="w-full sm:max-w-sm">
-          <Label className="text-muted-foreground">Search generated</Label>
-          <div className="relative mt-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              placeholder="Project, unit, customer, path…"
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <CrmDataTableSearch
+          id="generated-docs-search"
+          value={globalFilter}
+          onChange={setGlobalFilter}
+          placeholder="Project, unit, customer, path…"
+          label="Search generated"
+          showIcon
+        />
+        <div className="flex flex-wrap items-end gap-2">
           {onRefresh ? (
             <Button type="button" variant="outline" size="sm" className="gap-1" onClick={onRefresh}>
               <RefreshCw className="h-4 w-4" />
               Refresh
             </Button>
           ) : null}
-          <Label className="sr-only sm:not-sr-only sm:text-muted-foreground">Rows</Label>
-          <Select
-            value={String(table.getState().pagination.pageSize)}
-            onValueChange={(v) => table.setPageSize(Number(v))}
-          >
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 15, 25, 50].map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CrmDataTablePageSize table={table} />
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table
-          className={
-            variant === 'bookingFocus'
-              ? 'w-full min-w-[40rem] caption-bottom text-sm text-foreground'
-              : 'w-full min-w-[56rem] caption-bottom text-sm text-foreground'
-          }
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-border bg-muted/60">
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loading && rows.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-muted-foreground">
-                  {rows.length === 0
-                    ? 'No generated records yet.'
-                    : 'No rows match your search.'}
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
-                  {row.getVisibleCells().map((cell) => (
-                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        table={table}
+        columnCount={columns.length}
+        loading={loading}
+        dataLength={rows.length}
+        minTableWidth={
+          variant === 'bookingFocus' ? 'min-w-[40rem]' : 'min-w-[56rem]'
+        }
+        cellClassName="align-top"
+        emptyState={{
+          title: rows.length === 0 ? 'No generated records yet' : 'No documents found',
+          description:
+            rows.length === 0
+              ? 'Generated documents will appear here.'
+              : 'No rows match your search.'
+        }}
+      />
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {Math.max(1, table.getPageCount())}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            className="size-8 p-0"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="size-8 p-0"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <CrmDataTablePagination table={table} />
       <PdfViewerDialog
         open={viewerOpen}
         onOpenChange={(open) => {

@@ -2,9 +2,10 @@
 
 import { useMemo } from 'react';
 import { TableViewButton } from '@/components/buttons/table-view-button';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
-import { useCrmTableFeatures } from '@/components/data-table/crm-table-features';
+import {
+  CrmDataTable,
+  useCrmTableFeatures
+} from '@/components/data-table';
 import {
   useReactTable,
   getCoreRowModel,
@@ -13,7 +14,6 @@ import {
   type SortingState
 } from '@tanstack/react-table';
 import { formatDisplayDate } from '@/lib/format-display-date';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type CustomerTableRow = {
   id: string;
@@ -101,49 +101,16 @@ export function CustomerListTable({
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table
-        className="w-full min-w-160 caption-bottom text-sm text-foreground"
-        style={{ width: table.getCenterTotalSize() }}
-      >
-        <thead>
-          {table.getHeaderGroups().map((hg) => (
-            <tr
-              key={hg.id}
-              className="border-b border-border bg-muted/60"
-            >
-              {hg.headers.map((h) => (
-                <CrmDataTableHead key={h.id} header={h} />
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {loading && table.getRowModel().rows.length === 0 ? (
-            <CrmTableBodySkeleton colSpan={columns.length} />
-          ) : table.getRowModel().rows.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-4 py-12 text-center text-muted-foreground"
-              >
-                No customers found.
-              </td>
-            </tr>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <CrmDataTableCell key={cell.id} cell={cell} />
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+    <CrmDataTable
+      table={table}
+      columnCount={columns.length}
+      loading={loading}
+      dataLength={rows.length}
+      minTableWidth="min-w-160"
+      emptyState={{
+        title: 'No customers found',
+        description: 'Customers will appear here once added.'
+      }}
+    />
   );
 }

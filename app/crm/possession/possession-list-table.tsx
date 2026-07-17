@@ -1,12 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableRowCount,
+  CrmDataTableSearch,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -15,10 +18,8 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight, KeyRound, Search } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 import { TableRowActions } from '@/components/buttons/table-row-actions';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -38,7 +39,6 @@ import {
   normalizeUnitStatusCode,
   statusLabelForUnit
 } from '../inventory/unit-status';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type PossessionListRow = {
   caseId: string;
@@ -153,7 +153,7 @@ export function PossessionListTable({
         header: 'Workflow',
         accessorFn: (row) => POSSESSION_WORKFLOW_LABELS[row.workflowStage],
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-xs text-muted-foreground">
             {POSSESSION_WORKFLOW_LABELS[row.original.workflowStage]}
           </span>
         )
@@ -201,26 +201,20 @@ export function PossessionListTable({
     ...tableFeatures
   });
 
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const isFiltered = globalFilter.trim().length > 0 || statusFilter !== 'all';
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Label htmlFor="possession-search" className="sr-only">
-              Search
-            </Label>
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              id="possession-search"
-              placeholder="Search unit, customer, project…"
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <CrmDataTableSearch
+            id="possession-search"
+            value={globalFilter}
+            onChange={setGlobalFilter}
+            placeholder="Search unit, customer, project…"
+            showIcon
+          />
           <div className="w-full sm:w-44">
             <Label htmlFor="possession-status-filter" className="sr-only">
               Unit status filter
@@ -242,104 +236,31 @@ export function PossessionListTable({
             </Select>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} unit
-          {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
-        </p>
-      </div>
-
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table
-          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-border bg-muted/60">
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loading && table.getRowModel().rows.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-muted-foreground"
-                >
-                  No units in possession-ready or possession-given status for your
-                  projects. Mark a registered unit as &quot;Possession ready&quot; in
-                  Inventory to start handover tracking.
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>Rows per page</span>
-          <Select
-            value={String(table.getState().pagination.pageSize)}
-            onValueChange={(v) => table.setPageSize(Number(v))}
-          >
-            <SelectTrigger className="h-8 w-[4.5rem]" aria-label="Page size">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 15, 25, 50].map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="tabular-nums">
-            Page {table.getState().pagination.pageIndex + 1} of{' '}
-            {Math.max(table.getPageCount(), 1)}
-          </span>
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-              aria-label="Next page"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <CrmDataTableRowCount
+            count={filteredCount}
+            noun="unit"
+            filtered={isFiltered}
+            loading={loading && rows.length === 0}
+          />
+          <CrmDataTablePageSize table={table} />
         </div>
       </div>
+
+      <CrmDataTable
+        table={table}
+        columnCount={columns.length}
+        loading={loading}
+        dataLength={filteredRows.length}
+        cellClassName="align-top"
+        emptyState={{
+          title: 'No possession units found',
+          description:
+            'No units in possession-ready or possession-given status for your projects. Mark a registered unit as "Possession ready" in Inventory to start handover tracking.'
+        }}
+      />
+
+      <CrmDataTablePagination table={table} />
     </div>
   );
 }

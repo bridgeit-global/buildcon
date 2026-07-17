@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isOrgAdmin } from '@/lib/profile-roles';
 import { pageError } from '@/lib/toast';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableSearch,
+  CrmDataTableToolbar,
   useCrmTableFeatures,
   useServerListSorting
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -18,13 +21,12 @@ import {
   type ColumnFiltersState,
   type FilterFn
 } from '@tanstack/react-table';
-import { Check, ChevronLeft, ChevronRight, Lock, X } from 'lucide-react';
+import { Check, Lock, X } from 'lucide-react';
 import Link from 'next/link';
 import { TableViewButton } from '@/components/buttons/table-view-button';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { CrmTableBodySkeleton, CrmSkeletonBar } from '../_components/crm-skeletons';
-import { Input } from '@/components/ui/input';
+import { CrmSkeletonBar } from '../_components/crm-skeletons';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -566,22 +568,14 @@ export default function ApprovalsPage() {
           </Button>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
-          <div className="min-w-[12rem] flex-1">
-            <Label
-              htmlFor="approval-search"
-              className="text-xs text-muted-foreground"
-            >
-              Search
-            </Label>
-            <Input
-              id="approval-search"
-              className="mt-1"
-              value={globalFilterValue}
-              onChange={(e) => setGlobalFilterValue(e.target.value)}
-              placeholder="Customer, phone, unit, project, requester…"
-            />
-          </div>
+        <CrmDataTableToolbar className="mt-4">
+          <CrmDataTableSearch
+            id="approval-search"
+            value={globalFilterValue}
+            onChange={setGlobalFilterValue}
+            placeholder="Customer, phone, unit, project, requester…"
+            label="Search"
+          />
           <div className="min-w-[10rem]">
             <Label className="text-xs text-muted-foreground">Status</Label>
             <Select
@@ -604,108 +598,28 @@ export default function ApprovalsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="min-w-[8rem]">
-            <Label className="text-xs text-muted-foreground">Page size</Label>
-            <Select
-              value={String(table.getState().pagination.pageSize)}
-              onValueChange={(v) => table.setPageSize(Number(v))}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 15, 25, 50].map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+          <CrmDataTablePageSize table={table} />
+        </CrmDataTableToolbar>
 
-        <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-          <table
-            className="w-full min-w-[56rem] caption-bottom text-sm"
-            style={{ width: table.getCenterTotalSize() }}
-          >
-            <thead className="border-b border-border bg-muted/40 [&_tr]:border-border">
-              {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id}>
-                  {hg.headers.map((h) => (
-                    <CrmDataTableHead
-                      key={h.id}
-                      header={h}
-                      className="px-3 uppercase tracking-wide text-muted-foreground"
-                    />
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {loading && rows.length === 0 ? (
-                <CrmTableBodySkeleton colSpan={columns.length} />
-              ) : table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={columns.length}
-                    className="px-3 py-10 text-center text-muted-foreground"
-                  >
-                    No approvals match the current filters.
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-border/80 transition-colors hover:bg-muted/25"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <CrmDataTableCell
-                        key={cell.id}
-                        cell={cell}
-                        className="px-3 py-2.5 align-top"
-                      />
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <CrmDataTable
+          className="mt-4"
+          table={table}
+          columnCount={columns.length}
+          loading={loading}
+          dataLength={rows.length}
+          cellClassName="align-top"
+          emptyState={{
+            title: 'No approvals found',
+            description: 'No approvals match the current filters.'
+          }}
+        />
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span className="tabular-nums">
-            {table.getFilteredRowModel().rows.length} row
-            {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="tabular-nums">
-              Page {table.getState().pagination.pageIndex + 1} of{' '}
-              {Math.max(1, table.getPageCount())}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-              aria-label="Next page"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
+        <CrmDataTablePagination
+          table={table}
+          rowCount={table.getFilteredRowModel().rows.length}
+          noun="row"
+          showRowCount
+        />
       </Card>
 
       <Dialog

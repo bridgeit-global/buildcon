@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TableRowActions } from '@/components/buttons/table-row-actions';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTableLayout,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableSearch,
+  CrmDataTableToolbar,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -18,18 +22,9 @@ import {
   type ColumnFiltersState,
   type FilterFn
 } from '@tanstack/react-table';
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
 import { funnelStageTone, StatusChip } from '@/components/ui/status-chip';
@@ -52,10 +47,7 @@ import {
   unitDisplayName
 } from './inquiry-helpers';
 import type { InquiryRowDb, UnitLabelRow } from './inquiry-types';
-import {
-  CrmSkeletonBar,
-  CrmTableBodySkeleton
-} from '../_components/crm-skeletons';
+import { CrmSkeletonBar } from '../_components/crm-skeletons';
 
 const globalInquiryFilter: FilterFn<InquiryRowDb> = (row, _columnId, raw) => {
   const q = String(raw ?? '')
@@ -411,8 +403,12 @@ export function InquiryListTable({
       ? ''
       : String(sourceFilterVal);
 
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const isFiltered =
+    globalFilter.trim().length > 0 || table.getState().columnFilters.length > 0;
+
   return (
-    <Card className="border-border p-4 shadow-sm" id="inquiry-list">
+    <CrmDataTableLayout className="border-border shadow-sm" id="inquiry-list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-foreground">
@@ -464,19 +460,14 @@ export function InquiryListTable({
         })}
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
-        <div className="min-w-[12rem] flex-1">
-          <Label htmlFor="inquiry-search" className="text-xs text-muted-foreground">
-            Search
-          </Label>
-          <Input
-            id="inquiry-search"
-            className="mt-1"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Customer, phone, email, ref, unit, project, stage, source…"
-          />
-        </div>
+      <CrmDataTableToolbar className="mt-4">
+        <CrmDataTableSearch
+          id="inquiry-search"
+          value={globalFilter}
+          onChange={setGlobalFilter}
+          placeholder="Customer, phone, email, ref, unit, project, stage, source…"
+          label="Search"
+        />
         <div className="flex flex-wrap gap-3">
           <div className="min-w-[10rem]">
             <Label className="text-xs text-muted-foreground">Lead source</Label>
@@ -495,106 +486,30 @@ export function InquiryListTable({
               className="mt-1 w-full min-w-[10rem]"
             />
           </div>
-          <div className="min-w-[8rem]">
-            <Label className="text-xs text-muted-foreground">Rows per page</Label>
-            <Select
-              value={String(table.getState().pagination.pageSize)}
-              onValueChange={(v) => table.setPageSize(Number(v))}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 15, 25, 50].map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CrmDataTablePageSize table={table} />
         </div>
-      </div>
+      </CrmDataTableToolbar>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-        <table
-          className="w-full min-w-[56rem] caption-bottom text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-border bg-muted/60">
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loadingInquiries && inquiries.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-muted-foreground"
-                >
-                  No enquiries match the current filters.
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <CrmDataTableCell key={cell.id} cell={cell} className="align-top" />
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        className="mt-4"
+        table={table}
+        columnCount={columns.length}
+        loading={loadingInquiries}
+        dataLength={inquiries.length}
+        cellClassName="align-top"
+        emptyState={{
+          title: 'No enquiries found',
+          description: 'No enquiries match the current filters.'
+        }}
+      />
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">
-          {table.getFilteredRowModel().rows.length} row
-          {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
-          {globalFilter.trim() || table.getState().columnFilters.length > 0
-            ? ' (filtered)'
-            : ''}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="tabular-nums">
-            Page {table.getState().pagination.pageIndex + 1} of{' '}
-            {Math.max(1, table.getPageCount())}
-          </span>
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="size-8 p-0"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-              aria-label="Next page"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Card>
+      <CrmDataTablePagination
+        table={table}
+        rowCount={filteredCount}
+        noun="row"
+        filtered={isFiltered}
+        showRowCount
+      />
+    </CrmDataTableLayout>
   );
 }

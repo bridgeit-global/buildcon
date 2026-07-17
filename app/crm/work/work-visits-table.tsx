@@ -2,12 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { TableViewButton } from '@/components/buttons/table-view-button';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableRowCount,
+  CrmDataTableSearch,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -16,18 +19,7 @@ import {
   type ColumnDef,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { formatDisplayDateTime } from '@/lib/format-display-date';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type WorkVisitRow = {
   visitId: string;
@@ -141,121 +133,46 @@ export function WorkVisitsTable({
     ...tableFeatures
   });
 
+  const filteredCount = table.getFilteredRowModel().rows.length;
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Input
-          placeholder="Search customer, project, status…"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <CrmDataTableSearch
+          id="work-visits-search"
           value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          className="max-w-md"
+          onChange={setGlobalFilter}
+          placeholder="Search customer, project, status…"
         />
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>
-            {table.getFilteredRowModel().rows.length} visit
-            {table.getFilteredRowModel().rows.length === 1 ? '' : 's'}
-          </span>
-          <Select
-            value={String(table.getState().pagination.pageSize)}
-            onValueChange={(v) => table.setPageSize(Number(v))}
-          >
-            <SelectTrigger className="h-9 w-[72px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 15, 25, 50].map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          <CrmDataTableRowCount
+            count={filteredCount}
+            noun="visit"
+            filtered={globalFilter.trim().length > 0}
+          />
+          <CrmDataTablePageSize table={table} />
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table
-          className="w-full min-w-[560px] caption-bottom text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr
-                key={hg.id}
-                className="border-b border-border bg-muted/60"
-              >
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead key={h.id} header={h} />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loading && table.getRowModel().rows.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-muted-foreground"
-                >
-                  {globalFilter
-                    ? 'No visits match your search.'
-                    : 'No upcoming site visits.'}
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-border last:border-0 transition-colors hover:bg-muted/50"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <CrmDataTableCell
-                      key={cell.id}
-                      cell={cell}
-                      className={
-                        cell.column.id === 'actions'
-                          ? 'whitespace-nowrap text-right align-top'
-                          : 'align-top'
-                      }
-                    />
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        table={table}
+        columnCount={columns.length}
+        loading={loading}
+        dataLength={rows.length}
+        minTableWidth="min-w-[560px]"
+        cellClassName="align-top"
+        getCellClassName={(cell) =>
+          cell.column.id === 'actions' ? 'whitespace-nowrap text-right align-top' : undefined
+        }
+        emptyState={{
+          title: globalFilter ? 'No visits found' : 'No upcoming site visits',
+          description: globalFilter
+            ? 'No visits match your search.'
+            : 'Scheduled site visits will appear here.'
+        }}
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="tabular-nums">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {Math.max(1, table.getPageCount())}
-        </span>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            className="size-8 p-0"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="size-8 p-0"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <CrmDataTablePagination table={table} />
     </div>
   );
 }

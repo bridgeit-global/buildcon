@@ -1,6 +1,15 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
+import {
+  Building2,
+  Grid3X3,
+  Layers3,
+  Map,
+  Plus,
+  Ruler,
+  Trash2
+} from 'lucide-react';
 import {
   applyDefaultUnitCategoryToFloorProvisions,
   applyDefaultUnitTypeToFloorProvisions
@@ -77,14 +86,83 @@ function nextFloorNumber(floors: StructureNode[]): number {
   );
 }
 
+const STRUCTURE_ROW_GRID =
+  'grid min-w-[40rem] grid-cols-[1.25rem_1.25rem_minmax(12rem,1fr)_7rem_6.5rem_6.5rem_5.25rem] items-center gap-x-3';
+
+function StructureKindIcon({ kind }: { kind: string }) {
+  const Icon =
+    kind === 'building' ? Building2 : kind === 'wing' ? Layers3 : Grid3X3;
+
+  return <Icon className="size-3.5" strokeWidth={1.8} aria-hidden />;
+}
+
+function StructureTreeGutter({
+  depth,
+  gutterIdx
+}: {
+  depth: number;
+  gutterIdx: number;
+}) {
+  const showLine = depth > gutterIdx;
+
+  return (
+    <div className="relative self-stretch" aria-hidden>
+      {showLine ? (
+        <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-ds-primary-300/80" />
+      ) : null}
+    </div>
+  );
+}
+
+function StructureRowField({
+  label,
+  children
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="sr-only">{label}</div>
+      {children}
+    </div>
+  );
+}
+
 export function StructureTreeFields({
   nodes,
   onNodesChange,
   defaultFloors,
   defaultUnitsPerFloor
 }: StructureTreeFieldsProps) {
+  const structureSummary = useMemo(() => {
+    const summary = { buildings: 0, wings: 0, floors: 0, units: 0 };
+
+    const visit = (items: StructureNode[]) => {
+      for (const node of items || []) {
+        const kind = node.kind;
+        if (kind === 'building') summary.buildings += 1;
+        if (kind === 'wing') summary.wings += 1;
+        if (kind === 'floor') {
+          summary.floors += 1;
+          summary.units += Math.max(
+            1,
+            Number(node.unitsPerFloor) ||
+              (node.children || []).filter((child) => child.kind === 'unit')
+                .length ||
+              defaultUnitsPerFloor
+          );
+        }
+        visit((node.children || []).filter((child) => child.kind !== 'unit'));
+      }
+    };
+
+    visit(nodes);
+    return summary;
+  }, [defaultUnitsPerFloor, nodes]);
+
   const renderNodes = (list: StructureNode[], pathPrefix: number[], depth: number) => (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2">
       {(list || [])
         .filter((node) => node.kind !== 'unit')
         .map((node, idx) => {
@@ -103,51 +181,52 @@ export function StructureTreeFields({
             defaultUnitsPerFloor
         );
         return (
-          <div
-            key={node.id || idx}
-            className={cn(
-              depth > 0 && 'ml-1 border-l-2 border-border pl-3'
-            )}
-          >
+          <div key={node.id || idx} className="flex flex-col gap-2">
             <div
               className={cn(
-                'flex flex-wrap items-end gap-2',
-                canAddChild || visibleChildren.length ? 'mb-2' : ''
+                STRUCTURE_ROW_GRID,
+                'rounded-lg border border-border bg-card px-3 py-2 shadow-sm transition-colors hover:border-ds-primary-200 hover:bg-ds-primary-50/30'
               )}
             >
-              <div className="w-[120px]">
-                <div className="text-[10px] text-muted-foreground">Name</div>
-                <Input
-                  value={node.name}
-                  onChange={(e) => {
-                    onNodesChange(
-                      updateAtPath(nodes, path, (arr, i) => {
-                        arr[i] = { ...arr[i], name: e.target.value };
-                      })
-                    );
-                  }}
-                  className="h-8 text-[11px]"
-                  placeholder={
-                    kind === 'building'
-                      ? 'e.g. Building 1'
-                      : kind === 'wing'
-                        ? 'e.g. Wing A'
-                        : 'e.g. Floor 3'
-                  }
+              {[0, 1].map((gutterIdx) => (
+                <StructureTreeGutter
+                  key={gutterIdx}
+                  depth={depth}
+                  gutterIdx={gutterIdx}
                 />
-              </div>
-              <div className="w-[88px]">
-                <div className="text-[10px] text-muted-foreground">Level</div>
-                <div className="flex h-8 items-center rounded-md border border-input bg-muted px-2 text-[11px] font-medium capitalize text-ds-gray-700">
-                  {kind}
+              ))}
+              <StructureRowField label="Name">
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-ds-primary-600">
+                    <StructureKindIcon kind={kind} />
+                  </div>
+                  <Input
+                    value={node.name}
+                    onChange={(e) => {
+                      onNodesChange(
+                        updateAtPath(nodes, path, (arr, i) => {
+                          arr[i] = { ...arr[i], name: e.target.value };
+                        })
+                      );
+                    }}
+                    className="h-9 border-transparent bg-muted pl-8 text-xs font-medium shadow-none focus-visible:border-primary focus-visible:bg-background"
+                    placeholder={
+                      kind === 'building'
+                        ? 'e.g. Building 1'
+                        : kind === 'wing'
+                          ? 'e.g. Wing A'
+                          : 'e.g. Floor 3'
+                    }
+                  />
                 </div>
-              </div>
-              {isFloor ? (
-                <>
-                  <div className="w-[90px]">
-                    <div className="text-[10px] text-muted-foreground">
-                      Floor #
-                    </div>
+              </StructureRowField>
+              <StructureRowField label="Level">
+                  <div className="flex h-9 items-center rounded-md border border-ds-primary-100 bg-ds-primary-50 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-ds-primary-700">
+                    {kind}
+                  </div>
+              </StructureRowField>
+              <StructureRowField label="Floor #">
+                  {isFloor ? (
                     <Input
                       type="number"
                       min={0}
@@ -172,13 +251,19 @@ export function StructureTreeFields({
                           })
                         );
                       }}
-                      className="h-8 text-[11px]"
+                      className="h-9 bg-muted text-center text-xs font-semibold"
                     />
-                  </div>
-                  <div className="w-[90px]">
-                    <div className="text-[10px] text-muted-foreground">
-                      Units
+                  ) : (
+                    <div
+                      className="flex h-9 items-center justify-center text-xs text-muted-foreground"
+                      aria-hidden
+                    >
+                      —
                     </div>
+                  )}
+              </StructureRowField>
+              <StructureRowField label="Units">
+                  {isFloor ? (
                     <Input
                       type="number"
                       min={1}
@@ -201,56 +286,67 @@ export function StructureTreeFields({
                           })
                         );
                       }}
-                      className="h-8 text-[11px]"
+                      className="h-9 bg-muted text-center text-xs font-semibold"
                     />
-                  </div>
-                </>
-              ) : null}
+                  ) : (
+                    <div
+                      className="flex h-9 items-center justify-center text-xs text-muted-foreground"
+                      aria-hidden
+                    >
+                      —
+                    </div>
+                  )}
+              </StructureRowField>
               <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 border-ds-error-200 bg-ds-error-50 text-[10px] text-ds-error-600 hover:bg-ds-error-100"
-                onClick={() => onNodesChange(removeAtPath(nodes, path))}
-              >
-                Remove
-              </Button>
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-full gap-1.5 text-xs text-muted-foreground hover:bg-ds-error-50 hover:text-ds-error-600"
+                  onClick={() => onNodesChange(removeAtPath(nodes, path))}
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                  Remove
+                </Button>
             </div>
             {visibleChildren.length
               ? renderNodes(visibleChildren, path, childDepth)
               : null}
             {canAddChild ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mb-1 h-8 w-fit border-ds-primary-200 bg-ds-primary-50 text-[10px] font-semibold text-ds-primary-700 hover:bg-ds-primary-100"
-                onClick={() => {
-                  onNodesChange(
-                    updateAtPath(nodes, path, (arr, i) => {
-                      const parent = arr[i];
-                      const siblings = (parent.children || []).filter(
-                        (c) => c.kind !== 'unit'
-                      );
-                      let child: StructureNode;
-                      if (childDepth === 1) {
-                        child = newWingNode(siblings.length + 1);
-                        child.unitsPerFloor = defaultUnitsPerFloor;
-                        child.floorsPerStructure = defaultFloors;
-                      } else {
-                        const floorNumber = nextFloorNumber(siblings);
-                        child = newFloorNode(floorNumber, defaultUnitsPerFloor);
-                      }
-                      arr[i] = {
-                        ...parent,
-                        children: [...siblings, child]
-                      };
-                    })
-                  );
-                }}
-              >
-                + {structureAddLabel(childDepth)}
-              </Button>
+              <div className={cn(STRUCTURE_ROW_GRID, 'py-0.5')}>
+                <div className="col-span-2" aria-hidden />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="col-span-2 h-8 w-fit gap-1.5 border-dashed border-ds-primary-300 bg-ds-primary-50/70 px-3 text-[11px] font-semibold text-ds-primary-700 hover:bg-ds-primary-100"
+                  onClick={() => {
+                    onNodesChange(
+                      updateAtPath(nodes, path, (arr, i) => {
+                        const parent = arr[i];
+                        const siblings = (parent.children || []).filter(
+                          (c) => c.kind !== 'unit'
+                        );
+                        let child: StructureNode;
+                        if (childDepth === 1) {
+                          child = newWingNode(siblings.length + 1);
+                          child.unitsPerFloor = defaultUnitsPerFloor;
+                          child.floorsPerStructure = defaultFloors;
+                        } else {
+                          const floorNumber = nextFloorNumber(siblings);
+                          child = newFloorNode(floorNumber, defaultUnitsPerFloor);
+                        }
+                        arr[i] = {
+                          ...parent,
+                          children: [...siblings, child]
+                        };
+                      })
+                    );
+                  }}
+                >
+                  <Plus className="size-3.5" aria-hidden />
+                  {structureAddLabel(childDepth)}
+                </Button>
+              </div>
             ) : null}
           </div>
         );
@@ -259,18 +355,80 @@ export function StructureTreeFields({
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="rounded-lg border border-ds-gray-200 bg-ds-gray-50 px-3 py-2 text-[11px] text-ds-gray-600">
-        Hierarchy: <strong>Building</strong> → <strong>Wing</strong> →{' '}
-        <strong>Floor</strong>. Set how many units each floor has — type, area,
-        rates and parking are configured in the next step.
+    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="relative overflow-hidden border-b border-ds-primary-200 bg-ds-primary-50 px-4 py-4 sm:px-5">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--ds-primary-100)_1px,transparent_1px),linear-gradient(to_bottom,var(--ds-primary-100)_1px,transparent_1px)] bg-size-[20px_20px] opacity-50"
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-ds-primary-200 bg-card text-ds-primary-600 shadow-sm">
+              <Map className="size-5" strokeWidth={1.8} aria-hidden />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-ds-primary-700">
+                Project blueprint
+              </div>
+              <h3 className="mt-0.5 text-sm font-semibold text-foreground">
+                Map your project structure
+              </h3>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                Lay out buildings, wings and floors here. Unit types, areas,
+                rates and parking are detailed in the next step.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            {[
+              ['Buildings', structureSummary.buildings],
+              ['Wings', structureSummary.wings],
+              ['Floors', structureSummary.floors],
+              ['Units', structureSummary.units]
+            ].map(([label, value]) => (
+              <div
+                key={String(label)}
+                className="min-w-[68px] rounded-lg border border-ds-primary-200 bg-card/90 px-2.5 py-1.5 text-center"
+              >
+                <div className="text-sm font-bold tabular-nums text-ds-primary-700">
+                  {value}
+                </div>
+                <div className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      {renderNodes(nodes, [], 0)}
+      <div className="p-3 sm:p-4">
+        <div className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Ruler className="size-3.5 text-ds-primary-600" aria-hidden />
+          <span>Hierarchy: Building → Wing → Floor</span>
+          <span className="hidden h-px flex-1 bg-border sm:block" />
+          <span className="hidden text-[10px] sm:inline">Blueprint v1.0</span>
+        </div>
+      <div className="overflow-x-auto rounded-lg border border-ds-primary-100 bg-muted/30 p-2.5 sm:p-3">
+        <div
+          className={cn(
+            STRUCTURE_ROW_GRID,
+            'mb-2 border-b border-ds-primary-100 px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground'
+          )}
+        >
+          <div className="col-span-2" aria-hidden />
+          <div>Name</div>
+          <div>Level</div>
+          <div>Floor #</div>
+          <div>Units</div>
+          <div aria-hidden />
+        </div>
+        {renderNodes(nodes, [], 0)}
+      </div>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        className="h-9 w-fit border-ds-primary-200 bg-ds-primary-50 text-[11px] font-semibold text-ds-primary-700 hover:bg-ds-primary-100"
+        className="mt-3 h-9 w-fit gap-1.5 border-dashed border-ds-primary-300 bg-ds-primary-50 text-[11px] font-semibold text-ds-primary-700 hover:bg-ds-primary-100"
         onClick={() =>
           onNodesChange([
             ...(nodes || []),
@@ -278,9 +436,11 @@ export function StructureTreeFields({
           ])
         }
       >
-        + {structureAddLabel(0)}
+        <Plus className="size-3.5" aria-hidden />
+        {structureAddLabel(0)}
       </Button>
-    </div>
+      </div>
+    </section>
   );
 }
 

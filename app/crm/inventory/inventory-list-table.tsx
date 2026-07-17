@@ -1,12 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CrmDataTableCell } from '@/components/data-table/crm-data-table-cell';
-import { CrmDataTableHead } from '@/components/data-table/crm-data-table-head';
 import {
+  CrmDataTable,
+  CrmDataTableLayout,
+  CrmDataTablePageSize,
+  CrmDataTablePagination,
+  CrmDataTableRowCount,
+  CrmDataTableSearch,
+  CrmDataTableToolbar,
   useCrmTableFeatures,
   type ServerSortedTableProps
-} from '@/components/data-table/crm-table-features';
+} from '@/components/data-table';
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -16,29 +21,18 @@ import {
   type ColumnFiltersState,
   type FilterFn
 } from '@tanstack/react-table';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { TableRowActions } from '@/components/buttons/table-row-actions';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { UnitStatusChip } from '@/components/ui/status-chip';
 import {
   formatFloorLabel,
   isUnitAvailableForBooking,
-  statusLabelForUnit,
   STATUS_LABEL,
   UNIT_STATUS_CODES
 } from './inventory-utils';
 import { formatUnitAgreementValueCompact } from '../inr-format';
-import { CrmTableBodySkeleton } from '../_components/crm-skeletons';
 
 export type UnitRow = {
   id: string;
@@ -126,9 +120,7 @@ export function InventoryListTable({
         header: 'Unit No.',
         accessorKey: 'unit_code',
         cell: ({ row }) => (
-          <span className="text-[11px] font-semibold text-foreground">
-            {row.original.unit_code}
-          </span>
+          <span className="font-semibold text-foreground">{row.original.unit_code}</span>
         )
       },
       {
@@ -137,7 +129,7 @@ export function InventoryListTable({
         accessorKey: 'wing_name',
         filterFn: exactOrAll,
         cell: ({ row }) => (
-          <span className="max-w-[140px] truncate text-[11px] text-muted-foreground">
+          <span className="max-w-[140px] truncate text-muted-foreground">
             {row.original.wing_name}
           </span>
         )
@@ -148,7 +140,7 @@ export function InventoryListTable({
         accessorKey: 'floor',
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-muted-foreground">
             {formatFloorLabel(row.original.floor, row.original.unit_type)}
           </span>
         )
@@ -160,9 +152,7 @@ export function InventoryListTable({
         filterFn: exactOrAll,
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span className="text-[11px] text-muted-foreground">
-            {row.original.unit_type ?? '—'}
-          </span>
+          <span className="text-muted-foreground">{row.original.unit_type ?? '—'}</span>
         )
       },
       {
@@ -184,7 +174,7 @@ export function InventoryListTable({
               : null
           ].filter(Boolean);
           return (
-            <span className="text-[10px] leading-snug text-foreground">
+            <span className="leading-snug text-foreground">
               {parts.join(' · ') || (u.area ?? '—')}
             </span>
           );
@@ -196,7 +186,7 @@ export function InventoryListTable({
         accessorKey: 'rate',
         enableGlobalFilter: false,
         cell: ({ row }) => (
-          <span className="text-[11px] text-foreground">
+          <span className="text-foreground">
             {(Number(row.original.rate) || 0).toLocaleString('en-IN')}
           </span>
         )
@@ -207,7 +197,7 @@ export function InventoryListTable({
         enableGlobalFilter: false,
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="text-[11px] font-semibold text-ds-primary-600">
+          <span className="font-semibold text-ds-primary-600">
             {formatUnitAgreementValueCompact(row.original)}
           </span>
         )
@@ -220,7 +210,7 @@ export function InventoryListTable({
         cell: ({ row }) => {
           const p = row.original.parking_slots_included;
           return (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-muted-foreground">
               {p != null && Number(p) > 0 ? String(p) : '—'}
             </span>
           );
@@ -283,25 +273,22 @@ export function InventoryListTable({
   });
 
   const filteredCount = table.getFilteredRowModel().rows.length;
-  const { pageIndex, pageSize } = table.getState().pagination;
-  const pageCount = table.getPageCount();
+  const isFiltered =
+    globalFilter.trim().length > 0 ||
+    wingFilter !== 'All' ||
+    statusFilter !== 'All' ||
+    typeFilter !== 'All';
 
   return (
-    <div>
-      {/* Toolbar */}
-      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
-        <div className="min-w-[12rem] flex-1">
-          <Label htmlFor="inventory-unit-search" className={filterLabelClass}>
-            Search
-          </Label>
-          <Input
-            id="inventory-unit-search"
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Unit code or wing…"
-            className="mt-1"
-          />
-        </div>
+    <CrmDataTableLayout asCard={false}>
+      <CrmDataTableToolbar>
+        <CrmDataTableSearch
+          id="inventory-unit-search"
+          value={globalFilter}
+          onChange={setGlobalFilter}
+          placeholder="Unit code or wing…"
+          label="Search"
+        />
 
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[10rem]">
@@ -361,116 +348,35 @@ export function InventoryListTable({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-          <span className="text-xs text-muted-foreground">{filteredCount} units</span>
+        <div className="flex flex-wrap items-end gap-3 lg:ml-auto">
+          <CrmDataTableRowCount
+            count={filteredCount}
+            noun="unit"
+            filtered={isFiltered}
+            loading={loading && units.length === 0}
+          />
+          <CrmDataTablePageSize table={table} />
           <Button variant="outline" size="sm" onClick={onRefresh}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
-      </div>
+      </CrmDataTableToolbar>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table
-          className="w-full min-w-[56rem] caption-bottom border-collapse text-sm text-foreground"
-          style={{ width: table.getCenterTotalSize() }}
-        >
-          <thead className="sticky top-0 z-[1] bg-muted/60">
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-border">
-                {hg.headers.map((h) => (
-                  <CrmDataTableHead
-                    key={h.id}
-                    header={h}
-                    className="px-3 py-2 text-[10px]"
-                  />
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {loading && table.getRowModel().rows.length === 0 ? (
-              <CrmTableBodySkeleton colSpan={columns.length} />
-            ) : table.getRowModel().rows.length > 0 ? (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted/50"
-                  onClick={() => onOpenDetail(row.original)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <CrmDataTableCell key={cell.id} cell={cell} className="px-3 py-2" />
-                  ))}
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-xs text-muted-foreground"
-                >
-                  No units match the current filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CrmDataTable
+        className="mt-4"
+        table={table}
+        columnCount={columns.length}
+        loading={loading}
+        dataLength={units.length}
+        onRowClick={onOpenDetail}
+        stickyHeader
+        emptyState={{
+          title: 'No units found',
+          description: 'Try adjusting your search or filters.'
+        }}
+      />
 
-      {/* Pagination */}
-      {filteredCount > 0 && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => table.setPageSize(Number(v))}
-            >
-              <SelectTrigger className="h-8 w-16 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 25, 50].map((s) => (
-                  <SelectItem key={s} value={String(s)}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>
-              {pageIndex * pageSize + 1}–
-              {Math.min((pageIndex + 1) * pageSize, filteredCount)} of{' '}
-              {filteredCount}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="min-w-[3rem] text-center">
-              {pageIndex + 1} / {pageCount}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+      <CrmDataTablePagination table={table} />
+    </CrmDataTableLayout>
   );
 }

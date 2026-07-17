@@ -5,15 +5,32 @@ alwaysApply: true
 
 # Data tables — TanStack Table
 
-Whenever you add or change a **data table** (rows of entities with columns, search, filters, or pagination), use **`@tanstack/react-table`**. Do not hand-roll `<table>` markup with `.map()` over rows unless the UI is a tiny static layout (e.g. 2–3 fixed rows inside a dialog).
+Whenever you add or change a **data table** (rows of entities with columns, search, filters, or pagination), use **`@tanstack/react-table`** plus the shared **`components/data-table/`** primitives. Do not hand-roll `<table>` markup with `.map()` over rows unless the UI is a tiny static layout (e.g. 2–3 fixed rows inside a dialog).
 
 ## Required stack
 
-- `useReactTable` + `flexRender` for headers and cells
+- `useReactTable` + column defs in `useMemo<ColumnDef<RowType, unknown>[]>(...)`
 - `getCoreRowModel()` always
 - `getFilteredRowModel()` when search or column filters exist
 - `getPaginationRowModel()` when the list can grow beyond one screen
-- Column defs: `useMemo<ColumnDef<RowType, unknown>[]>(...)`
+- `useCrmTableFeatures()` for column resize + client or server sort
+
+## Shared UI primitives (`components/data-table/`)
+
+Use these instead of duplicating table markup:
+
+| Component | Purpose |
+|-----------|---------|
+| `CrmDataTable` | Table shell: scroll wrapper, header/body, skeleton, empty state, optional row click |
+| `CrmDataTableHead` / `CrmDataTableCell` | Sortable headers + standard cell padding (used inside `CrmDataTable`) |
+| `CrmDataTableLayout` | Optional `Card` wrapper (`asCard={false}` inside tab panels) |
+| `CrmDataTableToolbar` | Responsive toolbar row for search + filters |
+| `CrmDataTableSearch` | Labeled search input (optional icon) |
+| `CrmDataTablePageSize` | “Rows per page” select — **toolbar**, options `[10, 15, 25, 50]` |
+| `CrmDataTableRowCount` | `{count} {noun}(s)` with optional `(filtered)` |
+| `CrmDataTablePagination` | Footer: `Page X of Y` + outline prev/next buttons |
+
+Import from `@/components/data-table` (barrel).
 
 ## File layout
 
@@ -24,8 +41,9 @@ Whenever you add or change a **data table** (rows of entities with columns, sear
 
 Copy structure from:
 
-- `app/crm/inquiry/inquiry-list-table.tsx` — global filter, column filters, pagination, toolbar
-- `app/crm/project/project-list-table.tsx` — global search, pagination, row actions
+- `app/crm/project/project-list-table.tsx` — `CrmDataTableLayout` + search + page size + pagination
+- `app/crm/inquiry/inquiry-list-table.tsx` — stage tabs, column filters, toolbar, pagination with row count
+- `app/crm/inventory/inventory-list-table.tsx` — filters inside tab card (`asCard={false}`), clickable rows
 
 ## Column patterns
 
@@ -66,55 +84,54 @@ const columns = useMemo<ColumnDef<MyRow, unknown>[]>(
 - **>2 actions**: collapse into a single `⋯` dropdown menu (do not show more than two inline buttons).
 - Prefer `header: 'Actions'`; keep `enableGlobalFilter: false` and `enableSorting: false`.
 
-## Rendering
+## Standard list table assembly
 
 ```tsx
-<table className="w-full min-w-[56rem] caption-bottom text-sm">
-  <thead>
-    {table.getHeaderGroups().map((hg) => (
-      <tr key={hg.id}>
-        {hg.headers.map((h) => (
-          <th key={h.id}>
-            {flexRender(h.column.columnDef.header, h.getContext())}
-          </th>
-        ))}
-      </tr>
-    ))}
-  </thead>
-  <tbody>
-    {table.getRowModel().rows.map((row) => (
-      <tr key={row.id}>
-        {row.getVisibleCells().map((cell) => (
-          <td key={cell.id}>
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </td>
-        ))}
-      </tr>
-    ))}
-  </tbody>
-</table>
+<CrmDataTableLayout asCard={/* true for standalone lists */}>
+  <CrmDataTableToolbar>
+    <CrmDataTableSearch id="…" value={globalFilter} onChange={setGlobalFilter} />
+    {/* domain filters */}
+    <CrmDataTableRowCount count={filteredCount} noun="project" filtered={isFiltered} />
+    <CrmDataTablePageSize table={table} />
+  </CrmDataTableToolbar>
+
+  <CrmDataTable
+    className="mt-4"
+    table={table}
+    columnCount={columns.length}
+    loading={loading}
+    dataLength={rows.length}
+    emptyState={{ title: 'No rows found', description: '…' }}
+  />
+
+  <CrmDataTablePagination table={table} />
+</CrmDataTableLayout>
 ```
+
+Tables without pagination (e.g. server-paginated parent) use `CrmDataTable` body only.
 
 ## Search and filters
 
 - **Global search**: `globalFilter` state + custom `FilterFn` on the row type (see `globalProjectFilter` / `globalInquiryFilter`).
 - **Column filters**: `columnFilters` state + `FilterFn` per column when needed.
-- Wire search `Input` to `onGlobalFilterChange` / `setGlobalFilter`.
+- Wire search via `CrmDataTableSearch` or `onGlobalFilterChange` / `setGlobalFilter`.
 
 ## Pagination and empty states
 
-- Default `pageSize: 10`; offer 10 / 15 / 25 / 50 via `Select` + `table.setPageSize`.
-- Prev/next with `table.previousPage()` / `table.nextPage()` and `getCanPreviousPage()` / `getCanNextPage()`.
-- Loading: single row, `colSpan={columns.length}`.
-- Empty filtered: message + primary CTA when relevant.
+- Default `pageSize: 10`; offer **10 / 15 / 25 / 50** via `CrmDataTablePageSize` in the **toolbar**.
+- Footer nav via `CrmDataTablePagination` (always visible; outline `size-8` prev/next).
+- Loading: `CrmDataTable` shows `CrmTableBodySkeleton` when `loading && dataLength === 0`.
+- Empty: title + description via `emptyState` prop; add CTA in `emptyState.action` when relevant.
 
 ## Styling and UX
 
-- Wrap table in `overflow-x-auto` (bounded horizontal scroll on small screens; see `responsive-ui-ux` rule).
+- `CrmDataTable` wraps content in `overflow-x-auto rounded-lg border` with `min-w-[56rem]` (override via `minTableWidth`).
+- Standard typography: `text-sm` cells, `text-xs` headers — do not override with `text-[10px]` unless a documented exception.
 - Use design tokens (`ds-gray-*`, `ds-primary-*`, `Card`, `Button`) — match existing CRM tables.
 - Row actions in an `actions` column; avoid hover-only controls.
 
 ## Exceptions
 
 - **Member/settings sub-tables** inside a dialog with &lt;10 rows and no search/pagination may stay a simple `<table>`.
-- **Pivot/grid layouts** (e.g. inventory floor grid) are not list tables — do not force TanStack.
+- **Pivot/grid layouts** (e.g. inventory floor grid, payment schedule) are not list tables — do not force TanStack list primitives.
+- **Matrix tables** (e.g. booking documents matrix) may use `CrmDataTable` body only without pagination.
