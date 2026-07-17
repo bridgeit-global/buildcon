@@ -4,25 +4,34 @@ import {
   paymentModeNeedsLoanBank
 } from '@/lib/booking/booking-payment';
 import {
-  normalizePhoneDigits,
+  isPhoneLengthValidForCountry,
   optionalEmail,
+  phoneLengthErrorMessage,
   positiveNumberString
 } from '@/lib/form/common-fields';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 export { zodFieldErrors } from '@/lib/form/zod-field-errors';
 
 const positiveInrAmount = positiveNumberString('booking amount');
 
 /** Inline “add customer” on the bookings page */
-export const bookingQuickCustomerSchema = z.object({
-  full_name: z.string().trim().min(1, 'Customer name is required.'),
-  phone: z
-    .string()
-    .refine((v) => normalizePhoneDigits(v).length === 10, {
-      message: 'Enter a 10-digit phone number.'
-    }),
-  email: optionalEmail
-});
+export const bookingQuickCustomerSchema = z
+  .object({
+    full_name: z.string().trim().min(1, 'Customer name is required.'),
+    phone: z.string(),
+    phoneCountry: z.string().default(DEFAULT_COUNTRY_DIAL_CODE_OPTION),
+    email: optionalEmail
+  })
+  .superRefine((data, ctx) => {
+    if (!isPhoneLengthValidForCountry(data.phone, data.phoneCountry)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phone'],
+        message: phoneLengthErrorMessage(data.phoneCountry)
+      });
+    }
+  });
 
 export type BookingQuickCustomerValues = z.infer<typeof bookingQuickCustomerSchema>;
 

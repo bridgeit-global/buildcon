@@ -227,6 +227,10 @@ export default function BrokersPage() {
               <PhoneInputField
                 value={watch('phone')}
                 onChange={(v) => setValue('phone', v, { shouldValidate: true })}
+                countryCode={watch('phone_country')}
+                onCountryCodeChange={(v) =>
+                  setValue('phone_country', v, { shouldValidate: true })
+                }
                 error={errors.phone?.message}
               />
               <EmailInputField

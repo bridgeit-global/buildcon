@@ -23,7 +23,7 @@ export const CREATE_PROJECT_WIZARD_STEPS = [
   {
     id: 'inventory',
     label: 'Inventory Config',
-    description: 'Buildings, wings and floor setup'
+    description: 'Buildings, wings, floors and unit counts'
   },
   {
     id: 'units',
@@ -241,11 +241,15 @@ export function validateCreateStep(
     if (normalizeStructures(draft.structures).length < 1) {
       return 'Add at least one building.';
     }
-    if (getStructureLeaves(normalizeStructures(draft.structures)).length < 1) {
-      return 'Each wing needs at least one floor (Building → Wing → Floor → Unit).';
+    const floorRows = getStructureLeaves(normalizeStructures(draft.structures));
+    if (floorRows.length < 1) {
+      return 'Each wing needs at least one floor (Building → Wing → Floor).';
+    }
+    if (floorRows.some((row) => row.unitsPerFloor < 1)) {
+      return 'Each floor must have at least one unit.';
     }
     if (countProjectUnits(draft.structures) < 1) {
-      return 'Each floor needs at least one unit.';
+      return 'Each floor must have at least one unit.';
     }
     if (draft.floors_per_wing < 1) return 'Default floors must be at least 1.';
     if (draft.units_per_floor < 1) return 'Default units per floor must be at least 1.';

@@ -14,24 +14,12 @@ import {
   normalizePan
 } from '@/lib/customer/kyc-identifiers';
 import { formatFullName, splitFullName } from '@/lib/person-name';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
+import { isPhoneLengthValidForCountry, phoneLengthErrorMessage } from '@/lib/form/common-fields';
 
 export function normalizePhoneDigits(p: string | null | undefined) {
   return String(p ?? '').replace(/\D/g, '');
 }
-
-const phone10 = z
-  .string()
-  .refine((v) => normalizePhoneDigits(v).length === 10, {
-    message: 'Enter a 10-digit phone number.'
-  });
-
-const optionalPhone10 = z.string().refine(
-  (v) => {
-    const d = normalizePhoneDigits(v);
-    return d.length === 0 || d.length === 10;
-  },
-  { message: 'Enter a 10-digit mobile number.' }
-);
 
 const optionalDobField = z.string().refine(
   (v) => {
@@ -132,8 +120,10 @@ const customerProfileObject = z.object({
   first_name: z.string().trim().min(1, 'First name is required.'),
   middle_name: z.string(),
   last_name: z.string().trim().min(1, 'Last name is required.'),
-  phone: phone10,
-  phone_secondary: optionalPhone10,
+  phone: z.string(),
+  phone_country: z.string(),
+  phone_secondary: z.string(),
+  phone_secondary_country: z.string(),
   email: optionalEmail,
   dob: optionalDobField,
   occupation: z.string(),
@@ -150,8 +140,25 @@ function refineCustomerProfile(
   data: z.infer<typeof customerProfileObject>,
   ctx: z.RefinementCtx
 ) {
+  if (!isPhoneLengthValidForCountry(data.phone, data.phone_country)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['phone'],
+      message: phoneLengthErrorMessage(data.phone_country)
+    });
+  }
   const primary = normalizePhoneDigits(data.phone);
   const secondary = normalizePhoneDigits(data.phone_secondary);
+  if (
+    secondary &&
+    !isPhoneLengthValidForCountry(data.phone_secondary, data.phone_secondary_country)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['phone_secondary'],
+      message: phoneLengthErrorMessage(data.phone_secondary_country)
+    });
+  }
   if (secondary && primary && secondary === primary) {
     ctx.addIssue({
       code: 'custom',
@@ -334,7 +341,9 @@ export const EMPTY_CUSTOMER_CREATE: CustomerCreateFormValues = {
   middle_name: '',
   last_name: '',
   phone: '',
+  phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
   phone_secondary: '',
+  phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
   email: '',
   dob: '',
   occupation: '',
@@ -380,7 +389,9 @@ export function customerEditValuesFromCustomer(row: {
     middle_name: middle || fromFull?.middle_name || '',
     last_name: last || fromFull?.last_name || '',
     phone: row.phone ?? '',
+    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     phone_secondary: row.phone_secondary ?? '',
+    phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: row.email ?? '',
     dob: row.dob ? String(row.dob).slice(0, 10) : '',
     occupation: row.occupation ?? '',

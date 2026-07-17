@@ -4,11 +4,13 @@ import {
   inquiryWizardStep1Schema,
   inquiryWizardStep2Schema
 } from './inquiry-wizard.schema';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 describe('inquiryWizardStep1Schema', () => {
   const valid = {
     customerName: 'Jane Doe',
     phone: '9876543210',
+    phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: '',
     leadSource: 'Walk-in',
     leadSourceOther: '',

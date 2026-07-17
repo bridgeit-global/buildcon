@@ -130,7 +130,7 @@ function floorRowFromNode(
   const units = unitChildrenOf(floorNode);
   const unitsPerFloor = Math.max(
     1,
-    units.length || Number(floorNode.unitsPerFloor) || 1
+    Number(floorNode.unitsPerFloor) || units.length || 1
   );
   const floorNumber = Math.max(
     0,
@@ -350,6 +350,19 @@ export function buildUnitConfigs(
   return next;
 }
 
+/** Sum bundled parking slots from floor provision unit rows. */
+export function floorProvisionsParkingTotal(
+  provisions: FloorProvisionDraft[] | undefined | null
+): number {
+  let total = 0;
+  for (const row of provisions || []) {
+    for (const u of row.unitConfigs || []) {
+      total += Math.max(0, Number(u.parking_slots_included) || 0);
+    }
+  }
+  return total;
+}
+
 export function buildDefaultFloorProvisions(params: {
   structures: StructureNode[];
   floorsPerWingDefault: number;
@@ -446,10 +459,8 @@ export function newFloorNode(
   return newStructureNodeBase('floor', label, {
     floorNumber,
     floorsPerStructure: floorNumber,
-    unitsPerFloor: unitsPerFloorDefault,
-    children: Array.from({ length: unitsPerFloorDefault }, (_, i) =>
-      newUnitNode(i + 1)
-    )
+    unitsPerFloor: Math.max(1, unitsPerFloorDefault),
+    children: []
   });
 }
 

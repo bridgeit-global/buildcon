@@ -34,12 +34,12 @@ import { WizardStepper } from '@/components/ui/wizard-stepper';
 import {
   buildDefaultFloorProvisions,
   countProjectUnits,
+  floorProvisionsParkingTotal,
   normalizeStructures,
   getStructureLeaves,
   projectParkingAvgRatePerSlot,
   projectParkingTotal,
-  projectParkingValueTotal,
-  totalStructureLeafArea
+  projectParkingValueTotal
 } from '../project-structure-utils';
 import {
   FloorConfigureStep,
@@ -230,7 +230,10 @@ export default function CreateProjectPage() {
         draft.units_per_floor || 1
       );
 
-      const parkingSlotsTotal = projectParkingTotal(draft.structures);
+      const parkingSlotsTotal = Math.max(
+        projectParkingTotal(draft.structures),
+        floorProvisionsParkingTotal(draft.floorProvisions)
+      );
       const parkingAvg = projectParkingAvgRatePerSlot(draft.structures);
 
       const projectPayload = {
@@ -381,8 +384,12 @@ export default function CreateProjectPage() {
     [draft.structures]
   );
   const parkingSlots = useMemo(
-    () => projectParkingTotal(draft.structures),
-    [draft.structures]
+    () =>
+      Math.max(
+        projectParkingTotal(draft.structures),
+        floorProvisionsParkingTotal(draft.floorProvisions)
+      ),
+    [draft.structures, draft.floorProvisions]
   );
   const parkingValueInr = useMemo(
     () => projectParkingValueTotal(draft.structures),
@@ -619,7 +626,7 @@ export default function CreateProjectPage() {
                 <StepSectionHeading
                   icon={<Building2 className="size-4" />}
                   title="Buildings, wings & floors"
-                  description="Build inventory as Building → Wing → Floor → Unit. Areas, rates, floor-rise, PLC and parking per unit come next in Unit Setup."
+                  description="Define Building → Wing → Floor and set how many units each floor has. Unit type, area, rates and parking are configured in Unit Setup."
                 />
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -685,17 +692,13 @@ export default function CreateProjectPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {(
                     [
                       ['Buildings', String(normalizeStructures(draft.structures).length)],
                       ['Wings', String(wingsFromDraft(draft).length)],
                       ['Floors', String(structureFloorsTotal)],
-                      ['Units', String(countProjectUnits(draft.structures))],
-                      [
-                        'Area',
-                        `${totalStructureLeafArea(draft.structures).toLocaleString('en-IN')} sq.ft`
-                      ]
+                      ['Units', String(countProjectUnits(draft.structures))]
                     ] as Array<[string, string]>
                   ).map(([k, v]) => (
                     <div
@@ -707,19 +710,6 @@ export default function CreateProjectPage() {
                     </div>
                   ))}
                 </div>
-                {parkingSlots > 0 ? (
-                  <div className="rounded-lg border border-ds-success-200 bg-ds-success-50/90 px-3 py-2 text-xs text-ds-success-900">
-                    <span className="font-semibold">Parking: </span>
-                    {parkingSlots} slots
-                    {parkingValueInr > 0 && parkingAvgRate != null ? (
-                      <>
-                        {' · avg ₹'}
-                        {parkingAvgRate.toLocaleString('en-IN')}/slot · ₹
-                        {parkingValueInr.toLocaleString('en-IN')} total
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
             ) : null}
 

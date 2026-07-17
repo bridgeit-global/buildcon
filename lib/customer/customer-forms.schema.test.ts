@@ -14,6 +14,7 @@ import {
   kycUploadSchema,
   nomineeFormSchema
 } from './customer-forms.schema';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 const validResidentialAddress = {
   address_line1: '12 Main St',
@@ -30,7 +31,9 @@ describe('customerCreateSchema', () => {
     middle_name: '',
     last_name: 'Kumar',
     phone: '9876543210',
+    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     phone_secondary: '',
+    phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: '',
     dob: '',
     occupation: '',
@@ -139,7 +142,9 @@ describe('customerEditSchema', () => {
     middle_name: '',
     last_name: 'Kumar',
     phone: '9876543210',
+    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     phone_secondary: '',
+    phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: '',
     dob: '',
     occupation: '',
@@ -377,7 +382,9 @@ describe('customer payload helpers', () => {
       middle_name: '',
       last_name: 'User',
       phone: '+91 98765 43210',
+      phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       phone_secondary: '',
+      phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       email: '',
       dob: '',
       occupation: '',
@@ -401,7 +408,9 @@ describe('customer payload helpers', () => {
       middle_name: '',
       last_name: 'User',
       phone: '9876543210',
+      phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       phone_secondary: '',
+      phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       email: '',
       dob: '',
       occupation: '',
@@ -426,7 +435,9 @@ describe('customer payload helpers', () => {
       middle_name: '',
       last_name: 'User',
       phone: '9876543210',
+      phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       phone_secondary: '',
+      phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       email: '',
       dob: '',
       occupation: '',

@@ -38,6 +38,7 @@ import { RequiredMark } from '@/components/ui/required-mark';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { formControlTriggerClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 import {
   Popover,
   PopoverContent,
@@ -434,6 +435,7 @@ export default function BookingsPage() {
   const [newCustomerDraft, setNewCustomerDraft] = useState({
     full_name: '',
     phone: '',
+    phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: ''
   });
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -1071,7 +1073,12 @@ export default function BookingsPage() {
       setPrefillCustomerMissing(false);
       setAddCustomerOpen(false);
       setAddCustomerCoSlotKey(null);
-      setNewCustomerDraft({ full_name: '', phone: '', email: '' });
+      setNewCustomerDraft({
+        full_name: '',
+        phone: '',
+        phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+        email: ''
+      });
       setNewCustomerTouched({});
       setNewCustomerSubmitAttempted(false);
     } catch (e) {
@@ -1480,7 +1487,12 @@ export default function BookingsPage() {
                   size="sm"
                   className="shrink-0 border-ds-warning-300 bg-card text-ds-warning-900 hover:bg-ds-warning-100"
                   onClick={() => {
-                    setNewCustomerDraft({ full_name: '', phone: '', email: '' });
+                    setNewCustomerDraft({
+                      full_name: '',
+                      phone: '',
+                      phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+                      email: ''
+                    });
                     setAddCustomerCoSlotKey(null);
                     setAddCustomerOpen(true);
                   }}
@@ -1652,6 +1664,7 @@ export default function BookingsPage() {
                                   setNewCustomerDraft({
                                     full_name: query.trim(),
                                     phone: '',
+                                    phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
                                     email: ''
                                   });
                                   setAddCustomerCoSlotKey(slot.key);
@@ -1677,6 +1690,7 @@ export default function BookingsPage() {
                                   setNewCustomerDraft({
                                     full_name: query.trim(),
                                     phone: '',
+                                    phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
                                     email: ''
                                   });
                                   setAddCustomerCoSlotKey(slot.key);
@@ -1992,7 +2006,12 @@ export default function BookingsPage() {
           setAddCustomerOpen(open);
           if (!open) {
             setAddCustomerCoSlotKey(null);
-            setNewCustomerDraft({ full_name: '', phone: '', email: '' });
+            setNewCustomerDraft({
+              full_name: '',
+              phone: '',
+              phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+              email: ''
+            });
             setNewCustomerTouched({});
             setNewCustomerSubmitAttempted(false);
           }
@@ -2029,9 +2048,13 @@ export default function BookingsPage() {
                 setNewCustomerDraft((d) => ({ ...d, phone: v }));
                 touchNewCustomerField('phone');
               }}
+              countryCode={newCustomerDraft.phoneCountry}
+              onCountryCodeChange={(v) => {
+                setNewCustomerDraft((d) => ({ ...d, phoneCountry: v }));
+                touchNewCustomerField('phone');
+              }}
               label="Phone"
               required
-              placeholder="Enter Phone number"
               id="new-cust-phone"
               mode="digits10"
               error={newCustomerFieldError('phone')}

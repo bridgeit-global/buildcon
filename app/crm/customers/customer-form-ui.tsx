@@ -82,22 +82,24 @@ export function RhfTextInput<T extends FieldValues>({
 export function RhfPhoneInput<T extends FieldValues>({
   control,
   name,
+  countryName,
   label,
   required
-}: BaseProps<T> & { required?: boolean }) {
+}: BaseProps<T> & { required?: boolean; countryName?: FieldPath<T> }) {
+  const { field, fieldState } = useController({ control, name });
+  const { field: countryField } = useController({
+    control,
+    name: countryName ?? (`${name}_country` as FieldPath<T>)
+  });
   return (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field, fieldState }) => (
-        <PhoneInputField
-          label={label}
-          required={required}
-          value={field.value ?? ''}
-          onChange={field.onChange}
-          error={fieldState.error?.message}
-        />
-      )}
+    <PhoneInputField
+      label={label}
+      required={required}
+      value={field.value ?? ''}
+      onChange={field.onChange}
+      countryCode={countryField.value}
+      onCountryCodeChange={countryField.onChange}
+      error={fieldState.error?.message}
     />
   );
 }
@@ -407,12 +409,14 @@ export function CustomerProfileFields<T extends FieldValues>({
           <RhfPhoneInput
             control={control}
             name={'phone' as FieldPath<T>}
+            countryName={'phone_country' as FieldPath<T>}
             label="Primary mobile number"
             required
           />
           <RhfPhoneInput
             control={control}
             name={'phone_secondary' as FieldPath<T>}
+            countryName={'phone_secondary_country' as FieldPath<T>}
             label="Secondary mobile number"
           />
           <RhfEmailInput

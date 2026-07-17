@@ -1,6 +1,11 @@
 import { z } from 'zod';
-import { normalizePhoneDigits } from '@/lib/form/common-fields';
+import {
+  isPhoneLengthValidForCountry,
+  normalizePhoneDigits,
+  phoneLengthErrorMessage
+} from '@/lib/form/common-fields';
 import { formatFullName, splitFullName } from '@/lib/person-name';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 const optionalEmail = z.string().refine(
   (v) => {
@@ -11,25 +16,30 @@ const optionalEmail = z.string().refine(
   { message: 'Enter a valid email address.' }
 );
 
-const optionalPhone = z.string().refine(
-  (v) => {
-    const t = v.trim();
-    if (!t) return true;
-    return normalizePhoneDigits(v).length === 10;
-  },
-  { message: 'Enter a 10-digit phone number.' }
-);
-
-export const brokerFormSchema = z.object({
-  first_name: z.string().trim().min(1, 'First name is required.'),
-  middle_name: z.string(),
-  last_name: z.string().trim().min(1, 'Last name is required.'),
-  phone: optionalPhone,
-  email: optionalEmail,
-  license_no: z.string(),
-  status: z.enum(['Active', 'Inactive']),
-  notes: z.string()
-});
+export const brokerFormSchema = z
+  .object({
+    first_name: z.string().trim().min(1, 'First name is required.'),
+    middle_name: z.string(),
+    last_name: z.string().trim().min(1, 'Last name is required.'),
+    phone: z.string(),
+    phone_country: z.string(),
+    email: optionalEmail,
+    license_no: z.string(),
+    status: z.enum(['Active', 'Inactive']),
+    notes: z.string()
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.phone.trim() &&
+      !isPhoneLengthValidForCountry(data.phone, data.phone_country)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phone'],
+        message: phoneLengthErrorMessage(data.phone_country)
+      });
+    }
+  });
 
 export type BrokerFormValues = z.infer<typeof brokerFormSchema>;
 
@@ -38,6 +48,7 @@ export const EMPTY_BROKER_FORM: BrokerFormValues = {
   middle_name: '',
   last_name: '',
   phone: '',
+  phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
   email: '',
   license_no: '',
   status: 'Active',
@@ -64,6 +75,7 @@ export function brokerFormValuesFromRow(row: {
     middle_name: middle || fromFull?.middle_name || '',
     last_name: last || fromFull?.last_name || '',
     phone: row.phone ?? '',
+    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: row.email ?? '',
     license_no: row.license_no ?? '',
     status: row.status === 'Inactive' ? 'Inactive' : 'Active',

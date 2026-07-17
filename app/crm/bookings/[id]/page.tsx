@@ -16,6 +16,7 @@ import { InrAmountInput } from '@/components/ui/inr-amount-input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldLabel } from '@/components/ui/field-label';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -152,7 +153,9 @@ type BuyerKyc = {
   middle_name: string;
   last_name: string;
   phone: string | null;
+  phone_country: string;
   phone_secondary: string | null;
+  phone_secondary_country: string;
   email: string | null;
   occupation: string | null;
   dob: string | null;
@@ -226,7 +229,9 @@ function buyerToApplicationFormInput(b: BuyerKyc) {
     middle_name: b.middle_name,
     last_name: b.last_name,
     phone: b.phone,
+    phone_country: b.phone_country,
     phone_secondary: b.phone_secondary,
+    phone_secondary_country: b.phone_secondary_country,
     email: b.email,
     guardian_name: b.guardian_name,
     guardian_relation: b.guardian_relation,
@@ -506,7 +511,9 @@ export default function BookingDetailPage() {
         middle_name: middle || fromFull?.middle_name || '',
         last_name: last || fromFull?.last_name || '',
         phone: (c?.phone as string | null) ?? null,
+        phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
         phone_secondary: (c?.phone_secondary as string | null) ?? null,
+        phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
         email: (c?.email as string | null) ?? null,
         occupation: (c?.occupation as string | null) ?? null,
         dob: (c?.dob as string | null) ?? null,
@@ -1918,15 +1925,21 @@ export default function BookingDetailPage() {
                           label="Primary mobile number"
                           required
                           value={b.phone ?? ''}
-                          placeholder="10-digit mobile"
                           onChange={(v) => patchBuyerField('phone', v)}
+                          countryCode={b.phone_country}
+                          onCountryCodeChange={(v) =>
+                            patchBuyerField('phone_country', v)
+                          }
                           error={errs.phone}
                         />
                         <PhoneInputField
                           label="Secondary mobile number"
                           value={b.phone_secondary ?? ''}
-                          placeholder="10-digit mobile (optional)"
                           onChange={(v) => patchBuyerField('phone_secondary', v)}
+                          countryCode={b.phone_secondary_country}
+                          onCountryCodeChange={(v) =>
+                            patchBuyerField('phone_secondary_country', v)
+                          }
                           error={errs.phone_secondary}
                         />
                         <EmailInputField

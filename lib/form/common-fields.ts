@@ -1,7 +1,28 @@
 import { z } from 'zod';
+import {
+  DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+  phoneLengthForOption
+} from '@/lib/phone/country-dial-codes';
 
 export function normalizePhoneDigits(p: string | null | undefined) {
   return String(p ?? '').replace(/\D/g, '');
+}
+
+/** Expected mobile number digit count for the selected country picker option (defaults to India/10). */
+export function expectedPhoneLength(country: string | null | undefined): number {
+  return phoneLengthForOption(country || DEFAULT_COUNTRY_DIAL_CODE_OPTION);
+}
+
+/** True when `phone` has exactly as many digits as its `country` option expects. */
+export function isPhoneLengthValidForCountry(
+  phone: string | null | undefined,
+  country: string | null | undefined
+): boolean {
+  return normalizePhoneDigits(phone).length === expectedPhoneLength(country);
+}
+
+export function phoneLengthErrorMessage(country: string | null | undefined): string {
+  return `Enter a ${expectedPhoneLength(country)}-digit phone number.`;
 }
 
 export const optionalEmail = z.string().refine(

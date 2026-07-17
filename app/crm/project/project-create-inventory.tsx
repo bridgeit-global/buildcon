@@ -29,7 +29,6 @@ import {
   getStructureLeaves,
   newBuildingNode,
   newFloorNode,
-  newUnitNode,
   newWingNode,
   normalizeStructures,
   type UnitConfigDraft
@@ -86,13 +85,23 @@ export function StructureTreeFields({
 }: StructureTreeFieldsProps) {
   const renderNodes = (list: StructureNode[], pathPrefix: number[], depth: number) => (
     <div className="flex flex-col gap-2.5">
-      {(list || []).map((node, idx) => {
+      {(list || [])
+        .filter((node) => node.kind !== 'unit')
+        .map((node, idx) => {
         const path = pathPrefix.concat(idx);
         const kind = node.kind || structureDepthKind(depth);
-        const isUnit = kind === 'unit';
         const isFloor = kind === 'floor';
-        const canAddChild = depth < 3;
+        const canAddChild = depth < 2;
         const childDepth = depth + 1;
+        const visibleChildren = (node.children || []).filter(
+          (c) => c.kind !== 'unit'
+        );
+        const floorUnitCount = Math.max(
+          1,
+          Number(node.unitsPerFloor) ||
+            (node.children || []).filter((c) => c.kind === 'unit').length ||
+            defaultUnitsPerFloor
+        );
         return (
           <div
             key={node.id || idx}
@@ -103,7 +112,7 @@ export function StructureTreeFields({
             <div
               className={cn(
                 'flex flex-wrap items-end gap-2',
-                canAddChild || node.children?.length ? 'mb-2' : ''
+                canAddChild || visibleChildren.length ? 'mb-2' : ''
               )}
             >
               <div className="w-[120px]">
@@ -123,9 +132,7 @@ export function StructureTreeFields({
                       ? 'e.g. Building 1'
                       : kind === 'wing'
                         ? 'e.g. Wing A'
-                        : kind === 'floor'
-                          ? 'e.g. Floor 3'
-                          : 'e.g. Unit 101'
+                        : 'e.g. Floor 3'
                   }
                 />
               </div>
@@ -136,58 +143,31 @@ export function StructureTreeFields({
                 </div>
               </div>
               {isFloor ? (
-                <div className="w-[90px]">
-                  <div className="text-[10px] text-muted-foreground">
-                    Floor #
-                  </div>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={
-                      node.floorNumber != null
-                        ? node.floorNumber
-                        : node.floorsPerStructure ?? 0
-                    }
-                    onChange={(e) => {
-                      const floorNumber = Math.max(
-                        0,
-                        parseInt(e.target.value, 10) || 0
-                      );
-                      onNodesChange(
-                        updateAtPath(nodes, path, (arr, i) => {
-                          arr[i] = {
-                            ...arr[i],
-                            kind: 'floor',
-                            floorNumber,
-                            floorsPerStructure: floorNumber
-                          };
-                        })
-                      );
-                    }}
-                    className="h-8 text-[11px]"
-                  />
-                </div>
-              ) : null}
-              {isUnit ? (
                 <>
-                  <div className="w-[110px]">
+                  <div className="w-[90px]">
                     <div className="text-[10px] text-muted-foreground">
-                      Area (sq.ft)
+                      Floor #
                     </div>
                     <Input
                       type="number"
                       min={0}
-                      value={node.area != null ? node.area : 0}
+                      value={
+                        node.floorNumber != null
+                          ? node.floorNumber
+                          : node.floorsPerStructure ?? 0
+                      }
                       onChange={(e) => {
+                        const floorNumber = Math.max(
+                          0,
+                          parseInt(e.target.value, 10) || 0
+                        );
                         onNodesChange(
                           updateAtPath(nodes, path, (arr, i) => {
                             arr[i] = {
                               ...arr[i],
-                              kind: 'unit',
-                              area: Math.max(
-                                0,
-                                parseInt(e.target.value, 10) || 0
-                              )
+                              kind: 'floor',
+                              floorNumber,
+                              floorsPerStructure: floorNumber
                             };
                           })
                         );
@@ -195,52 +175,27 @@ export function StructureTreeFields({
                       className="h-8 text-[11px]"
                     />
                   </div>
-                  <div className="w-[78px]">
+                  <div className="w-[90px]">
                     <div className="text-[10px] text-muted-foreground">
-                      Parking #
+                      Units
                     </div>
                     <Input
                       type="number"
-                      min={0}
-                      value={
-                        node.parkingCount != null ? node.parkingCount : 0
-                      }
+                      min={1}
+                      value={floorUnitCount}
                       onChange={(e) => {
-                        onNodesChange(
-                          updateAtPath(nodes, path, (arr, i) => {
-                            arr[i] = {
-                              ...arr[i],
-                              kind: 'unit',
-                              parkingCount: Math.max(
-                                0,
-                                parseInt(e.target.value, 10) || 0
-                              )
-                            };
-                          })
+                        const unitsPerFloor = Math.max(
+                          1,
+                          parseInt(e.target.value, 10) || 1
                         );
-                      }}
-                      className="h-8 text-[11px]"
-                    />
-                  </div>
-                  <div className="w-[100px]">
-                    <div className="text-[10px] text-muted-foreground">
-                      ₹ / slot
-                    </div>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={
-                        node.parkingRate != null ? node.parkingRate : 0
-                      }
-                      onChange={(e) => {
                         onNodesChange(
                           updateAtPath(nodes, path, (arr, i) => {
                             arr[i] = {
                               ...arr[i],
-                              kind: 'unit',
-                              parkingRate: Math.max(
-                                0,
-                                parseInt(e.target.value, 10) || 0
+                              kind: 'floor',
+                              unitsPerFloor,
+                              children: (arr[i].children || []).filter(
+                                (c) => c.kind !== 'unit'
                               )
                             };
                           })
@@ -261,8 +216,8 @@ export function StructureTreeFields({
                 Remove
               </Button>
             </div>
-            {node.children?.length
-              ? renderNodes(node.children, path, childDepth)
+            {visibleChildren.length
+              ? renderNodes(visibleChildren, path, childDepth)
               : null}
             {canAddChild ? (
               <Button
@@ -274,17 +229,17 @@ export function StructureTreeFields({
                   onNodesChange(
                     updateAtPath(nodes, path, (arr, i) => {
                       const parent = arr[i];
-                      const siblings = parent.children || [];
+                      const siblings = (parent.children || []).filter(
+                        (c) => c.kind !== 'unit'
+                      );
                       let child: StructureNode;
                       if (childDepth === 1) {
                         child = newWingNode(siblings.length + 1);
                         child.unitsPerFloor = defaultUnitsPerFloor;
                         child.floorsPerStructure = defaultFloors;
-                      } else if (childDepth === 2) {
+                      } else {
                         const floorNumber = nextFloorNumber(siblings);
                         child = newFloorNode(floorNumber, defaultUnitsPerFloor);
-                      } else {
-                        child = newUnitNode(siblings.length + 1);
                       }
                       arr[i] = {
                         ...parent,
@@ -307,8 +262,8 @@ export function StructureTreeFields({
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-ds-gray-200 bg-ds-gray-50 px-3 py-2 text-[11px] text-ds-gray-600">
         Hierarchy: <strong>Building</strong> → <strong>Wing</strong> →{' '}
-        <strong>Floor</strong> → <strong>Unit</strong>. Add each level in order;
-        floors seed default units from “Default units (new leaves)”.
+        <strong>Floor</strong>. Set how many units each floor has — type, area,
+        rates and parking are configured in the next step.
       </div>
       {renderNodes(nodes, [], 0)}
       <Button
@@ -406,9 +361,9 @@ export function FloorConfigureStep({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg bg-ds-primary-50/90 px-3 py-2 text-xs text-ds-primary-800">
-        Floor rows come from your <strong>Building → Wing → Floor → Unit</strong>{' '}
-        tree. Click <strong>Auto-fill floors</strong> to sync unit rows from the
-        tree before editing rates and types.
+        Floor rows come from your <strong>Building → Wing → Floor</strong>{' '}
+        inventory. Click <strong>Auto-fill floors</strong> to sync unit rows from
+        your structure before editing types, areas and rates.
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border">

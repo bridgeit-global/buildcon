@@ -27,6 +27,8 @@ import { DateTimeInputField } from '@/components/ui/datetime-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
+import { isPhoneLengthValidForCountry } from '@/lib/form/common-fields';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -308,6 +310,7 @@ export const NewInquiryWizard = forwardRef<
   const [sellerForm, setSellerForm] = useState({
     customerName: '',
     phone: '',
+    phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: '',
     leadSource: 'Direct',
     leadSourceOther: '',
@@ -836,7 +839,7 @@ export const NewInquiryWizard = forwardRef<
       Boolean(String(sellerForm.brokerId || '').trim());
     return (
       String(sellerForm.customerName || '').trim().length >= 2 &&
-      normalizePhone(sellerForm.phone).length === 10 &&
+      isPhoneLengthValidForCountry(sellerForm.phone, sellerForm.phoneCountry) &&
       String(sellerForm.selectedUnitId || '').trim().length > 0 &&
       brokerOk &&
       Boolean(userLabel.id)
@@ -999,6 +1002,7 @@ export const NewInquiryWizard = forwardRef<
     () => ({
       customerName: sellerForm.customerName,
       phone: sellerForm.phone,
+      phoneCountry: sellerForm.phoneCountry,
       email: sellerForm.email,
       leadSource: sellerForm.leadSource,
       leadSourceOther: sellerForm.leadSourceOther,
@@ -1007,6 +1011,7 @@ export const NewInquiryWizard = forwardRef<
     [
       sellerForm.customerName,
       sellerForm.phone,
+      sellerForm.phoneCountry,
       sellerForm.email,
       sellerForm.leadSource,
       sellerForm.leadSourceOther,
@@ -1449,6 +1454,7 @@ export const NewInquiryWizard = forwardRef<
     setSellerForm({
       customerName: '',
       phone: '',
+      phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       email: '',
       leadSource: 'Direct',
       leadSourceOther: '',
@@ -2200,6 +2206,7 @@ export const NewInquiryWizard = forwardRef<
 type SellerForm = {
   customerName: string;
   phone: string;
+  phoneCountry: string;
   email: string;
   leadSource: string;
   leadSourceOther: string;
@@ -2336,9 +2343,13 @@ function StepEnquiry({
               }
               touch('phone');
             }}
+            countryCode={sellerForm.phoneCountry}
+            onCountryCodeChange={(next) => {
+              setSellerForm((s) => ({ ...s, phoneCountry: next }));
+              touch('phone');
+            }}
             label="Phone"
             required
-            placeholder="10-digit mobile"
             mode="digits10"
             inputClassName={wizardInputClass}
             labelClassName={wizardLabelClass}

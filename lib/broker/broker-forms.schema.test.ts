@@ -4,6 +4,7 @@ import {
   brokerFormSchema,
   EMPTY_BROKER_FORM
 } from './broker-forms.schema';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 describe('brokerFormSchema', () => {
   const valid = {
@@ -11,6 +12,7 @@ describe('brokerFormSchema', () => {
     middle_name: '',
     last_name: 'Brokers',
     phone: '9876543210',
+    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: 'broker@example.com',
     license_no: 'BR-001',
     status: 'Active' as const,

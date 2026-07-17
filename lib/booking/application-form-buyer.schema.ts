@@ -3,6 +3,7 @@ import {
   defaultIdProofForResidentialStatus,
   idProofOptionsForResidentialStatus
 } from '@/lib/customer/id-proof-options';
+import { isPhoneLengthValidForCountry, phoneLengthErrorMessage } from '@/lib/form/common-fields';
 
 export type ApplicationFormAddress = {
   address_line1: string | null;
@@ -18,7 +19,9 @@ export type ApplicationFormBuyerInput = {
   middle_name: string;
   last_name: string;
   phone: string | null;
+  phone_country?: string | null;
   phone_secondary: string | null;
+  phone_secondary_country?: string | null;
   email: string | null;
   guardian_name: string | null;
   guardian_relation: string | null;
@@ -101,12 +104,15 @@ export function validateApplicationFormBuyer(
   }
 
   const primaryDigits = normalizePhoneDigits(b.phone);
-  if (primaryDigits.length !== 10) {
-    errors.phone = 'Enter a 10-digit primary mobile number.';
+  if (!isPhoneLengthValidForCountry(b.phone, b.phone_country)) {
+    errors.phone = phoneLengthErrorMessage(b.phone_country);
   }
   const secondaryDigits = normalizePhoneDigits(b.phone_secondary);
-  if (secondaryDigits && secondaryDigits.length !== 10) {
-    errors.phone_secondary = 'Enter a 10-digit secondary mobile number.';
+  if (
+    secondaryDigits &&
+    !isPhoneLengthValidForCountry(b.phone_secondary, b.phone_secondary_country)
+  ) {
+    errors.phone_secondary = phoneLengthErrorMessage(b.phone_secondary_country);
   }
   if (
     secondaryDigits &&

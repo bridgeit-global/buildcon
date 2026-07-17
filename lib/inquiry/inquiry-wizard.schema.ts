@@ -1,20 +1,29 @@
 import { z } from 'zod';
 import {
   customerNameMin2,
+  isPhoneLengthValidForCountry,
   optionalEmail,
-  phone10
+  phoneLengthErrorMessage
 } from '@/lib/form/common-fields';
 
 export const inquiryWizardStep1Schema = z
   .object({
     customerName: customerNameMin2,
-    phone: phone10,
+    phone: z.string(),
+    phoneCountry: z.string(),
     email: optionalEmail,
     leadSource: z.string().trim().min(1, 'Select a lead source.'),
     leadSourceOther: z.string(),
     brokerId: z.string()
   })
   .superRefine((data, ctx) => {
+    if (!isPhoneLengthValidForCountry(data.phone, data.phoneCountry)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phone'],
+        message: phoneLengthErrorMessage(data.phoneCountry)
+      });
+    }
     if (data.leadSource === 'Broker' && !data.brokerId.trim()) {
       ctx.addIssue({
         code: 'custom',
