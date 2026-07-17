@@ -1,8 +1,10 @@
 import { datetimeLocalValueNextWeek } from '@/lib/date-input-value';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 export type WizardStep1Snapshot = {
   customerName: string;
   phone: string;
+  phoneCountry: string;
   email: string;
   leadSource: string;
   leadSourceOther: string;
@@ -41,6 +43,7 @@ export function emptyWizardStep1Snapshot(): WizardStep1Snapshot {
   return {
     customerName: '',
     phone: '',
+    phoneCountry: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: '',
     leadSource: 'Direct',
     leadSourceOther: '',

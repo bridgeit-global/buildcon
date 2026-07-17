@@ -138,6 +138,7 @@ type ExistingCustomerMatch = {
   full_name: string;
   email: string | null;
   phone: string | null;
+  phone_country: string | null;
 };
 
 const STEPS = [
@@ -156,6 +157,7 @@ export type NewInquiryWizardHandle = {
 function buildStep1SnapshotFromForm(form: {
   customerName: string;
   phone: string;
+  phoneCountry: string;
   email: string;
   leadSource: string;
   leadSourceOther: string;
@@ -173,6 +175,7 @@ function buildStep1SnapshotFromForm(form: {
   return {
     customerName: form.customerName,
     phone: form.phone,
+    phoneCountry: form.phoneCountry,
     email: form.email,
     leadSource: form.leadSource,
     leadSourceOther: form.leadSourceOther,
@@ -394,6 +397,9 @@ export const NewInquiryWizard = forwardRef<
           ...s,
           customerName: s1.customerName,
           phone: s1.phone,
+          phoneCountry:
+            String(s1.phoneCountry ?? '').trim() ||
+            DEFAULT_COUNTRY_DIAL_CODE_OPTION,
           email: s1.email,
           leadSource: s1.leadSource,
           leadSourceOther: s1.leadSourceOther ?? '',
@@ -517,7 +523,7 @@ export const NewInquiryWizard = forwardRef<
           broker_id,
           interested_in,
           notes,
-          customers ( full_name, phone, email )
+          customers ( full_name, phone, phone_country, email )
         `
         )
         .eq('id', id)
@@ -531,7 +537,12 @@ export const NewInquiryWizard = forwardRef<
         broker_id?: string | null;
         interested_in?: string | null;
         notes?: string | null;
-        customers?: { full_name?: string; phone?: string; email?: string | null } | null;
+        customers?: {
+          full_name?: string;
+          phone?: string;
+          phone_country?: string | null;
+          email?: string | null;
+        } | null;
       };
       setCreatedInquiryId(id);
       setPersistedInquiryProjectId(String(row.project_id ?? '').trim());
@@ -553,6 +564,9 @@ export const NewInquiryWizard = forwardRef<
             ? {
               customerName: String(cust.full_name ?? '').trim(),
               phone: String(cust.phone ?? '').trim(),
+              phoneCountry:
+                String(cust.phone_country ?? '').trim() ||
+                DEFAULT_COUNTRY_DIAL_CODE_OPTION,
               email: String(cust.email ?? '').trim()
             }
             : {}),
@@ -650,6 +664,9 @@ export const NewInquiryWizard = forwardRef<
       if (neg?.approval_id) setLatestApprovalId(String(neg.approval_id));
       const custName = String(cust?.full_name ?? '').trim();
       const custPhone = String(cust?.phone ?? '').trim();
+      const custPhoneCountry =
+        String(cust?.phone_country ?? '').trim() ||
+        DEFAULT_COUNTRY_DIAL_CODE_OPTION;
       const custEmail = String(cust?.email ?? '').trim();
       const projectIdValue = String(row.project_id ?? '').trim();
       const notesValue = String(row.notes ?? '').trim();
@@ -666,6 +683,7 @@ export const NewInquiryWizard = forwardRef<
         1: {
           customerName: custName,
           phone: custPhone,
+          phoneCountry: custPhoneCountry,
           email: custEmail,
           leadSource: leadSourceState.leadSource,
           leadSourceOther: leadSourceState.leadSourceOther,
@@ -1036,7 +1054,7 @@ export const NewInquiryWizard = forwardRef<
       try {
         const { data, error } = await supabase
           .from('customers')
-          .select('id, full_name, email, phone')
+          .select('id, full_name, email, phone, phone_country')
           .or(`phone.eq.${digits},phone.ilike.%${digits}`)
           .order('full_name', { ascending: true })
           .limit(50);
@@ -1122,6 +1140,9 @@ export const NewInquiryWizard = forwardRef<
       setSellerForm((s) => ({
         ...s,
         customerName: String(customer.full_name || '').trim(),
+        phoneCountry:
+          String(customer.phone_country ?? '').trim() ||
+          DEFAULT_COUNTRY_DIAL_CODE_OPTION,
         email: String(customer.email || '').trim()
       }));
       step1Validation.touch('customerName');
@@ -1164,7 +1185,12 @@ export const NewInquiryWizard = forwardRef<
           const customerId = selected.id;
           const { error: upErr } = await supabase
             .from('customers')
-            .update({ ...nameFields, email, phone: digits })
+            .update({
+              ...nameFields,
+              email,
+              phone: digits,
+              phone_country: sellerForm.phoneCountry
+            })
             .eq('id', customerId);
           if (upErr) throw upErr;
           return customerId;
@@ -1186,13 +1212,23 @@ export const NewInquiryWizard = forwardRef<
         customerId = existing.id;
         const { error: upErr } = await supabase
           .from('customers')
-          .update({ ...nameFields, email, phone: digits })
+          .update({
+            ...nameFields,
+            email,
+            phone: digits,
+            phone_country: sellerForm.phoneCountry
+          })
           .eq('id', customerId);
         if (upErr) throw upErr;
       } else {
         const { data: inserted, error: insErr } = await supabase
           .from('customers')
-          .insert({ ...nameFields, phone: digits, email })
+          .insert({
+            ...nameFields,
+            phone: digits,
+            phone_country: sellerForm.phoneCountry,
+            email
+          })
           .select('id')
           .single();
         if (insErr) throw insErr;
@@ -1211,6 +1247,7 @@ export const NewInquiryWizard = forwardRef<
     selectedCustomerId,
     sellerForm.customerName,
     sellerForm.phone,
+    sellerForm.phoneCountry,
     sellerForm.email
   ]);
 

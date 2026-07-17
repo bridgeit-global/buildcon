@@ -393,7 +393,9 @@ export function customerEditValuesFromCustomer(row: {
   last_name?: string | null;
   full_name?: string | null;
   phone: string | null;
+  phone_country?: string | null;
   phone_secondary?: string | null;
+  phone_secondary_country?: string | null;
   email: string | null;
   dob: string | null;
   occupation: string | null;
@@ -417,9 +419,10 @@ export function customerEditValuesFromCustomer(row: {
     middle_name: middle || fromFull?.middle_name || '',
     last_name: last || fromFull?.last_name || '',
     phone: row.phone ?? '',
-    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+    phone_country: row.phone_country ?? DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     phone_secondary: row.phone_secondary ?? '',
-    phone_secondary_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+    phone_secondary_country:
+      row.phone_secondary_country ?? DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: row.email ?? '',
     dob: row.dob ? String(row.dob).slice(0, 10) : '',
     occupation: row.occupation ?? '',
@@ -529,7 +532,9 @@ export function customerCreatePayload(values: CustomerProfileValues) {
     last_name,
     full_name: formatFullName({ first_name, middle_name, last_name }),
     phone: normalizePhoneDigits(values.phone),
+    phone_country: values.phone_country,
     phone_secondary: normalizePhoneDigits(values.phone_secondary) || null,
+    phone_secondary_country: values.phone_secondary_country,
     email: values.email.trim() || null,
     dob: values.dob || null,
     occupation: values.occupation || null,

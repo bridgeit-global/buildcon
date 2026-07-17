@@ -54,7 +54,7 @@ import { ImageViewerDialog } from '@/components/image-viewer-dialog';
 import BackButton from '@/components/buttons/back-button';
 
 const CUSTOMER_SELECT =
-  'id,full_name,first_name,middle_name,last_name,phone,phone_secondary,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address,created_at';
+  'id,full_name,first_name,middle_name,last_name,phone,phone_country,phone_secondary,phone_secondary_country,email,dob,occupation,nationality,pan_number,aadhaar_last4,guardian_name,guardian_relation,residential_status,passport_number,id_proof_type,office_name_address,created_at';
 
 const KYC_BUCKET = 'kyc';
 
@@ -65,7 +65,9 @@ type CustomerRow = {
   middle_name: string | null;
   last_name: string;
   phone: string | null;
+  phone_country: string | null;
   phone_secondary: string | null;
+  phone_secondary_country: string | null;
   email: string | null;
   dob: string | null;
   occupation: string | null;
@@ -244,7 +246,9 @@ export default function CustomerDetailPage() {
       last_name: '',
       full_name: '',
       phone: null,
+      phone_country: null,
       phone_secondary: null,
+      phone_secondary_country: null,
       email: null,
       dob: null,
       occupation: null,

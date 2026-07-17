@@ -33,7 +33,7 @@ import { formatDisplayDateTime } from '@/lib/format-display-date';
 import BackButton from '@/components/buttons/back-button';
 
 const BROKER_SELECT =
-  'id,full_name,first_name,middle_name,last_name,phone,email,license_no,status,notes,created_at';
+  'id,full_name,first_name,middle_name,last_name,phone,phone_country,email,license_no,status,notes,created_at';
 
 type BrokerRow = {
   id: string;
@@ -42,6 +42,7 @@ type BrokerRow = {
   middle_name: string | null;
   last_name: string;
   phone: string | null;
+  phone_country: string | null;
   email: string | null;
   license_no: string | null;
   status: string;

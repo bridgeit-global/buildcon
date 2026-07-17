@@ -61,6 +61,7 @@ export function brokerFormValuesFromRow(row: {
   last_name?: string | null;
   full_name?: string | null;
   phone: string | null;
+  phone_country?: string | null;
   email: string | null;
   license_no: string | null;
   status: string;
@@ -75,7 +76,7 @@ export function brokerFormValuesFromRow(row: {
     middle_name: middle || fromFull?.middle_name || '',
     last_name: last || fromFull?.last_name || '',
     phone: row.phone ?? '',
-    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+    phone_country: row.phone_country ?? DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: row.email ?? '',
     license_no: row.license_no ?? '',
     status: row.status === 'Inactive' ? 'Inactive' : 'Active',
@@ -95,6 +96,7 @@ export function brokerFormPayload(values: BrokerFormValues) {
     phone: values.phone.trim()
       ? normalizePhoneDigits(values.phone)
       : null,
+    phone_country: values.phone_country,
     email: values.email.trim() || null,
     license_no: values.license_no.trim() || null,
     status: values.status,
