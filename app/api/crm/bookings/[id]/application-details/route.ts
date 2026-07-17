@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { isReadOnlyUser, requireProjectAccess } from '@/lib/authz';
 import { normalizeAadhaar, normalizePan } from '@/lib/customer/kyc-identifiers';
-import { formatFullName, namePartsFromFullName } from '@/lib/person-name';
+import {
+  formatFullName,
+  namePartsFromFullName,
+  type PersonNameParts
+} from '@/lib/person-name';
 
 type AddressPayload = {
   address_line1: string | null;
@@ -119,7 +123,7 @@ export async function POST(
   const last_name = String(body.last_name ?? '').trim();
   const legacyFull = String(body.full_name ?? '').trim();
 
-  let nameParts: { first_name: string; middle_name: string; last_name: string; full_name: string };
+  let nameParts: PersonNameParts & { full_name: string };
   if (first_name || last_name) {
     if (!first_name) {
       return NextResponse.json({ error: 'First name is required.' }, { status: 400 });
