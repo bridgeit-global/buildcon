@@ -67,11 +67,11 @@ export function CrmDataTable<TData>({
     <div className={cn('overflow-x-auto rounded-lg border border-border', className)}>
       <table
         className={cn('w-full caption-bottom text-sm text-foreground', minTableWidth)}
-        style={{ width: table.getCenterTotalSize() }}
+        style={{ minWidth: table.getCenterTotalSize() }}
       >
         <thead
           className={cn(
-            stickyHeader && 'sticky top-0 z-[1] bg-muted/60'
+            stickyHeader && 'sticky top-0 z-1 bg-muted/60'
           )}
         >
           {table.getHeaderGroups().map((hg) => (
