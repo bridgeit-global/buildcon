@@ -10,8 +10,11 @@ import {
 import {
   isAadhaarValid,
   isPanValid,
+  isPassportValid,
   normalizeAadhaar,
-  normalizePan
+  normalizePan,
+  normalizePassport,
+  passportValidationMessage
 } from '@/lib/customer/kyc-identifiers';
 import { formatFullName, splitFullName } from '@/lib/person-name';
 import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
@@ -174,6 +177,31 @@ function refineCustomerProfile(
         code: 'custom',
         path: ['id_proof_type'],
         message: 'NRI / foreign applicants must use Passport as ID proof.'
+      });
+    }
+  }
+  if (isNriResidentialStatus(data.residential_status)) {
+    const passport = normalizePassport(data.passport_number);
+    if (!passport) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['passport_number'],
+        message: 'Passport number is required for NRI / foreign applicants.'
+      });
+    } else if (!isPassportValid(passport, data.residential_status)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['passport_number'],
+        message: passportValidationMessage(data.residential_status)
+      });
+    }
+  } else {
+    const passport = normalizePassport(data.passport_number);
+    if (passport && !isPassportValid(passport, data.residential_status)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['passport_number'],
+        message: passportValidationMessage(data.residential_status)
       });
     }
   }
@@ -509,7 +537,7 @@ export function customerCreatePayload(values: CustomerProfileValues) {
     guardian_name: values.guardian_name.trim() || null,
     guardian_relation: values.guardian_relation.trim() || null,
     residential_status: values.residential_status || null,
-    passport_number: values.passport_number.trim() || null,
+    passport_number: normalizePassport(values.passport_number) || null,
     id_proof_type: values.id_proof_type.trim() || null,
     office_name_address: values.office_name_address.trim() || null
   };

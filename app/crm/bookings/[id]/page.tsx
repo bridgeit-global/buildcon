@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { CrmDetailPageSkeleton } from '../../_components/crm-skeletons';
 import { Button } from '@/components/ui/button';
 import { DateInputField } from '@/components/ui/date-input-field';
+import { PassportInputField } from '@/components/ui/passport-input-field';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { Input } from '@/components/ui/input';
 import { InrAmountInput } from '@/components/ui/inr-amount-input';
@@ -49,7 +50,8 @@ import {
 import {
   isCustomerKycComplete,
   normalizeAadhaar,
-  normalizePan
+  normalizePan,
+  normalizePassport
 } from '@/lib/customer/kyc-identifiers';
 import { PaymentScheduleTable } from '../../financials/payment-schedule-table';
 import {
@@ -239,6 +241,7 @@ function buyerToApplicationFormInput(b: BuyerKyc) {
     nationality: b.nationality,
     residential_status: b.residential_status,
     id_proof_type: b.id_proof_type,
+    passport_number: b.passport_number,
     pan: b.pan,
     aadhaarLast4: b.aadhaarLast4,
     residentialAddress: buyerAddressToFormAddress(b.residentialAddress),
@@ -1301,7 +1304,7 @@ export default function BookingDetailPage() {
           guardian_name: b.guardian_name?.trim() || null,
           guardian_relation: b.guardian_relation?.trim() || null,
           residential_status: b.residential_status?.trim() || null,
-          passport_number: b.passport_number?.trim() || null,
+          passport_number: normalizePassport(b.passport_number ?? '') || null,
           id_proof_type: b.id_proof_type?.trim() || null,
           office_name_address: b.office_name_address?.trim() || null,
           pan_number: normalizePan(b.pan) || null,
@@ -2053,13 +2056,16 @@ export default function BookingDetailPage() {
                         </div>
 
                         {b.residential_status !== 'Resident Indian' ? (
-                          <TextInputField
+                          <PassportInputField
                             label="Passport no. (NRI / foreign)"
+                            required
+                            residentialStatus={b.residential_status}
                             value={b.passport_number ?? ''}
-                            placeholder="Passport number"
-                            onChange={(e) =>
-                              patchBuyerField('passport_number', e.target.value)
+                            placeholder="K1234567"
+                            onChange={(value) =>
+                              patchBuyerField('passport_number', value)
                             }
+                            error={errs.passport_number}
                           />
                         ) : null}
                       </div>

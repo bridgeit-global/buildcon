@@ -60,6 +60,24 @@ describe('validateApplicationFormBuyer', () => {
     });
     expect(errors.perm_address_state).toBeTruthy();
   });
+
+  it('requires valid passport for NRI buyers', () => {
+    const errors = validateApplicationFormBuyer({
+      ...validBuyer,
+      residential_status: 'NRI',
+      id_proof_type: 'Passport',
+      passport_number: ''
+    });
+    expect(errors.passport_number).toBeTruthy();
+
+    const validNri = validateApplicationFormBuyer({
+      ...validBuyer,
+      residential_status: 'NRI',
+      id_proof_type: 'Passport',
+      passport_number: 'K1234567'
+    });
+    expect(validNri.passport_number).toBeUndefined();
+  });
 });
 
 describe('addressesMatch', () => {

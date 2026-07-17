@@ -3,11 +3,16 @@ import {
   customerHasKycDocs,
   isAadhaarValid,
   isCustomerKycComplete,
+  isForeignPassportValid,
+  isIndianPassportValid,
   isPanPrefixValid,
   isPanValid,
+  isPassportPrefixValid,
+  isPassportValid,
   maskAadhaarLast4,
   normalizeAadhaar,
-  normalizePan
+  normalizePan,
+  normalizePassport
 } from './kyc-identifiers';
 
 describe('normalizePan', () => {
@@ -50,6 +55,60 @@ describe('isAadhaarValid', () => {
   it('requires 12 digits', () => {
     expect(isAadhaarValid('123456789012')).toBe(true);
     expect(isAadhaarValid('1234')).toBe(false);
+  });
+});
+
+describe('normalizePassport', () => {
+  it('uppercases and strips non-alphanumeric', () => {
+    expect(normalizePassport(' k-1234567 ')).toBe('K1234567');
+  });
+
+  it('caps at 12 characters', () => {
+    expect(normalizePassport('ABCD1234567890EXTRA')).toBe('ABCD12345678');
+  });
+});
+
+describe('isIndianPassportValid', () => {
+  it('accepts letter + 7 digits', () => {
+    expect(isIndianPassportValid('K1234567')).toBe(true);
+  });
+
+  it('rejects invalid formats', () => {
+    expect(isIndianPassportValid('K123456')).toBe(false);
+    expect(isIndianPassportValid('12345678')).toBe(false);
+  });
+});
+
+describe('isForeignPassportValid', () => {
+  it('accepts 6–12 alphanumeric characters', () => {
+    expect(isForeignPassportValid('AB12CD')).toBe(true);
+    expect(isForeignPassportValid('ABCD12345678')).toBe(true);
+  });
+
+  it('rejects too short values', () => {
+    expect(isForeignPassportValid('AB12')).toBe(false);
+  });
+});
+
+describe('isPassportValid', () => {
+  it('validates NRI passports strictly', () => {
+    expect(isPassportValid('K1234567', 'NRI')).toBe(true);
+    expect(isPassportValid('AB12CD', 'NRI')).toBe(false);
+  });
+
+  it('validates foreign passports leniently', () => {
+    expect(isPassportValid('AB12CD', 'Foreign National')).toBe(true);
+    expect(isPassportValid('K1234567', 'Foreign National')).toBe(true);
+  });
+});
+
+describe('isPassportPrefixValid', () => {
+  it('accepts partial valid NRI prefix', () => {
+    expect(isPassportPrefixValid('K12', 'NRI')).toBe(true);
+  });
+
+  it('rejects digit as first NRI character', () => {
+    expect(isPassportPrefixValid('1K234567', 'NRI')).toBe(false);
   });
 });
 

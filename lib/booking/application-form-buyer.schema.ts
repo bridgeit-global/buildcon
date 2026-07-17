@@ -1,8 +1,14 @@
 import { isValidDobIso } from '@/lib/date-input-value';
 import {
   defaultIdProofForResidentialStatus,
-  idProofOptionsForResidentialStatus
+  idProofOptionsForResidentialStatus,
+  isNriResidentialStatus
 } from '@/lib/customer/id-proof-options';
+import {
+  isPassportValid,
+  normalizePassport,
+  passportValidationMessage
+} from '@/lib/customer/kyc-identifiers';
 import { isPhoneLengthValidForCountry, phoneLengthErrorMessage } from '@/lib/form/common-fields';
 
 export type ApplicationFormAddress = {
@@ -29,6 +35,7 @@ export type ApplicationFormBuyerInput = {
   nationality: string | null;
   residential_status: string | null;
   id_proof_type: string | null;
+  passport_number?: string | null;
   pan: string;
   aadhaarLast4: string;
   residentialAddress: ApplicationFormAddress | null;
@@ -131,6 +138,20 @@ export function validateApplicationFormBuyer(
   if (!b.nationality?.trim()) errors.nationality = 'Nationality is required.';
   if (!b.residential_status?.trim()) {
     errors.residential_status = 'Residential status is required.';
+  }
+
+  if (isNriResidentialStatus(b.residential_status)) {
+    const passport = normalizePassport(b.passport_number ?? '');
+    if (!passport) {
+      errors.passport_number = 'Passport number is required for NRI / foreign applicants.';
+    } else if (!isPassportValid(passport, b.residential_status)) {
+      errors.passport_number = passportValidationMessage(b.residential_status);
+    }
+  } else {
+    const passport = normalizePassport(b.passport_number ?? '');
+    if (passport && !isPassportValid(passport, b.residential_status)) {
+      errors.passport_number = passportValidationMessage(b.residential_status);
+    }
   }
 
   Object.assign(errors, validateAddress(b.residentialAddress, 'res_address'));

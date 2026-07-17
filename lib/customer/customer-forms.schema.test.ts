@@ -104,7 +104,54 @@ describe('customerCreateSchema', () => {
       customerCreateSchema.safeParse({
         ...valid,
         residential_status: 'NRI',
-        id_proof_type: 'Passport'
+        id_proof_type: 'Passport',
+        passport_number: 'K1234567'
+      }).success
+    ).toBe(true);
+  });
+
+  it('requires valid passport for NRI', () => {
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'NRI',
+        id_proof_type: 'Passport',
+        passport_number: ''
+      }).success
+    ).toBe(false);
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'NRI',
+        id_proof_type: 'Passport',
+        passport_number: 'BAD'
+      }).success
+    ).toBe(false);
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'NRI',
+        id_proof_type: 'Passport',
+        passport_number: 'K1234567'
+      }).success
+    ).toBe(true);
+  });
+
+  it('requires valid passport for foreign nationals', () => {
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'Foreign National',
+        id_proof_type: 'Passport',
+        passport_number: 'AB12'
+      }).success
+    ).toBe(false);
+    expect(
+      customerCreateSchema.safeParse({
+        ...valid,
+        residential_status: 'Foreign National',
+        id_proof_type: 'Passport',
+        passport_number: 'AB12CD34'
       }).success
     ).toBe(true);
   });

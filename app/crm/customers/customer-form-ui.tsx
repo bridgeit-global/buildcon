@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { EmailInputField } from '@/components/ui/email-input-field';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { PanInputField } from '@/components/ui/pan-input-field';
+import { PassportInputField } from '@/components/ui/passport-input-field';
 import { AadhaarInputField } from '@/components/ui/aadhaar-input-field';
 import { DobInputField } from '@/components/ui/dob-input-field';
 import { FormSection } from '@/components/ui/form-section';
@@ -184,10 +185,19 @@ function RhfPassportInput<T extends FieldValues>({
   }) as string | undefined;
   if (residentialStatus === 'Resident Indian') return null;
   return (
-    <RhfTextInput
+    <Controller
       control={control}
       name={'passport_number' as FieldPath<T>}
-      label="Passport no. (NRI / foreign)"
+      render={({ field, fieldState }) => (
+        <PassportInputField
+          label="Passport no. (NRI / foreign)"
+          required
+          residentialStatus={residentialStatus}
+          value={field.value ?? ''}
+          onChange={field.onChange}
+          error={fieldState.error?.message}
+        />
+      )}
     />
   );
 }
