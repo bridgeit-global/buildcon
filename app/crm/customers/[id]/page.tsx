@@ -162,8 +162,8 @@ function extensionFromFile(file: File): string {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-3 border-b border-ds-gray-100 py-2.5 last:border-b-0">
-      <div className="w-[140px] shrink-0 text-xs font-medium text-muted-foreground">
+    <div className="flex flex-col gap-1 border-b border-ds-gray-100 py-2.5 last:border-b-0 sm:flex-row sm:gap-3">
+      <div className="text-xs font-medium text-muted-foreground sm:w-[140px] sm:shrink-0">
         {label}
       </div>
       <div className="min-w-0 flex-1 text-sm font-semibold text-foreground">

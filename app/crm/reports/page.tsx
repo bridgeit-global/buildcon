@@ -119,7 +119,7 @@ export default function ReportsPage() {
           <CrmKpiGridSkeleton count={4} cols={4} />
           <Card className="p-4">
             <Skeleton className="h-4 w-40" />
-            <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="h-16 w-full rounded-lg" />
               ))}
@@ -128,7 +128,7 @@ export default function ReportsPage() {
         </>
       ) : (
         <>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           ['Total inventory', totalInventory],
           ['Total scheduled', formatInrCompactLacCr(totalSchedules)],
@@ -146,9 +146,9 @@ export default function ReportsPage() {
         <div className="text-sm font-semibold text-foreground">
           Inventory by status
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {Object.keys(unitCounts).length === 0 ? (
-            <div className="col-span-3 text-xs text-muted-foreground">No units.</div>
+            <div className="col-span-full text-xs text-muted-foreground">No units.</div>
           ) : (
             Object.entries(unitCounts)
               .sort(([a], [b]) => a.localeCompare(b))

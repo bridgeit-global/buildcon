@@ -1202,7 +1202,7 @@ function InventoryPageContent() {
           
          
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row">
             <div
               className={cn(
                 'min-w-0 flex-1 overflow-x-auto p-4',
@@ -1308,7 +1308,7 @@ function InventoryPageContent() {
             {selected && tab === 'Grid View' ? (
               <div
                 className={cn(
-                  'w-[280px] shrink-0 self-start p-4',
+                  'w-full shrink-0 self-start p-4 lg:w-[280px]',
                   tabCardClass()
                 )}
               >
@@ -1760,8 +1760,8 @@ function InventoryPageContent() {
             </div>
           ) : null}
 
-          <div className={cn('overflow-hidden', tabCardClass())}>
-            <table className="w-full border-collapse text-sm">
+          <div className={cn('overflow-x-auto', tabCardClass())}>
+            <table className="w-full min-w-xl border-collapse text-sm">
               <thead>
                 <tr className="border-b border-ds-gray-100 bg-ds-gray-50/80">
                   {[
