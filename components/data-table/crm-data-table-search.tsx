@@ -25,20 +25,22 @@ export function CrmDataTableSearch({
   className
 }: CrmDataTableSearchProps) {
   return (
-    <div className={cn('relative w-full min-w-[12rem] flex-1 sm:max-w-sm', className)}>
+    <div className={cn('w-full min-w-48 flex-1 sm:max-w-sm', className)}>
       <Label htmlFor={id} className={label ? 'text-xs text-muted-foreground' : 'sr-only'}>
         {label ?? placeholder}
       </Label>
-      {showIcon ? (
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      ) : null}
-      <Input
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={cn(showIcon ? 'pl-9' : undefined, label ? 'mt-1' : undefined)}
-      />
+      <div className={cn('relative', label ? 'mt-1' : undefined)}>
+        {showIcon ? (
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        ) : null}
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={showIcon ? 'pl-9' : undefined}
+        />
+      </div>
     </div>
   );
 }

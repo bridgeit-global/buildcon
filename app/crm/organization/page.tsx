@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isOrgAdmin } from '@/lib/profile-roles';
 import { CrmFormSkeleton } from '../_components/crm-skeletons';
 import { TextInputField } from '@/components/ui/text-input-field';
+import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { Button } from '@/components/ui/button';
 import { FieldLabel } from '@/components/ui/field-label';
@@ -41,6 +42,7 @@ const FIELD_IDS: Record<OrganizationSettingsFormField, string> = {
   state: 'org-state',
   pin: 'org-pin',
   phone: 'org-phone',
+  phone_country: 'org-phone-country',
   email: 'org-email',
   website: 'org-website',
   pan: 'org-pan',
@@ -441,15 +443,20 @@ export default function OrganizationPage() {
             Contact
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextInputField
+            <PhoneInputField
               id={FIELD_IDS.phone}
               label="Phone"
               value={form.phone}
+              onChange={(v) => {
+                setField('phone', v);
+                touch('phone');
+              }}
+              countryCode={form.phone_country}
+              onCountryCodeChange={(v) => {
+                setField('phone_country', v);
+                touch('phone');
+              }}
               error={fieldError('phone')}
-              onBlur={() => touch('phone')}
-              onChange={(e) => setField('phone', e.target.value)}
-              inputMode="tel"
-              maxLength={14}
             />
             <TextInputField
               id={FIELD_IDS.email}

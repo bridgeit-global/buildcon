@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import {
+  isPhoneLengthValidForCountry,
   normalizePhoneDigits,
   optionalEmail,
-  optionalPhone10
+  phoneLengthErrorMessage
 } from '@/lib/form/common-fields';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 
 const optionalTrimmed = z.string();
 
@@ -79,38 +81,52 @@ const optionalBankAccountNo = z.string().refine(
   { message: 'Enter a valid account number (9–18 digits).' }
 );
 
-export const organizationSettingsFormSchema = z.object({
-  legal_name: z
-    .string()
-    .trim()
-    .min(2, 'Legal name must be at least 2 characters.')
-    .max(200, 'Legal name is too long.'),
-  trade_name: z
-    .string()
-    .trim()
-    .min(2, 'Trade / brand name must be at least 2 characters.')
-    .max(120, 'Trade / brand name is too long.'),
-  registered_address: optionalTrimmed.max(500, 'Address is too long.'),
-  city: optionalTrimmed.max(100, 'City is too long.'),
-  state: optionalTrimmed.max(100, 'State is too long.'),
-  pin: optionalPin,
-  phone: optionalPhone10,
-  email: optionalEmail,
-  website: optionalWebsite,
-  pan: optionalPan,
-  gstin: optionalGstin,
-  cin: optionalCin,
-  rera_promoter_no: optionalTrimmed.max(64, 'RERA number is too long.'),
-  authorized_signatory_name: optionalTrimmed.max(
-    120,
-    'Signatory name is too long.'
-  ),
-  bank_name: optionalTrimmed.max(120, 'Bank name is too long.'),
-  bank_account_name: optionalTrimmed.max(120, 'Account name is too long.'),
-  bank_account_no: optionalBankAccountNo,
-  bank_ifsc: optionalIfsc,
-  notes: optionalTrimmed.max(2000, 'Notes are too long.')
-});
+export const organizationSettingsFormSchema = z
+  .object({
+    legal_name: z
+      .string()
+      .trim()
+      .min(2, 'Legal name must be at least 2 characters.')
+      .max(200, 'Legal name is too long.'),
+    trade_name: z
+      .string()
+      .trim()
+      .min(2, 'Trade / brand name must be at least 2 characters.')
+      .max(120, 'Trade / brand name is too long.'),
+    registered_address: optionalTrimmed.max(500, 'Address is too long.'),
+    city: optionalTrimmed.max(100, 'City is too long.'),
+    state: optionalTrimmed.max(100, 'State is too long.'),
+    pin: optionalPin,
+    phone: z.string(),
+    phone_country: z.string(),
+    email: optionalEmail,
+    website: optionalWebsite,
+    pan: optionalPan,
+    gstin: optionalGstin,
+    cin: optionalCin,
+    rera_promoter_no: optionalTrimmed.max(64, 'RERA number is too long.'),
+    authorized_signatory_name: optionalTrimmed.max(
+      120,
+      'Signatory name is too long.'
+    ),
+    bank_name: optionalTrimmed.max(120, 'Bank name is too long.'),
+    bank_account_name: optionalTrimmed.max(120, 'Account name is too long.'),
+    bank_account_no: optionalBankAccountNo,
+    bank_ifsc: optionalIfsc,
+    notes: optionalTrimmed.max(2000, 'Notes are too long.')
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.phone.trim() &&
+      !isPhoneLengthValidForCountry(data.phone, data.phone_country)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phone'],
+        message: phoneLengthErrorMessage(data.phone_country)
+      });
+    }
+  });
 
 export type OrganizationSettingsFormValues = z.infer<
   typeof organizationSettingsFormSchema
@@ -128,6 +144,7 @@ export const EMPTY_ORGANIZATION_SETTINGS_FORM: OrganizationSettingsFormValues =
     state: '',
     pin: '',
     phone: '',
+    phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: '',
     website: '',
     pan: '',
@@ -150,6 +167,7 @@ export function organizationSettingsFormFromRow(row: {
   state: string | null;
   pin: string | null;
   phone: string | null;
+  phone_country?: string | null;
   email: string | null;
   website: string | null;
   pan: string | null;
@@ -171,6 +189,7 @@ export function organizationSettingsFormFromRow(row: {
     state: row.state ?? '',
     pin: row.pin ?? '',
     phone: row.phone ?? '',
+    phone_country: row.phone_country ?? DEFAULT_COUNTRY_DIAL_CODE_OPTION,
     email: row.email ?? '',
     website: row.website ?? '',
     pan: row.pan ?? '',
@@ -204,6 +223,7 @@ export function organizationSettingsPayload(
     phone: values.phone.trim()
       ? normalizePhoneDigits(values.phone)
       : null,
+    phone_country: values.phone_country,
     email: trimOrNull(values.email)?.toLowerCase() ?? null,
     website: website
       ? website.includes('://')

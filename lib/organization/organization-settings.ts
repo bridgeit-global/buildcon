@@ -9,6 +9,7 @@ export type OrganizationSettings = {
   state: string | null;
   pin: string | null;
   phone: string | null;
+  phone_country: string | null;
   email: string | null;
   website: string | null;
   pan: string | null;

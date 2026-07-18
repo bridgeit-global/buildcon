@@ -758,6 +758,7 @@ create table if not exists public.organization_settings (
   state text,
   pin text,
   phone text,
+  phone_country text not null default '+91',
   email text,
   website text,
   pan text,

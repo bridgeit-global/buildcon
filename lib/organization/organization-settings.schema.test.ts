@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { zodFieldErrors } from '@/lib/form/zod-field-errors';
+import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 import {
   EMPTY_ORGANIZATION_SETTINGS_FORM,
   organizationSettingsFormSchema,
@@ -56,6 +57,7 @@ describe('organizationSettingsFormSchema', () => {
       state: 'Maharashtra',
       pin: '411001',
       phone: '9876543210',
+      phone_country: DEFAULT_COUNTRY_DIAL_CODE_OPTION,
       email: 'info@sunrise.example',
       website: 'https://sunrise.example',
       pan: 'ABCDE1234F',
