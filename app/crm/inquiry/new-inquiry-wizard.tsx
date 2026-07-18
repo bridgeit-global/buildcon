@@ -25,7 +25,6 @@ import { EmailInputField } from '@/components/ui/email-input-field';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { DateTimeInputField } from '@/components/ui/datetime-input-field';
 import { TextareaField } from '@/components/ui/textarea-field';
-import { formControlFieldGapClass } from '@/components/ui/form-control';
 import { PhoneInputField } from '@/components/ui/phone-input-field';
 import { DEFAULT_COUNTRY_DIAL_CODE_OPTION } from '@/lib/phone/country-dial-codes';
 import { isPhoneLengthValidForCountry } from '@/lib/form/common-fields';
@@ -103,7 +102,13 @@ import { followUpNeedsAttention } from '@/lib/inquiry/follow-up-due';
 import { normalizeLeadSource, persistedLeadSourceValue, resolveLeadSourceFormState } from '@/lib/inquiry/lead-source';
 import { mergeLookupOptions } from '@/lib/master/master-lookup';
 import { useMasterLookup } from '@/lib/master/use-master-lookup';
-import { namePartsFromFullName } from '@/lib/person-name';
+import { namePartsFromFullName, splitFullName } from '@/lib/person-name';
+import {
+  brokerFormPayload,
+  brokerFormSchema,
+  EMPTY_BROKER_FORM,
+  type BrokerFormValues
+} from '@/lib/broker/broker-forms.schema';
 import {
   buildWizardUiDraftPayload,
   parseInquiryWizardUi,
@@ -121,6 +126,23 @@ import {
   type WizardStep3Snapshot,
   type WizardStepId
 } from './inquiry-wizard-snapshots';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { FormDialog } from '@/components/ui/form-dialog';
+import { FormActions } from '@/components/ui/form-actions';
+import { FormSection } from '@/components/ui/form-section';
+import { FormRow } from '@/components/ui/form-row';
+import {
+  formControlClass,
+  formControlFieldGapClass
+} from '@/components/ui/form-control';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 function normalizePhone(p: string) {
   return String(p || '').replace(/\D/g, '');
@@ -2087,6 +2109,7 @@ export const NewInquiryWizard = forwardRef<
           sellerForm={sellerForm}
           setSellerForm={setSellerForm}
           brokers={brokers}
+          onBrokersChange={setBrokers}
           leadSourceOptions={leadSourceOptions}
           onAddLeadSource={addLeadSource}
           unitTypeOptions={unitTypeOptions}
@@ -2377,6 +2400,7 @@ function StepEnquiry({
   sellerForm,
   setSellerForm,
   brokers,
+  onBrokersChange,
   leadSourceOptions,
   onAddLeadSource,
   unitTypeOptions,
@@ -2390,6 +2414,9 @@ function StepEnquiry({
   sellerForm: SellerForm;
   setSellerForm: SetSellerForm;
   brokers: { id: string; full_name: string }[];
+  onBrokersChange: Dispatch<
+    SetStateAction<{ id: string; full_name: string }[]>
+  >;
   leadSourceOptions: string[];
   onAddLeadSource: (name: string) => Promise<string | null>;
   unitTypeOptions: string[];
@@ -2400,6 +2427,67 @@ function StepEnquiry({
   onPhoneChange?: (value: string) => void;
   customerLookupLoading?: boolean;
 }) {
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [createBrokerOpen, setCreateBrokerOpen] = useState(false);
+  const [savingBroker, setSavingBroker] = useState(false);
+  const brokerForm = useForm<BrokerFormValues>({
+    resolver: zodResolver(brokerFormSchema),
+    defaultValues: EMPTY_BROKER_FORM,
+    mode: 'onChange'
+  });
+  const {
+    register: registerBroker,
+    handleSubmit: handleBrokerSubmit,
+    reset: resetBrokerForm,
+    setValue: setBrokerValue,
+    watch: watchBroker,
+    formState: { errors: brokerErrors }
+  } = brokerForm;
+  const brokerStatus = watchBroker('status');
+
+  function openAddBroker(searchHint = '') {
+    const parts = splitFullName(searchHint);
+    resetBrokerForm({
+      ...EMPTY_BROKER_FORM,
+      first_name: parts.first_name,
+      middle_name: parts.middle_name ?? '',
+      last_name: parts.last_name
+    });
+    setCreateBrokerOpen(true);
+  }
+
+  const createBroker = handleBrokerSubmit(
+    async (values) => {
+      setSavingBroker(true);
+      try {
+        const { data, error: insErr } = await supabase
+          .from('brokers')
+          .insert(brokerFormPayload(values))
+          .select('id, full_name')
+          .single();
+        if (insErr) throw insErr;
+        const row = data as { id: string; full_name: string };
+        onBrokersChange((list) =>
+          [...list, row].sort((a, b) =>
+            a.full_name.localeCompare(b.full_name, undefined, {
+              sensitivity: 'base'
+            })
+          )
+        );
+        setSellerForm((s) => ({ ...s, brokerId: row.id }));
+        touch('brokerId');
+        resetBrokerForm(EMPTY_BROKER_FORM);
+        setCreateBrokerOpen(false);
+        toast.success('Broker added.');
+      } catch (e) {
+        pageError(e instanceof Error ? e.message : 'Failed to create broker');
+      } finally {
+        setSavingBroker(false);
+      }
+    },
+    () => pageError('Fix the highlighted fields before saving.')
+  );
+
   return (
     <div
       className={cn(
@@ -2541,16 +2629,134 @@ function StepEnquiry({
               placeholder="Select broker…"
               searchPlaceholder="Search broker…"
               className={wizardSelectTriggerClass}
+              emptyAction={({ search, close }) => (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="min-h-11"
+                  onClick={() => {
+                    close();
+                    openAddBroker(search);
+                  }}
+                >
+                  Add broker
+                </Button>
+              )}
             />
-            {brokers.length === 0 ? (
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                No active brokers — add one under CRM → Brokers.
-              </p>
-            ) : null}
             <FormFieldError message={fieldError('brokerId')} />
           </div>
         ) : null}
       </div>
+
+      <FormDialog
+        open={createBrokerOpen}
+        onOpenChange={(open) => {
+          setCreateBrokerOpen(open);
+          if (!open) resetBrokerForm(EMPTY_BROKER_FORM);
+        }}
+        title="Add broker"
+        description="Create a broker record and select it for this enquiry."
+        className="sm:max-w-xl"
+        footer={
+          <FormActions
+            formId="wizard-create-broker-form"
+            onCancel={() => {
+              setCreateBrokerOpen(false);
+              resetBrokerForm(EMPTY_BROKER_FORM);
+            }}
+            submitLabel="Save broker"
+            saving={savingBroker}
+          />
+        }
+      >
+        <form
+          id="wizard-create-broker-form"
+          onSubmit={(e) => void createBroker(e)}
+          className="space-y-6"
+        >
+          <FormSection title="Broker details">
+            <FormRow>
+              <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+                <TextInputField
+                  label="First name"
+                  required
+                  placeholder="e.g. Amit"
+                  error={brokerErrors.first_name?.message}
+                  {...registerBroker('first_name')}
+                />
+                <TextInputField
+                  label="Middle name"
+                  placeholder="Optional"
+                  error={brokerErrors.middle_name?.message}
+                  {...registerBroker('middle_name')}
+                />
+                <TextInputField
+                  label="Last name"
+                  required
+                  placeholder="e.g. Deshmukh"
+                  error={brokerErrors.last_name?.message}
+                  {...registerBroker('last_name')}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <PhoneInputField
+                  value={watchBroker('phone')}
+                  onChange={(v) =>
+                    setBrokerValue('phone', v, { shouldValidate: true })
+                  }
+                  countryCode={watchBroker('phone_country')}
+                  onCountryCodeChange={(v) =>
+                    setBrokerValue('phone_country', v, { shouldValidate: true })
+                  }
+                  error={brokerErrors.phone?.message}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <EmailInputField
+                  value={watchBroker('email')}
+                  onChange={(v) =>
+                    setBrokerValue('email', v, { shouldValidate: true })
+                  }
+                  error={brokerErrors.email?.message}
+                />
+              </div>
+              <TextInputField
+                className="md:col-span-2"
+                label="RERA / license no."
+                {...registerBroker('license_no')}
+              />
+              <div>
+                <FieldLabel>Status</FieldLabel>
+                <Select
+                  value={brokerStatus}
+                  onValueChange={(v) =>
+                    setBrokerValue('status', v as 'Active' | 'Inactive', {
+                      shouldValidate: true
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    className={cn(formControlFieldGapClass, formControlClass)}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <TextareaField
+                className="md:col-span-2"
+                label="Notes"
+                rows={3}
+                {...registerBroker('notes')}
+              />
+            </FormRow>
+          </FormSection>
+        </form>
+      </FormDialog>
 
       <div className="rounded-xl border border-ds-gray-200 bg-card p-4 shadow-sm">
         <p className="text-xs font-semibold text-ds-gray-800">

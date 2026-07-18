@@ -31,6 +31,11 @@ type SearchableSelectProps = {
   createOptionLabel?: (value: string) => React.ReactNode;
   /** Clicking the already-selected option clears it. Defaults to true; set false for single-choice pickers (e.g. country code) that should always stay selected. */
   allowClear?: boolean;
+  /** Extra content under “No results found.” (e.g. Add broker). */
+  emptyAction?: (ctx: {
+    search: string;
+    close: () => void;
+  }) => React.ReactNode;
 };
 
 export function SearchableSelect({
@@ -47,7 +52,8 @@ export function SearchableSelect({
   renderOption,
   onCreateOption,
   createOptionLabel,
-  allowClear = true
+  allowClear = true,
+  emptyAction
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -124,9 +130,17 @@ export function SearchableSelect({
         </div>
         <div className="max-h-60 overflow-y-auto p-1">
           {filtered.length === 0 && (
-            <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-              No results found.
-            </p>
+            <div className="space-y-3 px-2 py-4 text-center">
+              <p className="text-sm text-muted-foreground">No results found.</p>
+              {emptyAction ? (
+                <div className="flex justify-center">
+                  {emptyAction({
+                    search: createValue,
+                    close: () => setOpen(false)
+                  })}
+                </div>
+              ) : null}
+            </div>
           )}
           {filtered.map((option) => (
             <button

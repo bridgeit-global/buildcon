@@ -449,7 +449,13 @@ create table if not exists public.master_lookup_items (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   constraint master_lookup_kind_chk check (
-    kind in ('lead_source', 'unit_type', 'unit_category', 'customer_relation')
+    kind in (
+      'lead_source',
+      'unit_type',
+      'unit_category',
+      'customer_relation',
+      'loan_bank'
+    )
   ),
   constraint master_lookup_name_nonempty check (length(trim(name)) > 0)
 );

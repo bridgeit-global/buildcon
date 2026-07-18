@@ -204,40 +204,46 @@ export default function BrokersPage() {
         >
           <FormSection title="Broker details">
             <FormRow>
-              <TextInputField
-                label="First name"
-                required
-                placeholder="e.g. Amit"
-                error={errors.first_name?.message}
-                {...register('first_name')}
-              />
-              <TextInputField
-                label="Middle name"
-                placeholder="Optional"
-                error={errors.middle_name?.message}
-                {...register('middle_name')}
-              />
-              <TextInputField
-                label="Last name"
-                required
-                placeholder="e.g. Deshmukh"
-                error={errors.last_name?.message}
-                {...register('last_name')}
-              />
-              <PhoneInputField
-                value={watch('phone')}
-                onChange={(v) => setValue('phone', v, { shouldValidate: true })}
-                countryCode={watch('phone_country')}
-                onCountryCodeChange={(v) =>
-                  setValue('phone_country', v, { shouldValidate: true })
-                }
-                error={errors.phone?.message}
-              />
-              <EmailInputField
-                value={watch('email')}
-                onChange={(v) => setValue('email', v, { shouldValidate: true })}
-                error={errors.email?.message}
-              />
+              <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+                <TextInputField
+                  label="First name"
+                  required
+                  placeholder="e.g. Amit"
+                  error={errors.first_name?.message}
+                  {...register('first_name')}
+                />
+                <TextInputField
+                  label="Middle name"
+                  placeholder="Optional"
+                  error={errors.middle_name?.message}
+                  {...register('middle_name')}
+                />
+                <TextInputField
+                  label="Last name"
+                  required
+                  placeholder="e.g. Deshmukh"
+                  error={errors.last_name?.message}
+                  {...register('last_name')}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <PhoneInputField
+                  value={watch('phone')}
+                  onChange={(v) => setValue('phone', v, { shouldValidate: true })}
+                  countryCode={watch('phone_country')}
+                  onCountryCodeChange={(v) =>
+                    setValue('phone_country', v, { shouldValidate: true })
+                  }
+                  error={errors.phone?.message}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <EmailInputField
+                  value={watch('email')}
+                  onChange={(v) => setValue('email', v, { shouldValidate: true })}
+                  error={errors.email?.message}
+                />
+              </div>
               <TextInputField
                 className="md:col-span-2"
                 label="RERA / license no."

@@ -4,14 +4,19 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   COUNTRY_DIAL_CODE_OPTIONS,
   DEFAULT_COUNTRY_DIAL_CODE_OPTION,
-  parseCountryDialCode
+  parseCountryDialCode,
+  resolveCountryDialCodeOption
 } from '@/lib/phone/country-dial-codes';
 import { cn } from '@/lib/utils';
 
-export { DEFAULT_COUNTRY_DIAL_CODE_OPTION, parseCountryDialCode };
+export {
+  DEFAULT_COUNTRY_DIAL_CODE_OPTION,
+  parseCountryDialCode,
+  resolveCountryDialCodeOption
+};
 
 export type CountryCodeSelectProps = {
-  /** Formatted option, e.g. "🇮🇳 India (+91)" — use `parseCountryDialCode()` to get just "+91". */
+  /** Formatted option ("🇮🇳 India (+91)") or bare dial code ("+91") from the DB. */
   value: string;
   onValueChange: (value: string) => void;
   className?: string;
@@ -27,10 +32,14 @@ export function CountryCodeSelect({
   disabled,
   error
 }: CountryCodeSelectProps) {
+  const resolved = resolveCountryDialCodeOption(value);
+
   return (
     <SearchableSelect
-      value={value || DEFAULT_COUNTRY_DIAL_CODE_OPTION}
-      onValueChange={(next) => onValueChange(next || DEFAULT_COUNTRY_DIAL_CODE_OPTION)}
+      value={resolved}
+      onValueChange={(next) =>
+        onValueChange(resolveCountryDialCodeOption(next))
+      }
       options={COUNTRY_DIAL_CODE_OPTIONS}
       placeholder="Code"
       searchPlaceholder="Search country or code…"
@@ -39,12 +48,15 @@ export function CountryCodeSelect({
       error={error}
       className={cn('w-26 shrink-0 px-2', className)}
       contentClassName="w-72"
-      renderValue={(v) => (
-        <span className="flex items-center gap-1.5">
-          <span>{v.split(' ')[0]}</span>
-          <span>{parseCountryDialCode(v)}</span>
-        </span>
-      )}
+      renderValue={(v) => {
+        const option = resolveCountryDialCodeOption(v);
+        return (
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden>{option.split(' ')[0]}</span>
+            <span>{parseCountryDialCode(option)}</span>
+          </span>
+        );
+      }}
     />
   );
 }

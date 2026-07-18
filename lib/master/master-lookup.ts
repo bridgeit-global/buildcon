@@ -2,7 +2,8 @@ export const MASTER_LOOKUP_KINDS = [
   'lead_source',
   'unit_type',
   'unit_category',
-  'customer_relation'
+  'customer_relation',
+  'loan_bank'
 ] as const;
 
 export type MasterLookupKind = (typeof MASTER_LOOKUP_KINDS)[number];
@@ -11,7 +12,8 @@ export const MASTER_LOOKUP_KIND_LABELS: Record<MasterLookupKind, string> = {
   lead_source: 'Lead sources',
   unit_type: 'Unit types',
   unit_category: 'Unit categories',
-  customer_relation: 'Customer relations'
+  customer_relation: 'Customer relations',
+  loan_bank: 'Loan banks'
 };
 
 export const MASTER_LOOKUP_OTHER_VALUE = 'Other';

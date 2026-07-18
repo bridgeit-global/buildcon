@@ -107,6 +107,9 @@ import { bookingAmountExceedsUnitTotalMessage } from '@/lib/booking/booking-amou
 import { zodFieldErrors } from '@/lib/form/zod-field-errors';
 import { FormFieldError } from '@/components/ui/form-field-error';
 import { namePartsFromFullName } from '@/lib/person-name';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { mergeLookupOptions } from '@/lib/master/master-lookup';
+import { useMasterLookup } from '@/lib/master/use-master-lookup';
 
 type UnitOption = {
   id: string;
@@ -154,14 +157,6 @@ function normalizePhoneDigits(p: string | null | undefined) {
 function newCoBuyerSlot(): CoBuyerSlot {
   return { key: crypto.randomUUID(), customerId: '' };
 }
-
-const LOAN_BANK_OPTIONS = [
-  'HDFC Bank',
-  'SBI Bank',
-  'Axis Bank',
-  'ICICI Bank',
-  'Bank of Baroda'
-] as const;
 
 function parsePaymentDetailStored(raw: unknown): PaymentDetailStored | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -387,6 +382,7 @@ export default function BookingsPage() {
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
   );
+  const { activeNames: masterLoanBanks } = useMasterLookup('loan_bank');
 
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -399,6 +395,10 @@ export default function BookingsPage() {
   const [coBuyerSlots, setCoBuyerSlots] = useState<CoBuyerSlot[]>([]);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [loanBank, setLoanBank] = useState('');
+  const loanBankOptions = useMemo(
+    () => mergeLookupOptions(masterLoanBanks, [loanBank]),
+    [masterLoanBanks, loanBank]
+  );
   const [upiUtr, setUpiUtr] = useState('');
   const [chequeNo, setChequeNo] = useState('');
   const [neftRef, setNeftRef] = useState('');
@@ -770,6 +770,9 @@ export default function BookingsPage() {
     setUpiUtr('');
     setChequeNo('');
     setNeftRef('');
+    if (!paymentModeNeedsLoanBank(paymentMode)) {
+      setLoanBank('');
+    }
   }, [paymentMode]);
 
   const resolvedInquiryId = prefillMeta?.inquiryId ?? unitInquiryId;
@@ -1773,29 +1776,27 @@ export default function BookingsPage() {
             </Select>
             <FormFieldError message={createFieldError('paymentMode')} />
           </div>
-          <div>
-            <Label>Loan bank</Label>
-            <Select
-              value={loanBank === '' ? undefined : loanBank}
-              onValueChange={(v) => {
-                setLoanBank(v);
-                touchCreateField('loanBank');
-              }}
-              disabled={!paymentModeNeedsLoanBank(paymentMode)}
-            >
-              <SelectTrigger className="mt-1 w-full">
-                <SelectValue placeholder="Select bank…" />
-              </SelectTrigger>
-              <SelectContent>
-                {LOAN_BANK_OPTIONS.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormFieldError message={createFieldError('loanBank')} />
-          </div>
+          {paymentModeNeedsLoanBank(paymentMode) ? (
+            <div>
+              <Label>
+                Loan bank
+                <RequiredMark />
+              </Label>
+              <SearchableSelect
+                className="mt-1 w-full"
+                value={loanBank}
+                onValueChange={(v) => {
+                  setLoanBank(v);
+                  touchCreateField('loanBank');
+                }}
+                options={loanBankOptions}
+                placeholder="Select bank…"
+                searchPlaceholder="Search bank…"
+                error={Boolean(createFieldError('loanBank'))}
+              />
+              <FormFieldError message={createFieldError('loanBank')} />
+            </div>
+          ) : null}
           {paymentMode === 'UPI' ? (
             <TextInputField
               className="col-span-2"

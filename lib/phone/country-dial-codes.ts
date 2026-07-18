@@ -169,7 +169,33 @@ const COUNTRY_BY_OPTION = new Map<string, CountryDialCode>(
   COUNTRY_DIAL_CODES.map((c) => [formatCountryDialCodeOption(c), c])
 );
 
-/** Expected mobile number digit length for a formatted "🇮🇳 India (+91)" option; falls back to 10. */
+/**
+ * Maps a stored dial code ("+91") or a picker label ("🇮🇳 India (+91)") to a
+ * known option value. DB defaults and older rows store bare dial codes.
+ */
+export function resolveCountryDialCodeOption(
+  value: string | null | undefined
+): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return DEFAULT_COUNTRY_DIAL_CODE_OPTION;
+  if (COUNTRY_BY_OPTION.has(raw)) return raw;
+
+  const dialFromParens = parseCountryDialCode(raw);
+  const dial = (dialFromParens.startsWith('+')
+    ? dialFromParens
+    : `+${dialFromParens.replace(/\D/g, '')}`
+  ).trim();
+  const country = COUNTRY_DIAL_CODES.find((c) => c.dialCode === dial);
+  if (country) return formatCountryDialCodeOption(country);
+
+  return DEFAULT_COUNTRY_DIAL_CODE_OPTION;
+}
+
+/** Expected mobile number digit length for a country option or bare dial code; falls back to 10. */
 export function phoneLengthForOption(option: string): number {
-  return COUNTRY_BY_OPTION.get(option)?.phoneLength ?? DEFAULT_COUNTRY_DIAL_CODE.phoneLength;
+  const resolved = resolveCountryDialCodeOption(option);
+  return (
+    COUNTRY_BY_OPTION.get(resolved)?.phoneLength ??
+    DEFAULT_COUNTRY_DIAL_CODE.phoneLength
+  );
 }
