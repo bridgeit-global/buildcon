@@ -216,7 +216,7 @@ describe('requireProjectAccess', () => {
     expect(result).toEqual({ ok: false, status: 403, error: 'Forbidden' });
   });
 
-  it('allows org admin without membership row', async () => {
+  it('allows Super Admin without membership row', async () => {
     const client = createMockSupabaseClient({
       auth: {
         getUser: async () => ({
@@ -234,7 +234,7 @@ describe('requireProjectAccess', () => {
     expect(result).toEqual({ ok: true, userId: 'admin-1', isSuperAdmin: true });
   });
 
-  it('allows Admin without membership row', async () => {
+  it('denies Admin without membership row', async () => {
     const client = createMockSupabaseClient({
       auth: {
         getUser: async () => ({
@@ -243,13 +243,33 @@ describe('requireProjectAccess', () => {
         })
       },
       tables: {
-        profiles: { data: { role: 'Admin' }, error: null }
+        profiles: { data: { role: 'Admin' }, error: null },
+        project_members: { data: null, error: null }
       }
     });
     createSupabaseServerClient.mockResolvedValue(client);
 
     const result = await requireProjectAccess('proj-1');
-    expect(result).toEqual({ ok: true, userId: 'admin-2', isSuperAdmin: true });
+    expect(result).toEqual({ ok: false, status: 403, error: 'Forbidden' });
+  });
+
+  it('allows Admin with active membership', async () => {
+    const client = createMockSupabaseClient({
+      auth: {
+        getUser: async () => ({
+          data: { user: { id: 'admin-2' } },
+          error: null
+        })
+      },
+      tables: {
+        profiles: { data: { role: 'Admin' }, error: null },
+        project_members: { data: { project_id: 'proj-1' }, error: null }
+      }
+    });
+    createSupabaseServerClient.mockResolvedValue(client);
+
+    const result = await requireProjectAccess('proj-1');
+    expect(result).toEqual({ ok: true, userId: 'admin-2', isSuperAdmin: false });
   });
 
   it('allows active project member', async () => {

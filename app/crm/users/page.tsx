@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { inviteProfileRoles, isOrgAdmin } from '@/lib/profile-roles';
+import { inviteProfileRoles, isOrgAdmin, isSuperAdminOnly } from '@/lib/profile-roles';
 import { pageError } from '@/lib/toast';
 import {
   portalLinksSchema,
@@ -344,16 +344,28 @@ export default function UsersPage() {
   }, [members, profile]);
 
   function canManageProject(projectId: string) {
-    return isOrgAdmin(profile?.role) || managerProjectIds.has(projectId);
+    if (isSuperAdminOnly(profile?.role)) return true;
+    if (profile?.role === 'Admin' && profile.id) {
+      return members.some(
+        (m) =>
+          m.user_id === profile.id &&
+          m.project_id === projectId &&
+          m.status === 'Active'
+      );
+    }
+    return managerProjectIds.has(projectId);
   }
 
   const canManageAnyMembers =
-    isOrgAdmin(profile?.role) || managerProjectIds.size > 0;
+    isSuperAdminOnly(profile?.role) ||
+    (profile?.role === 'Admin' &&
+      members.some((m) => m.user_id === profile.id && m.status === 'Active')) ||
+    managerProjectIds.size > 0;
 
   const manageableProjects = useMemo(
     () => projects.filter((p) => canManageProject(p.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, profile?.role, managerProjectIds]
+    [projects, profile?.role, profile?.id, members, managerProjectIds]
   );
 
   const addMemberUserOptions = useMemo(

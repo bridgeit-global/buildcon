@@ -1,4 +1,8 @@
-/** Super Admin or Admin — full CRM org-wide privileges. */
+/**
+ * Super Admin or Admin — org-level CRM privileges (create projects, masters,
+ * users, organization settings). Project data access is separate: Super Admin
+ * is org-wide; Admin requires active `project_members` membership.
+ */
 export function isOrgAdmin(role: string | null | undefined): boolean {
   return role === 'Super Admin' || role === 'Admin';
 }

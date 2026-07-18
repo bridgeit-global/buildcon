@@ -163,7 +163,7 @@ security definer
 set search_path = public
 set row_security = off
 as $$
-  select public.is_org_admin()
+  select public.is_super_admin()
   or exists (
     select 1
     from public.project_members pm
@@ -189,8 +189,8 @@ with check (public.can_create_project());
 create policy "projects_update_org_admin"
 on public.projects
 for update
-using (public.is_org_admin())
-with check (public.is_org_admin());
+using (public.is_org_admin() and public.has_project_access(id))
+with check (public.is_org_admin() and public.has_project_access(id));
 
 create policy "project_members_select_project"
 on public.project_members
@@ -265,8 +265,8 @@ using (public.has_project_access(project_id));
 create policy "wings_mutate_org_admin"
 on public.project_wings
 for all
-using (public.is_org_admin())
-with check (public.is_org_admin());
+using (public.is_org_admin() and public.has_project_access(project_id))
+with check (public.is_org_admin() and public.has_project_access(project_id));
 
 create policy "unit_types_select_project"
 on public.project_unit_types
@@ -276,8 +276,8 @@ using (public.has_project_access(project_id));
 create policy "unit_types_mutate_org_admin"
 on public.project_unit_types
 for all
-using (public.is_org_admin())
-with check (public.is_org_admin());
+using (public.is_org_admin() and public.has_project_access(project_id))
+with check (public.is_org_admin() and public.has_project_access(project_id));
 
 create policy "units_select_project"
 on public.units

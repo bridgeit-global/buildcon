@@ -48,9 +48,6 @@ export async function getProfileRole(
     .eq('id', userId)
     .maybeSingle();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7394/ingest/83773395-73ed-477b-81a1-3fe21e6007e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'182013'},body:JSON.stringify({sessionId:'182013',location:'lib/authz.ts:getProfileRole',message:'profiles query result',data:{userId,role:data?.role,errorCode:error?.code,errorMsg:error?.message},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
   if (error) return { ok: false, status: 500, error: error.message };
   return { ok: true, role: (data?.role ?? null) as ProfileRole | null };
 }
@@ -64,7 +61,7 @@ export function isSuperAdminOnly(role: ProfileRole | null | undefined): boolean 
   return profileIsSuperAdminOnly(role);
 }
 
-/** @deprecated Use isOrgAdmin — Admin shares Super Admin privileges. */
+/** @deprecated Use isOrgAdmin for org-level checks; use isSuperAdminOnly for org-wide project access. */
 export function isSuperAdmin(role: ProfileRole | null | undefined): boolean {
   return isOrgAdmin(role);
 }
@@ -101,13 +98,13 @@ export async function requireProjectAccess(
 
   const roleRes = await getProfileRole(gate.userId);
   if (!roleRes.ok) return roleRes;
-  const orgAdmin = isOrgAdmin(roleRes.role);
-  if (orgAdmin) return { ok: true, userId: gate.userId, isSuperAdmin: true };
+
+  // Only Super Admin bypasses project membership. Admin must be an active member.
+  if (isSuperAdminOnly(roleRes.role)) {
+    return { ok: true, userId: gate.userId, isSuperAdmin: true };
+  }
 
   const supabase = await createSupabaseServerClient();
-  // #region agent log
-  fetch('http://127.0.0.1:7394/ingest/83773395-73ed-477b-81a1-3fe21e6007e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'182013'},body:JSON.stringify({sessionId:'182013',location:'lib/authz.ts:requireProjectAccess',message:'Querying project_members with RLS-enabled client',data:{projectId,userId:gate.userId},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
   const { data, error } = await supabase
     .from('project_members')
     .select('project_id')
@@ -116,9 +113,6 @@ export async function requireProjectAccess(
     .eq('status', 'Active')
     .maybeSingle();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7394/ingest/83773395-73ed-477b-81a1-3fe21e6007e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'182013'},body:JSON.stringify({sessionId:'182013',location:'lib/authz.ts:requireProjectAccess:result',message:'project_members query result',data:{hasData:!!data,errorCode:error?.code,errorMsg:error?.message,errorHint:error?.hint},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
   if (error) return { ok: false, status: 500, error: error.message };
   if (!data) return { ok: false, status: 403, error: 'Forbidden' };
 
@@ -131,6 +125,11 @@ export async function requireProjectManagerOrSuperAdmin(
   const gate = await requireProjectAccess(projectId);
   if (!gate.ok) return gate;
   if (gate.isSuperAdmin) return gate;
+
+  const roleRes = await getProfileRole(gate.userId);
+  if (!roleRes.ok) return roleRes;
+  // Admin with active membership can manage members on that project.
+  if (roleRes.role === 'Admin') return gate;
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
